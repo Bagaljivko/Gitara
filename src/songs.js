@@ -163,19 +163,27 @@ async function startScan() {
   const file = await pickFile('image/*', how === 'camera' ? 'environment' : null);
   if (!file) return;
 
+  await runScan(file);
+}
+
+/** Šalje sliku Geminiju; kada je Gemini zauzet ponavlja automatski, a na kraju nudi „Pokušaj ponovo“. */
+async function runScan(file, prepared = null) {
   const overlay = document.createElement('div');
   overlay.className = 'modal-backdrop';
   overlay.innerHTML = `<div class="modal scan-modal" role="dialog" aria-modal="true" aria-label="Skeniranje">
     <div class="scan-preview"><div class="scan-line"></div></div>
-    <p class="scan-msg"><span class="spinner"></span> Čitam pesmu… ovo može da potraje 10–30 sekundi.</p>
+    <p class="scan-msg"><span class="spinner"></span> <span id="scanText">Čitam pesmu… ovo može da potraje 10–30 sekundi.</span></p>
     <div class="modal-actions"><button class="btn" id="scanCancel">Otkaži</button></div></div>`;
   document.body.appendChild(overlay);
   const ctrl = new AbortController();
   overlay.querySelector('#scanCancel').addEventListener('click', () => ctrl.abort());
+  let img = prepared;
   try {
-    const img = await prepareImage(file);
+    if (!img) img = await prepareImage(file);
     overlay.querySelector('.scan-preview').style.backgroundImage = `url(${img.preview})`;
-    const song = await scanSong(img, ctrl.signal);
+    const song = await scanSong(img, ctrl.signal, () => {
+      overlay.querySelector('#scanText').textContent = 'Gemini je zauzet, pokušavam ponovo…';
+    });
     draft = song;
     draftImage = img.preview;
     overlay.remove();
@@ -183,7 +191,15 @@ async function startScan() {
   } catch (e) {
     overlay.remove();
     if (e && e.name === 'AbortError') return;
-    await dialog({ title: 'Skeniranje nije uspelo', body: e instanceof GeminiError ? e.message : 'Došlo je do greške. Pokušaj ponovo.' });
+    const busy = e instanceof GeminiError && e.code === 'BUSY';
+    const again = await dialog({
+      title: busy ? 'Gemini je zauzet' : 'Skeniranje nije uspelo',
+      body: e instanceof GeminiError ? e.message : 'Došlo je do greške. Pokušaj ponovo.',
+      buttons: busy && img
+        ? [{ label: 'Otkaži', value: false }, { label: 'Pokušaj ponovo', value: true, kind: 'primary' }]
+        : [{ label: 'U redu', value: false, kind: 'primary' }],
+    });
+    if (again) return runScan(file, img);
   }
 }
 

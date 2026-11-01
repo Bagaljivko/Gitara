@@ -38,6 +38,7 @@ export async function renderSettings(root) {
         <button class="btn danger-text" id="kDel" ${key ? '' : 'hidden'}>Obriši ključ</button>
       </div>
       <button class="btn small" id="mUseSuggested" hidden></button>
+      <button class="btn small" id="kRetry" hidden>Pokušaj ponovo</button>
       <p class="status" id="kStatus" role="status">${key ? 'Ključ je sačuvan na ovom uređaju.' : 'Ključ nije unet.'}</p>
 
       <div class="help-box">
@@ -112,6 +113,7 @@ export async function renderSettings(root) {
     status(`Ključ i model (${m}) su sačuvani na ovom uređaju.`, 'ok');
     toast('Sačuvano.');
   });
+  $('kRetry').addEventListener('click', () => $('kTest').click());
   $('mUseSuggested').addEventListener('click', async () => {
     const m = $('mUseSuggested').dataset.model;
     $('mInput').value = m;
@@ -126,15 +128,17 @@ export async function renderSettings(root) {
     if (!m) { status('Ime modela nije ispravno (npr. ' + DEFAULT_MODEL + ').', 'err'); return; }
     $('kTest').disabled = true;
     $('mUseSuggested').hidden = true;
+    $('kRetry').hidden = true;
     status(`Proveravam ključ (model ${m})…`);
     try {
-      await testKey(v, m);
+      await testKey(v, m, () => status('Gemini je zauzet, pokušavam ponovo…'));
       status('Ključ radi ✓', 'ok');
       const saved = await settings.get('geminiKey', '');
       const savedModel = await settings.get('geminiModel', DEFAULT_MODEL);
       if (saved !== v || savedModel !== m) status('Ključ radi ✓ — ne zaboravi da klikneš „Sačuvaj“.', 'ok');
     } catch (e) {
       status(e instanceof GeminiError ? e.message : 'Provera nije uspela. Pokušaj ponovo.', 'err');
+      if (e instanceof GeminiError && e.code === 'BUSY') $('kRetry').hidden = false;
       if (e instanceof GeminiError && e.suggestedModel && e.suggestedModel !== m) {
         const b = $('mUseSuggested');
         b.dataset.model = e.suggestedModel;

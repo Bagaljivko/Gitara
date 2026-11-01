@@ -1,10 +1,10 @@
-// Tab "Tuner": hromatski štimer za standardno štimovanje gitare.
+// Tab "Tuner": štimer za standardno štimovanje gitare (E A D G B E).
+// Prikaz: nota, merač (♭ — centar — ♯) i glava gitare sa okruglim dugmićima za žice.
 import { openMic, closeMic, yin, rms, MicError } from './audio.js';
 import { midiToFreq, freqToMidi, midiName } from './music.js';
 import { settings } from './db.js';
-import { esc } from './ui.js';
 
-// Žice od najdublje: indeks 0 = E2 (6. žica)
+// Žice od najdublje: indeks 0 = E2 (6. žica). slot 0 = najviši par ključeva.
 const STRINGS = [
   { id: 0, label: 'E', full: 'E2', midi: 40, side: 'L', slot: 2, num: 6 },
   { id: 1, label: 'A', full: 'A2', midi: 45, side: 'L', slot: 1, num: 5 },
@@ -15,67 +15,45 @@ const STRINGS = [
 ];
 
 const IN_TUNE = 5; // ±centi
+const HOLD_MS = 1000; // koliko dugo žica mora da bude naštimovana da postane zelena
+const RANGE = 50; // merač prikazuje ±50 centi
+
+// Geometrija glave (viewBox 0 0 360 440)
+const SLOT_Y = [96, 186, 276];
+const POST_X = { L: 148, R: 212 };
+const KEY_X = { L: 112, R: 248 };
+const BTN_X = { L: 44, R: 316 };
+const NUT_Y = 420;
+const nutX = (i) => 158 + i * 8.8;
 
 function headstockSVG() {
-  const slotY = [78, 150, 222];
-  const postX = { L: 92, R: 148 };
-  const keyX = { L: 30, R: 210 };
-  const nutY = 318;
-  const nutX = (i) => 99 + i * 8.4;
-  let pegs = '';
-  let strings = '';
+  let strings = '', pegs = '', buttons = '';
   for (const s of STRINGS) {
-    const y = slotY[s.slot];
-    const px = postX[s.side];
-    const kx = keyX[s.side];
-    const dir = s.side === 'L' ? -1 : 1;
-    strings += `<line class="hs-string" data-s="${s.id}" x1="${nutX(s.id)}" y1="${nutY}" x2="${px - dir * 4}" y2="${y}" stroke-width="${2.2 - s.id * 0.25}"/>`;
-    pegs += `<g class="peg" data-s="${s.id}" data-side="${s.side}" tabindex="0" role="button" aria-label="Žica ${s.num} (${s.full})">
-      <rect class="peg-hit" x="${Math.min(kx, px) - 26}" y="${y - 26}" width="${Math.abs(kx - px) + 52}" height="52" fill="transparent"/>
+    const y = SLOT_Y[s.slot];
+    const px = POST_X[s.side], kx = KEY_X[s.side], bx = BTN_X[s.side];
+    strings += `<line class="hs-string" data-s="${s.id}" x1="${nutX(s.id)}" y1="${NUT_Y}" x2="${px}" y2="${y}" stroke-width="${(2.6 - s.id * 0.3).toFixed(1)}"/>`;
+    pegs += `<g class="peg" data-s="${s.id}">
       <rect class="peg-shaft" x="${Math.min(kx, px)}" y="${y - 4}" width="${Math.abs(kx - px)}" height="8" rx="3"/>
-      <circle class="peg-post" cx="${px}" cy="${y}" r="7"/>
-      <ellipse class="peg-key" cx="${kx}" cy="${y}" rx="19" ry="23"/>
-      <text class="peg-label" x="${kx}" y="${y + 6}" text-anchor="middle">${s.label}</text>
-      <g transform="translate(${kx} ${y})"><g class="peg-arrow">
-        <path class="peg-arrow-arc" d="M -27 -6 A 28 28 0 0 1 6 -28" fill="none"/>
-        <path class="peg-arrow-head" d="M 6 -28 l -9 -5 l 1 10 z"/>
-      </g></g>
+      <rect class="peg-key" x="${kx - 10}" y="${y - 17}" width="20" height="34" rx="9"/>
+      <circle class="peg-post" cx="${px}" cy="${y}" r="8"/>
+    </g>`;
+    buttons += `<g class="sbtn" data-s="${s.id}" tabindex="0" role="button" aria-label="Žica ${s.num} (${s.full})">
+      <circle class="sbtn-c" cx="${bx}" cy="${y}" r="29"/>
+      <text class="sbtn-t" x="${bx}" y="${y + 8}" text-anchor="middle">${s.label}</text>
     </g>`;
   }
-  return `<svg class="headstock" viewBox="0 0 240 340" xmlns="http://www.w3.org/2000/svg" aria-label="Glava gitare">
+  return `<svg class="headstock" viewBox="0 0 360 440" xmlns="http://www.w3.org/2000/svg" aria-label="Glava gitare">
     <defs>
       <linearGradient id="hsWood" x1="0" x2="1" y1="0" y2="1">
-        <stop offset="0" stop-color="#3a2a22"/><stop offset="1" stop-color="#22181a"/>
+        <stop offset="0" stop-color="#3b2c24"/><stop offset="1" stop-color="#211819"/>
       </linearGradient>
     </defs>
-    <path class="hs-body" d="M 74 330 L 64 40 Q 66 14 92 10 Q 120 4 148 10 Q 174 14 176 40 L 166 330 Z" fill="url(#hsWood)"/>
-    <path class="hs-inlay" d="M 104 34 Q 120 22 136 34 Q 120 46 104 34 Z"/>
-    <rect class="hs-nut" x="90" y="${nutY - 3}" width="60" height="7" rx="2"/>
+    <path class="hs-body" d="M 136 440 L 122 54 Q 124 22 154 16 Q 180 10 206 16 Q 236 22 238 54 L 224 440 Z" fill="url(#hsWood)"/>
+    <path class="hs-inlay" d="M 164 42 Q 180 30 196 42 Q 180 54 164 42 Z"/>
+    <rect class="hs-nut" x="150" y="${NUT_Y - 4}" width="60" height="8" rx="2"/>
     ${strings}
     ${pegs}
-  </svg>`;
-}
-
-function meterSVG() {
-  let ticks = '';
-  for (let c = -50; c <= 50; c += 5) {
-    const a = (c / 50) * 60 * (Math.PI / 180);
-    const r1 = c % 25 === 0 ? 84 : c % 10 === 0 ? 89 : 92;
-    const x1 = 120 + Math.sin(a) * r1, y1 = 120 - Math.cos(a) * r1;
-    const x2 = 120 + Math.sin(a) * 98, y2 = 120 - Math.cos(a) * 98;
-    ticks += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" class="m-tick${c === 0 ? ' zero' : ''}"/>`;
-  }
-  const arc = (from, to, r) => {
-    const a1 = (from / 50) * 60 * Math.PI / 180, a2 = (to / 50) * 60 * Math.PI / 180;
-    return `M ${120 + Math.sin(a1) * r} ${120 - Math.cos(a1) * r} A ${r} ${r} 0 0 1 ${120 + Math.sin(a2) * r} ${120 - Math.cos(a2) * r}`;
-  };
-  return `<svg class="meter" viewBox="0 0 240 140" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-    <path d="${arc(-50, 50, 104)}" class="m-arc"/>
-    <path d="${arc(-IN_TUNE, IN_TUNE, 104)}" class="m-zone"/>
-    ${ticks}
-    <text x="22" y="132" class="m-sym">♭</text>
-    <text x="206" y="132" class="m-sym">♯</text>
-    <g class="m-needle"><line x1="120" y1="120" x2="120" y2="26"/><circle cx="120" cy="120" r="7"/></g>
+    ${buttons}
   </svg>`;
 }
 
@@ -90,36 +68,38 @@ export function createTuner(root) {
         <span>Automatski</span>
       </label>
     </header>
-    <div class="tuner-readout" id="tReadout" data-state="idle">
-      <div class="t-note"><span id="tNote">–</span><sub id="tOct"></sub></div>
-      <div class="t-meta"><span id="tCents">&nbsp;</span><span id="tFreq"></span></div>
-      ${meterSVG()}
-      <div class="t-instr" id="tInstr">Odsviraj bilo koju žicu</div>
+    <div class="tmeter" id="tMeter" data-state="idle" aria-live="polite">
+      <div class="tmeter-scale" aria-hidden="true">
+        <span class="tmeter-sym">♭</span>
+        <div class="tmeter-track">
+          ${Array.from({ length: 11 }, (_, i) => `<i class="tick${i === 5 ? ' mid' : ''}" style="left:${i * 10}%"></i>`).join('')}
+          <div class="tmeter-center"></div>
+          <div class="tmeter-dot" id="tDot"><span id="tNote">–</span></div>
+        </div>
+        <span class="tmeter-sym">♯</span>
+      </div>
     </div>
     <div class="headstock-wrap" id="tHead">${headstockSVG()}</div>
-    <div class="string-row" id="tStrings" role="group" aria-label="Izbor žice">
-      ${STRINGS.map((s) => `<button class="string-btn" data-s="${s.id}" aria-label="Žica ${s.num} ${s.full}"><b>${s.label}</b><small>${s.full}</small></button>`).join('')}
-    </div>
-    <p class="hint small" id="tHint">Smer okretanja je prikazan za klasičnu glavu 3+3 gledano spreda.</p>
+    <div class="tuner-foot"><button class="btn small" id="tReset">Resetuj</button></div>
     <div class="mic-overlay" id="tStart">
       <div class="mic-card">
-        <div class="mic-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-2.08A7 7 0 0 0 19 12h-2z"/></svg>
-        </div>
-        <p id="tStartMsg">Tuner koristi mikrofon da čuje gitaru.</p>
-        <button class="btn primary big" id="tStartBtn">Pokreni tuner</button>
+        <button class="mic-btn" id="tStartBtn" aria-label="Pokreni tuner">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-2.08A7 7 0 0 0 19 12h-2z"/></svg>
+        </button>
+        <p class="mic-label" id="tStartLabel">Pokreni tuner</p>
+        <p class="err" id="tStartMsg" hidden></p>
       </div>
     </div>
   </section>`;
 
   const $ = (id) => root.querySelector('#' + id);
-  const readout = $('tReadout');
-  const needle = root.querySelector('.m-needle');
+  const meter = $('tMeter');
+  const dot = $('tDot');
   const autoEl = $('tAuto');
 
   let auto = true;
-  let selected = 0; // ručno izabrana žica
-  let current = null; // žica koju trenutno pratimo
+  let selected = 0;
+  let current = null;
   let running = false;
   let mic = null, analyser = null, buf = null, raf = 0;
   let history = [];
@@ -128,8 +108,25 @@ export function createTuner(root) {
   let candidate = null, candidateCount = 0;
   let a4 = 440;
   let lastProc = 0;
+  let okSince = 0, okString = -1;
+  const done = new Set();
 
   settings.get('a4', 440).then((v) => (a4 = Number(v) || 440));
+
+  const strEls = (id) => root.querySelectorAll(`[data-s="${id}"]`);
+
+  function markActive(id) {
+    root.querySelectorAll('.peg, .sbtn, .hs-string').forEach((el) => el.classList.toggle('active', +el.dataset.s === id));
+  }
+  function markDone(id) {
+    done.add(id);
+    strEls(id).forEach((el) => el.classList.add('done'));
+  }
+  function resetDone() {
+    done.clear();
+    okSince = 0; okString = -1;
+    root.querySelectorAll('.done').forEach((el) => el.classList.remove('done'));
+  }
 
   function setString(id, manual) {
     if (manual) {
@@ -139,7 +136,8 @@ export function createTuner(root) {
     }
     current = id;
     history = [];
-    root.querySelectorAll('.peg, .string-btn, .hs-string').forEach((el) => el.classList.toggle('active', +el.dataset.s === id));
+    okSince = 0;
+    markActive(id);
   }
 
   autoEl.addEventListener('change', () => {
@@ -147,22 +145,19 @@ export function createTuner(root) {
     if (!auto) setString(current ?? selected, true);
     else { current = null; idle(); }
   });
-  root.querySelectorAll('.string-btn, .peg').forEach((el) => {
+  root.querySelectorAll('.sbtn').forEach((el) => {
     const pick = () => setString(+el.dataset.s, true);
     el.addEventListener('click', pick);
     el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
   });
+  $('tReset').addEventListener('click', resetDone);
 
   function idle() {
-    readout.dataset.state = 'idle';
+    meter.dataset.state = 'idle';
     $('tNote').textContent = auto || current === null ? '–' : STRINGS[current].label;
-    $('tOct').textContent = '';
-    $('tCents').innerHTML = '&nbsp;';
-    $('tFreq').textContent = '';
-    $('tInstr').textContent = auto ? 'Odsviraj bilo koju žicu' : `Odsviraj ${STRINGS[current ?? selected].num}. žicu (${STRINGS[current ?? selected].full})`;
-    needle.style.transform = 'rotate(0deg)';
-    root.querySelectorAll('.peg').forEach((p) => p.classList.remove('up', 'down', 'ok'));
-    if (auto) root.querySelectorAll('.peg, .string-btn, .hs-string').forEach((el) => el.classList.remove('active'));
+    dot.style.left = '50%';
+    okSince = 0;
+    if (auto) root.querySelectorAll('.peg, .sbtn, .hs-string').forEach((el) => el.classList.remove('active'));
   }
 
   function nearestString(freq) {
@@ -172,43 +167,33 @@ export function createTuner(root) {
     return best;
   }
 
-  function show(freq) {
-    // Medijana poslednjih očitavanja za stabilnost
+  function show(freq, now) {
     const sorted = [...history].sort((a, b) => a - b);
     const med = sorted[Math.floor(sorted.length / 2)];
     let sid;
     if (auto) {
       const n = nearestString(med);
-      if (current === null) { setString(n, false); }
+      if (current === null) setString(n, false);
       else if (n !== current) {
         if (candidate === n) candidateCount++; else { candidate = n; candidateCount = 1; }
         if (candidateCount >= 4) { setString(n, false); candidate = null; history = [freq]; }
-      } else { candidate = null; }
+      } else candidate = null;
       sid = current;
     } else sid = selected;
     const target = midiToFreq(STRINGS[sid].midi, a4);
     const cents = 1200 * Math.log2(med / target);
-    smoothCents = readout.dataset.state === 'idle' ? cents : smoothCents + (cents - smoothCents) * 0.35;
+    smoothCents = meter.dataset.state === 'idle' ? cents : smoothCents + (cents - smoothCents) * 0.35;
     const c = smoothCents;
-    const nn = midiName(freqToMidi(med, a4));
-    $('tNote').textContent = nn.name;
-    $('tOct').textContent = nn.octave;
-    $('tFreq').textContent = med.toFixed(1) + ' Hz';
-    const shown = Math.round(c);
-    $('tCents').textContent = (shown > 0 ? '+' : shown < 0 ? '−' : '±') + Math.abs(shown) + ' ¢';
-    const angle = Math.max(-65, Math.min(65, (c / 50) * 60));
-    needle.style.transform = `rotate(${angle}deg)`;
-    const s = STRINGS[sid];
-    const peg = root.querySelector(`.peg[data-s="${sid}"]`);
-    root.querySelectorAll('.peg').forEach((p) => p !== peg && p.classList.remove('up', 'down', 'ok'));
-    let state, instr;
-    if (Math.abs(c) <= IN_TUNE) { state = 'ok'; instr = 'Naštimovano ✓'; }
-    else if (c < 0) { state = 'up'; instr = Math.abs(c) > 100 ? `Zategni ${s.num}. žicu (${s.label}) — dosta je nisko` : `Zategni ${s.num}. žicu (${s.label})`; }
-    else { state = 'down'; instr = c > 100 ? `Olabavi ${s.num}. žicu (${s.label}) — dosta je visoko` : `Olabavi ${s.num}. žicu (${s.label})`; }
-    readout.dataset.state = state;
-    $('tInstr').textContent = instr;
-    peg.classList.remove('up', 'down', 'ok');
-    peg.classList.add(state);
+    $('tNote').textContent = midiName(freqToMidi(med, a4)).name;
+    const pos = 50 + (Math.max(-RANGE, Math.min(RANGE, c)) / RANGE) * 50;
+    dot.style.left = pos.toFixed(2) + '%';
+    const ok = Math.abs(c) <= IN_TUNE;
+    meter.dataset.state = ok ? 'ok' : 'off';
+    if (ok) {
+      if (okString !== sid) { okString = sid; okSince = now; }
+      else if (!okSince) okSince = now;
+      if (now - okSince >= HOLD_MS && !done.has(sid)) markDone(sid);
+    } else okSince = 0;
   }
 
   function loop(t) {
@@ -230,11 +215,11 @@ export function createTuner(root) {
         history.push(f);
         if (history.length > 7) history.shift();
         lastHeard = now;
-        if (history.length >= 3) show(f);
+        if (history.length >= 3) show(f, now);
         return;
       }
     }
-    if (readout.dataset.state !== 'idle' && now - lastHeard > 1400) { history = []; if (auto) current = null; idle(); }
+    if (meter.dataset.state !== 'idle' && now - lastHeard > 1400) { history = []; if (auto) current = null; idle(); }
   }
 
   async function start() {
@@ -249,12 +234,14 @@ export function createTuner(root) {
       buf = new Float32Array(analyser.fftSize);
       running = true;
       $('tStart').hidden = true;
+      $('tStartMsg').hidden = true;
       a4 = Number(await settings.get('a4', 440)) || 440;
       idle();
       raf = requestAnimationFrame(loop);
     } catch (e) {
-      $('tStartMsg').innerHTML = `<span class="err">${esc(e instanceof MicError ? e.message : 'Mikrofon nije moguće pokrenuti.')}</span>`;
-      $('tStartBtn').textContent = 'Pokušaj ponovo';
+      $('tStartMsg').textContent = e instanceof MicError ? e.message : 'Mikrofon nije moguće pokrenuti.';
+      $('tStartMsg').hidden = false;
+      $('tStartLabel').textContent = 'Pokušaj ponovo';
     } finally {
       $('tStartBtn').disabled = false;
     }
@@ -268,16 +255,16 @@ export function createTuner(root) {
     closeMic();
     mic = null;
     $('tStart').hidden = false;
-    $('tStartBtn').textContent = 'Pokreni tuner';
-    $('tStartMsg').textContent = 'Tuner koristi mikrofon da čuje gitaru.';
+    $('tStartLabel').textContent = 'Pokreni tuner';
   }
 
   $('tStartBtn').addEventListener('click', start);
   idle();
 
   return {
-    // Na mobilnim uređajima pokretanje mikrofona traži dodir korisnika, pa ga ne pokrećemo automatski.
+    // Na mobilnim uređajima mikrofon mora da se pokrene dodirom korisnika.
     show() {},
     hide: stop,
   };
 }
+

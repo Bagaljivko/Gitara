@@ -89,7 +89,29 @@ const RESPONSE_SCHEMA = {
   required: ['title', 'artist', 'key', 'sections'],
 };
 
-async function call(apiKey, body, signal, model) {
+const RETRY_DELAYS = [1500, 3000, 5000]; // do 3 ponovna pokušaja kada je Gemini zauzet
+const sleep = (ms, signal) => new Promise((resolve, reject) => {
+  const t = setTimeout(resolve, ms);
+  if (signal) signal.addEventListener('abort', () => { clearTimeout(t); reject(new DOMException('Aborted', 'AbortError')); }, { once: true });
+});
+
+/** Poziv sa automatskim ponavljanjem kada je Gemini preopterećen (503 / 429 / „overloaded“). */
+async function call(apiKey, body, signal, model, onRetry) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await callOnce(apiKey, body, signal, model);
+    } catch (e) {
+      if (!(e instanceof GeminiError) || e.code !== 'BUSY') throw e;
+      if (attempt >= RETRY_DELAYS.length) {
+        throw new GeminiError('Gemini je trenutno preopterećen i nije odgovorio ni posle nekoliko pokušaja. Sačekaj malo pa dodirni „Pokušaj ponovo“.', { code: 'BUSY' });
+      }
+      if (onRetry) onRetry(attempt + 1);
+      await sleep(RETRY_DELAYS[attempt], signal);
+    }
+  }
+}
+
+async function callOnce(apiKey, body, signal, model) {
   model = cleanModelName(model) || DEFAULT_MODEL;
   if (!apiKey) throw new GeminiError('Nisi uneo Gemini API ključ. Otvori „Podešavanja“ i unesi ključ.');
   if (navigator.onLine === false) throw new GeminiError('Nema internet veze. Skeniranje pesama radi samo kada si povezan na internet.');
@@ -113,8 +135,10 @@ async function call(apiKey, body, signal, model) {
     if (res.status === 404 || MODEL_GONE.test(msg)) throw modelError(model, msg);
     if (res.status === 400 && /API_KEY_INVALID|API key not valid/i.test(msg + reason)) throw new GeminiError('API ključ nije ispravan. Proveri da li si ga dobro kopirao u „Podešavanjima“.');
     if (res.status === 401 || res.status === 403) throw new GeminiError('Ključ nema dozvolu za Gemini API. Napravi novi ključ u Google AI Studio.');
-    if (res.status === 429) throw new GeminiError('Dostignuto je ograničenje besplatne verzije. Sačekaj minut-dva i pokušaj ponovo.');
-    if (res.status >= 500) throw new GeminiError('Gemini servis je trenutno preopterećen ili nedostupan. Pokušaj ponovo za malo.');
+    if (res.status === 503 || res.status === 429 || /overloaded|UNAVAILABLE|RESOURCE_EXHAUSTED|try again later/i.test(msg)) {
+      throw new GeminiError('Gemini je zauzet.', { code: 'BUSY' });
+    }
+    if (res.status >= 500) throw new GeminiError('Gemini servis je trenutno nedostupan. Pokušaj ponovo za malo.', { code: 'HTTP_' + res.status });
     if (res.status === 400 && /location|region|country/i.test(msg)) throw new GeminiError('Gemini API nije dostupan u tvojoj zemlji/regionu.');
     throw new GeminiError('Gemini je vratio grešku' + (msg ? `: ${msg}` : '.'), { code: 'HTTP_' + res.status });
   }
@@ -131,11 +155,11 @@ function textOf(data) {
 }
 
 /** Mali test poziv za proveru ključa i modela. */
-export async function testKey(apiKey, model) {
+export async function testKey(apiKey, model, onRetry) {
   const data = await call(apiKey, {
     contents: [{ parts: [{ text: 'Odgovori samo rečju: OK' }] }],
     generationConfig: { maxOutputTokens: 64, temperature: 0 },
-  }, undefined, model || await getModel());
+  }, undefined, model || await getModel(), onRetry);
   if (!data || !data.candidates) throw new GeminiError('Neočekivan odgovor od Gemini servisa.');
   return true;
 }
@@ -167,7 +191,7 @@ export async function prepareImage(file) {
 }
 
 /** Šalje sliku Geminiju i vraća normalizovanu pesmu. */
-export async function scanSong(image, signal) {
+export async function scanSong(image, signal, onRetry) {
   const apiKey = await getApiKey();
   const model = await getModel();
   const contents = [{ parts: [{ text: SCAN_PROMPT }, { inline_data: { mime_type: image.mime, data: image.base64 } }] }];
@@ -176,11 +200,11 @@ export async function scanSong(image, signal) {
     data = await call(apiKey, {
       contents,
       generationConfig: { temperature: 0.1, responseMimeType: 'application/json', responseSchema: RESPONSE_SCHEMA },
-    }, signal, model);
+    }, signal, model, onRetry);
   } catch (e) {
     // Ako neki model ne prihvata šemu odgovora, pokušaj samo sa JSON izlazom (prompt već opisuje oblik).
     if (!(e instanceof GeminiError) || e.code !== 'HTTP_400' || !/schema|response_?schema|responseMimeType|field/i.test(e.message)) throw e;
-    data = await call(apiKey, { contents, generationConfig: { temperature: 0.1, responseMimeType: 'application/json' } }, signal, model);
+    data = await call(apiKey, { contents, generationConfig: { temperature: 0.1, responseMimeType: 'application/json' } }, signal, model, onRetry);
   }
   let text = textOf(data).trim().replace(/^```(?:json)?\s*|\s*```$/g, '');
   let json;
