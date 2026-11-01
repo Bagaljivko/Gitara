@@ -559,3 +559,5 @@ body.two-pane-mode main { max-width: 1320px; }
 .rescan-note { color: var(--accent); }
 .topbar .back { white-space: nowrap; flex: none; }
 @media (max-width: 400px) { .topbar-actions .btn.small { padding: 0 9px; } #sEasyTop { font-size: .82rem; } }
+.sens-title { font-size: .95rem; margin: 16px 0 0; }
+.sens-tabs { grid-template-columns: repeat(3, 1fr); }

@@ -120,6 +120,8 @@ export function createTuner(root) {
   let a4 = 440;
   const tracker = new PitchTracker({ a4 });
   let shownCents = 0;     // izglađen položaj kazaljke
+  let shownSid = -1;
+  let shownCal = false;   // prikazana poruka „merim buku“
   let okSince = 0, okSid = -1;
   let lastLocked = 0;
   let popupOpen = false;
@@ -191,6 +193,8 @@ export function createTuner(root) {
     $('tNote').textContent = auto ? '–' : STRINGS[selected].label;
     $('tCents').innerHTML = '&nbsp;';
     shownCents = 0;
+    shownSid = -1;
+    shownCal = false;
     setNeedle(0);
     okSince = 0;
     if (auto) root.querySelectorAll('.knob').forEach((el) => el.classList.remove('active'));
@@ -210,18 +214,27 @@ export function createTuner(root) {
     analyser.getFloatTimeDomainData(buf);
     const now = performance.now();
     const r = tracker.process(buf, mic.ctx.sampleRate, now);
-    if (r.state === 'locked') {
+    if (r.state === 'tracking') {
       lastLocked = now;
       const sid = r.sid;
       if (auto) markActive(sid);
-      shownCents = meter.dataset.state === 'idle' ? r.cents : shownCents + (r.cents - shownCents) * 0.3;
+      // Prvo očitavanje odmah pomera kazaljku; posle toga lagano izglađivanje:
+      // veći pomak → brže praćenje, sitno podrhtavanje (< 0,8 centa) se ignoriše.
+      const fresh = meter.dataset.state === 'idle' || sid !== shownSid;
+      const d = r.cents - shownCents;
+      if (fresh) shownCents = r.cents;
+      else if (Math.abs(d) > 0.8) shownCents += d * (Math.abs(d) > 12 ? 0.65 : 0.4);
+      shownSid = sid;
       setNeedle(shownCents);
       $('tNote').textContent = midiName(69 + 12 * Math.log2(r.freq / a4)).name;
       const cr = Math.round(shownCents);
       const ac = Math.abs(cr), m10 = ac % 10, m100 = ac % 100;
       const form = m10 === 1 && m100 !== 11 ? 'tuner.cents1' : m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? 'tuner.cents2' : 'tuner.cents';
       $('tCents').textContent = t(form, { n: (cr > 0 ? '+' : cr < 0 ? '−' : '±') + ac });
-      const ok = Math.abs(shownCents) <= IN_TUNE;
+      // Zeleno (i označavanje žice) tek kad je ton stabilan
+      // Mala histereza: kad je već zeleno, kratko podrhtavanje do ±8 centi ga ne gasi.
+      const lim = meter.dataset.state === 'ok' ? IN_TUNE + 3 : IN_TUNE;
+      const ok = r.stable && Math.abs(shownCents) <= lim;
       meter.dataset.state = ok ? 'ok' : 'off';
       if (ok) {
         if (okSid !== sid || !okSince) { okSid = sid; okSince = now; }
@@ -230,11 +243,13 @@ export function createTuner(root) {
           applyDone();
           if (done.size === 6 && !popupOpen) allTuned();
         }
-      } else okSince = 0;
-    } else if (meter.dataset.state !== 'idle' && r.state === 'idle' && now - lastLocked > 500) {
+      } else if (Math.abs(shownCents) > lim) okSince = 0;
+    } else if (meter.dataset.state !== 'idle' && now - lastLocked > 350) {
       idle();
-    } else if (r.state !== 'locked') {
+    } else if (meter.dataset.state === 'idle') {
       okSince = 0;
+      const cal = tracker.calibrating;
+      if (cal !== shownCal) { shownCal = cal; $('tCents').textContent = cal ? t('tuner.calibrating') : '\u00a0'; }
     }
   }
 
@@ -253,6 +268,7 @@ export function createTuner(root) {
       $('tStartMsg').hidden = true;
       a4 = Number(await settings.get('a4', 440)) || 440;
       tracker.a4 = a4;
+      tracker.setSensitivity(await settings.get('tunerSens', 'medium'));
       tracker.reset();
       tracker.setAllowed(auto ? [0, 1, 2, 3, 4, 5] : [selected]);
       idle();

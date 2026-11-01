@@ -16,6 +16,7 @@ export async function renderSettings(root) {
   const lastModel = cleanModelName(await settings.get('geminiLastModel', ''));
   const cachedModels = ((await settings.get('geminiModels', null)) || {}).list || [];
   const a4 = Number(await settings.get('a4', 440)) || 440;
+  const sens = await settings.get('tunerSens', 'medium');
   root.innerHTML = `
   <section class="view settings-view">
     <header class="view-head"><h1>${t('set.title')}</h1></header>
@@ -73,6 +74,11 @@ export async function renderSettings(root) {
         </div>
       </div>
       <p class="muted small">${t('set.a4Note')}</p>
+      <h3 class="sens-title">${t('set.sens')}</h3>
+      <div class="seg-tabs sens-tabs" role="radiogroup" aria-label="${t('set.sens')}">
+        ${['low', 'medium', 'high'].map((v) => `<button role="radio" data-sens="${v}" class="${sens === v ? 'active' : ''}" aria-checked="${sens === v}">${t('set.sens_' + v)}</button>`).join('')}
+      </div>
+      <p class="muted small" id="sensNote">${t('set.sensNote_' + sens)}</p>
     </div>
 
     <div class="card drive-card" id="driveCard"></div>
@@ -193,6 +199,12 @@ export async function renderSettings(root) {
   const setA = async (v) => { a = Math.max(430, Math.min(450, v)); $('aVal').textContent = a + ' Hz'; await settings.set('a4', a); };
   $('aDown').addEventListener('click', () => setA(a - 1));
   $('aUp').addEventListener('click', () => setA(a + 1));
+  root.querySelectorAll('[data-sens]').forEach((b) => b.addEventListener('click', async () => {
+    const v = b.dataset.sens;
+    root.querySelectorAll('[data-sens]').forEach((x) => { x.classList.toggle('active', x === b); x.setAttribute('aria-checked', x === b); });
+    $('sensNote').textContent = t('set.sensNote_' + v);
+    await settings.set('tunerSens', v);
+  }));
 
   $('bExport').addEventListener('click', async () => {
     const n = (await db.all()).length;
