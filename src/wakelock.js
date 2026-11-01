@@ -29,3 +29,9 @@ export function allowSleep(owner) { owners.delete(owner); if (!owners.size) rele
 
 // Sistem automatski oslobađa zaključavanje kada aplikacija ode u pozadinu — vraćamo ga po povratku.
 if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') acquire(); });
+// Rotacija ekrana: neki uređaji tada otpuste zaključavanje — zatraži ga ponovo.
+if (typeof window !== 'undefined') {
+  const again = () => setTimeout(acquire, 300);
+  window.addEventListener('orientationchange', again);
+  if (screen.orientation && screen.orientation.addEventListener) screen.orientation.addEventListener('change', again);
+}

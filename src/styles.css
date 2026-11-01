@@ -127,8 +127,9 @@ body.tuner-screen .nav { background: rgba(23, 24, 28, .97); }
 .nwrap[data-state="ok"] .nm-arc { stroke: rgba(61, 214, 140, .35); }
 
 /* Glava gitare: slika + SVG sloj sa obrisima ključeva (poklapa se jer ima isti viewBox kao slika) */
-.headstock-wrap { flex: 1; min-height: 0; display: flex; align-items: flex-end; justify-content: center; margin: 4px -16px 0; overflow: hidden; }
-.hs-art { position: relative; height: 100%; aspect-ratio: 926 / 1205; max-height: calc(100vw * 1205 / 926); max-width: 100vw; flex: none; }
+.headstock-wrap { flex: 1; min-height: 0; container-type: size; display: flex; align-items: flex-end; justify-content: center; margin: 4px -16px 0; overflow: hidden; }
+/* Slika uvek staje celа u svoj prostor i zadržava proporcije, pa se obrisi ključeva poklapaju na svakoj veličini. */
+.hs-art { position: relative; width: min(100cqw, 100cqh * 926 / 1205); aspect-ratio: 926 / 1205; flex: none; }
 .hs-art img, .hs-overlay { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .hs-art img { pointer-events: none; -webkit-user-select: none; user-select: none; }
 .knob { cursor: pointer; outline: none; touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
@@ -410,3 +411,115 @@ mark.unsure { cursor: pointer; }
 .link-box { width: 100%; font-family: var(--mono); font-size: .8rem; }
 .add-card { border-color: var(--accent); }
 .install-card .btn { margin-top: 6px; }
+
+
+/* =====================================================================
+   POLOŽENI EKRAN I TABLETI
+   ===================================================================== */
+:root { --rail-w: 76px; }
+
+/* Bočna navigacija: široki ekrani (≥ 900 px) i telefoni položeno (nizak ekran) */
+@media (min-width: 900px), (orientation: landscape) and (max-height: 520px) {
+  :root { --nav-h: 0px; }
+  body { padding-bottom: 0; padding-left: calc(var(--rail-w) + env(safe-area-inset-left)); }
+  .nav {
+    top: 0; bottom: 0; right: auto; width: calc(var(--rail-w) + env(safe-area-inset-left)); height: auto;
+    padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom) env(safe-area-inset-left);
+    grid-template-columns: 1fr; grid-auto-rows: 72px; align-content: center; gap: 4px;
+    border-top: 0; border-right: 1px solid var(--line);
+  }
+  .nav a { font-size: .66rem; padding: 0 4px; text-align: center; }
+  .drive-banner { left: calc(var(--rail-w) + 12px); }
+  .scroll-bar { bottom: calc(env(safe-area-inset-bottom) + 8px); }
+}
+
+/* Telefon položeno: niži razmaci da sve stane po visini */
+@media (orientation: landscape) and (max-height: 520px) {
+  main { padding-top: calc(env(safe-area-inset-top) + 4px); padding-left: max(16px, env(safe-area-inset-right)); padding-right: max(16px, env(safe-area-inset-right)); }
+  h1 { font-size: 1.35rem; margin: .2rem 0 .4rem; }
+  .modal-backdrop { align-items: center; padding: 10px; }
+  .modal { max-height: calc(100dvh - 20px); padding: 16px; }
+  .modal-actions { margin-top: 12px; }
+  .scan-preview { height: 120px; }
+}
+
+/* Šire od 700 px (telefon položeno, tablet): sadržaj centriran i ograničene širine */
+@media (min-width: 700px) {
+  main { max-width: 1040px; }
+  .modal-backdrop { align-items: center; }
+  .modal { max-height: calc(100dvh - 32px); }
+
+  /* Akordi: rezultat levo, hromagram i dugme desno */
+  #crPane { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 20px; align-items: start; }
+  #crPane > * { grid-column: 2; }
+  #crPane > .cr-result { grid-column: 1; grid-row: 1 / span 6; margin-top: 0; }
+  #crPane > p.muted { margin-top: 0; }
+  /* Metronom levo, ritmovi desno */
+  #rhPane:not([hidden]) { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 20px; align-items: start; }
+  #rhPane > * { grid-column: 2; }
+  #rhPane > .metro { grid-column: 1; grid-row: 1 / span 4; margin-top: 12px; position: sticky; top: 8px; }
+  #rhPane > .sub-h { margin-top: 12px; }
+
+  /* Pesme: dugmad u redu, lista u dve kolone */
+  .lib-actions { grid-template-columns: 1fr 1fr; }
+  .lib-actions .row { align-items: stretch; }
+  .song-list { display: grid; grid-template-columns: 1fr 1fr; column-gap: 20px; }
+  .song-list .empty { grid-column: 1 / -1; }
+
+  /* Podešavanja: kartice u dve kolone */
+  .settings-view { column-count: 2; column-gap: 16px; }
+  .settings-view > .view-head, .settings-view > .about { column-span: all; }
+  .settings-view > .card { break-inside: avoid; display: inline-block; width: 100%; margin: 0 0 16px; }
+
+  /* Pesma: šira, veći tekst, dijagrami u koloni desno */
+  #sBody { display: grid; grid-template-columns: minmax(0, 1fr) 128px; column-gap: 20px; align-items: start; }
+  #sBody > * { grid-column: 1; }
+  #sBody > .diagram-row {
+    grid-column: 2; grid-row: 1 / span 40; flex-direction: column; gap: 8px;
+    position: sticky; top: 64px; max-height: calc(100dvh - 140px); overflow-x: hidden; overflow-y: auto;
+    margin: 0; padding: 0 2px 8px; scroll-snap-type: y proximity;
+  }
+  #sBody > .diagram-row .diagram-btn { flex: 0 0 auto; width: 100%; }
+  .song-view .ln { font-size: 1.18rem; }
+  .song-view .song-h1 { font-size: 1.9rem; }
+  .shared-view .ln { font-size: 1.15rem; }
+}
+
+/* Tablet uspravno i šire: veći tuner */
+@media (min-width: 700px) and (min-height: 700px) {
+  .nwrap { max-width: 440px; }
+  .nnote { font-size: 4rem; }
+  .ncents { font-size: 1.1rem; }
+  .tuner-view .view-head h1 { font-size: 2rem; }
+}
+@media (min-width: 1000px) {
+  .song-view .ln { font-size: 1.3rem; }
+  #sBody { grid-template-columns: minmax(0, 1fr) 150px; }
+}
+
+/* Tuner položeno: kazaljka i nota levo, glava gitare desno */
+@media (orientation: landscape) and (min-width: 600px) {
+  .tuner-view { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); grid-template-rows: auto minmax(0, 1fr); column-gap: 16px; }
+  .tuner-view > .view-head { grid-column: 1; grid-row: 1; }
+  .tuner-view > .nwrap { grid-column: 1; grid-row: 2; align-self: center; width: 100%; max-width: min(460px, 100%, (100dvh - 150px) * 1.9); }
+  .tuner-view > .headstock-wrap { grid-column: 2; grid-row: 1 / 3; margin: 0 -16px 0 0; align-items: center; }
+  .tuner-view > .mic-overlay { inset: 0; }
+}
+
+/* Tablet položeno: lista pesama levo, izabrana pesma desno */
+body.two-pane-mode main { max-width: 1320px; }
+.two-pane { display: grid; grid-template-columns: minmax(300px, 380px) minmax(0, 1fr); gap: 24px; align-items: start; }
+.two-pane > .pane-list { position: sticky; top: 0; max-height: 100dvh; overflow-y: auto; padding-bottom: 24px; scrollbar-width: thin; }
+.two-pane .song-list { display: block; }
+.two-pane .lib-actions { grid-template-columns: 1fr; }
+.two-pane .song-item.selected { background: var(--accent-soft); border-radius: 12px; }
+.two-pane .song-item.selected .song-title { color: var(--accent); }
+.two-pane > .pane-song { min-width: 0; }
+.two-pane .song-view > .topbar .back { visibility: hidden; }
+.pane-empty { display: grid; place-items: center; min-height: 60dvh; border: 1px dashed var(--line); border-radius: var(--radius); }
+/* Tuner na velikim ekranima sme da bude širi od ostalog sadržaja */
+@media (min-width: 900px) { body.tuner-screen main { max-width: 1280px; } }
+@media (orientation: landscape) and (max-height: 520px) {
+  .scroll-bar { padding: 2px 8px; margin-top: 6px; max-width: 420px; margin-left: auto; }
+  .scroll-bar .small { display: none; }
+}

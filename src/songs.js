@@ -22,6 +22,8 @@ import { getFolders, addFolder } from './collections.js';
 import { renderSetlistsPane, editSongFolders, manageFolder, askName } from './setlistsView.js';
 
 let draft = null; // nesačuvana pesma (npr. posle skeniranja)
+let selectedId = null; // izabrana pesma u prikazu sa dva panela
+export function setSelectedSong(id) { selectedId = id; }
 let draftImage = null;
 let fontScale = Number(localStorageGet('gitara-font') || 1);
 
@@ -129,7 +131,7 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
     if (!list.length && folderFilter && !q) { $('lList').innerHTML = `<li class="empty muted">${t('folder.emptyFolder')}</li>`; return; }
     if (!list.length) { $('lList').innerHTML = `<li class="empty muted">${esc(t('lib.noResults', { q: $('lSearch').value }))}</li>`; return; }
     $('lList').innerHTML = list.map((s) => `
-      <li class="song-item">
+      <li class="song-item${s.id === selectedId ? ' selected' : ''}" data-id="${esc(s.id)}">
         <a href="#/pesma/${encodeURIComponent(s.id)}" class="song-link">
           <span class="song-title">${esc(s.title)}</span>
           <span class="song-sub">${esc(s.artist || t('lib.unknownArtist'))}${s.key ? ` · <span class="key">${esc(s.key)}</span>` : ''}</span>

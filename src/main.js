@@ -1,6 +1,6 @@
 import { createTuner } from './tuner.js';
 import { createChordRec } from './chordrec.js';
-import { renderLibrary, renderSong, renderEditor, renderSharedSong } from './songs.js';
+import { renderLibrary, renderSong, renderEditor, renderSharedSong, setSelectedSong } from './songs.js';
 import { hasSharedSong } from './sharelink.js';
 import { renderSetlist, setlistNav } from './setlistsView.js';
 import { renderSettings } from './settingsView.js';
@@ -21,6 +21,10 @@ function liveView(name, factory) {
   return views[name];
 }
 
+// Tablet u položenom režimu: lista i pesma jedna pored druge
+const TWO_PANE = window.matchMedia('(min-width: 900px) and (min-height: 600px) and (orientation: landscape)');
+TWO_PANE.addEventListener('change', () => { app.querySelector(':scope > .page')?.remove(); route(); });
+
 async function route() {
   const shared = hasSharedSong();
   const hash = shared ? '#/primljena' : location.hash || '#/tuner';
@@ -35,7 +39,8 @@ async function route() {
 
   if (activeLive && activeLive !== tab) { views[activeLive].ctl.hide(); }
   app.querySelectorAll(':scope > .live').forEach((el) => (el.hidden = true));
-  app.querySelector(':scope > .page')?.remove();
+  if (!(TWO_PANE.matches && (page === 'pesme' || page === 'pesma'))) app.querySelector(':scope > .page')?.remove();
+  if (tab !== 'pesme') document.body.classList.remove('two-pane-mode');
 
   if (tab === 'tuner' || tab === 'akordi') {
     const name = page === 'akordi' ? 'akordi' : 'tuner';
@@ -46,12 +51,37 @@ async function route() {
     activeLive = name;
   } else {
     activeLive = null;
-    const el = document.createElement('div');
-    el.className = 'page';
-    app.appendChild(el);
     const [rawId, query = ''] = (arg || '').split('?');
     const dec = decodeURIComponent(rawId || '');
     const params = new URLSearchParams(query);
+    // Tablet položeno: dva panela — lista pesama levo, izabrana pesma desno
+    const twoPane = TWO_PANE.matches && (page === 'pesme' || page === 'pesma') && params.get('tab') !== 'sl';
+    document.body.classList.toggle('two-pane-mode', twoPane);
+    if (twoPane) {
+      setSelectedSong(page === 'pesma' ? dec : null);
+      let tp = app.querySelector(':scope > .page.two-pane');
+      if (!tp) {
+        app.querySelector(':scope > .page')?.remove();
+        tp = document.createElement('div');
+        tp.className = 'page two-pane';
+        tp.innerHTML = '<div class="pane-list"></div><div class="pane-song"></div>';
+        app.appendChild(tp);
+        await renderLibrary(tp.querySelector('.pane-list'), params);
+      } else {
+        // samo osveži oznaku izabrane pesme u listi
+        tp.querySelectorAll('.song-item').forEach((li) => li.classList.toggle('selected', li.dataset.id === dec && page === 'pesma'));
+      }
+      const right = document.createElement('div');
+      tp.querySelector('.pane-song').replaceWith(right);
+      right.className = 'pane-song';
+      if (page === 'pesma') await renderSong(right, dec, await setlistNav(params));
+      else right.innerHTML = `<div class="pane-empty muted">${t('lib.selectSong')}</div>`;
+      return;
+    }
+    app.querySelector(':scope > .page')?.remove();
+    const el = document.createElement('div');
+    el.className = 'page';
+    app.appendChild(el);
     if (page === 'pesme') await renderLibrary(el, params);
     else if (page === 'pesma') await renderSong(el, dec, await setlistNav(params));
     else if (page === 'setlista') await renderSetlist(el, dec);
@@ -93,6 +123,7 @@ onLangChange(() => {
     delete views[name];
   }
   activeLive = null;
+  app.querySelector(':scope > .page')?.remove();
   route();
 });
 applyStaticText();

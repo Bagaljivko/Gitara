@@ -326,6 +326,7 @@ const sr = {
 
   // Folderi
   'lib.tabSongs': 'Pesme',
+  'lib.selectSong': 'Izaberi pesmu sa liste.',
   'lib.tabSetlists': 'Setliste',
   'folder.title': 'Folderi',
   'folder.all': 'Sve',
@@ -813,6 +814,7 @@ const en = {
   'pdf.capo': 'Capo: fret {n}',
 
   'lib.tabSongs': 'Songs',
+  'lib.selectSong': 'Pick a song from the list.',
   'lib.tabSetlists': 'Setlists',
   'folder.title': 'Folders',
   'folder.all': 'All',
