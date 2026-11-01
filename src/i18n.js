@@ -271,6 +271,7 @@ const sr = {
   'set.installAndroid': 'U Chrome-u otvori meni (⋮) i izaberi <b>Instaliraj aplikaciju</b>.',
   'set.install': 'Instaliraj',
   'set.about': 'Gitara · verzija {v}<br>Radi bez interneta (osim skeniranja pesama).',
+  'set.privacy': 'Politika privatnosti',
 
   // Akordi — sekcije
   'chords.tabRecognize': 'Prepoznavanje',
@@ -768,6 +769,7 @@ const en = {
   'set.installAndroid': 'In Chrome, open the menu (⋮) and choose <b>Install app</b>.',
   'set.install': 'Install',
   'set.about': 'Gitara · version {v}<br>Works offline (except song scanning).',
+  'set.privacy': 'Privacy policy',
 
   'chords.tabRecognize': 'Recognize',
   'chords.tabRhythm': 'Metronome & rhythms',

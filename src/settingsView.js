@@ -93,7 +93,7 @@ export async function renderSettings(root) {
         : `<p class="small">${t('set.installAndroid')}</p><button class="btn primary" id="installBtn" hidden>${t('set.install')}</button>`}
     </div>
 
-    <p class="about muted small">${t('set.about', { v: APP_VERSION })}</p>
+    <p class="about muted small">${t('set.about', { v: APP_VERSION })}<br><a href="privacy.html" target="_blank" rel="noopener">${t('set.privacy')}</a></p>
   </section>`;
 
   const $ = (id) => root.querySelector('#' + id);

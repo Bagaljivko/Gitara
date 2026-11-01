@@ -1,9 +1,10 @@
 // Rad bez interneta: čuva celu aplikaciju u kešu i osvežava je u pozadini.
 // Pri svakoj novoj verziji aplikacije povećaj broj u CACHE.
-const CACHE = "gitara-v18";
+const CACHE = "gitara-v19";
 const SHELL = [
   "./",
   "index.html",
+  "privacy.html",
   "manifest.webmanifest",
   "src/audio.js",
   "src/chordrec.js",
@@ -57,7 +58,9 @@ self.addEventListener("fetch", e => {
   if (e.request.method !== "GET") return;
   if (new URL(e.request.url).origin !== self.location.origin) return; // npr. Gemini API ide direktno na mrežu
   e.respondWith(caches.open(CACHE).then(async cache => {
-    const isPage = e.request.mode === "navigate";
+    // Navigacija na samu aplikaciju → keširana početna strana; ostale stranice (npr. privacy.html) → svoj fajl
+    const path = new URL(e.request.url).pathname;
+    const isPage = e.request.mode === "navigate" && !/\/privacy\.html$/.test(path);
     const cached = await cache.match(isPage ? "./" : e.request, { ignoreSearch: isPage });
     const network = fetch(e.request).then(res => {
       if (res && res.ok) cache.put(isPage ? "./" : e.request, res.clone());
