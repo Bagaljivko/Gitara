@@ -99,8 +99,14 @@ label > input { margin-top: 4px; color: var(--text); font-size: 1rem; }
 .switch input:focus-visible + .switch-track { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* Tuner */
-.tuner-view { position: relative; display: flex; flex-direction: column; }
-.nwrap { position: relative; margin: 6px auto 0; width: 100%; max-width: 360px; text-align: center; }
+.tuner-view { position: relative; display: flex; flex-direction: column; height: calc(100dvh - var(--nav-h) - env(safe-area-inset-bottom) - env(safe-area-inset-top) - 8px); margin-bottom: -24px; }
+.tuner-view .view-head { gap: 8px; }
+.tuner-view .view-head h1 { flex: 1; margin: 4px 0; }
+.btn.ghost { background: transparent; border-color: var(--line); color: var(--muted); }
+/* Pozadina tunera = pozadina slike, da se glava gitare neprimetno uklopi */
+body.tuner-screen { --bg: #17181c; background: #17181c; }
+body.tuner-screen .nav { background: rgba(23, 24, 28, .97); }
+.nwrap { position: relative; margin: 0 auto; width: 100%; max-width: 300px; text-align: center; flex: none; }
 .nmeter { width: 100%; display: block; overflow: visible; }
 .nm-arc { fill: none; stroke: var(--line); stroke-width: 7; stroke-linecap: round; }
 .nm-zone { fill: none; stroke: var(--ok); stroke-width: 7; stroke-linecap: round; opacity: .55; }
@@ -111,48 +117,29 @@ label > input { margin-top: 4px; color: var(--text); font-size: 1rem; }
 .nm-needle { transform-origin: 160px 150px; transition: transform .12s linear; }
 .nm-needle path, .nm-needle circle { fill: var(--accent); }
 .nm-needle .nm-cap { fill: var(--bg); }
-.nnote { font-size: 3.4rem; font-weight: 800; line-height: 1; margin-top: -2px; letter-spacing: -0.02em; transition: color .2s; }
+.nnote { font-size: 3rem; font-weight: 800; line-height: 1; margin-top: -4px; letter-spacing: -0.02em; transition: color .2s; }
+.ncents { color: var(--muted); font-size: .95rem; font-variant-numeric: tabular-nums; min-height: 1.3em; margin-top: 2px; }
 .nwrap[data-state="idle"] .nnote { color: var(--muted); }
 .nwrap[data-state="idle"] .nm-needle { opacity: .35; }
-.nwrap[data-state="off"] .nnote { color: var(--accent); }
+.nwrap[data-state="off"] .nnote { color: var(--text); }
 .nwrap[data-state="ok"] .nnote { color: var(--ok); }
 .nwrap[data-state="ok"] .nm-needle path, .nwrap[data-state="ok"] .nm-needle circle:not(.nm-cap) { fill: var(--ok); }
 .nwrap[data-state="ok"] .nm-arc { stroke: rgba(61, 214, 140, .35); }
 
-.headstock-wrap { display: flex; justify-content: center; margin: 4px -16px 0; overflow: hidden; }
-.headstock { width: 100%; max-width: 440px; height: auto; display: block; }
-.grain { fill: none; stroke: #3c2210; stroke-width: 1.1; opacity: .22; }
-.grain.dark { stroke-width: 1.8; opacity: .18; }
-.hs-binding { fill: none; stroke: #efe3c6; stroke-width: 3; }
-.hs-nut { fill: #f1ead8; }
-.hs-string { stroke: #d5d8dd; stroke-linecap: round; opacity: .85; transition: stroke .25s, opacity .25s; }
-.hs-string.active { stroke: var(--accent); opacity: 1; }
-.post-bush { fill: url(#postChrome); stroke: #5d6168; stroke-width: 1; }
-.post-pin { fill: #8b9098; stroke: #50545a; stroke-width: .8; }
-.peg-housing { fill: url(#chrome); stroke: #6a7078; stroke-width: 1; }
-.peg-shaft { fill: url(#chrome); }
-.peg-key { fill: url(#chrome); stroke: #6a7078; stroke-width: 1.2; transition: fill .25s, stroke .25s; }
-.peg-shine { fill: #fff; opacity: .55; pointer-events: none; }
-.peg.active .peg-key { stroke: var(--accent); stroke-width: 3; }
-.sbtn { cursor: pointer; outline: none; touch-action: manipulation; -webkit-user-select: none; user-select: none; }
-.sbtn-c { fill: #2a2d33; stroke: #3a3e46; stroke-width: 2.5; transition: fill .25s, stroke .25s; }
-.sbtn-t { fill: var(--text); font: 800 24px var(--sans); pointer-events: none; }
-.sbtn:focus-visible .sbtn-c { stroke: var(--text); }
-.sbtn.active .sbtn-c { stroke: var(--accent); stroke-width: 3.5; }
-.sbtn.ringing .sbtn-c { stroke: var(--accent); stroke-dasharray: 6 5; }
-.spk { cursor: pointer; outline: none; }
-.spk-c { fill: #1f2126; stroke: #3a3e46; stroke-width: 1.5; }
-.spk-i { fill: var(--muted); }
-.spk-w { fill: none; stroke: var(--muted); stroke-width: 1.6; stroke-linecap: round; }
-.spk:focus-visible .spk-c, .spk:active .spk-c { stroke: var(--accent); }
-/* Naštimovane žice ostaju zelene dok se ne klikne „Resetuj“ (jača specifičnost od .active). */
-.headstock .hs-string.done { stroke: var(--ok); opacity: 1; }
-.headstock .peg.done .peg-key { fill: var(--ok); stroke: #1f9e63; stroke-width: 1.5; }
-.headstock .hs-post.done .post-bush { fill: var(--ok); }
-.headstock .sbtn.done .sbtn-c { fill: var(--ok); stroke: var(--ok); }
-.headstock .sbtn.done .sbtn-t { fill: #06210f; }
-.headstock .sbtn.done.active .sbtn-c { stroke: #b8f5d6; }
-.tuner-foot { display: flex; justify-content: center; padding: 6px 0 4px; }
+/* Glava gitare: slika + SVG sloj sa obrisima ključeva (poklapa se jer ima isti viewBox kao slika) */
+.headstock-wrap { flex: 1; min-height: 0; display: flex; align-items: flex-end; justify-content: center; margin: 4px -16px 0; overflow: hidden; }
+.hs-art { position: relative; height: 100%; aspect-ratio: 926 / 1205; max-height: calc(100vw * 1205 / 926); max-width: 100vw; flex: none; }
+.hs-art img, .hs-overlay { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.hs-art img { pointer-events: none; -webkit-user-select: none; user-select: none; }
+.knob { cursor: pointer; outline: none; touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.knob-shape { fill: rgba(255, 255, 255, 0); stroke: rgba(255, 255, 255, .55); stroke-width: 2.5; stroke-linejoin: round; pointer-events: all; transition: fill .25s, stroke .25s; }
+.knob-label { fill: #fff; font: 800 50px var(--sans); filter: url(#labelShadow); pointer-events: none; }
+.knob:focus-visible .knob-shape { stroke: #fff; stroke-width: 5; }
+/* Naštimovano: zeleno, ostaje do „Resetuj“ ili „Gitara je spremna“ → OK */
+.knob.done .knob-shape { fill: rgba(40, 190, 105, .8); stroke: #6ff0aa; stroke-width: 4; filter: url(#glowGreen); }
+/* Trenutna žica: narandžasto */
+.knob.active .knob-shape { fill: rgba(245, 150, 30, .55); stroke: var(--accent); stroke-width: 4.5; filter: url(#glowOrange); }
+.knob.ringing .knob-shape { stroke: var(--accent); stroke-dasharray: 14 10; }
 .modal.ready-modal { text-align: center; max-width: 300px; }
 .ready-modal .modal-body { color: var(--text); font-size: 1.25rem; font-weight: 700; }
 .ready-modal .modal-actions { justify-content: center; }

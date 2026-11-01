@@ -33,6 +33,9 @@ const sr = {
   'tuner.playRef': 'Pusti ton {note}',
   'tuner.ready': 'Gitara je spremna',
   'tuner.readyOk': 'OK',
+  'tuner.cents': '{n} centi',
+  'tuner.cents1': '{n} cent',
+  'tuner.cents2': '{n} centa',
 
   // Mikrofon
   'mic.insecure': 'Mikrofon radi samo preko sigurne (https) veze.',
@@ -470,6 +473,9 @@ const en = {
   'tuner.headstock': 'Guitar headstock',
   'tuner.string': 'String {num} ({note})',
   'tuner.playRef': 'Play {note}',
+  'tuner.cents': '{n} cents',
+  'tuner.cents1': '{n} cent',
+  'tuner.cents2': '{n} cents',
   'tuner.ready': 'Guitar is ready',
   'tuner.readyOk': 'OK',
 

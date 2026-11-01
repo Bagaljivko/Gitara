@@ -24,6 +24,7 @@ async function route() {
   const hash = location.hash || '#/tuner';
   const [, page, arg] = hash.match(/^#\/([^/?]*)\/?(.*)$/) || [, 'tuner', ''];
   const tab = { tuner: 'tuner', akordi: 'akordi', pesme: 'pesme', pesma: 'pesme', uredi: 'pesme', setlista: 'pesme', podesavanja: 'podesavanja' }[page] || 'tuner';
+  document.body.classList.toggle('tuner-screen', tab === 'tuner');
   document.querySelectorAll('.nav a').forEach((a) => {
     const on = a.dataset.tab === tab;
     a.classList.toggle('active', on);

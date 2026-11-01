@@ -8,6 +8,7 @@ import { midiName } from './music.js';
 import { keepAwake, allowSleep } from './wakelock.js';
 import { pluck } from './synth.js';
 import { dialog } from './ui.js';
+import { KNOBS, ART_W, ART_H } from './headstockKnobs.js';
 
 // slot 0 = najviši par ključeva
 const STRINGS = [
@@ -53,76 +54,29 @@ function needleSVG() {
   </svg>`;
 }
 
-// Geometrija glave (viewBox 0 0 360 480)
-const SLOT_Y = [118, 196, 274];
-const POST_X = { L: 150, R: 210 };
-const EDGE_X = { L: 116, R: 244 };   // ivica glave u visini ključa (približno)
-const KEY_X = { L: 88, R: 272 };     // hromirani ključ
-const BTN_X = { L: 36, R: 324 };     // okruglo dugme sa nazivom žice
-const NUT_Y = 404;
-const nutX = (i) => 159 + i * 8.4;
-
-function headstockSVG() {
-  let strings = '', posts = '', pegs = '', buttons = '';
-  for (const s of STRINGS) {
-    const y = SLOT_Y[s.slot];
-    const px = POST_X[s.side], ex = EDGE_X[s.side], kx = KEY_X[s.side], bx = BTN_X[s.side];
-    const dir = s.side === 'L' ? -1 : 1;
-    strings += `<line class="hs-string" data-s="${s.id}" x1="${nutX(s.id)}" y1="${NUT_Y + 2}" x2="${px - dir * 3}" y2="${y}" stroke-width="${(1.9 - s.id * 0.22).toFixed(2)}"/>`;
-    posts += `<g class="hs-post" data-s="${s.id}"><circle cx="${px}" cy="${y}" r="9.5" class="post-bush"/><circle cx="${px}" cy="${y}" r="5" class="post-pin"/></g>`;
-    // Ključ: kućište uz ivicu, osovina i „krilce“ koje se okreće
-    const hx = Math.min(ex, ex + dir * 16);
-    pegs += `<g class="peg" data-s="${s.id}">
-      <rect class="peg-housing" x="${hx}" y="${y - 9}" width="16" height="18" rx="4"/>
-      <rect class="peg-shaft" x="${Math.min(ex + dir * 16, kx)}" y="${y - 3}" width="${Math.abs(kx - (ex + dir * 16))}" height="6" rx="2"/>
-      <ellipse class="peg-key" cx="${kx}" cy="${y}" rx="11" ry="17"/>
-      <ellipse class="peg-shine" cx="${kx - 3}" cy="${y - 5}" rx="3" ry="7"/>
+// Glava gitare: fotografija (assets/headstock.webp) + SVG sloj sa tačnim obrisima šest ključeva.
+// Koordinate su u procentima slike, pa se slojevi poklapaju na svakoj veličini ekrana.
+function headstockArt() {
+  const sx = ART_W / 100, sy = ART_H / 100;
+  const pts = (k) => k.pts.split(' ').map((p) => { const [x, y] = p.split(',').map(Number); return `${(x * sx).toFixed(1)},${(y * sy).toFixed(1)}`; }).join(' ');
+  const knobs = KNOBS.map((k) => {
+    const s = STRINGS[k.id];
+    return `<g class="knob" data-s="${k.id}" tabindex="0" role="button" aria-label="${t('tuner.string', { num: s.num, note: s.full })}">
+      <polygon class="knob-shape" points="${pts(k)}"/>
+      <text class="knob-label" x="${(k.cx * sx).toFixed(1)}" y="${(k.cy * sy + 17).toFixed(1)}" text-anchor="middle">${s.label === 'e' ? 'E' : s.label}</text>
     </g>`;
-    const sx = bx + (s.side === 'L' ? 22 : -22), sy = y + 30;
-    buttons += `<g class="sbtn" data-s="${s.id}" tabindex="0" role="button" aria-label="${t('tuner.string', { num: s.num, note: s.full })}">
-      <circle class="sbtn-c" cx="${bx}" cy="${y}" r="26"/>
-      <text class="sbtn-t" x="${bx}" y="${y + 8}" text-anchor="middle">${s.label}</text>
-    </g>
-    <g class="spk" data-spk="${s.id}" tabindex="0" role="button" aria-label="${t('tuner.playRef', { note: s.full })}">
-      <circle cx="${sx}" cy="${sy}" r="13" class="spk-c"/>
-      <path d="M ${sx - 6} ${sy - 3} h 3 l 4 -4 v 14 l -4 -4 h -3 z" class="spk-i"/>
-      <path d="M ${sx + 3.5} ${sy - 3.5} q 3 3.5 0 7" class="spk-w"/>
-    </g>`;
-  }
-  // Drvena šara (blago talasaste linije)
-  let grain = '';
-  for (let i = 0; i < 16; i++) {
-    const x = 112 + i * 8.5 + (i % 3) * 1.7;
-    const w = 2 + (i % 4);
-    grain += `<path d="M ${x} 20 C ${x + w} 120, ${x - w} 240, ${x + w * 0.6} 330 S ${x - 2} 420, ${x + 1} 480" class="grain${i % 3 === 0 ? ' dark' : ''}"/>`;
-  }
-  const body = 'M 128 404 L 118 92 C 116 50, 128 34, 148 30 Q 180 22 212 30 C 232 34, 244 50, 242 92 L 232 404 Z';
-  return `<svg class="headstock" viewBox="0 0 360 480" xmlns="http://www.w3.org/2000/svg" aria-label="${t('tuner.headstock')}">
-    <defs>
-      <linearGradient id="hsWood" x1="0" x2="1" y1="0" y2="0">
-        <stop offset="0" stop-color="#6b3f22"/><stop offset=".45" stop-color="#a0663a"/><stop offset=".55" stop-color="#9a6036"/><stop offset="1" stop-color="#5f371d"/>
-      </linearGradient>
-      <linearGradient id="neckWood" x1="0" x2="0" y1="0" y2="1">
-        <stop offset="0" stop-color="#4a2c19"/><stop offset="1" stop-color="#4a2c19" stop-opacity="0"/>
-      </linearGradient>
-      <linearGradient id="chrome" x1="0" x2="1" y1="0" y2="1">
-        <stop offset="0" stop-color="#f4f6f8"/><stop offset=".45" stop-color="#a9afb7"/><stop offset=".7" stop-color="#d9dde2"/><stop offset="1" stop-color="#7d838b"/>
-      </linearGradient>
-      <radialGradient id="postChrome" cx=".35" cy=".35" r=".8">
-        <stop offset="0" stop-color="#ffffff"/><stop offset=".5" stop-color="#b9bec5"/><stop offset="1" stop-color="#6d727a"/>
-      </radialGradient>
-      <clipPath id="hsClip"><path d="${body}"/></clipPath>
-    </defs>
-    <rect class="neck" x="133" y="400" width="94" height="80" fill="url(#neckWood)"/>
-    <path d="${body}" fill="url(#hsWood)"/>
-    <g clip-path="url(#hsClip)">${grain}</g>
-    <path d="${body}" class="hs-binding"/>
-    ${pegs}
-    <rect class="hs-nut" x="130" y="${NUT_Y - 4}" width="100" height="8" rx="2"/>
-    ${strings}
-    ${posts}
-    ${buttons}
-  </svg>`;
+  }).join('');
+  return `<div class="hs-art">
+    <img src="assets/headstock.webp" alt="" width="${ART_W}" height="${ART_H}" decoding="async" draggable="false">
+    <svg class="hs-overlay" viewBox="0 0 ${ART_W} ${ART_H}" xmlns="http://www.w3.org/2000/svg" aria-label="${t('tuner.headstock')}">
+      <defs>
+        <filter id="glowGreen" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur in="SourceAlpha" stdDeviation="9" result="b"/><feFlood flood-color="#3dd68c" flood-opacity=".85"/><feComposite in2="b" operator="in" result="g"/><feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        <filter id="glowOrange" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur in="SourceAlpha" stdDeviation="9" result="b"/><feFlood flood-color="#f5a524" flood-opacity=".9"/><feComposite in2="b" operator="in" result="g"/><feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        <filter id="labelShadow" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="0" dy="2" stdDeviation="2.5" flood-color="#000" flood-opacity=".6"/></filter>
+      </defs>
+      ${knobs}
+    </svg>
+  </div>`;
 }
 
 export function createTuner(root) {
@@ -130,6 +84,7 @@ export function createTuner(root) {
   <section class="view tuner-view">
     <header class="view-head">
       <h1>${t('tuner.title')}</h1>
+      <button class="btn small ghost" id="tReset">${t('tuner.reset')}</button>
       <label class="switch">
         <input type="checkbox" id="tAuto" checked>
         <span class="switch-track"><span class="switch-thumb"></span></span>
@@ -139,9 +94,9 @@ export function createTuner(root) {
     <div class="nwrap" id="tMeter" data-state="idle" aria-live="polite">
       ${needleSVG()}
       <div class="nnote" id="tNote">–</div>
+      <div class="ncents" id="tCents">&nbsp;</div>
     </div>
-    <div class="headstock-wrap" id="tHead">${headstockSVG()}</div>
-    <div class="tuner-foot"><button class="btn small" id="tReset">${t('tuner.reset')}</button></div>
+    <div class="headstock-wrap" id="tHead">${headstockArt()}</div>
     <div class="mic-overlay" id="tStart">
       <div class="mic-card">
         <button class="mic-btn" id="tStartBtn" aria-label="${t('tuner.start')}">
@@ -171,8 +126,8 @@ export function createTuner(root) {
 
   settings.get('a4', 440).then((v) => { a4 = Number(v) || 440; tracker.a4 = a4; });
 
-  const markActive = (id) => root.querySelectorAll('.peg, .sbtn, .hs-string, .hs-post').forEach((el) => el.classList.toggle('active', +el.dataset.s === id));
-  const applyDone = () => root.querySelectorAll('.peg, .sbtn, .hs-string, .hs-post').forEach((el) => el.classList.toggle('done', done.has(+el.dataset.s)));
+  const markActive = (id) => root.querySelectorAll('.knob').forEach((el) => el.classList.toggle('active', +el.dataset.s === id));
+  const applyDone = () => root.querySelectorAll('.knob').forEach((el) => el.classList.toggle('done', done.has(+el.dataset.s)));
   applyDone();
 
   function resetAll() {
@@ -205,11 +160,11 @@ export function createTuner(root) {
     const f = a4 * Math.pow(2, (GUITAR[id] - 69) / 12);
     const ms = pluck(f);
     tracker.mute(ms + 400, performance.now()); // sopstveni ton ne sme da pokrene tuner
-    const btn = root.querySelector(`.sbtn[data-s="${id}"]`);
+    const btn = root.querySelector(`.knob[data-s="${id}"]`);
     btn.classList.add('ringing');
     setTimeout(() => btn.classList.remove('ringing'), ms * 0.6);
   }
-  root.querySelectorAll('.sbtn').forEach((el) => {
+  root.querySelectorAll('.knob').forEach((el) => {
     const id = +el.dataset.s;
     let pressT = 0, longDone = false;
     el.addEventListener('pointerdown', (e) => {
@@ -224,11 +179,6 @@ export function createTuner(root) {
     el.addEventListener('contextmenu', (e) => e.preventDefault());
     el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectString(id); } });
   });
-  root.querySelectorAll('.spk').forEach((el) => {
-    const go = (e) => { e.preventDefault(); playRef(+el.dataset.spk); };
-    el.addEventListener('click', go);
-    el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') go(e); });
-  });
   $('tReset').addEventListener('click', resetAll);
 
   function setNeedle(c) {
@@ -239,10 +189,11 @@ export function createTuner(root) {
   function idle() {
     meter.dataset.state = 'idle';
     $('tNote').textContent = auto ? '–' : STRINGS[selected].label;
+    $('tCents').innerHTML = '&nbsp;';
     shownCents = 0;
     setNeedle(0);
     okSince = 0;
-    if (auto) root.querySelectorAll('.peg, .sbtn, .hs-string, .hs-post').forEach((el) => el.classList.remove('active'));
+    if (auto) root.querySelectorAll('.knob').forEach((el) => el.classList.remove('active'));
   }
 
   async function allTuned() {
@@ -266,6 +217,10 @@ export function createTuner(root) {
       shownCents = meter.dataset.state === 'idle' ? r.cents : shownCents + (r.cents - shownCents) * 0.3;
       setNeedle(shownCents);
       $('tNote').textContent = midiName(69 + 12 * Math.log2(r.freq / a4)).name;
+      const cr = Math.round(shownCents);
+      const ac = Math.abs(cr), m10 = ac % 10, m100 = ac % 100;
+      const form = m10 === 1 && m100 !== 11 ? 'tuner.cents1' : m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? 'tuner.cents2' : 'tuner.cents';
+      $('tCents').textContent = t(form, { n: (cr > 0 ? '+' : cr < 0 ? '−' : '±') + ac });
       const ok = Math.abs(shownCents) <= IN_TUNE;
       meter.dataset.state = ok ? 'ok' : 'off';
       if (ok) {
