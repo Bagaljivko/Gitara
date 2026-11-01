@@ -1,6 +1,7 @@
 // Konverzija pesme <-> tekst "akordi iznad teksta", validacija i transpozicija pesme.
 import { t } from './i18n.js';
 import { cleanPattern } from './rhythm.js';
+import { isTabLine, parseAsciiTab, tabToAscii, cleanTab, noteAt } from './tabs.js';
 import { isChord, transposeChord, transposeKey, parseChord, parseKey, prefersFlats } from './music.js';
 
 const EXTRA_TOKENS = /^(\||\|\||%|-|–|\/|x\d+|\(x\d+\)|\d+x|\(\d+x\)|\.\.\.?|N\.?C\.?)$/i;
@@ -47,6 +48,13 @@ export function textToSections(text) {
   const ensure = () => { if (!cur) { cur = { name: '', lines: [] }; sections.push(cur); } return cur; };
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].replace(/\s+$/, '');
+    // Tablatura: 6 uzastopnih ASCII redova (opciono red sa taktom, npr. „3/4“, iznad)
+    const sigM = line.trim().match(/^(\d{1,2}\/\d{1,2})$/);
+    const tStart = sigM ? i + 1 : i;
+    if (tStart + 5 < lines.length && lines.slice(tStart, tStart + 6).every(isTabLine)) {
+      const tab = parseAsciiTab(lines.slice(tStart, tStart + 6), sigM ? sigM[1] : '4/4');
+      if (tab) { const sec = ensure(); (sec.tabs = sec.tabs || []).push(tab); i = tStart + 5; continue; }
+    }
     const h = headerName(line);
     if (h !== null && !isChordLine(line)) {
       cur = { name: h, lines: [] };
@@ -71,7 +79,7 @@ export function textToSections(text) {
     while (s.lines.length && isBlank(s.lines[0])) s.lines.shift();
     while (s.lines.length && isBlank(s.lines[s.lines.length - 1])) s.lines.pop();
   }
-  return sections.filter((s) => s.name || s.lines.length);
+  return sections.filter((s) => s.name || s.lines.length || (s.tabs && s.tabs.length));
 }
 
 const isBlank = (l) => !l.text.trim() && !l.chords.length;
@@ -92,6 +100,11 @@ export function sectionsToText(sections) {
   (sections || []).forEach((sec, idx) => {
     if (idx > 0) out.push('');
     if (sec.name) out.push(`[${sec.name}]`);
+    (sec.tabs || []).forEach((tab, ti) => {
+      if (tab.sig && tab.sig !== '4/4') out.push(tab.sig);
+      out.push(...tabToAscii(tab));
+      if (ti < sec.tabs.length - 1 || (sec.lines && sec.lines.length)) out.push('');
+    });
     for (const l of sec.lines || []) {
       if (l.chords && l.chords.length) out.push(layoutChordLine(l.chords));
       if (l.text || !(l.chords && l.chords.length)) out.push(l.text || '');
@@ -185,9 +198,11 @@ export function normalizeSong(raw) {
     };
     const sp = cleanPattern(s.strum);
     if (sp) sec.strum = sp;
+    const tabs = (Array.isArray(s.tabs) ? s.tabs : []).slice(0, 12).map(cleanTab).filter(Boolean);
+    if (tabs.length) sec.tabs = tabs;
     return sec;
   });
-  const totalLines = sections.reduce((n, s) => n + s.lines.length, 0);
+  const totalLines = sections.reduce((n, s) => n + s.lines.length + (s.tabs ? s.tabs.length : 0), 0);
   if (!totalLines) throw new SongFormatError(t('fmt.empty'));
   const tr = Math.round(Number(raw.transpose) || 0);
   return {
@@ -264,6 +279,15 @@ export function cleanUncertain(raw, sections) {
     if (!u || typeof u !== 'object') continue;
     const si = Math.round(Number(u.section)), li = Math.round(Number(u.line));
     const sec = sections[si];
+    if (u.kind === 'fret') {
+      const ti = Math.round(Number(u.tab) || 0), string = Math.round(Number(u.string)), col = Math.round(Number(u.col));
+      const tab = sec && sec.tabs && sec.tabs[ti];
+      const n = tab && noteAt(tab, string, col);
+      const text = String(u.text ?? '').trim(), suggestion = String(u.suggestion ?? '').trim();
+      if (!n || n.f !== text || !/^(x|\d{1,2})$/.test(suggestion) || suggestion === text) continue;
+      out.push({ section: si, kind: 'fret', tab: ti, string, col, text, suggestion, line: 0, position: col });
+      continue;
+    }
     const line = sec && sec.lines && sec.lines[li];
     if (!line) continue;
     const kind = u.kind === 'chord' ? 'chord' : 'word';

@@ -12,6 +12,7 @@ function pack(song) {
     const x = { l: sec.lines.map((l) => (l.chords && l.chords.length ? [l.text || '', l.chords.map((c) => [c.chord, c.position])] : [l.text || ''])) };
     if (sec.name) x.n = sec.name;
     if (sec.strum) x.p = sec.strum;
+    if (sec.tabs && sec.tabs.length) x.tb = sec.tabs.map((tb) => ({ g: tb.sig, b: tb.bars.map((b) => [b.w, b.notes.map((n) => (n.t ? [n.s, n.f, n.p, n.t] : [n.s, n.f, n.p]))]) }));
     return x;
   }) };
   if (ex.capo) o.c = ex.capo;
@@ -28,6 +29,7 @@ function unpack(o) {
     sections: o.s.map((x) => ({
       name: x.n || '',
       strum: x.p,
+      tabs: (x.tb || []).map((tb) => ({ sig: tb.g, bars: (tb.b || []).map(([w, notes]) => ({ w, notes: (notes || []).map(([s, f, p, t]) => ({ s, f, p, t })) })) })),
       lines: (x.l || []).map((l) => ({ text: l[0] || '', chords: (l[1] || []).map(([chord, position]) => ({ chord, position })) })),
     })),
   });

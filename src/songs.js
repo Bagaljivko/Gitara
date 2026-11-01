@@ -10,6 +10,7 @@ import {
 import { scanSong, prepareImage, getApiKey, GeminiError } from './gemini.js';
 import { driveState, savePdfToDrive, DriveError } from './drive.js';
 import { t, getLang } from './i18n.js';
+import { tabBlockHTML, layoutTabs, playTab, noteAt, STRING_NAMES, tabToAscii } from './tabs.js';
 import { easiestCapo, localStrum, patternById } from './suggest.js';
 import { suggestStrumAI } from './gemini.js';
 import { songLink, songFromHash } from './sharelink.js';
@@ -251,6 +252,7 @@ export async function renderSharedSong(root) {
     ${chords.length ? `<div class="diagram-row">${chords.map((c) => `<div class="diagram-btn">${chordSVG(c)}</div>`).join('')}</div>` : ''}
     <div class="lyrics">${renderSectionsHTML(shapes.sections)}</div>
   </section>`;
+  layoutTabs(root);
   const $ = (q) => root.querySelector('#' + q);
   const leave = (hash) => location.replace(location.pathname + location.search + hash); // briše #pesma= iz adrese
   $('shCancel').addEventListener('click', () => leave('#/pesme'));
@@ -351,7 +353,7 @@ async function collectPages(initial) {
 }
 
 /** Šalje sliku Geminiju; kada je Gemini zauzet ponavlja automatski, a na kraju nudi „Pokušaj ponovo“. */
-async function runScan(files, prepared = null) {
+async function runScan(files, prepared = null, opts = {}) {
   const overlay = document.createElement('div');
   overlay.className = 'modal-backdrop';
   overlay.innerHTML = `<div class="modal scan-modal" role="dialog" aria-modal="true" aria-label="${t('scan.label')}">
@@ -389,14 +391,17 @@ async function runScan(files, prepared = null) {
       else setText(t('scan.busy'));
     }, diag);
     diag.totalMs = performance.now() - t0;
+    close();
+    if (opts.onSong) { opts.onSong(song, imgs); return; }
+    await placeUnplacedTabs(song);
+    if (opts.rescanOf) song.__rescanOf = opts.rescanOf;
     draft = song;
     draftImage = imgs.map((i) => i.preview);
-    close();
     location.hash = '#/uredi/sken';
   } catch (e) {
     diag.totalMs = performance.now() - t0;
     close();
-    if (cancelled || (e && e.name === 'AbortError')) return;
+    if (cancelled || (e && e.name === 'AbortError')) { if (opts.onFail) opts.onFail(e); return; }
     const code = e instanceof GeminiError ? e.code : 'ERROR';
     const title = code === 'TIMEOUT' ? t('scan.timeoutTitle') : code === 'BUSY' ? t('scan.busyTitle') : t('scan.failedTitle');
     const report = formatScanDiag(diag, e);
@@ -417,7 +422,8 @@ async function runScan(files, prepared = null) {
       try { await navigator.clipboard.writeText(report); toast(t('scan.copied')); }
       catch { const r = document.createRange(); r.selectNodeContents(modal.querySelector('#diagText')); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); }
     });
-    if (await p) return runScan(files, imgs);
+    if (await p) return runScan(files, imgs, opts);
+    if (opts.onFail) opts.onFail(e);
   }
 }
 
@@ -438,6 +444,55 @@ function formatScanDiag(d, e) {
   L.push(`${t('diag.message')}: ${(e && e.message) || String(e)}`);
   L.push(`${t('diag.app')}: Gitara ${APP_VERSION} · ${navigator.onLine === false ? 'offline' : 'online'} · ${navigator.userAgent}`);
   return L.join('\n');
+}
+
+/** Samo tablature sa slika (za „Dodaj tablaturu“ → skeniranje). Vraća niz tablatura ili null. */
+function scanTabsFromImages(files) {
+  return new Promise((resolve) => {
+    runScan(files.slice(0, MAX_PAGES), null, {
+      onSong: (song) => {
+        const tabs = song.sections.flatMap((x) => x.tabs || []);
+        if (!tabs.length) { toast(t('tab.noneFound'), 'error'); resolve(null); } else resolve(tabs);
+      },
+      onFail: () => resolve(null),
+    });
+  });
+}
+
+/** „Gde da stavim ovu tablaturu?“ — za tablature koje Gemini nije znao gde da smesti. */
+async function placeUnplacedTabs(song) {
+  const list = (song.unplacedTabs || []).slice().sort((a, b) => b - a);
+  delete song.unplacedTabs;
+  for (const from of list) {
+    const src = song.sections[from];
+    if (!src || !src.tabs) continue;
+    const others = song.sections.map((x, i) => ({ i, label: x.name || t('strum.section', { n: i + 1 }) })).filter((o) => o.i !== from);
+    if (!others.length) continue;
+    const p = dialog({
+      title: t('tab.where'),
+      html: true,
+      body: `<p class="small muted">${esc(src.name ? t('tab.whereFrom', { name: src.name }) : t('tab.whereHint'))}</p>
+        <select id="tabWhere"><option value="keep">${esc(t('tab.keepSeparate'))}</option>${others.map((o) => `<option value="${o.i}">${esc(o.label)}</option>`).join('')}</select>`,
+      buttons: [{ label: t('common.ok'), value: 'ok', kind: 'primary' }],
+      dismissible: false,
+    });
+    const modal = [...document.querySelectorAll('.modal-backdrop')].pop();
+    let choice = 'keep';
+    modal.querySelector('#tabWhere').addEventListener('change', (e) => (choice = e.target.value));
+    await p;
+    if (choice === 'keep') continue;
+    const to = +choice;
+    const dst = song.sections[to];
+    const offset = (dst.tabs || []).length;
+    dst.tabs = [...(dst.tabs || []), ...src.tabs];
+    // premesti i oznake nesigurnih pragova
+    for (const u of song.uncertain || []) if (u.kind === 'fret' && u.section === from) { u.section = to; u.tab += offset; }
+    delete src.tabs;
+    if (!src.lines.length) {
+      song.sections.splice(from, 1);
+      for (const u of song.uncertain || []) if (u.section > from) u.section--;
+    }
+  }
 }
 
 // ---------------- Prikaz linija sa akordima ----------------
@@ -516,12 +571,20 @@ export function renderSectionsHTML(sections, uncertain = []) {
   return (sections || []).map((s, si) => `
     <div class="sec">
       ${s.name || s.strum ? `<div class="sec-head">${s.name ? `<div class="sec-name">${esc(s.name)}</div>` : ''}${s.strum ? patternHTML(s.strum, { compact: true }) : ''}</div>` : ''}
+      ${(s.tabs || []).map((tab, ti) => tabBlockHTML(tab, { si, ti, playLabel: t('tab.play'), marks: uncertain.map((u, idx) => ({ ...u, idx })).filter((u) => u.kind === 'fret' && u.section === si && u.tab === ti).map((u) => ({ string: u.string, col: u.col, idx: u.idx })) })).join('')}
       ${s.lines.map((l, li) => renderLineHTML(l, uncertain.map((u, idx) => ({ ...u, idx })).filter((u) => u.section === si && u.line === li))).join('')}
     </div>`).join('');
 }
 
 /** Primeni predlog na pesmu (menja originalne akorde/tekst, pomera akorde iza promenjene reči). */
 export function applyUncertain(song, u) {
+  if (u.kind === 'fret') {
+    const tab = song.sections[u.section] && song.sections[u.section].tabs && song.sections[u.section].tabs[u.tab];
+    const n = tab && noteAt(tab, u.string, u.col);
+    if (!n) return false;
+    n.f = u.suggestion;
+    return true;
+  }
   const line = song.sections[u.section] && song.sections[u.section].lines[u.line];
   if (!line) return false;
   if (u.kind === 'chord') {
@@ -666,6 +729,7 @@ export async function renderSong(root, id, nav = null) {
       ${chords.length ? `<div class="diagram-row" aria-label="${t('song.diagrams')}">${chords.map((c) => `<button class="diagram-btn" data-chord="${esc(c)}" aria-label="${esc(t('song.enlarge', { name: c }))}">${chordSVG(c)}</button>`).join('')}</div>` : ''}
       <div class="lyrics" id="sLyrics" style="--zoom:${zoom}">${renderSectionsHTML(song.sections, unc())}</div>`;
     syncEasyTop();
+    layoutTabs($('sLyrics'));
     $('sFontDown').disabled = zoom <= 0.8;
     $('sFontUp').disabled = zoom >= 1.8;
   };
@@ -736,7 +800,7 @@ export async function renderSong(root, id, nav = null) {
     if (!u) return;
     const r = await dialog({
       title: t('sug.unsureTitle'),
-      body: t(u.kind === 'chord' ? 'sug.unsureChord' : 'sug.unsureWord', { text: u.text, x: u.suggestion }),
+      body: t(u.kind === 'chord' ? 'sug.unsureChord' : u.kind === 'fret' ? 'sug.unsureFret' : 'sug.unsureWord', { text: u.text, x: u.suggestion, s: STRING_NAMES[(u.string || 1) - 1] }),
       buttons: [{ label: t('sug.keep'), value: 'keep' }, { label: t('sug.changeTo', { x: u.suggestion }), value: 'apply', kind: 'primary' }],
     });
     if (r) await resolveUncertain(i, r === 'apply');
@@ -867,7 +931,39 @@ export async function renderSong(root, id, nav = null) {
   $('sSpeed').addEventListener('change', async () => { stored.scrollSpeed = speed; await save(); });
   // Dodir bilo gde na tekstu pauzira skrolovanje
   $('sBody').addEventListener('pointerdown', () => stopScroll());
-  const onHash = () => { stopScroll(); stopStrum(); window.removeEventListener('hashchange', onHash); };
+  // ---- Tablature: reprodukcija u tempu metronoma, ističe svaku notu ----
+  let stopTab = null, tabBtn = null;
+  const endTab = () => {
+    if (stopTab) stopTab();
+    stopTab = null;
+    tabBtn?.classList.remove('playing');
+    tabBtn = null;
+    root.querySelectorAll('.tab-note.now').forEach((x) => x.classList.remove('now'));
+  };
+  async function toggleTab(btn) {
+    const same = tabBtn === btn;
+    endTab();
+    if (same) return;
+    const [si, ti] = btn.dataset.tabplay.split('-').map(Number);
+    const tab = stored.sections[si] && stored.sections[si].tabs && stored.sections[si].tabs[ti];
+    if (!tab) return;
+    tabBtn = btn;
+    btn.classList.add('playing');
+    const staff = btn.closest('.tab-block').querySelector('.tab-staff');
+    const bpm = Number(await settings.get('metBpm', 90)) || 90;
+    const a4 = Number(await settings.get('a4', 440)) || 440;
+    stopTab = playTab(tab, {
+      bpm, a4,
+      onNote: (bi, ni) => {
+        staff.querySelectorAll('.tab-note.now').forEach((x) => x.classList.remove('now'));
+        staff.querySelector(`[data-note="${bi}-${ni}"]`)?.classList.add('now');
+      },
+      onEnd: endTab,
+    });
+  }
+  const ro = new ResizeObserver(() => { const l = root.querySelector('.lyrics'); if (l) layoutTabs(l); });
+  ro.observe(root.querySelector('.song-view'));
+  const onHash = () => { stopScroll(); stopStrum(); endTab(); ro.disconnect(); window.removeEventListener('hashchange', onHash); };
   window.addEventListener('hashchange', onHash);
 
   function easyActive() { return !!stored.easyCapo && capo === stored.easyCapo; }
@@ -889,6 +985,8 @@ export async function renderSong(root, id, nav = null) {
     if (e.target.id === 'sEasy') setCapo(e.target.checked ? stored.easyCapo : 0);
   });
   root.querySelector('.song-view').addEventListener('click', (e) => {
+    const tp_ = e.target.closest('[data-tabplay]');
+    if (tp_) return toggleTab(tp_);
     const un = e.target.closest('[data-unsure]');
     if (un) { e.preventDefault(); return askUncertain(+un.dataset.unsure); }
     const ua = e.target.closest('[data-unc-apply]'), us = e.target.closest('[data-unc-skip]');
@@ -927,6 +1025,7 @@ export async function renderSong(root, id, nav = null) {
   const setFont = async (d) => {
     zoom = Math.min(1.8, Math.max(0.8, +(zoom + d).toFixed(2)));
     root.querySelector('.lyrics').style.setProperty('--zoom', zoom);
+    layoutTabs(root.querySelector('.lyrics'));
     $('sFontDown').disabled = zoom <= 0.8;
     $('sFontUp').disabled = zoom >= 1.8;
     toast(t('song.zoomPct', { n: Math.round(zoom * 100) }));
@@ -971,10 +1070,21 @@ export async function renderSong(root, id, nav = null) {
 export async function renderEditor(root, id) {
   let song;
   let isNew = false;
+  let base = null; // postojeća pesma kod „Skeniraj ponovo“
   if (id === 'sken' || id === 'novo') {
     if (!draft) { location.hash = '#/pesme'; return; }
     song = draft;
     isNew = true;
+    if (draft.__rescanOf) {
+      base = await db.get(draft.__rescanOf);
+      if (base) {
+        song = { ...draft };
+        // naslov/izvođač/tonalitet sa slike, osim ako ih skeniranje nije pročitalo
+        if (!song.title || song.title === t('common.untitled')) song.title = base.title;
+        if (!song.artist) song.artist = base.artist;
+        if (!song.key) song.key = base.key;
+      }
+    }
   } else {
     song = await db.get(id);
     if (!song) { location.hash = '#/pesme'; return; }
@@ -984,9 +1094,10 @@ export async function renderEditor(root, id) {
   <section class="view editor-view">
     <header class="topbar">
       <button class="back" id="eCancel">${t('edit.cancel')}</button>
-      <div class="topbar-actions"><button class="btn primary" id="eSave">${t('common.save')}</button></div>
+      <div class="topbar-actions">${!isNew ? `<button class="btn small" id="eRescan">${t('rescan.btn')}</button>` : ''}<button class="btn primary" id="eSave">${t('common.save')}</button></div>
     </header>
     <h1>${scanned ? t('edit.titleScanned') : isNew ? t('edit.titleNew') : t('edit.titleEdit')}</h1>
+    ${base ? `<p class="rescan-note small">${esc(t('rescan.note', { title: base.title }))}</p>` : ''}
     ${scanned ? `<p class="muted">${t('edit.scannedHint')}</p>${song.scanModel ? `<p class="scan-model small muted">${esc(t('edit.scanModel', { model: song.scanModel }))}</p>` : ''}` : ''}
     ${draftImage && scanned ? `<details class="card photo-ref"><summary>${t('edit.showPhoto')}</summary>${[].concat(draftImage).map((src, i) => `<img src="${src}" alt="${esc(t('scan.page', { n: i + 1 }))}">`).join('')}</details>` : ''}
     <div class="form">
@@ -1004,6 +1115,7 @@ export async function renderEditor(root, id) {
     <div id="eEditPane">
       <textarea id="eText" class="mono-editor" spellcheck="false" autocapitalize="off" autocomplete="off" wrap="off" aria-label="${t('edit.textLabel')}"></textarea>
       <div id="eWarn" class="warn small"></div>
+      <div class="edit-tools"><button class="btn small" id="eAddTab" type="button">${t('tab.add')}</button></div>
       <details class="help small">
         <summary>${t('edit.howTo')}</summary>
         <p>${t('edit.howToBody')}</p>
@@ -1053,6 +1165,71 @@ export async function renderEditor(root, id) {
     drawEditSuggest();
   });
   drawEditSuggest();
+
+  // „Dodaj tablaturu“: izaberi deo pesme, pa upiši ASCII tablaturu ili je skeniraj sa slike
+  const TAB_TEMPLATE = ['e|----------------|----------------|', 'B|----------------|----------------|', 'G|----------------|----------------|',
+    'D|----------------|----------------|', 'A|----------------|----------------|', 'E|----------------|----------------|'];
+  /** Ubaci redove odmah ispod zaglavlja izabranog dela (ili na kraj kao novi deo). */
+  const insertIntoSection = (target, linesToAdd) => {
+    const ta = $('eText');
+    const rows = ta.value.split('\n');
+    let at;
+    if (target === '__new') {
+      rows.push('', `[${t('tab.newSection')}]`);
+      at = rows.length;
+    } else {
+      const names = textToSections(ta.value).map((x) => x.name);
+      const name = names[+target];
+      const hi = name ? rows.findIndex((r) => r.trim() === `[${name}]`) : -1;
+      at = hi >= 0 ? hi + 1 : 0;
+    }
+    rows.splice(at, 0, ...linesToAdd, '');
+    ta.value = rows.join('\n');
+    autoGrow(ta);
+    validate();
+    // označi prvi takt da korisnik odmah kuca brojeve pragova
+    const before = rows.slice(0, at).join('\n').length + (at ? 1 : 0);
+    ta.focus();
+    ta.setSelectionRange(before + 2, before + 2 + 16);
+  };
+  $('eAddTab').addEventListener('click', async () => {
+    const names = textToSections($('eText').value).map((x, i) => ({ v: String(i), label: x.name || t('strum.section', { n: i + 1 }) }));
+    const p = dialog({
+      title: t('tab.addTitle'),
+      html: true,
+      body: `<label class="small">${t('tab.forSection')}
+        <select id="tabTarget">${names.map((n) => `<option value="${n.v}">${esc(n.label)}</option>`).join('')}<option value="__new">${esc(t('tab.newSectionOpt'))}</option></select></label>
+        <p class="small muted">${t('tab.addHint')}</p>`,
+      buttons: [{ label: t('common.cancel'), value: null }, { label: t('tab.scanIt'), value: 'scan' }, { label: t('tab.typeIt'), value: 'type', kind: 'primary' }],
+    });
+    const modal = [...document.querySelectorAll('.modal-backdrop')].pop();
+    let target = names.length ? '0' : '__new';
+    modal.querySelector('#tabTarget').value = target;
+    modal.querySelector('#tabTarget').addEventListener('change', (e) => (target = e.target.value));
+    const mode = await p;
+    if (mode === 'type') { insertIntoSection(target, TAB_TEMPLATE); toast(t('tab.typeHint')); }
+    else if (mode === 'scan') {
+      const files = await pickFiles('image/*');
+      if (!files.length) return;
+      const res = await scanTabsFromImages(files);
+      if (!res || !res.length) return;
+      insertIntoSection(target, res.flatMap((tab, i) => [...(i ? [''] : []), ...(tab.sig !== '4/4' ? [tab.sig] : []), ...tabToAscii(tab)]));
+      toast(t('tab.scanned', { n: res.length }));
+    }
+  });
+  $('eRescan')?.addEventListener('click', async () => {
+    const how = await dialog({
+      title: t('rescan.btn'),
+      body: t('rescan.body'),
+      buttons: [{ label: t('scan.gallery'), value: 'gallery' }, { label: t('scan.camera'), value: 'camera', kind: 'primary' }],
+    });
+    if (!how) return;
+    if (!(await getApiKey())) { toast(t('scan.needKeyTitle'), 'error'); return; }
+    const files = await pickFiles('image/*', how === 'camera' ? 'environment' : null);
+    if (!files.length) return;
+    const pages = await collectPages(files);
+    if (pages) await runScan(pages, null, { rescanOf: id });
+  });
   $('eText').addEventListener('input', () => { autoGrow($('eText')); validate(); });
   validate();
 
@@ -1061,7 +1238,7 @@ export async function renderEditor(root, id) {
     const preview = b.dataset.tab === 'preview';
     $('eEditPane').hidden = preview;
     $('ePreviewPane').hidden = !preview;
-    if (preview) { const secs = validate(); $('ePreviewPane').innerHTML = renderSectionsHTML(secs, cleanUncertain(pendingUnc, secs)) || `<p class="muted">${t('edit.noText')}</p>`; }
+    if (preview) { const secs = validate(); $('ePreviewPane').innerHTML = renderSectionsHTML(secs, cleanUncertain(pendingUnc, secs)) || `<p class="muted">${t('edit.noText')}</p>`; layoutTabs($('ePreviewPane')); }
   }));
 
   const dirty = () => $('eText').value !== sectionsToText(song.sections) || $('eTitle').value !== (song.title || '');
@@ -1071,6 +1248,7 @@ export async function renderEditor(root, id) {
       if (!ok) return;
     }
     draft = null; draftImage = null;
+    if (base) { location.replace(`#/pesma/${encodeURIComponent(base.id)}`); return; }
     history.length > 1 ? history.back() : (location.hash = isNew ? '#/pesme' : `#/pesma/${encodeURIComponent(id)}`);
   });
   $('eSave').addEventListener('click', async () => {
@@ -1084,7 +1262,8 @@ export async function renderEditor(root, id) {
       if (old && old.strum) sec.strum = old.strum;
     });
     const rec = await db.save({
-      ...(isNew ? songExtras(song) : song),
+      // ponovo skenirana pesma zadržava sve svoje (kapodaster, ritam, YouTube, folderi, setliste — isti id)
+      ...(base ? base : isNew ? songExtras(song) : song),
       title,
       artist: $('eArtist').value.trim(),
       key: $('eKey').value.trim(),

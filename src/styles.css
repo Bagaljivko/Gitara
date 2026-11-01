@@ -537,3 +537,25 @@ body.two-pane-mode main { max-width: 1320px; }
 .scroll-bar.collapsed { max-width: max-content; margin-left: auto; padding: 4px; gap: 2px; }
 .scroll-bar.collapsed > :not(#sPlay):not(.scroll-collapse) { display: none; }
 .scroll-bar.collapsed .scroll-collapse svg { transform: rotate(180deg); }
+
+/* Tablature */
+.tab-block { position: relative; margin: 6px 0 14px; padding-left: 40px; }
+.tab-play { position: absolute; left: -4px; top: 2px; }
+.tab-play svg { width: 22px; height: 22px; fill: currentColor; }
+.tab-play.playing { color: var(--accent); }
+.tab-staff { font-size: 1em; width: 100%; overflow: hidden; }
+.tab-row { display: block; margin-bottom: .4em; max-width: 100%; }
+.tab-line { stroke: var(--muted); stroke-width: 1; opacity: .55; }
+.tab-bar { stroke: var(--muted); stroke-width: 1.4; opacity: .8; }
+.tab-name { fill: var(--muted); font-family: var(--mono); font-weight: 700; }
+.tab-sig { fill: var(--text); font-family: var(--sans); font-weight: 800; }
+.tab-note rect { fill: var(--bg); }
+.tab-note text { fill: var(--accent); font-family: var(--mono); font-weight: 800; }
+.tab-staff .tab-note.now rect { fill: var(--accent); }
+.tab-staff .tab-note.now text { fill: var(--accent-ink); }
+.tab-note.unsure { cursor: pointer; }
+.tab-unsure { fill: none; stroke: #f2d14b; stroke-width: 1.6; }
+.edit-tools { display: flex; gap: 8px; margin: 6px 0; }
+.rescan-note { color: var(--accent); }
+.topbar .back { white-space: nowrap; flex: none; }
+@media (max-width: 400px) { .topbar-actions .btn.small { padding: 0 9px; } #sEasyTop { font-size: .82rem; } }

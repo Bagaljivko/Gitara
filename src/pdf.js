@@ -22,6 +22,25 @@ function loadJsPDF() {
 }
 import { getVoicings } from './chords.js';
 import { songChords } from './songformat.js';
+import { tabToAscii } from './tabs.js';
+
+/** Tablatura → redovi od po 6 ASCII linija, prelomljeni po taktovima da ne pređu maxChars. */
+function tabRows(tab, maxChars) {
+  const rows = [];
+  let cur = [];
+  let len = 2 + (tab.sig !== '4/4' ? 0 : 0);
+  tab.bars.forEach((bar) => {
+    if (cur.length && len + bar.w + 1 > maxChars) { rows.push(cur); cur = []; len = 2; }
+    cur.push(bar);
+    len += bar.w + 1;
+  });
+  if (cur.length) rows.push(cur);
+  return rows.map((bars, i) => {
+    const lines = tabToAscii({ sig: tab.sig, bars });
+    if (i === 0 && tab.sig !== '4/4') lines.unshift(tab.sig);
+    return lines;
+  });
+}
 
 async function fontBase64(url) {
   const res = await fetch(url);
@@ -186,7 +205,25 @@ export async function songToPdf(song, { transposeLabel = '', capoLabel = '' } = 
       }
       y += lh + 0.5;
     }
-    for (const line of sec.lines || []) {
+    // Tablature: šest linija, prelom takt po takt da stane u širinu strane
+    for (const tab of sec.tabs || []) {
+      const rows = tabRows(tab, maxChars);
+      rows.forEach((rowLines, ri) => {
+        ensure(lh * 6.6);
+        rowLines.forEach((txt) => {
+          doc.setFont('Mono', 'normal');
+          doc.setTextColor(110);
+          // crtice i linije sivo, brojevi pragova u boji
+          doc.text(txt.replace(/[0-9xhpbr\/\\~]/g, ' '), M, y);
+          doc.setFont('Mono', 'bold');
+          doc.setTextColor(...accent);
+          doc.text(' ' + txt.slice(1).replace(/[^0-9xhpbr\/\\~]/g, ' '), M, y);
+          y += lh * 0.95;
+        });
+        y += lh * (ri < rows.length - 1 ? 0.5 : 0.8);
+      });
+    }
+        for (const line of sec.lines || []) {
       for (const [cs, t] of wrapPair(line.chords || [], line.text || '', maxChars)) {
         const hasC = cs.length > 0, hasT = !!t.trim();
         ensure((hasC ? lh : 0) + lh);

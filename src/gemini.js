@@ -3,6 +3,7 @@ import { t } from './i18n.js';
 // Ključ se nikad ne nalazi u kodu; čuva se samo u IndexedDB na uređaju.
 import { settings } from './db.js';
 import { normalizeSong } from './songformat.js';
+import { parseAsciiTab } from './tabs.js';
 
 // Podrazumevani model; korisnik ga može promeniti u „Podešavanjima“ bez izmene koda.
 export const DEFAULT_MODEL = 'gemini-3.8-flash';
@@ -69,6 +70,8 @@ PRAVILA:
 6. "title" i "artist" uzmi sa slike; ako ih nema, ostavi prazan string. "key" je tonalitet ako je naznačen, inače ga proceni iz akorda (npr. "Am", "G").
 7. Ako neki deo ne može da se pročita, napiši najverovatniju reč; ne izostavljaj linije.
 9. NESIGURNA MESTA: ako neki akord ili reč nisi mogao pouzdano da pročitaš, napiši u tekstu/akordima svoju najbolju procenu i dodaj stavku u "uncertain": { "section": indeks dela (od 0), "line": indeks linije u tom delu (od 0), "kind": "chord" ili "word", "text": tačno ono što si upisao, "position": pozicija akorda ili početak reči u liniji, "suggestion": drugo najverovatnije čitanje }. Navedi samo zaista nesigurna mesta (najviše 15); ako ih nema, "uncertain" je prazan niz.
+10. TABLATURA: ako slika sadrži gitarsku tablaturu (šest linija sa brojevima pragova), prepiši je u polje "tab" tog dela kao ASCII tekst od TAČNO 6 redova razdvojenih sa \n, odozgo: e, B, G, D, A, E (visoka e gore). Svaki red počinje nazivom žice i znakom "|", taktovi se odvajaju sa "|", crtice "-" popunjavaju prazna mesta, a kolone moraju biti poravnate (ista nota u svim redovima je u istoj koloni). Primer jednog reda: "e|-----0-----|---------3-|". Tehnike piši posle broja: h, p, /, \\, b, ~. "tabSig" je takt ako je naznačen (npr. "3/4"), inače "4/4". Prag koji nisi pouzdano pročitao dodaj u "tabUnsure": { "string": 1–6 (1 = e gore), "column": indeks prvog znaka tog broja u redu, računajući od 0 od prvog znaka POSLE prve "|", "fret": upisan broj, "suggestion": drugi najverovatniji broj }.
+11. Ako je više slika i jedna sadrži samo tablaturu, stavi je u odgovarajući deo pesme koji nema tekst (npr. "Uvod"/"Intro", "Rif"/"Riff", deo sa prebiranjem). Ako nisi siguran gde pripada, napravi zaseban deo sa tom tablaturom i postavi "tabPlacementUnclear": true.
 8. Ako na papiru postoji ritam udaranja (strelice ↓ ↑, ili zapis poput „D DU UDU“ / „dole gore“), vrati ga kao "strum": { "steps": "...", "sig": "4/4" }. "steps" ima jedan znak po osmini: D = udarac na dole, U = na gore, x = prigušen udarac, - = pauza (npr. „↓ ↓↑ ↑↓↑“ u 4/4 je "D-DU-UDU"). "sig" je "2/4", "3/4", "4/4" ili "6/8". Ako ritam važi samo za jedan deo pesme, stavi "strum" u taj deo (sekciju). Ako ritma nema, izostavi polje "strum".
 
 Vrati ISKLJUČIVO JSON ovog oblika (polja "strum" su opciona):
@@ -98,6 +101,10 @@ const RESPONSE_SCHEMA = {
         properties: {
           name: { type: 'STRING' },
           strum: STRUM_SCHEMA,
+          tab: { type: 'STRING' },
+          tabSig: { type: 'STRING' },
+          tabPlacementUnclear: { type: 'BOOLEAN' },
+          tabUnsure: { type: 'ARRAY', items: { type: 'OBJECT', properties: { string: { type: 'INTEGER' }, column: { type: 'INTEGER' }, fret: { type: 'STRING' }, suggestion: { type: 'STRING' } } } },
           lines: {
             type: 'ARRAY',
             items: {
@@ -433,10 +440,37 @@ export async function scanSong(images, signal, onStatus, diag) {
   const text = textOf(res.data).trim().replace(/^```(?:json)?\s*|\s*```$/g, '');
   let json;
   try { json = JSON.parse(text); } catch { throw new GeminiError(t('gem.badJson')); }
+  const unplaced = tabsFromScan(json);
   let song;
   try { song = normalizeSong(json); } catch { throw new GeminiError(t('gem.noSong')); }
+  // delovi sa tablaturom za koje Gemini nije siguran gde pripadaju (indeksi posle normalizacije su isti)
+  song.unplacedTabs = unplaced.filter((i) => song.sections[i] && song.sections[i].tabs);
   song.scanModel = res.model; // prikazuje se na „Proveri i ispravi“, ne čuva se u pesmi
   return song;
+}
+
+/**
+ * ASCII tablature iz odgovora pretvara u strukturirane (sections[i].tabs), nesigurne pragove dodaje u
+ * json.uncertain (kind 'fret'). Vraća indekse delova čije mesto nije jasno.
+ */
+export function tabsFromScan(json) {
+  const unplaced = [];
+  if (!json || !Array.isArray(json.sections)) return unplaced;
+  json.uncertain = Array.isArray(json.uncertain) ? json.uncertain : [];
+  json.sections.forEach((sec, si) => {
+    if (!sec || typeof sec.tab !== 'string' || !sec.tab.trim()) return;
+    const lines = sec.tab.split(/\r?\n/).filter((l) => l.trim());
+    const tab = parseAsciiTab(lines, sec.tabSig);
+    if (!tab) return;
+    sec.tabs = [...(Array.isArray(sec.tabs) ? sec.tabs : []), tab];
+    const ti = sec.tabs.length - 1;
+    for (const u of Array.isArray(sec.tabUnsure) ? sec.tabUnsure : []) {
+      json.uncertain.push({ section: si, kind: 'fret', tab: ti, string: u.string, col: u.column, text: String(u.fret ?? ''), suggestion: String(u.suggestion ?? '') });
+    }
+    if (sec.tabPlacementUnclear) unplaced.push(si);
+    if (!Array.isArray(sec.lines)) sec.lines = [];
+  });
+  return unplaced;
 }
 
 // ---------------- Predlog ritma ----------------
