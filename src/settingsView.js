@@ -8,11 +8,7 @@ import { APP_VERSION } from './version.js';
 import { t, getLang, setLang } from './i18n.js';
 import { driveState, onDriveChange, connect as driveConnect, disconnect as driveDisconnect, reconnect as driveReconnect, backupNow, restoreFlow, formatDate, DriveError } from './drive.js';
 
-let deferredInstall = null;
-window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredInstall = e; });
-
-const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
-const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+import { isStandalone, isIOS, canPromptInstall, promptInstall } from './install.js';
 
 export async function renderSettings(root) {
   const key = await settings.get('geminiKey', '');
@@ -282,8 +278,8 @@ export async function renderSettings(root) {
   root.querySelectorAll('[data-lang]').forEach((b) => b.addEventListener('click', () => setLang(b.dataset.lang)));
 
   const ib = $('installBtn');
-  if (ib && deferredInstall) {
+  if (ib && canPromptInstall()) {
     ib.hidden = false;
-    ib.addEventListener('click', async () => { deferredInstall.prompt(); await deferredInstall.userChoice; deferredInstall = null; ib.hidden = true; });
+    ib.addEventListener('click', async () => { await promptInstall(); ib.hidden = true; });
   }
 }

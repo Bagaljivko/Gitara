@@ -5,11 +5,15 @@ import { chordSVG, voicingCount } from './diagram.js';
 import { isChord, parseChord, canonicalName } from './music.js';
 import {
   textToSections, sectionsToText, songChords, progressionSummary, transposeSong,
-  parseSharedFile, toSharedFile, safeFileName, SongFormatError, layoutChordLine, songExtras,
+  parseSharedFile, toSharedFile, safeFileName, SongFormatError, layoutChordLine, songExtras, songMeta, normalizeSong, cleanUncertain, cleanYoutubeUrl,
 } from './songformat.js';
 import { scanSong, prepareImage, getApiKey, GeminiError } from './gemini.js';
 import { driveState, savePdfToDrive, DriveError } from './drive.js';
-import { t } from './i18n.js';
+import { t, getLang } from './i18n.js';
+import { easiestCapo, localStrum, patternById } from './suggest.js';
+import { suggestStrumAI } from './gemini.js';
+import { songLink, songFromHash } from './sharelink.js';
+import { isStandalone, isIOS, canPromptInstall, promptInstall } from './install.js';
 import { APP_VERSION } from './version.js';
 import { settings } from './db.js';
 import { PATTERNS, patternHTML, patternName, Metronome } from './rhythm.js';
@@ -201,10 +205,75 @@ async function importSongFile() {
   return true;
 }
 
+/** „Podeli pesmu“: link sa celom pesmom (kompresovano u adresi) preko sistemskog menija za deljenje. */
 async function shareSong(song) {
-  const blob = new Blob([toSharedFile(song)], { type: 'application/json' });
-  const r = await shareOrDownload(blob, safeFileName(song.title) + '.json', song.title);
-  if (r === 'downloaded') toast(t('share.downloaded'));
+  const url = songLink(song);
+  const text = song.artist ? t('link.shareTextArtist', { title: song.title, artist: song.artist }) : t('link.shareText', { title: song.title });
+  if (navigator.share) {
+    try { await navigator.share({ title: song.title, text, url }); return; }
+    catch (e) { if (e && e.name === 'AbortError') return; /* u suprotnom: kopiraj link */ }
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+    toast(t('link.copied'));
+  } catch {
+    // Poslednja mogućnost: prikaži link da ga korisnik ručno kopira
+    await dialog({ title: t('link.copyTitle'), html: true, body: `<textarea class="link-box" readonly rows="4">${esc(url)}</textarea>` });
+  }
+}
+
+// ---------------- Pesma iz linka (#pesma=...) ----------------
+export async function renderSharedSong(root) {
+  let song;
+  try { song = songFromHash(); } catch (e) {
+    root.innerHTML = `<section class="view"><div class="card"><h2>${t('link.badTitle')}</h2><p class="muted">${esc(e.message)}</p>
+      <a class="btn primary" href="#/pesme">${t('song.back')}</a></div></section>`;
+    history.replaceState(null, '', location.pathname + location.search + '#/pesme');
+    return;
+  }
+  const shapes = transposeSong(song, (song.transpose || 0) - (song.capo || 0));
+  const chords = songChords(shapes);
+  root.innerHTML = `
+  <section class="view shared-view">
+    <div class="card add-card">
+      <h2>${t('link.addTitle')}</h2>
+      <p class="muted"><b>${esc(song.title)}</b>${song.artist ? ' — ' + esc(song.artist) : ''}</p>
+      <div class="row"><button class="btn" id="shCancel">${t('common.cancel')}</button><button class="btn primary" id="shAdd">${t('link.add')}</button></div>
+    </div>
+    ${isStandalone() ? '' : `<div class="card install-card" id="shInstall">
+      <p class="small">${t('link.installHint')}</p>
+      ${canPromptInstall() ? `<button class="btn small primary" id="shInstallBtn">${t('set.install')}</button>` : `<p class="small muted">${isIOS() ? t('set.installIos') : t('set.installAndroid')}</p>`}
+    </div>`}
+    <h1 class="song-h1">${esc(song.title)}</h1>
+    <p class="song-meta">${esc(song.artist || '')}${song.key ? `${song.artist ? ' · ' : ''}${t('song.key')} <b>${esc(song.key)}</b>` : ''}${song.capo ? ` · ${t('capo.title')} ${song.capo}` : ''}</p>
+    ${song.strum ? `<div class="strum-box card"><div class="strum-head"><span class="small muted">${t('strum.label')}</span> <b>${esc(patternName(song.strum))}</b></div>${patternHTML(song.strum)}</div>` : ''}
+    ${chords.length ? `<div class="diagram-row">${chords.map((c) => `<div class="diagram-btn">${chordSVG(c)}</div>`).join('')}</div>` : ''}
+    <div class="lyrics">${renderSectionsHTML(shapes.sections)}</div>
+  </section>`;
+  const $ = (q) => root.querySelector('#' + q);
+  const leave = (hash) => location.replace(location.pathname + location.search + hash); // briše #pesma= iz adrese
+  $('shCancel').addEventListener('click', () => leave('#/pesme'));
+  $('shInstallBtn')?.addEventListener('click', async () => { await promptInstall(); $('shInstall')?.remove(); });
+  $('shAdd').addEventListener('click', async () => {
+    const existing = (await db.all()).find((x) => norm(x.title) === norm(song.title));
+    let rec;
+    if (existing) {
+      const choice = await dialog({
+        title: t('import.existsTitle'),
+        body: t('import.existsBody', { title: existing.title }),
+        buttons: [{ label: t('common.cancel'), value: null }, { label: t('link.keepBoth'), value: 'both' }, { label: t('import.replace'), value: 'replace', kind: 'primary' }],
+      });
+      if (!choice) return;
+      rec = choice === 'replace'
+        ? await db.save({ ...song, id: existing.id, createdAt: existing.createdAt, folders: existing.folders })
+        : await db.save(song);
+      toast(choice === 'replace' ? t('import.replaced', { title: song.title }) : t('import.added', { title: song.title }));
+    } else {
+      rec = await db.save(song);
+      toast(t('import.added', { title: song.title }));
+    }
+    leave('#/pesma/' + encodeURIComponent(rec.id));
+  });
 }
 
 // ---------------- Skeniranje ----------------
@@ -371,31 +440,61 @@ function formatScanDiag(d, e) {
 }
 
 // ---------------- Prikaz linija sa akordima ----------------
-function chordSpan(c) {
-  return `<button class="ch" data-chord="${esc(c)}">${esc(c)}</button>`;
+function chordSpan(c, mark) {
+  return `<button class="ch${mark !== undefined ? ' unsure' : ''}" data-chord="${esc(c)}"${mark !== undefined ? ` data-unsure="${mark}"` : ''}>${esc(c)}</button>`;
 }
 
-export function renderLineHTML(line) {
+/** Mesto reči (indeks u tekstu) najbliže poziciji koju je dao Gemini. */
+export function findWord(text, word, near = 0) {
+  let best = -1, idx = text.indexOf(word);
+  while (idx !== -1) {
+    if (best === -1 || Math.abs(idx - near) < Math.abs(best - near)) best = idx;
+    idx = text.indexOf(word, idx + 1);
+  }
+  return best;
+}
+
+/** Tekst dela sa podvučenim (nesigurnim) opsezima: ranges = [{from, to, mark}] u koordinatama linije. */
+function markText(str, start, ranges) {
+  let out = '', i = 0;
+  const end = start + str.length;
+  for (const r of ranges) {
+    const a = Math.max(r.from, start), b = Math.min(r.to, end);
+    if (a >= b) continue;
+    out += esc(str.slice(i, a - start)) + `<mark class="unsure" data-unsure="${r.mark}">${esc(str.slice(a - start, b - start))}</mark>`;
+    i = b - start;
+  }
+  return out + esc(str.slice(i));
+}
+
+/**
+ * Jedna linija: akordi iznad slogova. marks = nesigurna mesta za ovu liniju
+ * ({ kind, position, text, idx }) — podvlače se žutom.
+ */
+export function renderLineHTML(line, marks = []) {
   const chords = [...(line.chords || [])].sort((a, b) => a.position - b.position);
   const text = line.text || '';
-  if (!chords.length) return text.trim() ? `<div class="ln"><span class="tx">${esc(text)}</span></div>` : '<div class="ln blank"></div>';
+  const chordMark = (c) => { const m = marks.find((x) => x.kind === 'chord' && x.position === c.position); return m ? m.idx : undefined; };
+  const ranges = marks.filter((m) => m.kind === 'word').map((m) => { const from = findWord(text, m.text, m.position); return from < 0 ? null : { from, to: from + m.text.length, mark: m.idx }; })
+    .filter(Boolean).sort((a, b) => a.from - b.from);
+  if (!chords.length) return text.trim() ? `<div class="ln"><span class="tx">${markText(text, 0, ranges)}</span></div>` : '<div class="ln blank"></div>';
   if (!text.trim()) {
-    return `<div class="ln chords-only">${chords.map((c) => chordSpan(c.chord)).join('<span class="gap"> </span>')}</div>`;
+    return `<div class="ln chords-only">${chords.map((c) => chordSpan(c.chord, chordMark(c))).join('<span class="gap"> </span>')}</div>`;
   }
   const lastPos = chords[chords.length - 1].position;
-  const t = text.length < lastPos ? text.padEnd(lastPos, ' ') : text;
+  const tt = text.length < lastPos ? text.padEnd(lastPos, ' ') : text;
   // Delovi: granice na pozicijama akorda i posle svakog razmaka.
-  const cuts = new Set([0, t.length]);
-  chords.forEach((c) => cuts.add(Math.min(c.position, t.length)));
-  for (let i = 0; i < t.length; i++) if (t[i] === ' ' && i + 1 < t.length) cuts.add(i + 1);
+  const cuts = new Set([0, tt.length]);
+  chords.forEach((c) => cuts.add(Math.min(c.position, tt.length)));
+  for (let i = 0; i < tt.length; i++) if (tt[i] === ' ' && i + 1 < tt.length) cuts.add(i + 1);
   const pts = [...cuts].sort((a, b) => a - b);
   const chunks = [];
-  for (let i = 0; i < pts.length - 1; i++) chunks.push({ start: pts[i], text: t.slice(pts[i], pts[i + 1]), chords: [] });
+  for (let i = 0; i < pts.length - 1; i++) chunks.push({ start: pts[i], text: tt.slice(pts[i], pts[i + 1]), chords: [] });
   if (!chunks.length) chunks.push({ start: 0, text: '', chords: [] });
   for (const c of chords) {
-    let target = chunks.find((ch) => ch.start === Math.min(c.position, t.length));
+    let target = chunks.find((ch) => ch.start === Math.min(c.position, tt.length));
     if (!target) target = chunks[chunks.length - 1];
-    target.chords.push(c.chord);
+    target.chords.push(c);
   }
   // Grupisanje u reči (da se reč ne lomi između slogova)
   let html = '<div class="ln">';
@@ -404,19 +503,54 @@ export function renderLineHTML(line) {
     const prev = chunks[i - 1];
     const newWord = !prev || prev.text.endsWith(' ');
     if (newWord) { if (open) html += '</span>'; html += '<span class="w">'; open = true; }
-    const chordsHtml = ch.chords.map(chordSpan).join(' ');
-    html += `<span class="seg"><span class="cr">${chordsHtml || '&#8203;'}</span><span class="tx">${esc(ch.text) || '&#8203;'}</span></span>`;
+    const chordsHtml = ch.chords.map((c) => chordSpan(c.chord, chordMark(c))).join(' ');
+    html += `<span class="seg"><span class="cr">${chordsHtml || '&#8203;'}</span><span class="tx">${markText(ch.text, ch.start, ranges) || '&#8203;'}</span></span>`;
   });
   if (open) html += '</span>';
   return html + '</div>';
 }
 
-export function renderSectionsHTML(sections) {
-  return (sections || []).map((s) => `
+/** Svi delovi pesme. uncertain = lista nesigurnih mesta (indeksi se odnose na ove sekcije). */
+export function renderSectionsHTML(sections, uncertain = []) {
+  return (sections || []).map((s, si) => `
     <div class="sec">
       ${s.name || s.strum ? `<div class="sec-head">${s.name ? `<div class="sec-name">${esc(s.name)}</div>` : ''}${s.strum ? patternHTML(s.strum, { compact: true }) : ''}</div>` : ''}
-      ${s.lines.map(renderLineHTML).join('')}
+      ${s.lines.map((l, li) => renderLineHTML(l, uncertain.map((u, idx) => ({ ...u, idx })).filter((u) => u.section === si && u.line === li))).join('')}
     </div>`).join('');
+}
+
+/** Primeni predlog na pesmu (menja originalne akorde/tekst, pomera akorde iza promenjene reči). */
+export function applyUncertain(song, u) {
+  const line = song.sections[u.section] && song.sections[u.section].lines[u.line];
+  if (!line) return false;
+  if (u.kind === 'chord') {
+    const c = line.chords.find((x) => x.position === u.position && x.chord === u.text) || line.chords.find((x) => x.chord === u.text);
+    if (!c) return false;
+    c.chord = u.suggestion;
+    return true;
+  }
+  const at = findWord(line.text, u.text, u.position);
+  if (at < 0) return false;
+  const delta = u.suggestion.length - u.text.length;
+  line.text = line.text.slice(0, at) + u.suggestion + line.text.slice(at + u.text.length);
+  if (delta) line.chords.forEach((c) => { if (c.position > at) c.position = Math.max(at + 1, c.position + delta); });
+  return true;
+}
+
+// ---------------- YouTube ----------------
+const LINK_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.6 13.4a1 1 0 0 1 0-1.4l3.4-3.4a1 1 0 1 1 1.4 1.4L12 13.4a1 1 0 0 1-1.4 0zM8.5 19.5a4 4 0 0 1-2.8-6.8l2.1-2.1 1.4 1.4-2.1 2.1a2 2 0 0 0 2.8 2.8l2.1-2.1 1.4 1.4-2.1 2.1a4 4 0 0 1-2.8 1.2zm7.7-6.1-1.4-1.4 2.1-2.1a2 2 0 0 0-2.8-2.8L12 9.2 10.6 7.8l2.1-2.1a4 4 0 0 1 5.6 5.6z"/></svg>';
+const ytSearch = (song, extra) => 'https://www.youtube.com/results?search_query=' + encodeURIComponent([song.title, song.artist, extra].filter(Boolean).join(' '));
+
+/** Dva dugmeta ispod naslova: „Poslušaj“ i „Tutorijal“ (pretraga ili sačuvan link) + „Sačuvaj link“. */
+function ytRowHTML(song) {
+  const yt = song.yt || {};
+  const item = (kind, label, href) => `<div class="yt-item">
+    <a class="btn small yt-btn" href="${esc(href)}" target="_blank" rel="noopener noreferrer">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.6 7.2a2.5 2.5 0 0 0-1.8-1.8C18.2 5 12 5 12 5s-6.2 0-7.8.4A2.5 2.5 0 0 0 2.4 7.2 26 26 0 0 0 2 12a26 26 0 0 0 .4 4.8 2.5 2.5 0 0 0 1.8 1.8C5.8 19 12 19 12 19s6.2 0 7.8-.4a2.5 2.5 0 0 0 1.8-1.8A26 26 0 0 0 22 12a26 26 0 0 0-.4-4.8zM10 15V9l5.2 3z"/></svg>
+      ${label}${yt[kind] ? '<span class="yt-saved" aria-hidden="true"></span>' : ''}</a>
+    <button class="icon-btn yt-link${yt[kind] ? ' saved' : ''}" data-yt="${kind}" aria-label="${esc(t(yt[kind] ? 'yt.changeLink' : 'yt.saveLink'))}" title="${esc(t(yt[kind] ? 'yt.changeLink' : 'yt.saveLink'))}">${LINK_ICON}</button>
+  </div>`;
+  return `<div class="yt-row">${item('listen', t('yt.listen'), yt.listen || ytSearch(song))}${item('tutorial', t('yt.tutorial'), yt.tutorial || ytSearch(song, 'guitar tutorial'))}</div>`;
 }
 
 // ---------------- Uvećan dijagram ----------------
@@ -501,6 +635,8 @@ export async function renderSong(root, id, nav = null) {
     $('sBody').innerHTML = `
       <h1 class="song-h1">${esc(song.title)}</h1>
       <p class="song-meta">${esc(song.artist || '')}${key ? `${song.artist ? ' · ' : ''}${t('song.key')} <b>${esc(key)}</b>` : ''}${capo && key ? ` · ${t('capo.shapes')} <b>${esc(song.key)}</b>` : ''}</p>
+      ${ytRowHTML(stored)}
+      <div id="sSuggest">${suggestHTML()}</div>
       <div class="song-controls">
         <div class="transpose" role="group" aria-label="${t('song.transpose')}">
           <button class="btn round small" id="tDown" aria-label="${t('song.transposeDown')}">−</button>
@@ -513,6 +649,7 @@ export async function renderSong(root, id, nav = null) {
           <div class="t-label">${t('capo.title')}<br><b>${capo || t('capo.none')}</b></div>
           <button class="btn round small" id="cUp" aria-label="${t('capo.up')}">+</button>
         </div>
+        ${stored.easyCapo ? `<label class="switch easy-switch"><input type="checkbox" id="sEasy" ${capo === stored.easyCapo ? 'checked' : ''}><span class="switch-track"><span class="switch-thumb"></span></span><span>${t('sug.easySwitch')}</span></label>` : ''}
       </div>
       ${capo ? `<p class="capo-note small">${t('capo.note', { n: capo })}</p>` : ''}
       <div class="strum-box card">
@@ -523,11 +660,111 @@ export async function renderSong(root, id, nav = null) {
       </div>
       ${prog.length ? `<div class="prog card">${prog.map((p) => `<div class="prog-row"><span class="prog-name">${esc(p.name || t('song.chordsFallback'))}</span><span class="prog-chords">${p.chords.map((c) => `<button class="ch" data-chord="${esc(c)}">${esc(c)}</button>`).join('<span class="arrow">→</span>')}</span></div>`).join('')}</div>` : ''}
       ${chords.length ? `<div class="diagram-row" aria-label="${t('song.diagrams')}">${chords.map((c) => `<button class="diagram-btn" data-chord="${esc(c)}" aria-label="${esc(t('song.enlarge', { name: c }))}">${chordSVG(c)}</button>`).join('')}</div>` : ''}
-      <div class="lyrics" id="sLyrics" style="font-size:${(fontScale * 100).toFixed(0)}%">${renderSectionsHTML(song.sections)}</div>`;
+      <div class="lyrics" id="sLyrics" style="font-size:${(fontScale * 100).toFixed(0)}%">${renderSectionsHTML(song.sections, unc())}</div>`;
   };
-  draw();
+
+  // ---- Predlozi (nesigurna mesta, lakša verzija, ritam) ----
+  const unc = () => cleanUncertain(stored.uncertain, stored.sections);
+  const hasStrum = () => !!stored.strum || stored.sections.some((x) => x.strum);
+  let strumLoading = false;
+  function suggestHTML() {
+    const items = [];
+    const u = unc();
+    if (u.length) {
+      items.push(`<div class="sug-group"><div class="sug-title">${t('sug.unsureTitleN', { n: u.length })}</div><p class="small muted">${t('sug.unsureHint')}</p>
+        ${u.slice(0, 6).map((x, i) => `<div class="sug-item"><span class="sug-what"><span class="unsure-sample">${esc(x.text)}</span> → <b>${esc(x.suggestion)}</b></span>
+          <button class="btn small" data-unc-skip="${i}">${t('sug.keep')}</button><button class="btn small primary" data-unc-apply="${i}">${esc(t('sug.changeTo', { x: x.suggestion }))}</button></div>`).join('')}</div>`);
+    }
+    if (!(stored.skipped && stored.skipped.easy) && !stored.easyCapo && !capo) {
+      const e = easiestCapo(stored, tp);
+      if (e) items.push(`<div class="sug-group"><div class="sug-title">${t('sug.easyTitle')}</div>
+        <p class="small">${esc(t('sug.easyText', { n: e.capo, shapes: e.shapes.join(', ') }))}</p>
+        <div class="sug-actions"><button class="btn small" data-sug="easy-skip">${t('sug.skip')}</button><button class="btn small primary" data-sug="easy-apply" data-capo="${e.capo}">${t('sug.apply')}</button></div></div>`);
+    }
+    if (!hasStrum() && !(stored.skipped && stored.skipped.strum)) {
+      const ss = stored.suggestStrum && patternById(stored.suggestStrum.id);
+      if (ss) items.push(`<div class="sug-group"><div class="sug-title">${t('sug.strumTitle')}: ${esc(patternName(ss))} <span class="small muted">${ss.sig}</span>
+          <button class="icon-btn pat-play" data-sug="strum-play" aria-label="${t('pat.play')}"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button></div>
+        ${patternHTML(ss, { compact: true })}
+        ${stored.suggestStrum.reason ? `<p class="small muted">${esc(stored.suggestStrum.reason)}</p>` : ''}
+        <div class="sug-actions"><button class="btn small" data-sug="strum-skip">${t('sug.skip')}</button><button class="btn small primary" data-sug="strum-apply">${t('sug.apply')}</button></div></div>`);
+      else if (strumLoading) items.push(`<div class="sug-group"><p class="small muted"><span class="spinner"></span> ${t('sug.strumLoading')}</p></div>`);
+    }
+    if (!items.length) return '';
+    return `<div class="card sug-card"><div class="sug-head">${t('sug.title')}</div>${items.join('')}</div>`;
+  }
+  const drawSuggest = () => { const el = $('sSuggest'); if (el) el.innerHTML = suggestHTML(); };
+
+  async function loadStrumSuggestion() {
+    if (hasStrum() || stored.suggestStrum || (stored.skipped && stored.skipped.strum) || strumLoading) return;
+    strumLoading = true;
+    drawSuggest();
+    let res = null;
+    const lang = getLang();
+    if (navigator.onLine !== false && (await getApiKey())) {
+      try {
+        res = await suggestStrumAI(stored, PATTERNS.map((p) => ({ id: p.id, sig: p.sig, steps: p.steps, name: patternName(p) })), lang);
+      } catch { res = null; }
+    }
+    if (!res) { const l = localStrum(stored); res = { id: l.id, reason: t(l.reasonKey) }; }
+    strumLoading = false;
+    stored.suggestStrum = { ...res, lang };
+    await save();
+    drawSuggest();
+  }
+
+  async function resolveUncertain(i, apply) {
+    const list = unc();
+    const u = list[i];
+    if (!u) return;
+    if (apply) applyUncertain(stored, u);
+    stored.uncertain = list.filter((x, k) => k !== i);
+    if (!stored.uncertain.length) delete stored.uncertain;
+    await save();
+    draw();
+  }
+
+  async function askUncertain(i) {
+    const u = unc()[i];
+    if (!u) return;
+    const r = await dialog({
+      title: t('sug.unsureTitle'),
+      body: t(u.kind === 'chord' ? 'sug.unsureChord' : 'sug.unsureWord', { text: u.text, x: u.suggestion }),
+      buttons: [{ label: t('sug.keep'), value: 'keep' }, { label: t('sug.changeTo', { x: u.suggestion }), value: 'apply', kind: 'primary' }],
+    });
+    if (r) await resolveUncertain(i, r === 'apply');
+  }
+
+  // ---- YouTube ----
+  async function editYt(kind) {
+    const cur = (stored.yt && stored.yt[kind]) || '';
+    const p = dialog({
+      title: t(kind === 'listen' ? 'yt.saveListen' : 'yt.saveTutorial'),
+      html: true,
+      body: `<p class="small muted">${t('yt.saveHint')}</p><input id="ytInput" type="url" inputmode="url" placeholder="https://youtu.be/…" value="${esc(cur)}" autocomplete="off">`,
+      buttons: [...(cur ? [{ label: t('yt.remove'), value: 'remove', kind: 'danger' }] : []), { label: t('common.cancel'), value: null }, { label: t('common.save'), value: 'save', kind: 'primary' }],
+    });
+    const modal = [...document.querySelectorAll('.modal-backdrop')].pop();
+    let val = cur;
+    modal.querySelector('#ytInput').addEventListener('input', (e) => (val = e.target.value));
+    const r = await p;
+    if (r === 'remove') {
+      delete stored.yt[kind];
+      if (!Object.keys(stored.yt).length) delete stored.yt;
+      toast(t('yt.removed'));
+    } else if (r === 'save') {
+      const u = cleanYoutubeUrl(val);
+      if (!u) { toast(t('yt.bad'), 'error'); return; }
+      stored.yt = { ...(stored.yt || {}), [kind]: u };
+      toast(t('yt.saved'));
+    } else return;
+    await save();
+    draw();
+  }
 
   const save = () => db.put(stored);
+  draw();
+  loadStrumSuggestion();
   const setT = async (n) => { tp = ((n + 17) % 12 + 12) % 12 - 5; stored.transpose = tp; draw(); await save(); };
   const setCapo = async (n) => {
     capo = Math.max(0, Math.min(7, n));
@@ -538,15 +775,17 @@ export async function renderSong(root, id, nav = null) {
 
   // ---- Ritam (strumming) ----
   let strumMet = null;
-  const stopStrum = () => { strumMet?.stop(); strumMet = null; root.querySelectorAll('.strum-box .pstep.now').forEach((x) => x.classList.remove('now')); $('sStrumPlay')?.classList.remove('playing'); };
-  const playStrum = () => {
+  const stopStrum = () => { strumMet?.stop(); strumMet = null; root.querySelectorAll('.pstep.now').forEach((x) => x.classList.remove('now')); $('sStrumPlay')?.classList.remove('playing'); };
+  const playStrum = () => playPattern(stored.strum, '.strum-box');
+  const playPattern = (pattern, scope) => {
     if (strumMet) return stopStrum();
+    if (!pattern) return;
     strumMet = new Metronome();
-    strumMet.pattern = stored.strum;
-    strumMet.sig = stored.strum.sig;
+    strumMet.pattern = pattern;
+    strumMet.sig = pattern.sig;
     settings.get('metBpm', 90).then((b) => { if (!strumMet) return; strumMet.bpm = b; strumMet.start(); });
     $('sStrumPlay')?.classList.add('playing');
-    strumMet.onStep = (i) => root.querySelectorAll('.strum-box .pstep').forEach((s) => s.classList.toggle('now', +s.dataset.i === i));
+    strumMet.onStep = (i) => root.querySelectorAll(scope + ' .pstep').forEach((s) => s.classList.toggle('now', +s.dataset.i === i));
   };
   async function editStrum() {
     stopStrum();
@@ -624,7 +863,32 @@ export async function renderSong(root, id, nav = null) {
   const onHash = () => { stopScroll(); stopStrum(); window.removeEventListener('hashchange', onHash); };
   window.addEventListener('hashchange', onHash);
 
+  root.querySelector('.song-view').addEventListener('change', (e) => {
+    if (e.target.id === 'sEasy') setCapo(e.target.checked ? stored.easyCapo : 0);
+  });
   root.querySelector('.song-view').addEventListener('click', (e) => {
+    const un = e.target.closest('[data-unsure]');
+    if (un) { e.preventDefault(); return askUncertain(+un.dataset.unsure); }
+    const ua = e.target.closest('[data-unc-apply]'), us = e.target.closest('[data-unc-skip]');
+    if (ua) return resolveUncertain(+ua.dataset.uncApply, true);
+    if (us) return resolveUncertain(+us.dataset.uncSkip, false);
+    const yb = e.target.closest('[data-yt]');
+    if (yb) return editYt(yb.dataset.yt);
+    const sg = e.target.closest('[data-sug]');
+    if (sg) {
+      const a = sg.dataset.sug;
+      stored.skipped = stored.skipped || {};
+      if (a === 'easy-apply') { stored.easyCapo = +sg.dataset.capo; return setCapo(stored.easyCapo); }
+      if (a === 'easy-skip') { stored.skipped.easy = true; return save().then(draw); }
+      if (a === 'strum-skip') { stopStrum(); stored.skipped.strum = true; return save().then(draw); }
+      if (a === 'strum-apply') {
+        stopStrum();
+        const p = patternById(stored.suggestStrum && stored.suggestStrum.id);
+        if (p) stored.strum = { id: p.id, sig: p.sig, steps: p.steps };
+        return save().then(draw);
+      }
+      if (a === 'strum-play') return playPattern(patternById(stored.suggestStrum.id), '#sSuggest');
+    }
     const c = e.target.closest('[data-chord]');
     if (c) return showChord(c.dataset.chord);
     const b = e.target.closest('button');
@@ -709,6 +973,7 @@ export async function renderEditor(root, id) {
       <button role="tab" class="active" data-tab="edit">${t('edit.tabEdit')}</button>
       <button role="tab" data-tab="preview">${t('edit.tabPreview')}</button>
     </div>
+    <div id="eSuggest"></div>
     <div id="eEditPane">
       <textarea id="eText" class="mono-editor" spellcheck="false" autocapitalize="off" autocomplete="off" wrap="off" aria-label="${t('edit.textLabel')}"></textarea>
       <div id="eWarn" class="warn small"></div>
@@ -738,6 +1003,29 @@ export async function renderEditor(root, id) {
     $('eWarn').textContent = unknown.size ? t('edit.unknownChords', { list: [...unknown].join(', ') }) : '';
     return secs;
   };
+  // Predlozi posle skeniranja: mesta koja Gemini nije pouzdano pročitao
+  let pendingUnc = isNew ? [...(song.uncertain || [])] : [];
+  const drawEditSuggest = () => {
+    const list = cleanUncertain(pendingUnc, validate());
+    pendingUnc = list;
+    $('eSuggest').innerHTML = list.length ? `<div class="card sug-card"><div class="sug-head">${t('sug.title')}</div>
+      <div class="sug-group"><div class="sug-title">${t('sug.unsureTitleN', { n: list.length })}</div><p class="small muted">${t('sug.unsureHintEdit')}</p>
+      ${list.map((x, i) => `<div class="sug-item"><span class="sug-what"><span class="unsure-sample">${esc(x.text)}</span> → <b>${esc(x.suggestion)}</b></span>
+        <button class="btn small" data-eu-skip="${i}">${t('sug.keep')}</button><button class="btn small primary" data-eu-apply="${i}">${esc(t('sug.changeTo', { x: x.suggestion }))}</button></div>`).join('')}</div></div>` : '';
+  };
+  $('eSuggest').addEventListener('click', (e) => {
+    const a = e.target.closest('[data-eu-apply]'), k = e.target.closest('[data-eu-skip]');
+    if (!a && !k) return;
+    const i = +(a ? a.dataset.euApply : k.dataset.euSkip);
+    const u = pendingUnc[i];
+    if (a && u) {
+      const secs = validate();
+      if (applyUncertain({ sections: secs }, u)) { $('eText').value = sectionsToText(secs); autoGrow($('eText')); }
+    }
+    pendingUnc.splice(i, 1);
+    drawEditSuggest();
+  });
+  drawEditSuggest();
   $('eText').addEventListener('input', () => { autoGrow($('eText')); validate(); });
   validate();
 
@@ -746,7 +1034,7 @@ export async function renderEditor(root, id) {
     const preview = b.dataset.tab === 'preview';
     $('eEditPane').hidden = preview;
     $('ePreviewPane').hidden = !preview;
-    if (preview) $('ePreviewPane').innerHTML = renderSectionsHTML(validate()) || `<p class="muted">${t('edit.noText')}</p>`;
+    if (preview) { const secs = validate(); $('ePreviewPane').innerHTML = renderSectionsHTML(secs, cleanUncertain(pendingUnc, secs)) || `<p class="muted">${t('edit.noText')}</p>`; }
   }));
 
   const dirty = () => $('eText').value !== sectionsToText(song.sections) || $('eTitle').value !== (song.title || '');
@@ -774,6 +1062,7 @@ export async function renderEditor(root, id) {
       artist: $('eArtist').value.trim(),
       key: $('eKey').value.trim(),
       sections,
+      ...(isNew ? { uncertain: cleanUncertain(pendingUnc, sections) } : {}),
     });
     draft = null; draftImage = null;
     toast(t('edit.saved'));
@@ -789,7 +1078,7 @@ function autoGrow(el) {
 // Za podešavanja: izvoz/uvoz svih pesama
 export async function exportAll() {
   const all = await db.all();
-  const data = JSON.stringify({ app: 'gitara', version: 1, backup: true, exportedAt: new Date().toISOString(), songs: all.map((sg) => ({ title: sg.title, artist: sg.artist, key: sg.key, sections: sg.sections, transpose: sg.transpose, ...songExtras(sg) })) }, null, 1);
+  const data = JSON.stringify({ app: 'gitara', version: 1, backup: true, exportedAt: new Date().toISOString(), songs: all.map((sg) => ({ title: sg.title, artist: sg.artist, key: sg.key, sections: sg.sections, transpose: sg.transpose, ...songExtras(sg), ...songMeta(sg) })) }, null, 1);
   return shareOrDownload(new Blob([data], { type: 'application/json' }), `gitara-pesme-${new Date().toISOString().slice(0, 10)}.json`, t('export.allTitle'));
 }
 

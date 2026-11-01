@@ -72,8 +72,9 @@ U **Podešavanjima → Google Drive** dodirni **Poveži Google Drive** i prijavi
 
 ## Deljenje pesama između učenika i nastavnika
 
-- U prikazu pesme dodirni **Podeli pesmu**. Telefon otvara meni za deljenje (Viber, WhatsApp, e-pošta…) i šalje mali `.json` fajl. Ako deljenje nije podržano, fajl se preuzme.
-- Primalac sačuva fajl, pa u tabu **Pesme** dodirne **Uvezi pesmu** i izabere ga. Ako pesma sa istim naslovom već postoji, aplikacija pita da li da je zameni ili da zadrži obe.
+- U prikazu pesme dodirni **Podeli pesmu**. Cela pesma (tekst, akordi, kapodaster, ritam, sačuvani YouTube linkovi) se pakuje u link, npr. `https://bagaljivko.github.io/Gitara/#pesma=…`, i šalje preko Vibera, WhatsApp-a, e-pošte… Ako telefon nema meni za deljenje, link se kopira („Link kopiran“).
+- Primalac otvori link: Gitara prikaže pesmu i pita **„Dodaj pesmu u biblioteku?“**. Ako pesma sa istim naslovom već postoji, bira **Zameni** ili **Sačuvaj obe**. Ako nema instaliranu aplikaciju, pesma se otvara u pregledaču uz ponudu za instalaciju.
+- **Uvezi pesmu** i dalje prihvata `.json` fajlove, a **Skini PDF** pravi PDF.
 
 ## Razvoj
 

@@ -197,6 +197,7 @@ export function normalizeSong(raw) {
     sections,
     transpose: tr >= -11 && tr <= 11 ? tr : 0,
     ...songExtras(raw),
+    ...(Array.isArray(raw.uncertain) ? { uncertain: cleanUncertain(raw.uncertain, sections) } : {}),
   };
 }
 
@@ -209,6 +210,69 @@ export function songExtras(raw) {
   if (sp >= 1 && sp <= 10) out.scrollSpeed = Math.round(sp);
   const strum = cleanPattern(raw.strum);
   if (strum) out.strum = strum;
+  const yt = cleanYt(raw.yt);
+  if (yt) out.yt = yt;
+  return out;
+}
+
+/** YouTube adresa (video ili kratki link) ili '' ako nije ispravna. */
+export function cleanYoutubeUrl(u) {
+  let url;
+  try { url = new URL(String(u || '').trim()); } catch { return ''; }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return '';
+  const host = url.hostname.replace(/^(www|m|music)\./, '');
+  if (host !== 'youtube.com' && host !== 'youtu.be' && host !== 'youtube-nocookie.com') return '';
+  url.protocol = 'https:';
+  return url.toString().slice(0, 300);
+}
+
+function cleanYt(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const out = {};
+  for (const k of ['listen', 'tutorial']) { const u = cleanYoutubeUrl(raw[k]); if (u) out[k] = u; }
+  return Object.keys(out).length ? out : null;
+}
+
+/**
+ * Stanje predloga (samo za ovaj uređaj i rezervnu kopiju, ne deli se):
+ * uncertain — mesta koja Gemini nije pouzdano pročitao; easyCapo — primenjena „lakša verzija“;
+ * skipped — preskočeni predlozi; suggestStrum — keširan predlog ritma.
+ */
+export function songMeta(raw) {
+  const out = {};
+  const unc = cleanUncertain(raw.uncertain, raw.sections);
+  if (unc.length) out.uncertain = unc;
+  const ec = Math.round(Number(raw.easyCapo) || 0);
+  if (ec >= 1 && ec <= 7) out.easyCapo = ec;
+  if (raw.skipped && typeof raw.skipped === 'object') {
+    const sk = {};
+    for (const k of ['easy', 'strum']) if (raw.skipped[k]) sk[k] = true;
+    if (Object.keys(sk).length) out.skipped = sk;
+  }
+  const ss = raw.suggestStrum;
+  if (ss && typeof ss === 'object' && typeof ss.id === 'string' && ss.id.length < 30) out.suggestStrum = { id: ss.id, reason: String(ss.reason || '').slice(0, 300), lang: ss.lang === 'en' ? 'en' : 'sr' };
+  return out;
+}
+
+/** Proverava listu nesigurnih mesta: {section, line, kind: 'chord'|'word', text, position, suggestion}. */
+export function cleanUncertain(raw, sections) {
+  if (!Array.isArray(raw) || !Array.isArray(sections)) return [];
+  const out = [];
+  for (const u of raw.slice(0, 60)) {
+    if (!u || typeof u !== 'object') continue;
+    const si = Math.round(Number(u.section)), li = Math.round(Number(u.line));
+    const sec = sections[si];
+    const line = sec && sec.lines && sec.lines[li];
+    if (!line) continue;
+    const kind = u.kind === 'chord' ? 'chord' : 'word';
+    const text = String(u.text || '').trim().slice(0, 40);
+    const suggestion = String(u.suggestion || '').trim().slice(0, 40);
+    if (!text || !suggestion || text === suggestion) continue;
+    if (kind === 'chord' && !(line.chords || []).some((c) => c.chord === text)) continue;
+    if (kind === 'word' && !(line.text || '').includes(text)) continue;
+    const position = Math.max(0, Math.round(Number(u.position) || 0));
+    out.push({ section: si, line: li, kind, text, suggestion, position });
+  }
   return out;
 }
 
@@ -238,7 +302,7 @@ export function parseBackup(text) {
   if (data && data.song) return [parseSharedFile(text)];
   if (!data || !Array.isArray(data.songs)) throw new SongFormatError(t('fmt.notBackup'));
   const out = [];
-  for (const s of data.songs) { try { out.push(normalizeSong(s)); } catch {} }
+  for (const s of data.songs) { try { const n = normalizeSong(s); out.push({ ...n, ...songMeta({ ...s, sections: n.sections }) }); } catch {} }
   if (!out.length) throw new SongFormatError(t('fmt.backupEmpty'));
   return out;
 }

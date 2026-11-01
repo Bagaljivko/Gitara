@@ -2,7 +2,7 @@
 // Koristi samo opseg drive.file: aplikacija vidi isključivo fajlove koje je sama napravila.
 // Nema client secret-a — token client radi samo sa javnim Client ID-jem.
 import { songs as db, settings, events } from './db.js';
-import { normalizeSong, SongFormatError, safeFileName, songExtras } from './songformat.js';
+import { normalizeSong, SongFormatError, safeFileName, songExtras, songMeta } from './songformat.js';
 import { cleanFolders, cleanSetlists, cleanSongFolders, mergeById } from './collections.js';
 import { toast, dialog } from './ui.js';
 import { t, songsCount, setLang } from './i18n.js';
@@ -219,7 +219,7 @@ async function buildBackup() {
   for (const k of BACKUP_SETTINGS) { const v = await settings.get(k); if (v !== undefined) s[k] = v; }
   return {
     app: 'gitara', version: 1, type: 'backup', exportedAt: new Date().toISOString(),
-    songs: all.map((sg) => ({ id: sg.id, title: sg.title, artist: sg.artist, key: sg.key, sections: sg.sections, transpose: sg.transpose || 0, createdAt: sg.createdAt, updatedAt: sg.updatedAt, ...songExtras(sg), folders: sg.folders || [] })),
+    songs: all.map((sg) => ({ id: sg.id, title: sg.title, artist: sg.artist, key: sg.key, sections: sg.sections, transpose: sg.transpose || 0, createdAt: sg.createdAt, updatedAt: sg.updatedAt, ...songExtras(sg), ...songMeta(sg), folders: sg.folders || [] })),
     settings: s,
   };
 }
@@ -263,7 +263,7 @@ export async function readBackup() {
     try {
       const n = normalizeSong(s);
       const folders = cleanSongFolders(s.folders);
-      songs.push({ ...n, ...(folders.length ? { folders } : {}), id: typeof s.id === 'string' ? s.id.slice(0, 80) : undefined, createdAt: Number(s.createdAt) || undefined, updatedAt: Number(s.updatedAt) || undefined });
+      songs.push({ ...n, ...songMeta({ ...s, sections: n.sections }), ...(folders.length ? { folders } : {}), id: typeof s.id === 'string' ? s.id.slice(0, 80) : undefined, createdAt: Number(s.createdAt) || undefined, updatedAt: Number(s.updatedAt) || undefined });
     } catch (e) { if (!(e instanceof SongFormatError)) throw e; }
   }
   const st = {};

@@ -383,3 +383,30 @@ body.tuner-screen .nav { background: rgba(23, 24, 28, .97); }
 .diag { margin-top: 12px; }
 .diag summary { cursor: pointer; color: var(--accent); min-height: 36px; display: flex; align-items: center; }
 .diag pre { white-space: pre-wrap; word-break: break-word; font-family: var(--mono); font-size: .72rem; line-height: 1.45; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px; max-height: 40dvh; overflow: auto; color: var(--text); -webkit-user-select: text; user-select: text; }
+
+/* YouTube */
+.yt-row { display: flex; gap: 10px; margin: 8px 0 4px; flex-wrap: wrap; }
+.yt-item { display: flex; align-items: center; gap: 2px; flex: 1; min-width: 150px; }
+.yt-btn { flex: 1; position: relative; }
+.yt-btn svg { width: 20px; height: 20px; fill: #ff4e45; }
+.yt-saved { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); position: absolute; top: 7px; right: 8px; }
+.yt-link { width: 40px; height: 40px; }
+.yt-link svg { width: 20px; height: 20px; }
+.yt-link.saved { color: var(--ok); }
+
+/* Predlozi */
+.sug-card { padding: 10px 12px; border-color: rgba(245, 165, 36, .45); }
+.sug-head { font-size: .78rem; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: var(--accent); margin-bottom: 4px; }
+.sug-group { padding: 8px 0; border-top: 1px solid var(--line); }
+.sug-group:first-of-type { border-top: 0; }
+.sug-title { font-weight: 700; display: flex; align-items: center; gap: 6px; }
+.sug-item { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 4px 0; }
+.sug-what { flex: 1; min-width: 120px; font-family: var(--mono); }
+.sug-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 6px; }
+.unsure-sample, mark.unsure { background: none; color: inherit; text-decoration: underline wavy #f2d14b; text-decoration-thickness: 2px; text-underline-offset: 3px; }
+mark.unsure { cursor: pointer; }
+.ch.unsure { text-decoration: underline wavy #f2d14b; text-decoration-thickness: 2px; text-underline-offset: 4px; }
+.easy-switch { margin: 8px 0; font-size: .9rem; }
+.link-box { width: 100%; font-family: var(--mono); font-size: .8rem; }
+.add-card { border-color: var(--accent); }
+.install-card .btn { margin-top: 6px; }

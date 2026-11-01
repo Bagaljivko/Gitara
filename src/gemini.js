@@ -68,16 +68,26 @@ PRAVILA:
 5. Podeli pesmu na delove ("sections") po strukturi: npr. "Uvod", "Strofa 1", "Refren", "Most", "Kraj". Ako je deo označen na slici (npr. "Ref.", "R:", "1."), koristi tu oznaku. Ako nema oznaka, koristi "Strofa 1", "Strofa 2"... i "Refren" za ponovljeni deo.
 6. "title" i "artist" uzmi sa slike; ako ih nema, ostavi prazan string. "key" je tonalitet ako je naznačen, inače ga proceni iz akorda (npr. "Am", "G").
 7. Ako neki deo ne može da se pročita, napiši najverovatniju reč; ne izostavljaj linije.
+9. NESIGURNA MESTA: ako neki akord ili reč nisi mogao pouzdano da pročitaš, napiši u tekstu/akordima svoju najbolju procenu i dodaj stavku u "uncertain": { "section": indeks dela (od 0), "line": indeks linije u tom delu (od 0), "kind": "chord" ili "word", "text": tačno ono što si upisao, "position": pozicija akorda ili početak reči u liniji, "suggestion": drugo najverovatnije čitanje }. Navedi samo zaista nesigurna mesta (najviše 15); ako ih nema, "uncertain" je prazan niz.
 8. Ako na papiru postoji ritam udaranja (strelice ↓ ↑, ili zapis poput „D DU UDU“ / „dole gore“), vrati ga kao "strum": { "steps": "...", "sig": "4/4" }. "steps" ima jedan znak po osmini: D = udarac na dole, U = na gore, x = prigušen udarac, - = pauza (npr. „↓ ↓↑ ↑↓↑“ u 4/4 je "D-DU-UDU"). "sig" je "2/4", "3/4", "4/4" ili "6/8". Ako ritam važi samo za jedan deo pesme, stavi "strum" u taj deo (sekciju). Ako ritma nema, izostavi polje "strum".
 
 Vrati ISKLJUČIVO JSON ovog oblika (polja "strum" su opciona):
-{ "title": "", "artist": "", "key": "", "strum": { "steps": "D-DU-UDU", "sig": "4/4" }, "sections": [ { "name": "", "strum": { "steps": "", "sig": "" }, "lines": [ { "chords": [ { "chord": "Am", "position": 0 } ], "text": "" } ] } ] }`;
+{ "title": "", "artist": "", "key": "", "strum": { "steps": "D-DU-UDU", "sig": "4/4" }, "uncertain": [ { "section": 0, "line": 0, "kind": "chord", "text": "Hm", "position": 4, "suggestion": "Em" } ], "sections": [ { "name": "", "strum": { "steps": "", "sig": "" }, "lines": [ { "chords": [ { "chord": "Am", "position": 0 } ], "text": "" } ] } ] }`;
 
 const STRUM_SCHEMA = { type: 'OBJECT', properties: { steps: { type: 'STRING' }, sig: { type: 'STRING' } } };
+const UNCERTAIN_SCHEMA = {
+  type: 'ARRAY',
+  items: {
+    type: 'OBJECT',
+    properties: { section: { type: 'INTEGER' }, line: { type: 'INTEGER' }, kind: { type: 'STRING' }, text: { type: 'STRING' }, position: { type: 'INTEGER' }, suggestion: { type: 'STRING' } },
+    required: ['section', 'line', 'kind', 'text', 'suggestion'],
+  },
+};
 const RESPONSE_SCHEMA = {
   type: 'OBJECT',
   properties: {
     strum: STRUM_SCHEMA,
+    uncertain: UNCERTAIN_SCHEMA,
     title: { type: 'STRING' },
     artist: { type: 'STRING' },
     key: { type: 'STRING' },
@@ -427,4 +437,35 @@ export async function scanSong(images, signal, onStatus, diag) {
   try { song = normalizeSong(json); } catch { throw new GeminiError(t('gem.noSong')); }
   song.scanModel = res.model; // prikazuje se na „Proveri i ispravi“, ne čuva se u pesmi
   return song;
+}
+
+// ---------------- Predlog ritma ----------------
+/**
+ * Predlaže jedan od ugrađenih ritmova za pesmu (isti izbor modela i minimalno „razmišljanje“ kao skeniranje).
+ * patterns: [{ id, sig, steps, name }]. Vraća { id, reason } ili baca GeminiError.
+ */
+export async function suggestStrumAI(song, patterns, lang, signal) {
+  const apiKey = await getApiKey();
+  const lines = (song.sections || []).flatMap((s) => [s.name ? `[${s.name}]` : '', ...s.lines.slice(0, 6).map((l) => l.text)]).filter(Boolean).slice(0, 24).join('\n');
+  const prompt = `Gitarista vežba pesmu i treba mu ritam udaranja (strumming).
+Pesma: "${song.title}"${song.artist ? ` — ${song.artist}` : ''}${song.key ? `, tonalitet ${song.key}` : ''}.
+Početak teksta:
+${lines}
+
+Izaberi JEDAN ritam sa spiska koji najbolje odgovara taktu i karakteru pesme (ako znaš pesmu, koristi njen pravi takt):
+${patterns.map((p) => `- ${p.id} (${p.sig}, ${p.steps}): ${p.name}`).join('\n')}
+
+Vrati JSON { "pattern": "<id sa spiska>", "reason": "<jedna kratka rečenica, najviše 15 reči, na jeziku: ${lang === 'en' ? 'English' : 'srpski (latinica)'}>" }.`;
+  const { data } = await generate(apiKey, {
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: {
+      temperature: 0.2, maxOutputTokens: 200, responseMimeType: 'application/json',
+      responseSchema: { type: 'OBJECT', properties: { pattern: { type: 'STRING' }, reason: { type: 'STRING' } }, required: ['pattern', 'reason'] },
+    },
+  }, { signal });
+  let j;
+  try { j = JSON.parse(textOf(data).trim().replace(/^```(?:json)?\s*|\s*```$/g, '')); } catch { throw new GeminiError(t('gem.badJson')); }
+  const p = patterns.find((x) => x.id === j.pattern);
+  if (!p) throw new GeminiError(t('gem.noAnswer'));
+  return { id: p.id, reason: String(j.reason || '').slice(0, 200) };
 }
