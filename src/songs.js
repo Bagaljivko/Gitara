@@ -289,15 +289,18 @@ async function runScan(files, prepared = null) {
     <div class="modal-actions"><button class="btn" id="scanCancel">${t('common.cancel')}</button></div></div>`;
   document.body.appendChild(overlay);
   const ctrl = new AbortController();
-  overlay.querySelector('#scanCancel').addEventListener('click', () => ctrl.abort());
+  let cancelled = false;
+  overlay.querySelector('#scanCancel').addEventListener('click', () => { cancelled = true; ctrl.abort(); overlay.remove(); });
   let imgs = prepared;
   try {
     // Više strana → manje slike, da ceo zahtev ostane u granicama Gemini API-ja.
     const max = files.length > 3 ? 1400 : files.length > 1 ? 1700 : 2000;
     if (!imgs) imgs = await Promise.all(files.map((f) => prepareImage(f, max)));
+    if (cancelled) return;
     overlay.querySelector('.scan-preview').style.backgroundImage = `url(${imgs[0].preview})`;
-    const song = await scanSong(imgs, ctrl.signal, () => {
-      overlay.querySelector('#scanText').textContent = t('scan.busy');
+    const song = await scanSong(imgs, ctrl.signal, (kind, model) => {
+      const el = overlay.querySelector('#scanText');
+      if (el) el.textContent = kind === 'switch' ? t('scan.switchModel', { model }) : t('scan.busy');
     });
     draft = song;
     draftImage = imgs.map((i) => i.preview);
@@ -305,10 +308,10 @@ async function runScan(files, prepared = null) {
     location.hash = '#/uredi/sken';
   } catch (e) {
     overlay.remove();
-    if (e && e.name === 'AbortError') return;
-    const busy = e instanceof GeminiError && e.code === 'BUSY';
+    if (cancelled || (e && e.name === 'AbortError')) return;
+    const busy = e instanceof GeminiError && (e.code === 'BUSY' || e.code === 'TIMEOUT');
     const again = await dialog({
-      title: busy ? t('scan.busyTitle') : t('scan.failedTitle'),
+      title: busy ? (e.code === 'TIMEOUT' ? t('scan.timeoutTitle') : t('scan.busyTitle')) : t('scan.failedTitle'),
       body: e instanceof GeminiError ? e.message : t('common.error'),
       buttons: busy && imgs
         ? [{ label: t('common.cancel'), value: false }, { label: t('common.retry'), value: true, kind: 'primary' }]
@@ -644,7 +647,7 @@ export async function renderEditor(root, id) {
       <div class="topbar-actions"><button class="btn primary" id="eSave">${t('common.save')}</button></div>
     </header>
     <h1>${scanned ? t('edit.titleScanned') : isNew ? t('edit.titleNew') : t('edit.titleEdit')}</h1>
-    ${scanned ? `<p class="muted">${t('edit.scannedHint')}</p>` : ''}
+    ${scanned ? `<p class="muted">${t('edit.scannedHint')}</p>${song.scanModel ? `<p class="scan-model small muted">${esc(t('edit.scanModel', { model: song.scanModel }))}</p>` : ''}` : ''}
     ${draftImage && scanned ? `<details class="card photo-ref"><summary>${t('edit.showPhoto')}</summary>${[].concat(draftImage).map((src, i) => `<img src="${src}" alt="${esc(t('scan.page', { n: i + 1 }))}">`).join('')}</details>` : ''}
     <div class="form">
       <label>${t('edit.fTitle')}<input id="eTitle" value="${esc(song.title)}" placeholder="${t('edit.fTitlePh')}" autocomplete="off"></label>

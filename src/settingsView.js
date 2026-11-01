@@ -1,6 +1,6 @@
 // Tab "Podešavanja": Gemini ključ, tuner, rezervna kopija, instalacija.
 import { settings, songs as db } from './db.js';
-import { testKey, GeminiError, DEFAULT_MODEL, cleanModelName } from './gemini.js';
+import { testKey, GeminiError, cleanModelName, AUTO, getModelSetting, listModels } from './gemini.js';
 import { esc, toast, confirmDialog, pickFile, dialog } from './ui.js';
 import { exportAll } from './songs.js';
 import { parseBackup, SongFormatError } from './songformat.js';
@@ -16,7 +16,9 @@ const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.
 
 export async function renderSettings(root) {
   const key = await settings.get('geminiKey', '');
-  const model = cleanModelName(await settings.get('geminiModel', DEFAULT_MODEL)) || DEFAULT_MODEL;
+  const model = await getModelSetting();
+  const lastModel = cleanModelName(await settings.get('geminiLastModel', ''));
+  const cachedModels = ((await settings.get('geminiModels', null)) || {}).list || [];
   const a4 = Number(await settings.get('a4', 440)) || 440;
   root.innerHTML = `
   <section class="view settings-view">
@@ -37,10 +39,12 @@ export async function renderSettings(root) {
         <input type="password" id="kInput" value="${esc(key)}" placeholder="${t('set.keyPh')}" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="${t('set.keyTitle')}">
         <button class="btn small" id="kShow" aria-label="${t('set.showKey')}">${t('set.show')}</button>
       </div>
-      <label class="model-label">${t('set.model')}
-        <input id="mInput" value="${esc(model)}" placeholder="${DEFAULT_MODEL}" autocomplete="off" autocapitalize="off" spellcheck="false">
-      </label>
-      <p class="muted small">${t('set.modelDefault', { model: DEFAULT_MODEL })} <button class="linklike" id="mReset" type="button">${t('set.modelReset')}</button></p>
+      <label class="model-label" for="mSelect">${t('set.model')}</label>
+      <div class="model-row">
+        <select id="mSelect" aria-label="${t('set.model')}"></select>
+        <button class="btn small round" id="mRefresh" type="button" aria-label="${t('set.modelRefresh')}" title="${t('set.modelRefresh')}">↻</button>
+      </div>
+      <p class="muted small" id="mHint">${t('set.modelAutoHint')}${lastModel ? ' ' + esc(t('set.modelLast', { model: lastModel })) : ''}</p>
       <div class="row wrap">
         <button class="btn primary" id="kSave">${t('common.save')}</button>
         <button class="btn" id="kTest">${t('set.testKey')}</button>
@@ -104,29 +108,52 @@ export async function renderSettings(root) {
     $('kInput').type = show ? 'text' : 'password';
     $('kShow').textContent = show ? t('set.hide') : t('set.show');
   });
-  const readModel = () => {
-    const raw = $('mInput').value.trim();
-    if (!raw) return DEFAULT_MODEL;
-    return cleanModelName(raw);
+  // Padajući spisak: „Automatski“ + modeli dostupni za ovaj ključ (najnoviji Flash prvi)
+  const fillModels = (list, selected) => {
+    const names = [...list];
+    if (selected !== AUTO && !names.includes(selected)) names.unshift(selected);
+    $('mSelect').innerHTML = `<option value="${AUTO}">${esc(t('set.modelAuto'))}</option>`
+      + names.map((n) => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+    $('mSelect').value = selected;
   };
-  $('mReset').addEventListener('click', () => { $('mInput').value = DEFAULT_MODEL; });
+  fillModels(cachedModels, model);
+  const loadModels = async (force) => {
+    const v = $('kInput').value.trim();
+    if (!v) { $('mHint').textContent = t('set.modelNeedKey'); return; }
+    $('mRefresh').disabled = true;
+    $('mRefresh').classList.add('spin');
+    const keep = $('mSelect').value;
+    try {
+      const list = await listModels(v, { force });
+      fillModels(list, keep);
+      $('mHint').textContent = t('set.modelCount', { n: list.length });
+    } catch (e) {
+      $('mHint').textContent = e instanceof GeminiError ? e.message : t('set.modelLoadFailed');
+    } finally {
+      $('mRefresh').disabled = false;
+      $('mRefresh').classList.remove('spin');
+    }
+  };
+  $('mRefresh').addEventListener('click', () => loadModels(true));
+  if (key && !cachedModels.length && navigator.onLine !== false) loadModels(false);
+  const readModel = () => $('mSelect').value || AUTO;
+  const modelLabel = (m) => (m === AUTO ? t('set.modelAuto') : m);
   $('kSave').addEventListener('click', async () => {
     const v = $('kInput').value.trim();
     const m = readModel();
-    if (!m) { status(t('set.badModel', { model: DEFAULT_MODEL }), 'err'); return; }
-    $('mInput').value = m;
-    await settings.set('geminiModel', m);
+    await settings.set('geminiModelSel', m);
     if (!v) { status(t('set.modelSavedNoKey'), 'err'); return; }
     await settings.set('geminiKey', v);
     $('kDel').hidden = false;
-    status(t('set.keyModelSaved', { model: m }), 'ok');
+    status(t('set.keyModelSaved', { model: modelLabel(m) }), 'ok');
     toast(t('common.saved'));
+    if (!cachedModels.length) loadModels(false);
   });
   $('kRetry').addEventListener('click', () => $('kTest').click());
   $('mUseSuggested').addEventListener('click', async () => {
     const m = $('mUseSuggested').dataset.model;
-    $('mInput').value = m;
-    await settings.set('geminiModel', m);
+    fillModels([...$('mSelect').options].map((o) => o.value).filter((x) => x !== AUTO), m);
+    await settings.set('geminiModelSel', m);
     $('mUseSuggested').hidden = true;
     status(t('set.modelChanged', { model: m }), 'ok');
   });
@@ -134,20 +161,20 @@ export async function renderSettings(root) {
     const v = $('kInput').value.trim();
     if (!v) { status(t('set.enterKeyFirst'), 'err'); return; }
     const m = readModel();
-    if (!m) { status(t('set.badModel', { model: DEFAULT_MODEL }), 'err'); return; }
     $('kTest').disabled = true;
     $('mUseSuggested').hidden = true;
     $('kRetry').hidden = true;
-    status(t('set.checking', { model: m }));
+    status(t('set.checking', { model: modelLabel(m) }));
     try {
-      await testKey(v, m, () => status(t('scan.busy')));
-      status(t('set.keyWorks'), 'ok');
+      const used = await testKey(v, m, (kind, model) => status(kind === 'switch' ? t('scan.switchModel', { model }) : t('scan.busy')));
+      status(t('set.keyWorksModel', { model: used }), 'ok');
       const saved = await settings.get('geminiKey', '');
-      const savedModel = await settings.get('geminiModel', DEFAULT_MODEL);
-      if (saved !== v || savedModel !== m) status(t('set.keyWorksSave'), 'ok');
+      const savedModel = await getModelSetting();
+      if (saved !== v || savedModel !== m) status(t('set.keyWorksModel', { model: used }) + ' — ' + t('set.dontForgetSave'), 'ok');
+      if (m === AUTO) $('mHint').textContent = t('set.modelAutoHint') + ' ' + t('set.modelLast', { model: used });
     } catch (e) {
       status(e instanceof GeminiError ? e.message : t('set.checkFailed'), 'err');
-      if (e instanceof GeminiError && e.code === 'BUSY') $('kRetry').hidden = false;
+      if (e instanceof GeminiError && (e.code === 'BUSY' || e.code === 'TIMEOUT')) $('kRetry').hidden = false;
       if (e instanceof GeminiError && e.suggestedModel && e.suggestedModel !== m) {
         const b = $('mUseSuggested');
         b.dataset.model = e.suggestedModel;
