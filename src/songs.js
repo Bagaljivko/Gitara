@@ -10,6 +10,7 @@ import {
 import { scanSong, prepareImage, getApiKey, GeminiError } from './gemini.js';
 import { driveState, savePdfToDrive, DriveError } from './drive.js';
 import { t } from './i18n.js';
+import { APP_VERSION } from './version.js';
 import { settings } from './db.js';
 import { PATTERNS, patternHTML, patternName, Metronome } from './rhythm.js';
 import { keepAwake, allowSleep } from './wakelock.js';
@@ -285,40 +286,88 @@ async function runScan(files, prepared = null) {
   overlay.className = 'modal-backdrop';
   overlay.innerHTML = `<div class="modal scan-modal" role="dialog" aria-modal="true" aria-label="${t('scan.label')}">
     <div class="scan-preview"><div class="scan-line"></div></div>
-    <p class="scan-msg"><span class="spinner"></span> <span id="scanText">${files.length > 1 ? t('scan.readingN', { n: files.length }) : t('scan.reading')}</span></p>
+    <p class="scan-msg"><span class="spinner"></span> <span id="scanText">${t('scan.stepCompress')}</span> <span class="scan-secs" id="scanSecs"></span></p>
     <div class="modal-actions"><button class="btn" id="scanCancel">${t('common.cancel')}</button></div></div>`;
   document.body.appendChild(overlay);
   const ctrl = new AbortController();
   let cancelled = false;
-  overlay.querySelector('#scanCancel').addEventListener('click', () => { cancelled = true; ctrl.abort(); overlay.remove(); });
+  const t0 = performance.now();
+  const secsTimer = setInterval(() => { const el = overlay.querySelector('#scanSecs'); if (el) el.textContent = `${Math.round((performance.now() - t0) / 1000)} s`; }, 1000);
+  const close = () => { clearInterval(secsTimer); overlay.remove(); };
+  overlay.querySelector('#scanCancel').addEventListener('click', () => { cancelled = true; ctrl.abort(); close(); });
+  const setText = (txt) => { const el = overlay.querySelector('#scanText'); if (el) el.textContent = txt; };
+  const diag = { at: new Date().toISOString(), images: [], attempts: [], selection: '', totalMs: 0 };
   let imgs = prepared;
   try {
-    // Više strana → manje slike, da ceo zahtev ostane u granicama Gemini API-ja.
-    const max = files.length > 3 ? 1400 : files.length > 1 ? 1700 : 2000;
-    if (!imgs) imgs = await Promise.all(files.map((f) => prepareImage(f, max)));
+    // 1) Smanji svaku sliku u pregledaču (najviše 1600 px, JPEG 0.8, ispod ~500 KB) — jednu po jednu, zbog memorije telefona.
+    if (!imgs) {
+      imgs = [];
+      for (let i = 0; i < files.length; i++) {
+        setText(files.length > 1 ? t('scan.stepCompressN', { i: i + 1, n: files.length }) : t('scan.stepCompress'));
+        imgs.push(await prepareImage(files[i]));
+        if (cancelled) return;
+      }
+    }
+    diag.images = imgs.map((i) => i.info);
     if (cancelled) return;
     overlay.querySelector('.scan-preview').style.backgroundImage = `url(${imgs[0].preview})`;
+    // 2) Pošalji i sačekaj odgovor
     const song = await scanSong(imgs, ctrl.signal, (kind, model) => {
-      const el = overlay.querySelector('#scanText');
-      if (el) el.textContent = kind === 'switch' ? t('scan.switchModel', { model }) : t('scan.busy');
-    });
+      if (kind === 'send') setText(t('scan.stepSend'));
+      else if (kind === 'reading') setText(t('scan.stepReading'));
+      else if (kind === 'switch') setText(t('scan.switchModel', { model }));
+      else setText(t('scan.busy'));
+    }, diag);
+    diag.totalMs = performance.now() - t0;
     draft = song;
     draftImage = imgs.map((i) => i.preview);
-    overlay.remove();
+    close();
     location.hash = '#/uredi/sken';
   } catch (e) {
-    overlay.remove();
+    diag.totalMs = performance.now() - t0;
+    close();
     if (cancelled || (e && e.name === 'AbortError')) return;
-    const busy = e instanceof GeminiError && (e.code === 'BUSY' || e.code === 'TIMEOUT');
-    const again = await dialog({
-      title: busy ? (e.code === 'TIMEOUT' ? t('scan.timeoutTitle') : t('scan.busyTitle')) : t('scan.failedTitle'),
-      body: e instanceof GeminiError ? e.message : t('common.error'),
-      buttons: busy && imgs
+    const code = e instanceof GeminiError ? e.code : 'ERROR';
+    const title = code === 'TIMEOUT' ? t('scan.timeoutTitle') : code === 'BUSY' ? t('scan.busyTitle') : t('scan.failedTitle');
+    const report = formatScanDiag(diag, e);
+    const canRetry = imgs && imgs.length && code !== 'BAD_KEY';
+    const p = dialog({
+      title,
+      html: true,
+      body: `<p>${esc(e instanceof GeminiError ? e.message : t('common.error'))}</p>
+        <details class="diag"><summary>${t('scan.details')}</summary><pre id="diagText">${esc(report)}</pre>
+        <button class="btn small" id="diagCopy" type="button">${t('scan.copyDetails')}</button></details>`,
+      buttons: canRetry
         ? [{ label: t('common.cancel'), value: false }, { label: t('common.retry'), value: true, kind: 'primary' }]
         : [{ label: t('common.ok'), value: false, kind: 'primary' }],
     });
-    if (again) return runScan(files, imgs);
+    const modal = [...document.querySelectorAll('.modal-backdrop')].pop();
+    modal.querySelector('#diagCopy').addEventListener('click', async (ev) => {
+      ev.stopPropagation();
+      try { await navigator.clipboard.writeText(report); toast(t('scan.copied')); }
+      catch { const r = document.createRange(); r.selectNodeContents(modal.querySelector('#diagText')); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); }
+    });
+    if (await p) return runScan(files, imgs);
   }
+}
+
+const kb = (b) => (b >= 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)} MB` : `${Math.round(b / 1024)} KB`);
+const secs = (ms) => `${(ms / 1000).toFixed(1)} s`;
+
+/** Tekst za „Detalji greške“ (bez API ključa) — korisnik ga može kopirati i poslati. */
+function formatScanDiag(d, e) {
+  const L = [];
+  L.push(`${t('diag.time')}: ${d.at}  ·  ${t('diag.total')}: ${secs(d.totalMs)}  ·  ${t('diag.code')}: ${(e && e.code) || (e && e.name) || '?'}`);
+  L.push(`${t('diag.model')}: ${d.selection === 'auto' ? t('set.modelAuto') : d.selection || '?'}`);
+  L.push(`${t('diag.images')} (${d.images.length}):`);
+  d.images.forEach((i, k) => L.push(`  ${k + 1}) ${t('diag.original')} ${i.ow}×${i.oh}, ${kb(i.origBytes)} → ${t('diag.sent')} ${i.w}×${i.h}, ${kb(i.bytes)} (JPEG ${i.quality})`));
+  if (d.images.length) L.push(`  ${t('diag.sentTotal')}: ${kb(d.images.reduce((a, i) => a + i.bytes, 0))}`);
+  L.push(`${t('diag.attempts')} (${d.attempts.length}):`);
+  if (!d.attempts.length) L.push(`  ${t('diag.noAttempts')}`);
+  d.attempts.forEach((a, k) => L.push(`  ${k + 1}. ${a.model} [${a.thinking}] — ${secs(a.ms)} — ${a.status}${a.message ? ': ' + a.message : ''}  (${t('diag.request')} ${kb(a.sentBytes)})`));
+  L.push(`${t('diag.message')}: ${(e && e.message) || String(e)}`);
+  L.push(`${t('diag.app')}: Gitara ${APP_VERSION} · ${navigator.onLine === false ? 'offline' : 'online'} · ${navigator.userAgent}`);
+  return L.join('\n');
 }
 
 // ---------------- Prikaz linija sa akordima ----------------

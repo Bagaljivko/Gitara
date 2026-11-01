@@ -112,7 +112,7 @@ const RESPONSE_SCHEMA = {
 
 const RETRY_DELAYS = [1500, 3000, 5000]; // do 3 ponovna pokušaja kada je Gemini zauzet
 const FALLBACK_RETRY = [1500, 3000];      // u automatskom režimu kraće — pa sledeći model
-const DEADLINE_MS = () => globalThis.__gitaraDeadline || 60000; // najduže trajanje jednog skeniranja (~60 s)
+const DEADLINE_MS = () => globalThis.__gitaraDeadline || 120000; // najduže trajanje jednog skeniranja (120 s)
 const MODELS_TTL = 12 * 3600 * 1000;      // spisak modela se osvežava dva puta dnevno
 const sleep = (ms, signal) => new Promise((resolve, reject) => {
   const t = setTimeout(resolve, ms);
@@ -195,6 +195,22 @@ async function candidates(apiKey, selection) {
   return order.slice(0, 8);
 }
 
+// ---------------- Razmišljanje (thinking) ----------------
+// Prepisivanje ne zahteva dugo „razmišljanje“: tražimo najmanji nivo koji model dozvoljava.
+// Ako model odbije podešavanje (HTTP 400), probamo sledeću varijantu, na kraju bez podešavanja.
+export function thinkingVariants(model) {
+  const m = String(model).toLowerCase();
+  if (/gemini-(1\.|2\.0)/.test(m)) return [null];                       // stari modeli nemaju „thinking“
+  if (/gemini-2\.5/.test(m)) return [{ thinkingBudget: /pro/.test(m) ? 128 : 0 }, null];
+  return [{ thinkingLevel: 'minimal' }, { thinkingLevel: 'low' }, { thinkingBudget: 0 }, null];
+}
+const describeThinking = (v) => (!v ? '—' : v.thinkingLevel ? `thinkingLevel=${v.thinkingLevel}` : `thinkingBudget=${v.thinkingBudget}`);
+function withThinking(body, v) {
+  const gc = { ...(body.generationConfig || {}) };
+  if (v) gc.thinkingConfig = v; else delete gc.thinkingConfig;
+  return { ...body, generationConfig: gc };
+}
+
 // ---------------- Pozivi ----------------
 function httpError(res, data, model) {
   const msg = (data && data.error && (data.error.message || data.error.status)) || '';
@@ -206,49 +222,74 @@ function httpError(res, data, model) {
     return new GeminiError(t('gem.busy'), { code: 'BUSY', model });
   }
   if (res.status >= 500) return new GeminiError(t('gem.unavailable'), { code: 'HTTP_' + res.status, model });
+  if (res.status === 400 && /thinking/i.test(msg)) return new GeminiError(msg, { code: 'THINKING', model });
   if (res.status === 400 && /location|region|country/i.test(msg)) return new GeminiError(t('gem.region'));
   return new GeminiError(msg ? t('gem.errorMsg', { msg }) : t('gem.error'), { code: 'HTTP_' + res.status, model });
 }
 
-async function callOnce(apiKey, body, signal, model) {
+async function callOnce(apiKey, body, signal, model, { diag, onStatus, thinking } = {}) {
   if (navigator.onLine === false) throw new GeminiError(t('gem.offline'));
+  const payload = JSON.stringify(body);
+  const att = { model, thinking: describeThinking(thinking), sentBytes: payload.length, ms: 0, status: '…', message: '' };
+  if (diag) diag.attempts.push(att);
+  const t0 = performance.now();
+  if (onStatus) onStatus('send', model);
+  // „Šaljem…“ dok traje slanje (procena po veličini), zatim „Gemini čita…“
+  const readTimer = onStatus ? setTimeout(() => onStatus('reading', model), Math.min(8000, Math.max(700, payload.length / 250))) : 0;
   let res;
   try {
     res = await fetch(`${API_BASE}${encodeURIComponent(model)}:generateContent`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-      body: JSON.stringify(body),
+      body: payload,
       signal,
     });
   } catch (e) {
-    if (e && e.name === 'AbortError') throw e;
+    clearTimeout(readTimer);
+    att.ms = performance.now() - t0;
+    if (e && e.name === 'AbortError') { att.status = 'prekinuto'; throw e; }
+    att.status = 'mreža';
+    att.message = String((e && e.message) || e);
     throw new GeminiError(t('gem.network'));
   }
   let data = null;
   try { data = await res.json(); } catch {}
-  if (!res.ok) throw httpError(res, data, model);
+  clearTimeout(readTimer);
+  att.ms = performance.now() - t0;
+  att.status = 'HTTP ' + res.status;
+  if (!res.ok) {
+    att.message = String((data && data.error && (data.error.message || data.error.status)) || res.statusText || '').slice(0, 400);
+    throw httpError(res, data, model);
+  }
+  const cand = data && data.candidates && data.candidates[0];
+  att.message = cand ? `OK (finishReason ${cand.finishReason || '?'})` : 'OK (bez kandidata)';
   return data;
 }
-
 /** Jedan model sa ponavljanjem kada je zauzet (503 / 429 / „overloaded“). */
-async function callWithRetry(apiKey, body, signal, model, onStatus, delays) {
-  for (let attempt = 0; ; attempt++) {
-    try {
-      return await callOnce(apiKey, body, signal, model);
-    } catch (e) {
-      if (!(e instanceof GeminiError) || e.code !== 'BUSY' || attempt >= delays.length) throw e;
-      if (onStatus) onStatus('retry', model);
-      await sleep(delays[attempt], signal);
+async function callWithRetry(apiKey, body, signal, model, onStatus, delays, diag) {
+  const variants = thinkingVariants(model);
+  for (let v = 0; v < variants.length; v++) {
+    const b = withThinking(body, variants[v]);
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await callOnce(apiKey, b, signal, model, { diag, onStatus, thinking: variants[v] });
+      } catch (e) {
+        if (e instanceof GeminiError && e.code === 'THINKING' && v < variants.length - 1) break; // sledeća varijanta
+        if (e instanceof GeminiError && e.code === 'THINKING') throw new GeminiError(t('gem.errorMsg', { msg: e.message }), { code: 'HTTP_400', model });
+        if (!(e instanceof GeminiError) || e.code !== 'BUSY' || attempt >= delays.length) throw e;
+        if (onStatus) onStatus('retry', model);
+        await sleep(delays[attempt], signal);
+      }
     }
   }
+  throw new GeminiError(t('gem.noAnswer'));
 }
-
 /**
  * Šalje zahtev: u automatskom režimu probava modele redom (poslednji koji je radio, najnoviji Flash,
  * Flash-Lite, ostali) dok jedan ne uspe. Ukupno najviše ~60 s; „Otkaži“ (signal) prekida odmah.
  * Vraća { data, model }.
  */
-async function generate(apiKey, body, { signal, onStatus, selection, models } = {}) {
+async function generate(apiKey, body, { signal, onStatus, selection, models, diag } = {}) {
   if (!apiKey) throw new GeminiError(t('gem.noKey'));
   if (navigator.onLine === false) throw new GeminiError(t('gem.offline'));
   const ctrl = new AbortController();
@@ -257,6 +298,7 @@ async function generate(apiKey, body, { signal, onStatus, selection, models } = 
   const onAbort = () => ctrl.abort();
   if (signal) { if (signal.aborted) ctrl.abort(); signal.addEventListener('abort', onAbort); }
   const sel = selection || (await getModelSetting());
+  if (diag) diag.selection = sel;
   try {
     const list = models || (await candidates(apiKey, sel));
     const auto = sel === AUTO && !models;
@@ -265,7 +307,7 @@ async function generate(apiKey, body, { signal, onStatus, selection, models } = 
       const model = list[i];
       if (i > 0 && onStatus) onStatus('switch', model);
       try {
-        const data = await callWithRetry(apiKey, body, ctrl.signal, model, onStatus, auto && list.length > 1 ? FALLBACK_RETRY : RETRY_DELAYS);
+        const data = await callWithRetry(apiKey, body, ctrl.signal, model, onStatus, auto && list.length > 1 ? FALLBACK_RETRY : RETRY_DELAYS, diag);
         if (auto) await settings.set('geminiLastModel', model);
         return { data, model };
       } catch (e) {
@@ -278,7 +320,11 @@ async function generate(apiKey, body, { signal, onStatus, selection, models } = 
     if (lastErr && lastErr.code === 'BUSY') throw new GeminiError(t('gem.busyAll'), { code: 'BUSY' });
     throw lastErr || new GeminiError(t('gem.noAnswer'));
   } catch (e) {
-    if (timedOut) throw new GeminiError(t('gem.timeout'), { code: 'TIMEOUT' });
+    if (timedOut) {
+      const last = diag && diag.attempts[diag.attempts.length - 1];
+      if (last && (last.status === 'prekinuto' || last.status === '…')) { last.status = 'isteklo vreme'; }
+      throw new GeminiError(t('gem.timeout'), { code: 'TIMEOUT' });
+    }
     if (e && e.name === 'AbortError') throw new DOMException('Aborted', 'AbortError');
     if (e instanceof GeminiError && e.code === 'BUSY' && sel !== AUTO) throw new GeminiError(t('gem.busyFinal'), { code: 'BUSY' });
     throw e;
@@ -308,7 +354,7 @@ export async function testKey(apiKey, selection, onStatus) {
 }
 
 /** Smanjuje sliku (max 2000px) i vraća { mime, base64 }. */
-export async function prepareImage(file, max = 2000) {
+export async function prepareImage(file, { max = 1600, quality = 0.8, maxBytes = 500 * 1024 } = {}) {
   const url = URL.createObjectURL(file);
   try {
     const img = await new Promise((resolve, reject) => {
@@ -317,20 +363,31 @@ export async function prepareImage(file, max = 2000) {
       i.onerror = () => reject(new GeminiError(t('gem.badImage')));
       i.src = url;
     });
-    const scale = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
-    const w = Math.round(img.naturalWidth * scale), h = Math.round(img.naturalHeight * scale);
-    const canvas = document.createElement('canvas');
-    canvas.width = w; canvas.height = h;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(0, 0, w, h);
-    ctx.drawImage(img, 0, 0, w, h);
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
-    return { mime: 'image/jpeg', base64: dataUrl.split(',')[1], preview: dataUrl };
+    const ow = img.naturalWidth, oh = img.naturalHeight;
+    let side = max, q = quality, dataUrl = '', w = 0, h = 0;
+    // Smanjuj dok slika ne bude ispod ~500 KB (prvo kvalitet, pa dimenzije).
+    for (let step = 0; step < 6; step++) {
+      const scale = Math.min(1, side / Math.max(ow, oh));
+      w = Math.round(ow * scale); h = Math.round(oh * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(img, 0, 0, w, h);
+      dataUrl = canvas.toDataURL('image/jpeg', q);
+      canvas.width = canvas.height = 0; // oslobodi memoriju odmah (važno na telefonu)
+      if (b64Bytes(dataUrl) <= maxBytes) break;
+      if (q > 0.62) q -= 0.1; else side = Math.round(side * 0.85);
+    }
+    const base64 = dataUrl.split(',')[1];
+    return { mime: 'image/jpeg', base64, preview: dataUrl, info: { ow, oh, origBytes: file.size, w, h, bytes: b64Bytes(dataUrl), quality: +q.toFixed(2) } };
   } finally {
     URL.revokeObjectURL(url);
   }
 }
+
+const b64Bytes = (dataUrl) => Math.round(((dataUrl.length - dataUrl.indexOf(',') - 1) * 3) / 4);
 
 /** Šalje sliku Geminiju i vraća normalizovanu pesmu. */
 const MULTI_PROMPT = (n) => `
@@ -342,7 +399,7 @@ VIŠE SLIKA: dobijaš ${n} slika, ovim redom. To su uzastopne strane ili snimci 
 - Slike mogu biti rukom pisane strane ili snimci ekrana sa sajta; kod sajta prepiši samo pesmu (naslov, izvođač, akordi, tekst) i ignoriši meni, reklame, komentare i dugmad.`;
 
 /** Šalje jednu ili više slika (istim redom) i vraća jednu spojenu pesmu. */
-export async function scanSong(images, signal, onStatus) {
+export async function scanSong(images, signal, onStatus, diag) {
   const list = Array.isArray(images) ? images : [images];
   const apiKey = await getApiKey();
   const prompt = SCAN_PROMPT + (list.length > 1 ? MULTI_PROMPT(list.length) : '');
@@ -357,11 +414,11 @@ export async function scanSong(images, signal, onStatus) {
     res = await generate(apiKey, {
       contents,
       generationConfig: { temperature: 0.1, responseMimeType: 'application/json', responseSchema: RESPONSE_SCHEMA },
-    }, { signal, onStatus });
+    }, { signal, onStatus, diag });
   } catch (e) {
     // Ako neki model ne prihvata šemu odgovora, pokušaj isti model samo sa JSON izlazom (prompt opisuje oblik).
     if (!(e instanceof GeminiError) || e.code !== 'HTTP_400' || !e.model || !/schema|response_?schema|responseMimeType|field/i.test(e.message)) throw e;
-    res = await generate(apiKey, { contents, generationConfig: { temperature: 0.1, responseMimeType: 'application/json' } }, { signal, onStatus, models: [e.model] });
+    res = await generate(apiKey, { contents, generationConfig: { temperature: 0.1, responseMimeType: 'application/json' } }, { signal, onStatus, models: [e.model], diag });
   }
   const text = textOf(res.data).trim().replace(/^```(?:json)?\s*|\s*```$/g, '');
   let json;

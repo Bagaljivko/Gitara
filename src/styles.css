@@ -377,3 +377,9 @@ body.tuner-screen .nav { background: rgba(23, 24, 28, .97); }
 #mRefresh { font-size: 1.2rem; }
 #mRefresh.spin { animation: spin .8s linear infinite; }
 .scan-model { margin-top: -4px; }
+
+/* Skeniranje: koraci i detalji greške */
+.scan-secs { color: var(--muted); font-variant-numeric: tabular-nums; margin-left: auto; }
+.diag { margin-top: 12px; }
+.diag summary { cursor: pointer; color: var(--accent); min-height: 36px; display: flex; align-items: center; }
+.diag pre { white-space: pre-wrap; word-break: break-word; font-family: var(--mono); font-size: .72rem; line-height: 1.45; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px; max-height: 40dvh; overflow: auto; color: var(--text); -webkit-user-select: text; user-select: text; }
