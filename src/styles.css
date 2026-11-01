@@ -278,3 +278,8 @@ label > input { margin-top: 4px; color: var(--text); font-size: 1rem; }
 .toast.error { border-color: var(--danger); }
 
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+.model-label { margin-top: 10px; }
+.model-label input { font-family: var(--mono); font-size: .9rem; }
+.linklike { appearance: none; background: none; border: 0; padding: 0; color: var(--accent); font: inherit; text-decoration: underline; cursor: pointer; }
+#mUseSuggested { margin-top: 8px; }

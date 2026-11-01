@@ -1,6 +1,6 @@
 // Tab "Podešavanja": Gemini ključ, tuner, rezervna kopija, instalacija.
 import { settings, songs as db } from './db.js';
-import { testKey, GeminiError } from './gemini.js';
+import { testKey, GeminiError, DEFAULT_MODEL, cleanModelName } from './gemini.js';
 import { esc, toast, confirmDialog, pickFile, dialog } from './ui.js';
 import { exportAll } from './songs.js';
 import { parseBackup, SongFormatError } from './songformat.js';
@@ -14,6 +14,7 @@ const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.
 
 export async function renderSettings(root) {
   const key = await settings.get('geminiKey', '');
+  const model = cleanModelName(await settings.get('geminiModel', DEFAULT_MODEL)) || DEFAULT_MODEL;
   const a4 = Number(await settings.get('a4', 440)) || 440;
   root.innerHTML = `
   <section class="view settings-view">
@@ -26,11 +27,16 @@ export async function renderSettings(root) {
         <input type="password" id="kInput" value="${esc(key)}" placeholder="Nalepi ključ ovde" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Gemini API ključ">
         <button class="btn small" id="kShow" aria-label="Prikaži ključ">Prikaži</button>
       </div>
+      <label class="model-label">Gemini model
+        <input id="mInput" value="${esc(model)}" placeholder="${DEFAULT_MODEL}" autocomplete="off" autocapitalize="off" spellcheck="false">
+      </label>
+      <p class="muted small">Podrazumevano: <b>${DEFAULT_MODEL}</b>. Promeni samo ako Google ukine ovaj model. <button class="linklike" id="mReset" type="button">Vrati podrazumevani</button></p>
       <div class="row wrap">
         <button class="btn primary" id="kSave">Sačuvaj</button>
         <button class="btn" id="kTest">Proveri ključ</button>
         <button class="btn danger-text" id="kDel" ${key ? '' : 'hidden'}>Obriši ključ</button>
       </div>
+      <button class="btn small" id="mUseSuggested" hidden></button>
       <p class="status" id="kStatus" role="status">${key ? 'Ključ je sačuvan na ovom uređaju.' : 'Ključ nije unet.'}</p>
 
       <div class="help-box">
@@ -85,26 +91,53 @@ export async function renderSettings(root) {
     $('kInput').type = show ? 'text' : 'password';
     $('kShow').textContent = show ? 'Sakrij' : 'Prikaži';
   });
+  const readModel = () => {
+    const raw = $('mInput').value.trim();
+    if (!raw) return DEFAULT_MODEL;
+    return cleanModelName(raw);
+  };
+  $('mReset').addEventListener('click', () => { $('mInput').value = DEFAULT_MODEL; });
   $('kSave').addEventListener('click', async () => {
     const v = $('kInput').value.trim();
-    if (!v) { status('Unesi ključ pre čuvanja.', 'err'); return; }
+    const m = readModel();
+    if (!m) { status('Ime modela nije ispravno (npr. ' + DEFAULT_MODEL + ').', 'err'); return; }
+    $('mInput').value = m;
+    await settings.set('geminiModel', m);
+    if (!v) { status('Model je sačuvan. Unesi i ključ da bi skeniranje radilo.', 'err'); return; }
     await settings.set('geminiKey', v);
     $('kDel').hidden = false;
-    status('Ključ je sačuvan na ovom uređaju.', 'ok');
-    toast('Ključ je sačuvan.');
+    status(`Ključ i model (${m}) su sačuvani na ovom uređaju.`, 'ok');
+    toast('Sačuvano.');
+  });
+  $('mUseSuggested').addEventListener('click', async () => {
+    const m = $('mUseSuggested').dataset.model;
+    $('mInput').value = m;
+    await settings.set('geminiModel', m);
+    $('mUseSuggested').hidden = true;
+    status(`Model je promenjen na ${m}. Klikni „Proveri ključ“.`, 'ok');
   });
   $('kTest').addEventListener('click', async () => {
     const v = $('kInput').value.trim();
     if (!v) { status('Prvo unesi ključ.', 'err'); return; }
+    const m = readModel();
+    if (!m) { status('Ime modela nije ispravno (npr. ' + DEFAULT_MODEL + ').', 'err'); return; }
     $('kTest').disabled = true;
-    status('Proveravam ključ…');
+    $('mUseSuggested').hidden = true;
+    status(`Proveravam ključ (model ${m})…`);
     try {
-      await testKey(v);
+      await testKey(v, m);
       status('Ključ radi ✓', 'ok');
       const saved = await settings.get('geminiKey', '');
-      if (saved !== v) status('Ključ radi ✓ — ne zaboravi da klikneš „Sačuvaj“.', 'ok');
+      const savedModel = await settings.get('geminiModel', DEFAULT_MODEL);
+      if (saved !== v || savedModel !== m) status('Ključ radi ✓ — ne zaboravi da klikneš „Sačuvaj“.', 'ok');
     } catch (e) {
       status(e instanceof GeminiError ? e.message : 'Provera nije uspela. Pokušaj ponovo.', 'err');
+      if (e instanceof GeminiError && e.suggestedModel && e.suggestedModel !== m) {
+        const b = $('mUseSuggested');
+        b.dataset.model = e.suggestedModel;
+        b.textContent = `Koristi ${e.suggestedModel}`;
+        b.hidden = false;
+      }
     } finally {
       $('kTest').disabled = false;
     }

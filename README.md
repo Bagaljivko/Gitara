@@ -50,6 +50,8 @@ Ako si slučajno odbio pristup mikrofonu:
 2. Klikni „Get API key“, pa „Create API key“.
 3. U aplikaciji otvori **Podešavanja**, nalepi ključ, pa klikni **Sačuvaj** i **Proveri ključ**.
 
+Aplikacija podrazumevano koristi model **gemini-3.8-flash**. Ako ga Google ukine, upiši novi model u polje **Gemini model** u Podešavanjima (bez izmene koda). Kada Google u poruci o grešci predloži zamenu, aplikacija nudi dugme „Koristi …“.
+
 Ključ se čuva samo na tvom telefonu i šalje se samo Google-u kada skeniraš pesmu. **Nikada ne stavljaj ključ u kod ili u ovaj repozitorijum.**
 
 ## Deljenje pesama između učenika i nastavnika

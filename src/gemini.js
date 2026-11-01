@@ -3,12 +3,42 @@
 import { settings } from './db.js';
 import { normalizeSong } from './songformat.js';
 
-const MODEL = 'gemini-2.5-flash';
-const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+// Podrazumevani model; korisnik ga može promeniti u „Podešavanjima“ bez izmene koda.
+export const DEFAULT_MODEL = 'gemini-3.8-flash';
+const API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/';
 
-export class GeminiError extends Error {}
+export class GeminiError extends Error {
+  constructor(message, { code = '', suggestedModel = '' } = {}) {
+    super(message);
+    this.code = code;
+    this.suggestedModel = suggestedModel;
+  }
+}
 
 export const getApiKey = () => settings.get('geminiKey', '');
+
+/** Čisti ime modela: dozvoljava i oblik „models/ime-modela“. Vraća '' ako ime nije ispravno. */
+export function cleanModelName(name) {
+  const m = String(name || '').trim().replace(/^models\//, '');
+  return /^[a-z0-9][a-z0-9.\-]{1,80}$/i.test(m) ? m : '';
+}
+
+export async function getModel() {
+  return cleanModelName(await settings.get('geminiModel', DEFAULT_MODEL)) || DEFAULT_MODEL;
+}
+
+const MODEL_GONE = /no longer available|not found for API version|is not found|not supported for generateContent|is not available|does not exist|unknown model|deprecated|retired|has been shut ?down/i;
+
+function modelError(model, msg) {
+  const sug = (String(msg).match(/use\s+(?:models\/)?([a-z0-9][a-z0-9.\-]+[a-z0-9])/i) || [])[1] || '';
+  const suggested = cleanModelName(sug);
+  return new GeminiError(
+    `Model „${model}“ nije dostupan.` +
+      (suggested ? ` Google predlaže model „${suggested}“ — upiši ga u „Podešavanja“ → „Gemini model“ i klikni „Sačuvaj“.`
+                 : ' Upiši noviji model u „Podešavanja“ → „Gemini model“ (npr. ' + DEFAULT_MODEL + ') i klikni „Sačuvaj“.'),
+    { code: 'MODEL_UNAVAILABLE', suggestedModel: suggested },
+  );
+}
 
 const SCAN_PROMPT = `Ti si precizan prepisivač rukom pisanih pesama sa akordima za gitaru.
 Na slici je pesma (tekst + akordi). Rukopis može biti neuredan, a tekst na srpskom (latinica ili ćirilica) ili engleskom.
@@ -59,12 +89,13 @@ const RESPONSE_SCHEMA = {
   required: ['title', 'artist', 'key', 'sections'],
 };
 
-async function call(apiKey, body, signal) {
+async function call(apiKey, body, signal, model) {
+  model = cleanModelName(model) || DEFAULT_MODEL;
   if (!apiKey) throw new GeminiError('Nisi uneo Gemini API ključ. Otvori „Podešavanja“ i unesi ključ.');
   if (navigator.onLine === false) throw new GeminiError('Nema internet veze. Skeniranje pesama radi samo kada si povezan na internet.');
   let res;
   try {
-    res = await fetch(ENDPOINT, {
+    res = await fetch(`${API_BASE}${encodeURIComponent(model)}:generateContent`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
       body: JSON.stringify(body),
@@ -79,12 +110,13 @@ async function call(apiKey, body, signal) {
   if (!res.ok) {
     const msg = (data && data.error && (data.error.message || data.error.status)) || '';
     const reason = JSON.stringify(data && data.error && data.error.details || '');
+    if (res.status === 404 || MODEL_GONE.test(msg)) throw modelError(model, msg);
     if (res.status === 400 && /API_KEY_INVALID|API key not valid/i.test(msg + reason)) throw new GeminiError('API ključ nije ispravan. Proveri da li si ga dobro kopirao u „Podešavanjima“.');
     if (res.status === 401 || res.status === 403) throw new GeminiError('Ključ nema dozvolu za Gemini API. Napravi novi ključ u Google AI Studio.');
     if (res.status === 429) throw new GeminiError('Dostignuto je ograničenje besplatne verzije. Sačekaj minut-dva i pokušaj ponovo.');
     if (res.status >= 500) throw new GeminiError('Gemini servis je trenutno preopterećen ili nedostupan. Pokušaj ponovo za malo.');
     if (res.status === 400 && /location|region|country/i.test(msg)) throw new GeminiError('Gemini API nije dostupan u tvojoj zemlji/regionu.');
-    throw new GeminiError('Gemini je vratio grešku' + (msg ? `: ${msg}` : '.'));
+    throw new GeminiError('Gemini je vratio grešku' + (msg ? `: ${msg}` : '.'), { code: 'HTTP_' + res.status });
   }
   return data;
 }
@@ -98,12 +130,12 @@ function textOf(data) {
   return (cand.content && cand.content.parts || []).map((p) => p.text || '').join('');
 }
 
-/** Mali test poziv za proveru ključa. */
-export async function testKey(apiKey) {
+/** Mali test poziv za proveru ključa i modela. */
+export async function testKey(apiKey, model) {
   const data = await call(apiKey, {
     contents: [{ parts: [{ text: 'Odgovori samo rečju: OK' }] }],
-    generationConfig: { maxOutputTokens: 5, temperature: 0, thinkingConfig: { thinkingBudget: 0 } },
-  });
+    generationConfig: { maxOutputTokens: 64, temperature: 0 },
+  }, undefined, model || await getModel());
   if (!data || !data.candidates) throw new GeminiError('Neočekivan odgovor od Gemini servisa.');
   return true;
 }
@@ -137,10 +169,19 @@ export async function prepareImage(file) {
 /** Šalje sliku Geminiju i vraća normalizovanu pesmu. */
 export async function scanSong(image, signal) {
   const apiKey = await getApiKey();
-  const data = await call(apiKey, {
-    contents: [{ parts: [{ text: SCAN_PROMPT }, { inline_data: { mime_type: image.mime, data: image.base64 } }] }],
-    generationConfig: { temperature: 0.1, responseMimeType: 'application/json', responseSchema: RESPONSE_SCHEMA },
-  }, signal);
+  const model = await getModel();
+  const contents = [{ parts: [{ text: SCAN_PROMPT }, { inline_data: { mime_type: image.mime, data: image.base64 } }] }];
+  let data;
+  try {
+    data = await call(apiKey, {
+      contents,
+      generationConfig: { temperature: 0.1, responseMimeType: 'application/json', responseSchema: RESPONSE_SCHEMA },
+    }, signal, model);
+  } catch (e) {
+    // Ako neki model ne prihvata šemu odgovora, pokušaj samo sa JSON izlazom (prompt već opisuje oblik).
+    if (!(e instanceof GeminiError) || e.code !== 'HTTP_400' || !/schema|response_?schema|responseMimeType|field/i.test(e.message)) throw e;
+    data = await call(apiKey, { contents, generationConfig: { temperature: 0.1, responseMimeType: 'application/json' } }, signal, model);
+  }
   let text = textOf(data).trim().replace(/^```(?:json)?\s*|\s*```$/g, '');
   let json;
   try { json = JSON.parse(text); } catch { throw new GeminiError('Gemini nije vratio ispravan odgovor. Pokušaj ponovo ili slikaj jasnije.'); }
