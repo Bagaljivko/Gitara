@@ -13,6 +13,8 @@ import { t } from './i18n.js';
 import { settings } from './db.js';
 import { PATTERNS, patternHTML, patternName, Metronome } from './rhythm.js';
 import { keepAwake, allowSleep } from './wakelock.js';
+import { getFolders, addFolder } from './collections.js';
+import { renderSetlistsPane, editSongFolders, manageFolder, askName } from './setlistsView.js';
 
 let draft = null; // nesačuvana pesma (npr. posle skeniranja)
 let draftImage = null;
@@ -25,11 +27,18 @@ const norm = (s) => String(s || '').trim().toLocaleLowerCase('sr');
 const fold = (s) => norm(s).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'dj');
 
 // ---------------- Biblioteka ----------------
-export async function renderLibrary(root) {
+export async function renderLibrary(root, params = new URLSearchParams()) {
   const sortPref = localStorageGet('gitara-sort') || 'new';
+  const tab = params.get('tab') === 'sl' ? 'sl' : 'songs';
   root.innerHTML = `
   <section class="view lib-view">
     <header class="view-head"><h1>${t('lib.title')}</h1></header>
+    <div class="seg-tabs" role="tablist">
+      <button role="tab" data-lt="songs" class="${tab === 'songs' ? 'active' : ''}">${t('lib.tabSongs')}</button>
+      <button role="tab" data-lt="sl" class="${tab === 'sl' ? 'active' : ''}">${t('lib.tabSetlists')}</button>
+    </div>
+    <div id="lSlPane" ${tab === 'sl' ? '' : 'hidden'}></div>
+    <div id="lSongsPane" ${tab === 'sl' ? 'hidden' : ''}>
     <div class="lib-actions">
       <button class="btn primary big" id="lScan">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3 7.2 5H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3.2L15 3H9zm3 15a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-2a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/></svg>
@@ -48,15 +57,58 @@ export async function renderLibrary(root) {
         <option value="artist">${t('lib.sortArtist')}</option>
       </select>
     </div>
+    <div class="chips" id="lFolders" role="group" aria-label="${t('folder.title')}"></div>
     <ul class="song-list" id="lList"></ul>
+    </div>
   </section>`;
   const $ = (id) => root.querySelector('#' + id);
   $('lSort').value = sortPref;
   let all = await db.all();
+  let folders = await getFolders();
+  let folderFilter = localStorageGet('gitara-folder') || '';
+  if (folderFilter && !folders.some((f) => f.id === folderFilter)) folderFilter = '';
+
+  // Sekcije: Pesme / Setliste
+  root.querySelectorAll('[data-lt]').forEach((b) => b.addEventListener('click', () => {
+    root.querySelectorAll('[data-lt]').forEach((x) => x.classList.toggle('active', x === b));
+    const sl = b.dataset.lt === 'sl';
+    $('lSongsPane').hidden = sl;
+    $('lSlPane').hidden = !sl;
+    history.replaceState(null, '', sl ? '#/pesme?tab=sl' : '#/pesme');
+    if (sl) renderSetlistsPane($('lSlPane'));
+  }));
+  if (tab === 'sl') renderSetlistsPane($('lSlPane'));
+
+  // Folderi kao „čipovi“ za filtriranje
+  const drawFolders = () => {
+    $('lFolders').innerHTML = `<button class="chip ${folderFilter ? '' : 'active'}" data-f="">${t('folder.all')}</button>`
+      + folders.map((f) => `<button class="chip ${folderFilter === f.id ? 'active' : ''}" data-f="${esc(f.id)}">${esc(f.name)}${folderFilter === f.id ? ' <span class="chip-edit" aria-hidden="true">⋯</span>' : ''}</button>`).join('')
+      + `<button class="chip add" data-f="__new">${t('folder.add')}</button>`;
+  };
+  $('lFolders').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-f]');
+    if (!b) return;
+    const id = b.dataset.f;
+    if (id === '__new') {
+      const name = await askName(t('folder.new'));
+      if (!name) return;
+      const f = await addFolder(name);
+      folders = await getFolders();
+      folderFilter = f.id;
+    } else if (id && id === folderFilter) {
+      // Drugi dodir na izabrani folder: preimenuj / obriši
+      const r = await manageFolder(folders.find((f) => f.id === id));
+      folders = await getFolders();
+      if (r === 'deleted') { folderFilter = ''; all = await db.all(); }
+    } else folderFilter = id;
+    localStorageSet('gitara-folder', folderFilter);
+    drawFolders();
+    draw();
+  });
 
   const draw = () => {
     const q = fold($('lSearch').value);
-    let list = all.filter((s) => !q || fold(s.title).includes(q) || fold(s.artist).includes(q) ||
+    let list = all.filter((s) => !folderFilter || (s.folders || []).includes(folderFilter)).filter((s) => !q || fold(s.title).includes(q) || fold(s.artist).includes(q) ||
       (s.sections || []).some((sec) => sec.lines.some((l) => fold(l.text).includes(q))));
     const sort = $('lSort').value;
     const cmp = (a, b) => String(a || '').localeCompare(String(b || ''), 'sr', { sensitivity: 'base' });
@@ -69,6 +121,7 @@ export async function renderLibrary(root) {
         <p class="muted">${t('lib.emptyHint')}</p></li>`;
       return;
     }
+    if (!list.length && folderFilter && !q) { $('lList').innerHTML = `<li class="empty muted">${t('folder.emptyFolder')}</li>`; return; }
     if (!list.length) { $('lList').innerHTML = `<li class="empty muted">${esc(t('lib.noResults', { q: $('lSearch').value }))}</li>`; return; }
     $('lList').innerHTML = list.map((s) => `
       <li class="song-item">
@@ -76,6 +129,9 @@ export async function renderLibrary(root) {
           <span class="song-title">${esc(s.title)}</span>
           <span class="song-sub">${esc(s.artist || t('lib.unknownArtist'))}${s.key ? ` · <span class="key">${esc(s.key)}</span>` : ''}</span>
         </a>
+        <button class="icon-btn" data-fold="${esc(s.id)}" aria-label="${esc(t('folder.forSong', { title: s.title }))}">
+          <svg viewBox="0 0 24 24"><path d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8l-2-2z"/></svg>${(s.folders || []).length ? `<span class="fold-count">${s.folders.length}</span>` : ''}
+        </button>
         <button class="icon-btn" data-del="${esc(s.id)}" aria-label="${esc(t('lib.deleteSong', { title: s.title }))}">
           <svg viewBox="0 0 24 24"><path d="M9 3h6l1 2h4v2H4V5h4l1-2zm-3 6h12l-1 12H7L6 9zm4 2v8h2v-8h-2zm4 0v8h2v-8h-2z"/></svg>
         </button>
@@ -85,6 +141,13 @@ export async function renderLibrary(root) {
   $('lSearch').addEventListener('input', draw);
   $('lSort').addEventListener('change', () => { localStorageSet('gitara-sort', $('lSort').value); draw(); });
   $('lList').addEventListener('click', async (e) => {
+    const fb = e.target.closest('[data-fold]');
+    if (fb) {
+      e.preventDefault();
+      const song = all.find((x) => x.id === fb.dataset.fold);
+      if (await editSongFolders(song)) { all = await db.all(); folders = await getFolders(); drawFolders(); draw(); }
+      return;
+    }
     const b = e.target.closest('[data-del]');
     if (!b) return;
     e.preventDefault();
@@ -102,6 +165,7 @@ export async function renderLibrary(root) {
     draftImage = null;
     location.hash = '#/uredi/novo';
   });
+  drawFolders();
   draw();
 }
 

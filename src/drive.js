@@ -3,6 +3,7 @@
 // Nema client secret-a — token client radi samo sa javnim Client ID-jem.
 import { songs as db, settings, events } from './db.js';
 import { normalizeSong, SongFormatError, safeFileName, songExtras } from './songformat.js';
+import { cleanFolders, cleanSetlists, cleanSongFolders, mergeById } from './collections.js';
 import { toast, dialog } from './ui.js';
 import { t, songsCount, setLang } from './i18n.js';
 
@@ -15,7 +16,7 @@ const FOLDER_NAME = 'Gitara';
 const BACKUP_NAME = 'gitara-backup.json';
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
 const BACKUP_DELAY = 4000; // ms posle izmene
-const BACKUP_SETTINGS = ['a4', 'geminiModel', 'lang']; // Gemini ključ se NIKAD ne šalje na Drive
+const BACKUP_SETTINGS = ['a4', 'geminiModel', 'lang', 'metBpm', 'folders', 'setlists']; // Gemini ključ se NIKAD ne šalje na Drive
 
 export class DriveError extends Error {
   constructor(message, code = '') { super(message); this.code = code; }
@@ -218,7 +219,7 @@ async function buildBackup() {
   for (const k of BACKUP_SETTINGS) { const v = await settings.get(k); if (v !== undefined) s[k] = v; }
   return {
     app: 'gitara', version: 1, type: 'backup', exportedAt: new Date().toISOString(),
-    songs: all.map((sg) => ({ id: sg.id, title: sg.title, artist: sg.artist, key: sg.key, sections: sg.sections, transpose: sg.transpose || 0, createdAt: sg.createdAt, updatedAt: sg.updatedAt, ...songExtras(sg) })),
+    songs: all.map((sg) => ({ id: sg.id, title: sg.title, artist: sg.artist, key: sg.key, sections: sg.sections, transpose: sg.transpose || 0, createdAt: sg.createdAt, updatedAt: sg.updatedAt, ...songExtras(sg), folders: sg.folders || [] })),
     settings: s,
   };
 }
@@ -261,7 +262,8 @@ export async function readBackup() {
   for (const s of data.songs) {
     try {
       const n = normalizeSong(s);
-      songs.push({ ...n, id: typeof s.id === 'string' ? s.id.slice(0, 80) : undefined, createdAt: Number(s.createdAt) || undefined, updatedAt: Number(s.updatedAt) || undefined });
+      const folders = cleanSongFolders(s.folders);
+      songs.push({ ...n, ...(folders.length ? { folders } : {}), id: typeof s.id === 'string' ? s.id.slice(0, 80) : undefined, createdAt: Number(s.createdAt) || undefined, updatedAt: Number(s.updatedAt) || undefined });
     } catch (e) { if (!(e instanceof SongFormatError)) throw e; }
   }
   const st = {};
@@ -269,6 +271,12 @@ export async function readBackup() {
     const a4 = Number(data.settings.a4);
     if (a4 >= 430 && a4 <= 450) st.a4 = a4;
     if (data.settings.lang === 'sr' || data.settings.lang === 'en') st.lang = data.settings.lang;
+    const bpm = Number(data.settings.metBpm);
+    if (bpm >= 40 && bpm <= 220) st.metBpm = bpm;
+    const fo = cleanFolders(data.settings.folders);
+    if (fo) st.folders = fo;
+    const sl = cleanSetlists(data.settings.setlists);
+    if (sl) st.setlists = sl;
     if (typeof data.settings.geminiModel === 'string' && /^[a-z0-9][a-z0-9.\-]{1,80}$/i.test(data.settings.geminiModel)) st.geminiModel = data.settings.geminiModel;
   }
   return { songs, settings: st, modified: Date.parse(f.modifiedTime) || 0 };
@@ -297,6 +305,7 @@ export async function applyRestore(backup, mode) {
   }
   for (const [k, v] of Object.entries(backup.settings || {})) {
     if (k === 'lang') await setLang(v); // jezik se primenjuje odmah
+    else if (mode === 'merge' && (k === 'folders' || k === 'setlists')) await settings.set(k, mergeById((await settings.get(k, [])) || [], v));
     else await settings.set(k, v);
   }
   return added;

@@ -351,3 +351,23 @@ label > input { margin-top: 4px; color: var(--text); font-size: 1rem; }
 
 .sec-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .sec-head .pattern { margin-top: 0; }
+
+/* Folderi i setliste */
+.chips { display: flex; gap: 6px; overflow-x: auto; padding: 4px 0 8px; margin: 0 -16px; padding-left: 16px; padding-right: 16px; }
+.chip { flex: none; appearance: none; border: 1px solid var(--line); background: var(--surface); color: var(--text); font: 600 .88rem var(--sans); min-height: 38px; padding: 0 14px; border-radius: 999px; cursor: pointer; white-space: nowrap; }
+.chip.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.chip.add { color: var(--muted); border-style: dashed; }
+.chip-edit { margin-left: 4px; }
+.icon-btn { position: relative; }
+.fold-count { position: absolute; top: 6px; right: 4px; font-size: .62rem; background: var(--accent); color: var(--accent-ink); border-radius: 999px; min-width: 15px; height: 15px; line-height: 15px; text-align: center; font-weight: 700; }
+.pick-list { max-height: 50dvh; overflow-y: auto; }
+.pick-row { display: flex; gap: 10px; align-items: center; padding: 10px 4px; border-bottom: 1px solid var(--line); color: var(--text); font-size: .95rem; }
+.pick-row input { width: 20px; min-height: 20px; accent-color: var(--accent); }
+.pick-row small { color: var(--muted); }
+.sl-list { list-style: none; padding: 0; margin: 8px 0; }
+.sl-item { display: flex; align-items: center; gap: 6px; padding: 4px 0; border-bottom: 1px solid var(--line); background: var(--bg); touch-action: pan-y; }
+.sl-item.dragging { background: var(--surface-2); border-radius: 10px; box-shadow: 0 6px 18px rgba(0,0,0,.4); }
+.drag { cursor: grab; color: var(--muted); padding: 12px 6px; font-weight: 800; touch-action: none; user-select: none; }
+.sl-num { color: var(--muted); min-width: 22px; }
+.sl-title { flex: 1; color: var(--text); text-decoration: none; display: flex; flex-direction: column; padding: 8px 0; font-weight: 600; }
+.sl-title small { color: var(--muted); font-weight: 400; }

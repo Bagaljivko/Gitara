@@ -1,6 +1,7 @@
 import { createTuner } from './tuner.js';
 import { createChordRec } from './chordrec.js';
 import { renderLibrary, renderSong, renderEditor } from './songs.js';
+import { renderSetlist, setlistNav } from './setlistsView.js';
 import { renderSettings } from './settingsView.js';
 import { initDrive } from './drive.js';
 import { t, getLang, setLang, onLangChange } from './i18n.js';
@@ -21,8 +22,8 @@ function liveView(name, factory) {
 
 async function route() {
   const hash = location.hash || '#/tuner';
-  const [, page, arg] = hash.match(/^#\/([^/]*)\/?(.*)$/) || [, 'tuner', ''];
-  const tab = { tuner: 'tuner', akordi: 'akordi', pesme: 'pesme', pesma: 'pesme', uredi: 'pesme', podesavanja: 'podesavanja' }[page] || 'tuner';
+  const [, page, arg] = hash.match(/^#\/([^/?]*)\/?(.*)$/) || [, 'tuner', ''];
+  const tab = { tuner: 'tuner', akordi: 'akordi', pesme: 'pesme', pesma: 'pesme', uredi: 'pesme', setlista: 'pesme', podesavanja: 'podesavanja' }[page] || 'tuner';
   document.querySelectorAll('.nav a').forEach((a) => {
     const on = a.dataset.tab === tab;
     a.classList.toggle('active', on);
@@ -45,9 +46,12 @@ async function route() {
     const el = document.createElement('div');
     el.className = 'page';
     app.appendChild(el);
-    const dec = decodeURIComponent(arg || '');
-    if (page === 'pesme') await renderLibrary(el);
-    else if (page === 'pesma') await renderSong(el, dec);
+    const [rawId, query = ''] = (arg || '').split('?');
+    const dec = decodeURIComponent(rawId || '');
+    const params = new URLSearchParams(query);
+    if (page === 'pesme') await renderLibrary(el, params);
+    else if (page === 'pesma') await renderSong(el, dec, await setlistNav(params));
+    else if (page === 'setlista') await renderSetlist(el, dec);
     else if (page === 'uredi') await renderEditor(el, dec);
     else if (page === 'podesavanja') await renderSettings(el);
   }
