@@ -52,6 +52,21 @@ export function dialog({ title = '', body = '', html = false, buttons = [{ label
 export const confirmDialog = (title, body, okLabel = t('common.yes'), kind = 'primary') =>
   dialog({ title, body, buttons: [{ label: t('common.cancel'), value: false }, { label: okLabel, value: true, kind }] });
 
+/** Izbor više fajlova odjednom (npr. više fotografija). Vraća niz (može biti prazan). */
+export function pickFiles(accept, capture) {
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = accept;
+    input.multiple = !capture;
+    if (capture) input.setAttribute('capture', capture);
+    input.style.display = 'none';
+    input.addEventListener('change', () => { resolve([...input.files]); input.remove(); });
+    document.body.appendChild(input);
+    input.click();
+  });
+}
+
 /** Otvara izbor fajla i vraća File ili null. */
 export function pickFile(accept, capture) {
   return new Promise((resolve) => {

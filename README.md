@@ -4,11 +4,13 @@ Gitara je aplikacija za učenika gitare i njegovog nastavnika. Radi na iPhone-u 
 
 **Šta aplikacija ima:**
 
-- **Tuner** – štimer za standardno štimovanje (E A D G B E). Ima automatsko prepoznavanje žice, kazaljku u centima, glavu gitare sa označenim ključem i strelicom na koju stranu treba okrenuti ključ, i poruke „Zategni“, „Olabavi“ i „Naštimovano ✓“.
-- **Akordi** (beta) – sluša odsvirani akord i prikazuje njegovo ime i dijagram (dur, mol, 7, maj7, m7, sus2, sus4, u svim tonalitetima).
-- **Pesme** – biblioteka pesama sa akordima iznad teksta, dijagramima, transpozicijom, PDF izvozom („Skini PDF“), deljenjem („Podeli pesmu“) i uvozom („Uvezi pesmu“).
-- **Skeniraj pesmu** – fotografiši rukom pisanu pesmu i Google Gemini će je prepisati. Pre čuvanja dobijaš ekran „Proveri i ispravi“.
-- **Podešavanja** – Gemini API ključ (sa uputstvom kako se dobija besplatno), referentni ton A4 i rezervna kopija svih pesama.
+- **Tuner** – štimer za standardno štimovanje (E A D G B E): kazaljka od ♭ do ♯, velika nota, crtež glave gitare sa dugmićima za žice. Počinje da meri na trzaj žice i prati ton dok zvoni, a ignoriše govor i buku. Naštimovana žica postaje zelena i ostaje zelena do „Resetuj“; kada su svih šest zelene, pojavi se „Gitara je spremna“. Dugi pritisak na dugme žice (ili ikonica zvučnika) pušta referentni ton.
+- **Akordi** – prepoznavanje odsviranog akorda (beta; analizira samo posle udarca preko žica) i **Metronom i ritmovi**: metronom 40–220 BPM sa tap tempom, taktovima 2/4, 3/4, 4/4, 6/8 i biblioteka ritmova (strelice ↓ ↑) koji se sviraju uz metronom.
+- **Pesme** – biblioteka sa folderima i setlistama, akordi iznad teksta, dijagrami, transpozicija, **kapodaster** (prikazuje hvatove koje sviraš), **ritam** za pesmu ili deo pesme, **automatsko skrolovanje**, PDF („Skini PDF“), deljenje i uvoz.
+- **Skeniraj pesmu** – fotografiši rukom pisanu pesmu ili napravi snimke ekrana (može više strana odjednom) i Google Gemini je prepisuje u jednu pesmu, zajedno sa ritmom ako je zapisan. Pre čuvanja dobijaš ekran „Proveri i ispravi“.
+- **Podešavanja** – jezik, Gemini API ključ i model, referentni ton A4, Google Drive rezervna kopija i rezervna kopija u fajlu.
+
+Ekran ostaje upaljen dok tuner ili prepoznavanje akorda slušaju, dok svira metronom i dok pesma sama skroluje.
 
 **Jezik:** srpski (podrazumevano) ili engleski — bira se u **Podešavanja → Jezik / Language** i menja se odmah. Pesme (naslovi, tekst, akordi) se nikad ne prevode. Svi tekstovi interfejsa su u `src/i18n.js`.
 

@@ -1,6 +1,6 @@
 // Tab "Pesme": biblioteka, prikaz pesme, uređivanje, skeniranje, deljenje i uvoz.
 import { songs as db } from './db.js';
-import { esc, toast, dialog, confirmDialog, pickFile, shareOrDownload } from './ui.js';
+import { esc, toast, dialog, confirmDialog, pickFile, pickFiles, shareOrDownload } from './ui.js';
 import { chordSVG, voicingCount } from './diagram.js';
 import { isChord, parseChord, canonicalName } from './music.js';
 import {
@@ -228,32 +228,79 @@ async function startScan() {
     buttons: [{ label: t('scan.gallery'), value: 'gallery' }, { label: t('scan.camera'), value: 'camera', kind: 'primary' }],
   });
   if (!how) return;
-  const file = await pickFile('image/*', how === 'camera' ? 'environment' : null);
-  if (!file) return;
+  const files = await pickFiles('image/*', how === 'camera' ? 'environment' : null);
+  if (!files.length) return;
+  const pages = await collectPages(files);
+  if (pages) await runScan(pages);
+}
 
-  await runScan(file);
+const MAX_PAGES = 10;
+
+/** Ekran sa stranama: pregled, dodavanje još strana, uklanjanje i redosled — pa skeniranje. */
+async function collectPages(initial) {
+  let files = initial.slice(0, MAX_PAGES);
+  return new Promise((resolve) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-backdrop';
+    const urls = new Map();
+    const url = (f) => { if (!urls.has(f)) urls.set(f, URL.createObjectURL(f)); return urls.get(f); };
+    const done = (v) => { wrap.remove(); urls.forEach((u) => URL.revokeObjectURL(u)); resolve(v); };
+    const draw = () => {
+      wrap.innerHTML = `<div class="modal pages-modal" role="dialog" aria-modal="true" aria-label="${t('scan.pagesTitle')}">
+        <h2 class="modal-title">${t('scan.pagesTitle')}</h2>
+        <p class="muted small">${t('scan.pagesHint')}</p>
+        <div class="pages">${files.map((f, i) => `<div class="page-thumb">
+          <img src="${url(f)}" alt="${esc(t('scan.page', { n: i + 1 }))}">
+          <span class="page-n">${i + 1}</span>
+          <button class="page-x" data-rm="${i}" aria-label="${esc(t('scan.removePage', { n: i + 1 }))}">✕</button>
+          ${i > 0 ? `<button class="page-l" data-left="${i}" aria-label="${esc(t('scan.moveLeft'))}">‹</button>` : ''}
+        </div>`).join('')}
+        ${files.length < MAX_PAGES ? `<div class="page-add"><button class="btn small" data-add="camera">+ ${t('scan.camera')}</button><button class="btn small" data-add="gallery">+ ${t('scan.gallery')}</button></div>` : ''}
+        </div>
+        <div class="modal-actions">
+          <button class="btn" data-a="cancel">${t('common.cancel')}</button>
+          <button class="btn primary" data-a="scan" ${files.length ? '' : 'disabled'}>${t('scan.scanN', { n: files.length })}</button>
+        </div></div>`;
+    };
+    wrap.addEventListener('click', async (e) => {
+      const b = e.target.closest('button');
+      if (!b) return;
+      if (b.dataset.rm !== undefined) { files.splice(+b.dataset.rm, 1); draw(); }
+      else if (b.dataset.left !== undefined) { const i = +b.dataset.left; [files[i - 1], files[i]] = [files[i], files[i - 1]]; draw(); }
+      else if (b.dataset.add) {
+        const more = await pickFiles('image/*', b.dataset.add === 'camera' ? 'environment' : null);
+        files = [...files, ...more].slice(0, MAX_PAGES);
+        draw();
+      } else if (b.dataset.a === 'cancel') done(null);
+      else if (b.dataset.a === 'scan' && files.length) done(files);
+    });
+    draw();
+    document.body.appendChild(wrap);
+  });
 }
 
 /** Šalje sliku Geminiju; kada je Gemini zauzet ponavlja automatski, a na kraju nudi „Pokušaj ponovo“. */
-async function runScan(file, prepared = null) {
+async function runScan(files, prepared = null) {
   const overlay = document.createElement('div');
   overlay.className = 'modal-backdrop';
   overlay.innerHTML = `<div class="modal scan-modal" role="dialog" aria-modal="true" aria-label="${t('scan.label')}">
     <div class="scan-preview"><div class="scan-line"></div></div>
-    <p class="scan-msg"><span class="spinner"></span> <span id="scanText">${t('scan.reading')}</span></p>
+    <p class="scan-msg"><span class="spinner"></span> <span id="scanText">${files.length > 1 ? t('scan.readingN', { n: files.length }) : t('scan.reading')}</span></p>
     <div class="modal-actions"><button class="btn" id="scanCancel">${t('common.cancel')}</button></div></div>`;
   document.body.appendChild(overlay);
   const ctrl = new AbortController();
   overlay.querySelector('#scanCancel').addEventListener('click', () => ctrl.abort());
-  let img = prepared;
+  let imgs = prepared;
   try {
-    if (!img) img = await prepareImage(file);
-    overlay.querySelector('.scan-preview').style.backgroundImage = `url(${img.preview})`;
-    const song = await scanSong(img, ctrl.signal, () => {
+    // Više strana → manje slike, da ceo zahtev ostane u granicama Gemini API-ja.
+    const max = files.length > 3 ? 1400 : files.length > 1 ? 1700 : 2000;
+    if (!imgs) imgs = await Promise.all(files.map((f) => prepareImage(f, max)));
+    overlay.querySelector('.scan-preview').style.backgroundImage = `url(${imgs[0].preview})`;
+    const song = await scanSong(imgs, ctrl.signal, () => {
       overlay.querySelector('#scanText').textContent = t('scan.busy');
     });
     draft = song;
-    draftImage = img.preview;
+    draftImage = imgs.map((i) => i.preview);
     overlay.remove();
     location.hash = '#/uredi/sken';
   } catch (e) {
@@ -263,11 +310,11 @@ async function runScan(file, prepared = null) {
     const again = await dialog({
       title: busy ? t('scan.busyTitle') : t('scan.failedTitle'),
       body: e instanceof GeminiError ? e.message : t('common.error'),
-      buttons: busy && img
+      buttons: busy && imgs
         ? [{ label: t('common.cancel'), value: false }, { label: t('common.retry'), value: true, kind: 'primary' }]
         : [{ label: t('common.ok'), value: false, kind: 'primary' }],
     });
-    if (again) return runScan(file, img);
+    if (again) return runScan(files, imgs);
   }
 }
 
@@ -598,7 +645,7 @@ export async function renderEditor(root, id) {
     </header>
     <h1>${scanned ? t('edit.titleScanned') : isNew ? t('edit.titleNew') : t('edit.titleEdit')}</h1>
     ${scanned ? `<p class="muted">${t('edit.scannedHint')}</p>` : ''}
-    ${draftImage && scanned ? `<details class="card photo-ref"><summary>${t('edit.showPhoto')}</summary><img src="${draftImage}" alt="${t('edit.photoAlt')}"></details>` : ''}
+    ${draftImage && scanned ? `<details class="card photo-ref"><summary>${t('edit.showPhoto')}</summary>${[].concat(draftImage).map((src, i) => `<img src="${src}" alt="${esc(t('scan.page', { n: i + 1 }))}">`).join('')}</details>` : ''}
     <div class="form">
       <label>${t('edit.fTitle')}<input id="eTitle" value="${esc(song.title)}" placeholder="${t('edit.fTitlePh')}" autocomplete="off"></label>
       <div class="row">

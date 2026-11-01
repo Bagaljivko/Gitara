@@ -168,7 +168,7 @@ export async function testKey(apiKey, model, onRetry) {
 }
 
 /** Smanjuje sliku (max 2000px) i vraća { mime, base64 }. */
-export async function prepareImage(file) {
+export async function prepareImage(file, max = 2000) {
   const url = URL.createObjectURL(file);
   try {
     const img = await new Promise((resolve, reject) => {
@@ -177,7 +177,6 @@ export async function prepareImage(file) {
       i.onerror = () => reject(new GeminiError(t('gem.badImage')));
       i.src = url;
     });
-    const max = 2000;
     const scale = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
     const w = Math.round(img.naturalWidth * scale), h = Math.round(img.naturalHeight * scale);
     const canvas = document.createElement('canvas');
@@ -194,10 +193,26 @@ export async function prepareImage(file) {
 }
 
 /** Šalje sliku Geminiju i vraća normalizovanu pesmu. */
-export async function scanSong(image, signal, onRetry) {
+const MULTI_PROMPT = (n) => `
+
+VIŠE SLIKA: dobijaš ${n} slika, ovim redom. To su uzastopne strane ili snimci ekrana ISTE pesme.
+- Spoji ih u JEDNU pesmu, redom kojim su slike poslate.
+- Snimci ekrana se često preklapaju: ako se isti stihovi (sa istim akordima) vide na kraju jedne i na početku sledeće slike, prepiši ih SAMO JEDNOM.
+- Ne briši ponavljanja koja zaista postoje u pesmi (npr. refren napisan dva puta na različitim mestima).
+- Slike mogu biti rukom pisane strane ili snimci ekrana sa sajta; kod sajta prepiši samo pesmu (naslov, izvođač, akordi, tekst) i ignoriši meni, reklame, komentare i dugmad.`;
+
+/** Šalje jednu ili više slika (istim redom) i vraća jednu spojenu pesmu. */
+export async function scanSong(images, signal, onRetry) {
+  const list = Array.isArray(images) ? images : [images];
   const apiKey = await getApiKey();
   const model = await getModel();
-  const contents = [{ parts: [{ text: SCAN_PROMPT }, { inline_data: { mime_type: image.mime, data: image.base64 } }] }];
+  const prompt = SCAN_PROMPT + (list.length > 1 ? MULTI_PROMPT(list.length) : '');
+  const parts = [{ text: prompt }];
+  list.forEach((img, i) => {
+    if (list.length > 1) parts.push({ text: `Slika ${i + 1} od ${list.length}:` });
+    parts.push({ inline_data: { mime_type: img.mime, data: img.base64 } });
+  });
+  const contents = [{ parts }];
   let data;
   try {
     data = await call(apiKey, {

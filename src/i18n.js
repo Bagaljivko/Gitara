@@ -350,6 +350,15 @@ const sr = {
   'sl.deleteBody': 'Setlista „{name}“ će biti obrisana. Pesme ostaju u biblioteci.',
   'sl.deleted': 'Setlista je obrisana.',
 
+  // Skeniranje više strana
+  'scan.pagesTitle': 'Strane za skeniranje',
+  'scan.pagesHint': 'Dodaj sve strane ili snimke ekrana pesme, redom. Delovi koji se preklapaju biće spojeni.',
+  'scan.page': 'Strana {n}',
+  'scan.removePage': 'Ukloni stranu {n}',
+  'scan.moveLeft': 'Pomeri levo',
+  'scan.scanN': 'Skeniraj ({n})',
+  'scan.readingN': 'Čitam {n} strane i spajam ih u jednu pesmu… ovo može da potraje do minut.',
+
   // Google Drive (podešavanja)
   'drive.title': 'Google Drive',
   'drive.intro': 'Automatska rezervna kopija pesama u folder „Gitara“ na tvom Google Drive-u. Aplikacija vidi samo fajlove koje sama napravi. Gemini ključ se ne šalje na Drive.',
@@ -740,6 +749,14 @@ const en = {
   'sl.deleteTitle': 'Delete setlist?',
   'sl.deleteBody': 'Setlist “{name}” will be deleted. The songs stay in your library.',
   'sl.deleted': 'Setlist deleted.',
+
+  'scan.pagesTitle': 'Pages to scan',
+  'scan.pagesHint': 'Add every page or screenshot of the song, in order. Overlapping parts will be merged.',
+  'scan.page': 'Page {n}',
+  'scan.removePage': 'Remove page {n}',
+  'scan.moveLeft': 'Move left',
+  'scan.scanN': 'Scan ({n})',
+  'scan.readingN': 'Reading {n} pages and merging them into one song… this can take up to a minute.',
 
   'drive.title': 'Google Drive',
   'drive.intro': 'Automatic backup of your songs to a “Gitara” folder in your Google Drive. The app can only see files it creates. Your Gemini key is never sent to Drive.',
