@@ -1,4 +1,5 @@
 // Tab "Akordi": prepoznavanje odsviranog akorda preko hromagrama (beta).
+import { t } from './i18n.js';
 import { openMic, closeMic, MicError } from './audio.js';
 import { QUALITIES, pcName } from './music.js';
 import { chordSVG } from './diagram.js';
@@ -74,21 +75,21 @@ export function createChordRec(root) {
   root.innerHTML = `
   <section class="view chordrec-view">
     <header class="view-head">
-      <h1>Akordi <span class="badge">beta</span></h1>
+      <h1>${t('chords.title')} <span class="badge">${t('chords.beta')}</span></h1>
     </header>
-    <p class="muted">Odsviraj akord nekoliko puta (udaranjem preko svih žica). Aplikacija sluša i pogađa koji je akord.</p>
+    <p class="muted">${t('chords.intro')}</p>
     <div class="card cr-result" id="crResult" data-state="idle">
       <div class="cr-name" id="crName">–</div>
-      <div class="cr-sub" id="crSub">Pritisni „Slušaj“ i odsviraj akord</div>
+      <div class="cr-sub" id="crSub">${t('chords.pressListen')}</div>
       <div class="cr-diagram" id="crDiagram"></div>
       <div class="cr-alt" id="crAlt"></div>
     </div>
     <div class="chroma" id="crChroma" aria-hidden="true">
       ${Array.from({ length: 12 }, (_, i) => `<div class="chroma-col"><div class="chroma-bar"></div><span>${pcName(i)}</span></div>`).join('')}
     </div>
-    <button class="btn primary big wide" id="crBtn">Slušaj</button>
+    <button class="btn primary big wide" id="crBtn">${t('chords.listen')}</button>
     <p class="err" id="crErr" hidden></p>
-    <p class="hint small">Beta funkcija: najbolje radi u tihoj prostoriji, sa jasno odsviranim akordom. Prepoznaje dur, mol, 7, maj7, m7, sus2 i sus4 u svim tonalitetima.</p>
+    <p class="hint small">${t('chords.hint')}</p>
   </section>`;
 
   const $ = (id) => root.querySelector('#' + id);
@@ -107,7 +108,7 @@ export function createChordRec(root) {
     const total = acc.reduce((a, b) => a + b, 0);
     const now = performance.now();
     if (energy < 0.5 && total < 3) {
-      if (shownName && now - shownAt > 4000) setIdle('Odsviraj akord');
+      if (shownName && now - shownAt > 4000) setIdle(t('chords.playChord'));
       return;
     }
     const res = matchChord(acc, accBass);
@@ -120,10 +121,10 @@ export function createChordRec(root) {
       const conf = Math.round(Math.min(1, Math.max(0, (best.score - 0.7) / 0.3)) * 100);
       $('crResult').dataset.state = 'found';
       $('crName').textContent = name;
-      $('crSub').textContent = `${QUALITIES[best.quality].label} · sigurnost ${conf}%`;
+      $('crSub').textContent = t('chords.confidence', { quality: t('q.' + best.quality), pct: conf });
       $('crDiagram').innerHTML = chordSVG(name, { showName: false });
       const alts = res.slice(1, 4).map(nice);
-      $('crAlt').innerHTML = `Možda: ${alts.map((a) => `<b>${esc(a)}</b>`).join(', ')}`;
+      $('crAlt').innerHTML = `${t('chords.maybe')} ${alts.map((a) => `<b>${esc(a)}</b>`).join(', ')}`;
     }
     if (name === shownName) shownAt = now;
   }
@@ -150,11 +151,11 @@ export function createChordRec(root) {
       acc.fill(0); accBass.fill(0);
       running = true;
       timer = setInterval(frame, 90);
-      $('crBtn').textContent = 'Zaustavi';
+      $('crBtn').textContent = t('chords.stop');
       $('crBtn').classList.remove('primary');
-      setIdle('Slušam… odsviraj akord');
+      setIdle(t('chords.listening'));
     } catch (e) {
-      $('crErr').textContent = e instanceof MicError ? e.message : 'Mikrofon nije moguće pokrenuti.';
+      $('crErr').textContent = e instanceof MicError ? e.message : t('mic.failed');
       $('crErr').hidden = false;
     } finally {
       $('crBtn').disabled = false;
@@ -168,10 +169,10 @@ export function createChordRec(root) {
     try { mic.source.disconnect(analyser); } catch {}
     closeMic();
     mic = null;
-    $('crBtn').textContent = 'Slušaj';
+    $('crBtn').textContent = t('chords.listen');
     $('crBtn').classList.add('primary');
     bars.forEach((b) => (b.style.transform = 'scaleY(0)'));
-    if (!shownName) setIdle('Pritisni „Slušaj“ i odsviraj akord');
+    if (!shownName) setIdle(t('chords.pressListen'));
   }
 
   $('crBtn').addEventListener('click', () => (running ? stop() : start()));

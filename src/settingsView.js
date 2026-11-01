@@ -5,6 +5,7 @@ import { esc, toast, confirmDialog, pickFile, dialog } from './ui.js';
 import { exportAll } from './songs.js';
 import { parseBackup, SongFormatError } from './songformat.js';
 import { APP_VERSION } from './version.js';
+import { t, getLang, setLang } from './i18n.js';
 import { driveState, onDriveChange, connect as driveConnect, disconnect as driveDisconnect, reconnect as driveReconnect, backupNow, restoreFlow, formatDate, DriveError } from './drive.js';
 
 let deferredInstall = null;
@@ -19,72 +20,80 @@ export async function renderSettings(root) {
   const a4 = Number(await settings.get('a4', 440)) || 440;
   root.innerHTML = `
   <section class="view settings-view">
-    <header class="view-head"><h1>Podešavanja</h1></header>
+    <header class="view-head"><h1>${t('set.title')}</h1></header>
 
     <div class="card">
-      <h2>Gemini API ključ</h2>
-      <p class="muted small">Potreban je samo za „Skeniraj pesmu“.</p>
-      <div class="key-row">
-        <input type="password" id="kInput" value="${esc(key)}" placeholder="Nalepi ključ ovde" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Gemini API ključ">
-        <button class="btn small" id="kShow" aria-label="Prikaži ključ">Prikaži</button>
-      </div>
-      <label class="model-label">Gemini model
-        <input id="mInput" value="${esc(model)}" placeholder="${DEFAULT_MODEL}" autocomplete="off" autocapitalize="off" spellcheck="false">
-      </label>
-      <p class="muted small">Podrazumevano: <b>${DEFAULT_MODEL}</b>. Promeni samo ako Google ukine ovaj model. <button class="linklike" id="mReset" type="button">Vrati podrazumevani</button></p>
-      <div class="row wrap">
-        <button class="btn primary" id="kSave">Sačuvaj</button>
-        <button class="btn" id="kTest">Proveri ključ</button>
-        <button class="btn danger-text" id="kDel" ${key ? '' : 'hidden'}>Obriši ključ</button>
-      </div>
-      <button class="btn small" id="mUseSuggested" hidden></button>
-      <button class="btn small" id="kRetry" hidden>Pokušaj ponovo</button>
-      <p class="status" id="kStatus" role="status">${key ? 'Ključ je sačuvan na ovom uređaju.' : 'Ključ nije unet.'}</p>
-
-      <div class="help-box">
-        <h3>Kako da dobijem besplatan ključ?</h3>
-        <ol>
-          <li>Otvori <b>aistudio.google.com</b> i prijavi se svojim Google nalogom.</li>
-          <li>Klikni „Get API key“, pa „Create API key“.</li>
-          <li>Kopiraj ključ i nalepi ga ovde, pa klikni „Sačuvaj“.</li>
-        </ol>
-        <a class="btn wide" href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer">Otvori Google AI Studio ↗</a>
-        <p class="muted small">Ključ se čuva samo na ovom telefonu. Besplatna verzija ima ograničenja, ali je dovoljna za skeniranje pesama.</p>
+      <h2>${t('set.lang')}</h2>
+      <div class="seg-tabs lang-tabs" role="radiogroup" aria-label="${t('set.lang')}">
+        <button role="radio" data-lang="sr" class="${getLang() === 'sr' ? 'active' : ''}" aria-checked="${getLang() === 'sr'}">${t('set.langSr')}</button>
+        <button role="radio" data-lang="en" class="${getLang() === 'en' ? 'active' : ''}" aria-checked="${getLang() === 'en'}">${t('set.langEn')}</button>
       </div>
     </div>
 
     <div class="card">
-      <h2>Tuner</h2>
+      <h2>${t('set.keyTitle')}</h2>
+      <p class="muted small">${t('set.keyOnlyFor')}</p>
+      <div class="key-row">
+        <input type="password" id="kInput" value="${esc(key)}" placeholder="${t('set.keyPh')}" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="${t('set.keyTitle')}">
+        <button class="btn small" id="kShow" aria-label="${t('set.showKey')}">${t('set.show')}</button>
+      </div>
+      <label class="model-label">${t('set.model')}
+        <input id="mInput" value="${esc(model)}" placeholder="${DEFAULT_MODEL}" autocomplete="off" autocapitalize="off" spellcheck="false">
+      </label>
+      <p class="muted small">${t('set.modelDefault', { model: DEFAULT_MODEL })} <button class="linklike" id="mReset" type="button">${t('set.modelReset')}</button></p>
+      <div class="row wrap">
+        <button class="btn primary" id="kSave">${t('common.save')}</button>
+        <button class="btn" id="kTest">${t('set.testKey')}</button>
+        <button class="btn danger-text" id="kDel" ${key ? '' : 'hidden'}>${t('set.deleteKey')}</button>
+      </div>
+      <button class="btn small" id="mUseSuggested" hidden></button>
+      <button class="btn small" id="kRetry" hidden>${t('common.retry')}</button>
+      <p class="status" id="kStatus" role="status">${key ? t('set.keySaved') : t('set.keyMissing')}</p>
+
+      <div class="help-box">
+        <h3>${t('set.helpTitle')}</h3>
+        <ol>
+          <li>${t('set.help1')}</li>
+          <li>${t('set.help2')}</li>
+          <li>${t('set.help3')}</li>
+        </ol>
+        <a class="btn wide" href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer">${t('set.openStudio')}</a>
+        <p class="muted small">${t('set.keyNote')}</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>${t('set.tunerTitle')}</h2>
       <div class="a4-row">
-        <span>Referentni ton A4</span>
+        <span>${t('set.a4')}</span>
         <div class="stepper">
-          <button class="btn round small" id="aDown" aria-label="Smanji">−</button>
+          <button class="btn round small" id="aDown" aria-label="${t('set.decrease')}">−</button>
           <b id="aVal">${a4} Hz</b>
-          <button class="btn round small" id="aUp" aria-label="Povećaj">+</button>
+          <button class="btn round small" id="aUp" aria-label="${t('set.increase')}">+</button>
         </div>
       </div>
-      <p class="muted small">Standardno je 440 Hz. Menjaj samo ako sviraš uz instrument koji je drugačije naštimovan.</p>
+      <p class="muted small">${t('set.a4Note')}</p>
     </div>
 
     <div class="card drive-card" id="driveCard"></div>
 
     <div class="card">
-      <h2>Rezervna kopija (fajl)</h2>
-      <p class="muted small">Sve pesme se čuvaju samo na ovom uređaju. Napravi rezervnu kopiju pre brisanja aplikacije ili prelaska na novi telefon.</p>
+      <h2>${t('set.fileBackupTitle')}</h2>
+      <p class="muted small">${t('set.fileBackupNote')}</p>
       <div class="row wrap">
-        <button class="btn" id="bExport">Izvezi sve pesme</button>
-        <button class="btn" id="bImport">Vrati rezervnu kopiju</button>
+        <button class="btn" id="bExport">${t('set.exportAll')}</button>
+        <button class="btn" id="bImport">${t('set.importBackup')}</button>
       </div>
     </div>
 
     <div class="card" id="installCard" ${isStandalone() ? 'hidden' : ''}>
-      <h2>Instaliraj aplikaciju</h2>
+      <h2>${t('set.installTitle')}</h2>
       ${isIOS()
-        ? '<p class="small">U Safariju dodirni <b>Podeli</b> (kvadrat sa strelicom), pa <b>Dodaj na početni ekran</b>.</p>'
-        : '<p class="small">U Chrome-u otvori meni (⋮) i izaberi <b>Instaliraj aplikaciju</b>.</p><button class="btn primary" id="installBtn" hidden>Instaliraj</button>'}
+        ? `<p class="small">${t('set.installIos')}</p>`
+        : `<p class="small">${t('set.installAndroid')}</p><button class="btn primary" id="installBtn" hidden>${t('set.install')}</button>`}
     </div>
 
-    <p class="about muted small">Gitara · verzija ${APP_VERSION}<br>Radi bez interneta (osim skeniranja pesama).</p>
+    <p class="about muted small">${t('set.about', { v: APP_VERSION })}</p>
   </section>`;
 
   const $ = (id) => root.querySelector('#' + id);
@@ -93,7 +102,7 @@ export async function renderSettings(root) {
   $('kShow').addEventListener('click', () => {
     const show = $('kInput').type === 'password';
     $('kInput').type = show ? 'text' : 'password';
-    $('kShow').textContent = show ? 'Sakrij' : 'Prikaži';
+    $('kShow').textContent = show ? t('set.hide') : t('set.show');
   });
   const readModel = () => {
     const raw = $('mInput').value.trim();
@@ -104,14 +113,14 @@ export async function renderSettings(root) {
   $('kSave').addEventListener('click', async () => {
     const v = $('kInput').value.trim();
     const m = readModel();
-    if (!m) { status('Ime modela nije ispravno (npr. ' + DEFAULT_MODEL + ').', 'err'); return; }
+    if (!m) { status(t('set.badModel', { model: DEFAULT_MODEL }), 'err'); return; }
     $('mInput').value = m;
     await settings.set('geminiModel', m);
-    if (!v) { status('Model je sačuvan. Unesi i ključ da bi skeniranje radilo.', 'err'); return; }
+    if (!v) { status(t('set.modelSavedNoKey'), 'err'); return; }
     await settings.set('geminiKey', v);
     $('kDel').hidden = false;
-    status(`Ključ i model (${m}) su sačuvani na ovom uređaju.`, 'ok');
-    toast('Sačuvano.');
+    status(t('set.keyModelSaved', { model: m }), 'ok');
+    toast(t('common.saved'));
   });
   $('kRetry').addEventListener('click', () => $('kTest').click());
   $('mUseSuggested').addEventListener('click', async () => {
@@ -119,30 +128,30 @@ export async function renderSettings(root) {
     $('mInput').value = m;
     await settings.set('geminiModel', m);
     $('mUseSuggested').hidden = true;
-    status(`Model je promenjen na ${m}. Klikni „Proveri ključ“.`, 'ok');
+    status(t('set.modelChanged', { model: m }), 'ok');
   });
   $('kTest').addEventListener('click', async () => {
     const v = $('kInput').value.trim();
-    if (!v) { status('Prvo unesi ključ.', 'err'); return; }
+    if (!v) { status(t('set.enterKeyFirst'), 'err'); return; }
     const m = readModel();
-    if (!m) { status('Ime modela nije ispravno (npr. ' + DEFAULT_MODEL + ').', 'err'); return; }
+    if (!m) { status(t('set.badModel', { model: DEFAULT_MODEL }), 'err'); return; }
     $('kTest').disabled = true;
     $('mUseSuggested').hidden = true;
     $('kRetry').hidden = true;
-    status(`Proveravam ključ (model ${m})…`);
+    status(t('set.checking', { model: m }));
     try {
-      await testKey(v, m, () => status('Gemini je zauzet, pokušavam ponovo…'));
-      status('Ključ radi ✓', 'ok');
+      await testKey(v, m, () => status(t('scan.busy')));
+      status(t('set.keyWorks'), 'ok');
       const saved = await settings.get('geminiKey', '');
       const savedModel = await settings.get('geminiModel', DEFAULT_MODEL);
-      if (saved !== v || savedModel !== m) status('Ključ radi ✓ — ne zaboravi da klikneš „Sačuvaj“.', 'ok');
+      if (saved !== v || savedModel !== m) status(t('set.keyWorksSave'), 'ok');
     } catch (e) {
-      status(e instanceof GeminiError ? e.message : 'Provera nije uspela. Pokušaj ponovo.', 'err');
+      status(e instanceof GeminiError ? e.message : t('set.checkFailed'), 'err');
       if (e instanceof GeminiError && e.code === 'BUSY') $('kRetry').hidden = false;
       if (e instanceof GeminiError && e.suggestedModel && e.suggestedModel !== m) {
         const b = $('mUseSuggested');
         b.dataset.model = e.suggestedModel;
-        b.textContent = `Koristi ${e.suggestedModel}`;
+        b.textContent = t('set.useModel', { model: e.suggestedModel });
         b.hidden = false;
       }
     } finally {
@@ -150,11 +159,11 @@ export async function renderSettings(root) {
     }
   });
   $('kDel').addEventListener('click', async () => {
-    if (!(await confirmDialog('Obrisati ključ?', 'Ključ će biti obrisan sa ovog uređaja. Skeniranje neće raditi dok ne uneseš novi.', 'Obriši', 'danger'))) return;
+    if (!(await confirmDialog(t('set.deleteKeyTitle'), t('set.deleteKeyBody'), t('common.delete'), 'danger'))) return;
     await settings.remove('geminiKey');
     $('kInput').value = '';
     $('kDel').hidden = true;
-    status('Ključ nije unet.');
+    status(t('set.keyMissing'));
   });
 
   let a = a4;
@@ -164,9 +173,9 @@ export async function renderSettings(root) {
 
   $('bExport').addEventListener('click', async () => {
     const n = (await db.all()).length;
-    if (!n) { toast('Nema pesama za izvoz.'); return; }
+    if (!n) { toast(t('set.nothingToExport')); return; }
     const r = await exportAll();
-    if (r === 'downloaded') toast('Rezervna kopija je preuzeta.');
+    if (r === 'downloaded') toast(t('set.backupDownloaded'));
   });
   $('bImport').addEventListener('click', async () => {
     const file = await pickFile('.json,application/json,text/plain');
@@ -178,9 +187,9 @@ export async function renderSettings(root) {
       const have = new Set(existing.map(sig));
       let added = 0;
       for (const s of list) if (!have.has(sig(s))) { await db.save(s); added++; }
-      toast(added ? `Vraćeno pesama: ${added}` : 'Sve pesme iz kopije već postoje.');
+      toast(added ? t('set.restored', { n: added }) : t('set.allExist'));
     } catch (e) {
-      await dialog({ title: 'Fajl nije ispravan', body: e instanceof SongFormatError ? e.message : 'Fajl ne može da se učita.' });
+      await dialog({ title: t('import.invalidTitle'), body: e instanceof SongFormatError ? e.message : t('set.cantRead') });
     }
   });
 
@@ -191,31 +200,31 @@ export async function renderSettings(root) {
     const d = driveState();
     if (!d.connected) {
       driveCard.innerHTML = `
-        <h2>Google Drive</h2>
-        <p class="muted small">Automatska rezervna kopija pesama u folder „Gitara“ na tvom Google Drive-u. Aplikacija vidi samo fajlove koje sama napravi. Gemini ključ se ne šalje na Drive.</p>
-        <button class="btn primary wide" data-d="connect">Poveži Google Drive</button>
+        <h2>${t('drive.title')}</h2>
+        <p class="muted small">${t('drive.intro')}</p>
+        <button class="btn primary wide" data-d="connect">${t('drive.connect')}</button>
         <p class="status ${driveMsgCls}" role="status">${esc(driveMsg)}</p>`;
       return;
     }
-    const status = d.busy ? 'Pravim rezervnu kopiju…'
-      : d.needsReconnect ? 'Veza je istekla — dodirni „Ponovo poveži“.'
-      : d.pending ? (d.lastError || 'Izmene čekaju na rezervnu kopiju…')
+    const status = d.busy ? t('drive.busy')
+      : d.needsReconnect ? t('drive.expiredStatus')
+      : d.pending ? (d.lastError || t('drive.pending'))
       : driveMsg;
     driveCard.innerHTML = `
-      <h2>Google Drive</h2>
-      <p class="drive-account">Povezano: <b>${esc(d.email || 'Google nalog')}</b></p>
-      <p class="small">Poslednja rezervna kopija: <b>${d.lastBackup ? esc(formatDate(d.lastBackup)) : 'još nije napravljena'}</b></p>
-      ${d.needsReconnect ? '<button class="btn primary wide" data-d="reconnect">Ponovo poveži</button>' : ''}
+      <h2>${t('drive.title')}</h2>
+      <p class="drive-account">${t('drive.connected')} <b>${esc(d.email || t('drive.account'))}</b></p>
+      <p class="small">${t('drive.last')} <b>${d.lastBackup ? esc(formatDate(d.lastBackup)) : t('drive.never')}</b></p>
+      ${d.needsReconnect ? `<button class="btn primary wide" data-d="reconnect">${t('drive.reconnect')}</button>` : ''}
       <div class="row wrap">
-        <button class="btn" data-d="backup" ${d.busy ? 'disabled' : ''}>Napravi rezervnu kopiju</button>
-        <button class="btn" data-d="restore" ${d.busy ? 'disabled' : ''}>Vrati iz Drive-a</button>
+        <button class="btn" data-d="backup" ${d.busy ? 'disabled' : ''}>${t('drive.backupNow')}</button>
+        <button class="btn" data-d="restore" ${d.busy ? 'disabled' : ''}>${t('drive.restore')}</button>
       </div>
       <p class="status ${d.needsReconnect || (d.pending && d.lastError) ? 'err' : driveMsgCls}" role="status">${esc(status)}</p>
-      <p class="muted small">Kopija se automatski ažurira posle svake izmene pesama. PDF iz „Skini PDF“ se čuva i u folder „Gitara“.</p>
-      <button class="btn danger-text" data-d="disconnect">Prekini vezu</button>`;
+      <p class="muted small">${t('drive.auto')}</p>
+      <button class="btn danger-text" data-d="disconnect">${t('drive.disconnect')}</button>`;
   };
   const setDriveMsg = (m, cls = '') => { driveMsg = m; driveMsgCls = cls; drawDrive(); };
-  const driveErr = (e) => (e instanceof DriveError ? e.message : 'Došlo je do greške. Pokušaj ponovo.');
+  const driveErr = (e) => (e instanceof DriveError ? e.message : t('common.error'));
   drawDrive();
   const unsub = onDriveChange(() => { if (!document.body.contains(driveCard)) return unsub(); drawDrive(); });
   driveCard.addEventListener('click', async (e) => {
@@ -223,24 +232,27 @@ export async function renderSettings(root) {
     if (!b) return;
     const a = b.dataset.d;
     if (a === 'connect') {
-      setDriveMsg('Povezujem…');
-      try { await driveConnect(); setDriveMsg('Google Drive je povezan ✓', 'ok'); }
+      setDriveMsg(t('drive.connecting'));
+      try { await driveConnect(); setDriveMsg(t('drive.okConnected'), 'ok'); }
       catch (err) { setDriveMsg(driveErr(err), 'err'); }
     } else if (a === 'reconnect') {
-      try { await driveReconnect(); setDriveMsg('Google Drive je ponovo povezan ✓', 'ok'); }
+      try { await driveReconnect(); setDriveMsg(t('drive.okReconnected'), 'ok'); }
       catch (err) { setDriveMsg(driveErr(err), 'err'); }
     } else if (a === 'backup') {
-      try { await backupNow(); setDriveMsg('Rezervna kopija je sačuvana ✓', 'ok'); }
+      try { await backupNow(); setDriveMsg(t('drive.okBackup'), 'ok'); }
       catch (err) { setDriveMsg(driveErr(err), 'err'); }
     } else if (a === 'restore') {
-      try { if (await restoreFlow()) setDriveMsg('Pesme su vraćene sa Drive-a ✓', 'ok'); }
+      try { if (await restoreFlow()) setDriveMsg(t('drive.okRestore'), 'ok'); }
       catch (err) { setDriveMsg(driveErr(err), 'err'); }
     } else if (a === 'disconnect') {
-      if (!(await confirmDialog('Prekinuti vezu?', 'Automatska rezervna kopija na Google Drive se gasi. Fajlovi koji su već na Drive-u ostaju tamo.', 'Prekini vezu', 'danger'))) return;
+      if (!(await confirmDialog(t('drive.disconnectTitle'), t('drive.disconnectBody'), t('drive.disconnect'), 'danger'))) return;
       await driveDisconnect();
-      setDriveMsg('Veza sa Google Drive-om je prekinuta.');
+      setDriveMsg(t('drive.disconnected'));
     }
   });
+
+  // ---- Jezik ----
+  root.querySelectorAll('[data-lang]').forEach((b) => b.addEventListener('click', () => setLang(b.dataset.lang)));
 
   const ib = $('installBtn');
   if (ib && deferredInstall) {

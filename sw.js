@@ -1,6 +1,6 @@
 // Rad bez interneta: čuva celu aplikaciju u kešu i osvežava je u pozadini.
 // Pri svakoj novoj verziji aplikacije povećaj broj u CACHE.
-const CACHE = "gitara-v6";
+const CACHE = "gitara-v7";
 const SHELL = [
   "./",
   "index.html",
@@ -12,6 +12,7 @@ const SHELL = [
   "src/diagram.js",
   "src/drive.js",
   "src/gemini.js",
+  "src/i18n.js",
   "src/main.js",
   "src/music.js",
   "src/pdf.js",

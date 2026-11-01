@@ -1,4 +1,5 @@
 // PDF izvoz (samo na zahtev korisnika). jsPDF + ugrađen Unicode font (DejaVu Sans Mono) za č, ć, š, ž, đ.
+import { t } from './i18n.js';
 const monoUrl = new URL('../fonts/DejaVuSansMono.ttf', import.meta.url).href;
 const monoBoldUrl = new URL('../fonts/DejaVuSansMono-Bold.ttf', import.meta.url).href;
 const jspdfUrl = new URL('../vendor/jspdf.umd.min.js', import.meta.url).href;
@@ -109,7 +110,7 @@ export async function songToPdf(song, { transposeLabel = '' } = {}) {
   doc.addFont('DejaVuSansMono.ttf', 'Mono', 'normal');
   doc.addFileToVFS('DejaVuSansMono-Bold.ttf', monoBold);
   doc.addFont('DejaVuSansMono-Bold.ttf', 'Mono', 'bold');
-  doc.setProperties({ title: song.title || 'Pesma', subject: song.artist || '', creator: 'Gitara' });
+  doc.setProperties({ title: song.title || t('pdf.song'), subject: song.artist || '', creator: 'Gitara' });
 
   const accent = [196, 120, 10];
   const M = 16, PW = 210, PH = 297, bottom = PH - 14;
@@ -118,13 +119,13 @@ export async function songToPdf(song, { transposeLabel = '' } = {}) {
   doc.setFont('Mono', 'bold');
   doc.setFontSize(20);
   doc.setTextColor(15);
-  const titleLines = doc.splitTextToSize(song.title || 'Bez naslova', PW - 2 * M);
+  const titleLines = doc.splitTextToSize(song.title || t('common.untitled'), PW - 2 * M);
   doc.text(titleLines, M, y);
   y += titleLines.length * 8;
   doc.setFont('Mono', 'normal');
   doc.setFontSize(11);
   doc.setTextColor(90);
-  const meta = [song.artist, song.key ? `Tonalitet: ${song.key}` : '', transposeLabel].filter(Boolean).join('  ·  ');
+  const meta = [song.artist, song.key ? t('pdf.key', { key: song.key }) : '', transposeLabel].filter(Boolean).join('  ·  ');
   if (meta) { doc.text(meta, M, y); y += 6; }
   doc.setDrawColor(...accent);
   doc.setLineWidth(0.6);

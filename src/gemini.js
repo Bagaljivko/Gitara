@@ -1,4 +1,5 @@
 // Google Gemini API — poziva se direktno iz pregledača sa korisnikovim ključem.
+import { t } from './i18n.js';
 // Ključ se nikad ne nalazi u kodu; čuva se samo u IndexedDB na uređaju.
 import { settings } from './db.js';
 import { normalizeSong } from './songformat.js';
@@ -33,9 +34,7 @@ function modelError(model, msg) {
   const sug = (String(msg).match(/use\s+(?:models\/)?([a-z0-9][a-z0-9.\-]+[a-z0-9])/i) || [])[1] || '';
   const suggested = cleanModelName(sug);
   return new GeminiError(
-    `Model „${model}“ nije dostupan.` +
-      (suggested ? ` Google predlaže model „${suggested}“ — upiši ga u „Podešavanja“ → „Gemini model“ i klikni „Sačuvaj“.`
-                 : ' Upiši noviji model u „Podešavanja“ → „Gemini model“ (npr. ' + DEFAULT_MODEL + ') i klikni „Sačuvaj“.'),
+    t('gem.modelGone', { model }) + (suggested ? t('gem.modelSuggest', { model: suggested }) : t('gem.modelNewer', { model: DEFAULT_MODEL })),
     { code: 'MODEL_UNAVAILABLE', suggestedModel: suggested },
   );
 }
@@ -103,7 +102,7 @@ async function call(apiKey, body, signal, model, onRetry) {
     } catch (e) {
       if (!(e instanceof GeminiError) || e.code !== 'BUSY') throw e;
       if (attempt >= RETRY_DELAYS.length) {
-        throw new GeminiError('Gemini je trenutno preopterećen i nije odgovorio ni posle nekoliko pokušaja. Sačekaj malo pa dodirni „Pokušaj ponovo“.', { code: 'BUSY' });
+        throw new GeminiError(t('gem.busyFinal'), { code: 'BUSY' });
       }
       if (onRetry) onRetry(attempt + 1);
       await sleep(RETRY_DELAYS[attempt], signal);
@@ -113,8 +112,8 @@ async function call(apiKey, body, signal, model, onRetry) {
 
 async function callOnce(apiKey, body, signal, model) {
   model = cleanModelName(model) || DEFAULT_MODEL;
-  if (!apiKey) throw new GeminiError('Nisi uneo Gemini API ključ. Otvori „Podešavanja“ i unesi ključ.');
-  if (navigator.onLine === false) throw new GeminiError('Nema internet veze. Skeniranje pesama radi samo kada si povezan na internet.');
+  if (!apiKey) throw new GeminiError(t('gem.noKey'));
+  if (navigator.onLine === false) throw new GeminiError(t('gem.offline'));
   let res;
   try {
     res = await fetch(`${API_BASE}${encodeURIComponent(model)}:generateContent`, {
@@ -125,7 +124,7 @@ async function callOnce(apiKey, body, signal, model) {
     });
   } catch (e) {
     if (e && e.name === 'AbortError') throw e;
-    throw new GeminiError('Nije moguće povezati se sa Gemini servisom. Proveri internet vezu i pokušaj ponovo.');
+    throw new GeminiError(t('gem.network'));
   }
   let data = null;
   try { data = await res.json(); } catch {}
@@ -133,14 +132,14 @@ async function callOnce(apiKey, body, signal, model) {
     const msg = (data && data.error && (data.error.message || data.error.status)) || '';
     const reason = JSON.stringify(data && data.error && data.error.details || '');
     if (res.status === 404 || MODEL_GONE.test(msg)) throw modelError(model, msg);
-    if (res.status === 400 && /API_KEY_INVALID|API key not valid/i.test(msg + reason)) throw new GeminiError('API ključ nije ispravan. Proveri da li si ga dobro kopirao u „Podešavanjima“.');
-    if (res.status === 401 || res.status === 403) throw new GeminiError('Ključ nema dozvolu za Gemini API. Napravi novi ključ u Google AI Studio.');
+    if (res.status === 400 && /API_KEY_INVALID|API key not valid/i.test(msg + reason)) throw new GeminiError(t('gem.badKey'));
+    if (res.status === 401 || res.status === 403) throw new GeminiError(t('gem.forbidden'));
     if (res.status === 503 || res.status === 429 || /overloaded|UNAVAILABLE|RESOURCE_EXHAUSTED|try again later/i.test(msg)) {
-      throw new GeminiError('Gemini je zauzet.', { code: 'BUSY' });
+      throw new GeminiError(t('gem.busy'), { code: 'BUSY' });
     }
-    if (res.status >= 500) throw new GeminiError('Gemini servis je trenutno nedostupan. Pokušaj ponovo za malo.', { code: 'HTTP_' + res.status });
-    if (res.status === 400 && /location|region|country/i.test(msg)) throw new GeminiError('Gemini API nije dostupan u tvojoj zemlji/regionu.');
-    throw new GeminiError('Gemini je vratio grešku' + (msg ? `: ${msg}` : '.'), { code: 'HTTP_' + res.status });
+    if (res.status >= 500) throw new GeminiError(t('gem.unavailable'), { code: 'HTTP_' + res.status });
+    if (res.status === 400 && /location|region|country/i.test(msg)) throw new GeminiError(t('gem.region'));
+    throw new GeminiError(msg ? t('gem.errorMsg', { msg }) : t('gem.error'), { code: 'HTTP_' + res.status });
   }
   return data;
 }
@@ -148,8 +147,8 @@ async function callOnce(apiKey, body, signal, model) {
 function textOf(data) {
   const cand = data && data.candidates && data.candidates[0];
   if (!cand) {
-    if (data && data.promptFeedback && data.promptFeedback.blockReason) throw new GeminiError('Gemini je odbio da obradi sliku. Probaj sa drugom fotografijom.');
-    throw new GeminiError('Gemini nije vratio odgovor. Pokušaj ponovo.');
+    if (data && data.promptFeedback && data.promptFeedback.blockReason) throw new GeminiError(t('gem.blocked'));
+    throw new GeminiError(t('gem.noAnswer'));
   }
   return (cand.content && cand.content.parts || []).map((p) => p.text || '').join('');
 }
@@ -160,7 +159,7 @@ export async function testKey(apiKey, model, onRetry) {
     contents: [{ parts: [{ text: 'Odgovori samo rečju: OK' }] }],
     generationConfig: { maxOutputTokens: 64, temperature: 0 },
   }, undefined, model || await getModel(), onRetry);
-  if (!data || !data.candidates) throw new GeminiError('Neočekivan odgovor od Gemini servisa.');
+  if (!data || !data.candidates) throw new GeminiError(t('gem.unexpected'));
   return true;
 }
 
@@ -171,7 +170,7 @@ export async function prepareImage(file) {
     const img = await new Promise((resolve, reject) => {
       const i = new Image();
       i.onload = () => resolve(i);
-      i.onerror = () => reject(new GeminiError('Slika ne može da se učita. Probaj drugu fotografiju (JPG ili PNG).'));
+      i.onerror = () => reject(new GeminiError(t('gem.badImage')));
       i.src = url;
     });
     const max = 2000;
@@ -208,10 +207,10 @@ export async function scanSong(image, signal, onRetry) {
   }
   let text = textOf(data).trim().replace(/^```(?:json)?\s*|\s*```$/g, '');
   let json;
-  try { json = JSON.parse(text); } catch { throw new GeminiError('Gemini nije vratio ispravan odgovor. Pokušaj ponovo ili slikaj jasnije.'); }
+  try { json = JSON.parse(text); } catch { throw new GeminiError(t('gem.badJson')); }
   try {
     return normalizeSong(json);
   } catch {
-    throw new GeminiError('Na slici nije pronađena pesma. Slikaj papir izbliza, uz dobro osvetljenje.');
+    throw new GeminiError(t('gem.noSong'));
   }
 }

@@ -3,6 +3,8 @@ import { createChordRec } from './chordrec.js';
 import { renderLibrary, renderSong, renderEditor } from './songs.js';
 import { renderSettings } from './settingsView.js';
 import { initDrive } from './drive.js';
+import { t, getLang, setLang, onLangChange } from './i18n.js';
+import { settings } from './db.js';
 
 const app = document.getElementById('app');
 const views = {};
@@ -67,6 +69,27 @@ updateOnline();
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 }
+
+// ---- Jezik ----
+function applyStaticText() {
+  document.documentElement.lang = getLang() === 'en' ? 'en' : 'sr-Latn';
+  document.querySelectorAll('[data-i18n]').forEach((el) => { el.textContent = t(el.dataset.i18n); });
+  document.querySelectorAll('[data-i18n-aria]').forEach((el) => el.setAttribute('aria-label', t(el.dataset.i18nAria)));
+}
+onLangChange(() => {
+  // Odmah ponovo iscrtaj sve ekrane na novom jeziku (bez ponovnog učitavanja stranice).
+  applyStaticText();
+  for (const name of Object.keys(views)) {
+    views[name].ctl.hide();
+    views[name].el.remove();
+    delete views[name];
+  }
+  activeLive = null;
+  route();
+});
+applyStaticText();
+// Jezik iz IndexedDB (npr. posle vraćanja iz rezervne kopije) ima prednost.
+settings.get('lang', null).then((v) => { if (v && v !== getLang()) setLang(v, { save: false }); }).catch(() => {});
 
 route();
 initDrive().catch(() => {});

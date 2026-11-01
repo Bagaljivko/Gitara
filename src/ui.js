@@ -1,4 +1,5 @@
 // Mali UI pomoćnici: escape, toast, modalni dijalozi.
+import { t } from './i18n.js';
 
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -25,7 +26,7 @@ export function toast(msg, type = '') {
  * Modalni dijalog. buttons: [{ label, value, kind: 'primary'|'danger'|'' }]
  * Vraća Promise sa vrednošću kliknutog dugmeta (ili null za zatvaranje).
  */
-export function dialog({ title = '', body = '', html = false, buttons = [{ label: 'U redu', value: true, kind: 'primary' }], className = '' }) {
+export function dialog({ title = '', body = '', html = false, buttons = [{ label: t('common.ok'), value: true, kind: 'primary' }], className = '' }) {
   return new Promise((resolve) => {
     const wrap = document.createElement('div');
     wrap.className = 'modal-backdrop';
@@ -48,8 +49,8 @@ export function dialog({ title = '', body = '', html = false, buttons = [{ label
   });
 }
 
-export const confirmDialog = (title, body, okLabel = 'Da', kind = 'primary') =>
-  dialog({ title, body, buttons: [{ label: 'Otkaži', value: false }, { label: okLabel, value: true, kind }] });
+export const confirmDialog = (title, body, okLabel = t('common.yes'), kind = 'primary') =>
+  dialog({ title, body, buttons: [{ label: t('common.cancel'), value: false }, { label: okLabel, value: true, kind }] });
 
 /** Otvara izbor fajla i vraća File ili null. */
 export function pickFile(accept, capture) {

@@ -17,21 +17,21 @@
   <meta name="apple-mobile-web-app-title" content="Gitara">
 </head>
 <body>
-  <div id="offline" class="offline-bar" hidden>Bez interneta — sve radi osim skeniranja pesama.</div>
+  <div id="offline" class="offline-bar" hidden data-i18n="common.offlineBar">Bez interneta — sve radi osim skeniranja pesama.</div>
   <main id="app"></main>
-  <nav class="nav" aria-label="Glavna navigacija">
+  <nav class="nav" aria-label="Glavna navigacija" data-i18n-aria="nav.label">
     <a href="#/tuner" data-tab="tuner">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4a9 9 0 0 0-9 9h2a7 7 0 0 1 14 0h2a9 9 0 0 0-9-9zm4.3 4.3-5.4 4.3a1.6 1.6 0 1 0 2.3 2.2l3.8-5.8-.7-.7z"/></svg>
-      <span>Tuner</span></a>
+      <span data-i18n="nav.tuner">Tuner</span></a>
     <a href="#/akordi" data-tab="akordi">
       <svg class="stroke" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14M6 4v16M10.7 4v16M15.3 4v16M18 4v16M6 9h12M6 14h12M6 19h12"/><circle class="f" cx="10.7" cy="11.5" r="2"/><circle class="f" cx="15.3" cy="16.5" r="2"/></svg>
-      <span>Akordi</span></a>
+      <span data-i18n="nav.chords">Akordi</span></a>
     <a href="#/pesme" data-tab="pesme">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v10.6A4 4 0 1 0 14 17V7h4V3h-6z"/></svg>
-      <span>Pesme</span></a>
+      <span data-i18n="nav.songs">Pesme</span></a>
     <a href="#/podesavanja" data-tab="podesavanja">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.4 13a7.5 7.5 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.7a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.5 11a7.5 7.5 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.7a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5L19.4 13zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>
-      <span>Podešavanja</span></a>
+      <span data-i18n="nav.settings">Podešavanja</span></a>
   </nav>
   <script type="module" src="src/main.js"></script>
 </body>

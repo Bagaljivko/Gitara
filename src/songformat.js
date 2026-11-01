@@ -1,4 +1,5 @@
 // Konverzija pesme <-> tekst "akordi iznad teksta", validacija i transpozicija pesme.
+import { t } from './i18n.js';
 import { isChord, transposeChord, transposeKey, parseChord, parseKey, prefersFlats } from './music.js';
 
 const EXTRA_TOKENS = /^(\||\|\||%|-|–|\/|x\d+|\(x\d+\)|\d+x|\(\d+x\)|\.\.\.?|N\.?C\.?)$/i;
@@ -162,18 +163,18 @@ const str = (v, max = 500) => (typeof v === 'string' ? v : v == null ? '' : Stri
 
 /** Validira i normalizuje objekat pesme. Baca SongFormatError sa porukom na srpskom. */
 export function normalizeSong(raw) {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new SongFormatError('Fajl ne sadrži pesmu.');
-  if (!Array.isArray(raw.sections)) throw new SongFormatError('Ovo nije fajl pesme iz aplikacije Gitara.');
-  if (raw.sections.length > 200) throw new SongFormatError('Pesma je prevelika.');
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new SongFormatError(t('fmt.noSong'));
+  if (!Array.isArray(raw.sections)) throw new SongFormatError(t('fmt.notGitara'));
+  if (raw.sections.length > 200) throw new SongFormatError(t('fmt.tooBig'));
   const sections = raw.sections.map((s, si) => {
-    if (!s || typeof s !== 'object') throw new SongFormatError(`Deo pesme br. ${si + 1} nije ispravan.`);
+    if (!s || typeof s !== 'object') throw new SongFormatError(t('fmt.badPart', { n: si + 1 }));
     const lines = Array.isArray(s.lines) ? s.lines : [];
-    if (lines.length > 500) throw new SongFormatError('Pesma je prevelika.');
+    if (lines.length > 500) throw new SongFormatError(t('fmt.tooBig'));
     return {
       name: str(s.name, 80),
       lines: lines.map((l) => {
         if (typeof l === 'string') return { chords: [], text: str(l, 400) };
-        if (!l || typeof l !== 'object') throw new SongFormatError('Linija teksta nije ispravna.');
+        if (!l || typeof l !== 'object') throw new SongFormatError(t('fmt.badLine'));
         const chords = (Array.isArray(l.chords) ? l.chords : [])
           .filter((c) => c && typeof c === 'object' && typeof c.chord === 'string' && c.chord.trim())
           .slice(0, 40)
@@ -183,10 +184,10 @@ export function normalizeSong(raw) {
     };
   });
   const totalLines = sections.reduce((n, s) => n + s.lines.length, 0);
-  if (!totalLines) throw new SongFormatError('Pesma nema nijednu liniju teksta ili akorda.');
+  if (!totalLines) throw new SongFormatError(t('fmt.empty'));
   const tr = Math.round(Number(raw.transpose) || 0);
   return {
-    title: str(raw.title, 120).trim() || 'Bez naslova',
+    title: str(raw.title, 120).trim() || t('common.untitled'),
     artist: str(raw.artist, 120).trim(),
     key: str(raw.key, 12).trim(),
     sections,
@@ -197,12 +198,12 @@ export function normalizeSong(raw) {
 /** Parsira deljeni .json fajl (format { app: 'gitara', song } ili sama pesma). */
 export function parseSharedFile(text) {
   let data;
-  try { data = JSON.parse(text); } catch { throw new SongFormatError('Fajl nije ispravan JSON. Izaberi .json fajl koji je napravila aplikacija Gitara.'); }
+  try { data = JSON.parse(text); } catch { throw new SongFormatError(t('fmt.badJsonSong')); }
   if (data && typeof data === 'object' && Array.isArray(data.songs)) {
-    throw new SongFormatError('Ovo je rezervna kopija cele biblioteke. Vrati je preko „Podešavanja“ → „Vrati rezervnu kopiju“.');
+    throw new SongFormatError(t('fmt.isBackup'));
   }
   if (data && typeof data === 'object' && data.song) {
-    if (data.app && data.app !== 'gitara') throw new SongFormatError('Ovaj fajl nije napravila aplikacija Gitara.');
+    if (data.app && data.app !== 'gitara') throw new SongFormatError(t('fmt.otherApp'));
     data = data.song;
   }
   return normalizeSong(data);
@@ -216,12 +217,12 @@ export function toSharedFile(song) {
 /** Parsira rezervnu kopiju biblioteke. Vraća niz pesama. */
 export function parseBackup(text) {
   let data;
-  try { data = JSON.parse(text); } catch { throw new SongFormatError('Fajl nije ispravan JSON.'); }
+  try { data = JSON.parse(text); } catch { throw new SongFormatError(t('fmt.badJson')); }
   if (data && data.song) return [parseSharedFile(text)];
-  if (!data || !Array.isArray(data.songs)) throw new SongFormatError('Ovo nije rezervna kopija aplikacije Gitara.');
+  if (!data || !Array.isArray(data.songs)) throw new SongFormatError(t('fmt.notBackup'));
   const out = [];
   for (const s of data.songs) { try { out.push(normalizeSong(s)); } catch {} }
-  if (!out.length) throw new SongFormatError('Rezervna kopija ne sadrži nijednu ispravnu pesmu.');
+  if (!out.length) throw new SongFormatError(t('fmt.backupEmpty'));
   return out;
 }
 

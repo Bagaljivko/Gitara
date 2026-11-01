@@ -1,4 +1,5 @@
 // Mikrofon (getUserMedia + Web Audio) i detekcija visine tona (YIN).
+import { t } from './i18n.js';
 
 let shared = null; // { ctx, stream, source, users }
 
@@ -6,8 +7,8 @@ export class MicError extends Error {}
 
 export async function openMic() {
   if (shared) { shared.users++; if (shared.ctx.state === 'suspended') await shared.ctx.resume(); return shared; }
-  if (!window.isSecureContext) throw new MicError('Mikrofon radi samo preko sigurne (https) veze.');
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new MicError('Ovaj pregledač ne podržava mikrofon. Probaj Safari (iPhone) ili Chrome (Android).');
+  if (!window.isSecureContext) throw new MicError(t('mic.insecure'));
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new MicError(t('mic.unsupported'));
   let stream;
   try {
     stream = await navigator.mediaDevices.getUserMedia({
@@ -16,11 +17,11 @@ export async function openMic() {
     });
   } catch (e) {
     if (e && (e.name === 'NotAllowedError' || e.name === 'SecurityError' || e.name === 'PermissionDeniedError')) {
-      throw new MicError('Pristup mikrofonu je odbijen. Dozvoli mikrofon za ovu aplikaciju (iPhone: Podešavanja → Safari → Mikrofon; Android: Chrome → Podešavanja sajta → Mikrofon) i pokušaj ponovo.');
+      throw new MicError(t('mic.denied'));
     }
-    if (e && (e.name === 'NotFoundError' || e.name === 'DevicesNotFoundError')) throw new MicError('Mikrofon nije pronađen na ovom uređaju.');
-    if (e && e.name === 'NotReadableError') throw new MicError('Mikrofon trenutno koristi druga aplikacija. Zatvori je i pokušaj ponovo.');
-    throw new MicError('Mikrofon nije moguće pokrenuti. Pokušaj ponovo.');
+    if (e && (e.name === 'NotFoundError' || e.name === 'DevicesNotFoundError')) throw new MicError(t('mic.notFound'));
+    if (e && e.name === 'NotReadableError') throw new MicError(t('mic.busy'));
+    throw new MicError(t('mic.failed'));
   }
   const Ctx = window.AudioContext || window.webkitAudioContext;
   const ctx = new Ctx();

@@ -4,6 +4,7 @@
 import { songs as db, settings, events } from './db.js';
 import { normalizeSong, SongFormatError, safeFileName } from './songformat.js';
 import { toast, dialog } from './ui.js';
+import { t, songsCount, setLang } from './i18n.js';
 
 const CLIENT_ID = '633765324865-ki9jk8hvnt9cfqbsemipfl8f796g3s1v.apps.googleusercontent.com';
 const SCOPE = 'https://www.googleapis.com/auth/drive.file';
@@ -14,7 +15,7 @@ const FOLDER_NAME = 'Gitara';
 const BACKUP_NAME = 'gitara-backup.json';
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
 const BACKUP_DELAY = 4000; // ms posle izmene
-const BACKUP_SETTINGS = ['a4', 'geminiModel']; // Gemini ključ se NIKAD ne šalje na Drive
+const BACKUP_SETTINGS = ['a4', 'geminiModel', 'lang']; // Gemini ključ se NIKAD ne šalje na Drive
 
 export class DriveError extends Error {
   constructor(message, code = '') { super(message); this.code = code; }
@@ -53,14 +54,14 @@ async function persist() {
 let gisPromise = null;
 function loadGis() {
   if (window.google && google.accounts && google.accounts.oauth2) return Promise.resolve();
-  if (navigator.onLine === false) return Promise.reject(new DriveError('Nema internet veze. Poveži se na internet i pokušaj ponovo.', 'offline'));
+  if (navigator.onLine === false) return Promise.reject(new DriveError(t('drive.e.offline'), 'offline'));
   if (!gisPromise) {
     gisPromise = new Promise((resolve, reject) => {
       const s = document.createElement('script');
       s.src = GIS_URL;
       s.async = true;
       s.onload = () => resolve();
-      s.onerror = () => { gisPromise = null; s.remove(); reject(new DriveError('Google prijava trenutno ne može da se učita. Proveri internet vezu.', 'offline')); };
+      s.onerror = () => { gisPromise = null; s.remove(); reject(new DriveError(t('drive.e.gisLoad'), 'offline')); };
       document.head.appendChild(s);
     });
   }
@@ -80,19 +81,19 @@ function getTokenClient() {
       if (!p) return;
       if (resp.error) {
         const denied = resp.error === 'access_denied';
-        return p.reject(new DriveError(denied ? 'Pristup Google Drive-u nije odobren.' : 'Google prijava nije uspela. Pokušaj ponovo.', denied ? 'denied' : 'auth'));
+        return p.reject(new DriveError(denied ? t('drive.e.denied') : t('drive.e.auth'), denied ? 'denied' : 'auth'));
       }
       if (!google.accounts.oauth2.hasGrantedAllScopes(resp, SCOPE)) {
-        return p.reject(new DriveError('Nisi dozvolio aplikaciji pristup Google Drive-u. Poveži ponovo i označi dozvolu za Drive.', 'denied'));
+        return p.reject(new DriveError(t('drive.e.scope'), 'denied'));
       }
       p.resolve(resp);
     },
     error_callback: (err) => {
       const p = pendingToken; pendingToken = null;
       if (!p) return;
-      if (err && err.type === 'popup_closed') p.reject(new DriveError('Prijava je otkazana.', 'cancelled'));
-      else if (err && err.type === 'popup_failed_to_open') p.reject(new DriveError('Prozor za Google prijavu nije mogao da se otvori. Dozvoli iskačuće prozore i pokušaj ponovo.', 'popup'));
-      else p.reject(new DriveError('Google prijava nije uspela. Pokušaj ponovo.', 'auth'));
+      if (err && err.type === 'popup_closed') p.reject(new DriveError(t('drive.e.cancelled'), 'cancelled'));
+      else if (err && err.type === 'popup_failed_to_open') p.reject(new DriveError(t('drive.e.popup'), 'popup'));
+      else p.reject(new DriveError(t('drive.e.auth'), 'auth'));
     },
   });
   return tokenClient;
@@ -102,12 +103,12 @@ function getTokenClient() {
 async function requestToken({ interactive }) {
   await loadGis();
   const client = getTokenClient();
-  if (pendingToken) pendingToken.reject(new DriveError('Prijava je otkazana.', 'cancelled'));
+  if (pendingToken) pendingToken.reject(new DriveError(t('drive.e.cancelled'), 'cancelled'));
   const resp = await new Promise((resolve, reject) => {
     pendingToken = { resolve, reject };
     const opts = { prompt: interactive ? (state.email ? '' : 'select_account') : 'none' };
     if (state.email) opts.login_hint = state.email;
-    try { client.requestAccessToken(opts); } catch (e) { pendingToken = null; reject(new DriveError('Google prijava nije uspela.', 'auth')); }
+    try { client.requestAccessToken(opts); } catch (e) { pendingToken = null; reject(new DriveError(t('drive.e.auth'), 'auth')); }
   });
   state.token = resp.access_token;
   state.tokenExp = Date.now() + (Number(resp.expires_in) || 3600) * 1000 - 60000;
@@ -128,19 +129,19 @@ async function getToken() {
     await persist();
     emit();
     showReconnectBanner();
-    throw new DriveError('Veza sa Google Drive-om je istekla. Dodirni „Ponovo poveži“.', 'reconnect');
+    throw new DriveError(t('drive.e.expired'), 'reconnect');
   }
 }
 
 // ---------------- Drive REST ----------------
 async function api(url, opts = {}, retry = true) {
-  if (navigator.onLine === false) throw new DriveError('Nema internet veze.', 'offline');
+  if (navigator.onLine === false) throw new DriveError(t('drive.e.noNet'), 'offline');
   const token = await getToken();
   let res;
   try {
     res = await fetch(url, { ...opts, headers: { ...(opts.headers || {}), Authorization: `Bearer ${token}` } });
   } catch {
-    throw new DriveError('Nema veze sa Google Drive-om. Proveri internet vezu.', 'offline');
+    throw new DriveError(t('drive.e.network'), 'offline');
   }
   if (res.status === 401 && retry) {
     state.token = ''; state.tokenExp = 0;
@@ -149,13 +150,13 @@ async function api(url, opts = {}, retry = true) {
   if (!res.ok) {
     let msg = '';
     try { const j = await res.json(); msg = (j.error && (j.error.message || '')) + ' ' + JSON.stringify((j.error && j.error.errors) || ''); } catch {}
-    if (res.status === 401) { state.needsReconnect = true; emit(); showReconnectBanner(); throw new DriveError('Veza sa Google Drive-om je istekla. Dodirni „Ponovo poveži“.', 'reconnect'); }
-    if (res.status === 403 && /rate|quota|limit/i.test(msg)) throw new DriveError('Google Drive je privremeno ograničio pristup. Pokušaću ponovo kasnije.', 'rate');
-    if (res.status === 403 && /storage|space/i.test(msg)) throw new DriveError('Na Google Drive-u nema dovoljno prostora.', 'storage');
-    if (res.status === 403) throw new DriveError('Google Drive je odbio pristup. Prekini vezu i poveži Drive ponovo, uz dozvolu za Drive.', 'denied');
-    if (res.status === 404) throw new DriveError('Fajl nije pronađen na Google Drive-u.', 'notfound');
-    if (res.status >= 500) throw new DriveError('Google Drive trenutno ne radi. Pokušaću ponovo kasnije.', 'server');
-    throw new DriveError('Greška na Google Drive-u' + (msg.trim() ? `: ${msg.trim().slice(0, 120)}` : '.'), 'http');
+    if (res.status === 401) { state.needsReconnect = true; emit(); showReconnectBanner(); throw new DriveError(t('drive.e.expired'), 'reconnect'); }
+    if (res.status === 403 && /rate|quota|limit/i.test(msg)) throw new DriveError(t('drive.e.rate'), 'rate');
+    if (res.status === 403 && /storage|space/i.test(msg)) throw new DriveError(t('drive.e.storage'), 'storage');
+    if (res.status === 403) throw new DriveError(t('drive.e.forbidden'), 'denied');
+    if (res.status === 404) throw new DriveError(t('drive.e.notFound'), 'notfound');
+    if (res.status >= 500) throw new DriveError(t('drive.e.server'), 'server');
+    throw new DriveError(msg.trim() ? t('drive.e.httpMsg', { msg: msg.trim().slice(0, 120) }) : t('drive.e.http'), 'http');
   }
   return res;
 }
@@ -223,7 +224,7 @@ async function buildBackup() {
 }
 
 export async function backupNow() {
-  if (!state.connected) throw new DriveError('Google Drive nije povezan.', 'notconnected');
+  if (!state.connected) throw new DriveError(t('drive.e.notConnected'), 'notconnected');
   state.busy = true; emit();
   try {
     const data = JSON.stringify(await buildBackup());
@@ -254,8 +255,8 @@ export async function readBackup() {
   if (!f) return null;
   const res = await api(`${API}/files/${f.id}?alt=media`);
   let data;
-  try { data = await res.json(); } catch { throw new DriveError('Rezervna kopija na Drive-u je oštećena.', 'format'); }
-  if (!data || data.app !== 'gitara' || !Array.isArray(data.songs)) throw new DriveError('Fajl na Drive-u nije rezervna kopija aplikacije Gitara.', 'format');
+  try { data = await res.json(); } catch { throw new DriveError(t('drive.e.corrupt'), 'format'); }
+  if (!data || data.app !== 'gitara' || !Array.isArray(data.songs)) throw new DriveError(t('drive.e.notBackup'), 'format');
   const songs = [];
   for (const s of data.songs) {
     try {
@@ -267,6 +268,7 @@ export async function readBackup() {
   if (data.settings && typeof data.settings === 'object') {
     const a4 = Number(data.settings.a4);
     if (a4 >= 430 && a4 <= 450) st.a4 = a4;
+    if (data.settings.lang === 'sr' || data.settings.lang === 'en') st.lang = data.settings.lang;
     if (typeof data.settings.geminiModel === 'string' && /^[a-z0-9][a-z0-9.\-]{1,80}$/i.test(data.settings.geminiModel)) st.geminiModel = data.settings.geminiModel;
   }
   return { songs, settings: st, modified: Date.parse(f.modifiedTime) || 0 };
@@ -293,31 +295,34 @@ export async function applyRestore(backup, mode) {
       added++;
     }
   }
-  for (const [k, v] of Object.entries(backup.settings || {})) await settings.set(k, v);
+  for (const [k, v] of Object.entries(backup.settings || {})) {
+    if (k === 'lang') await setLang(v); // jezik se primenjuje odmah
+    else await settings.set(k, v);
+  }
   return added;
 }
 
 /** Ceo tok vraćanja sa pitanjem „zameni ili spoji“. Vraća true ako je nešto vraćeno. */
 export async function restoreFlow() {
   const backup = await readBackup();
-  if (!backup) { await dialog({ title: 'Nema rezervne kopije', body: 'Na Google Drive-u (folder „Gitara“) još nema rezervne kopije.' }); return false; }
-  if (!backup.songs.length) { await dialog({ title: 'Rezervna kopija je prazna', body: 'Rezervna kopija na Drive-u ne sadrži nijednu pesmu.' }); return false; }
+  if (!backup) { await dialog({ title: t('drive.noBackupTitle'), body: t('drive.noBackupBody') }); return false; }
+  if (!backup.songs.length) { await dialog({ title: t('drive.emptyTitle'), body: t('drive.emptyBody') }); return false; }
   const local = await db.all();
   let mode = 'replace';
   if (local.length) {
     mode = await dialog({
-      title: 'Vrati iz Drive-a',
-      body: `Na Drive-u ima ${backup.songs.length} ${plural(backup.songs.length)} (sačuvano ${formatDate(backup.modified)}). Na telefonu već ima ${local.length} ${plural(local.length)}. Šta želiš?`,
+      title: t('drive.restoreTitle'),
+      body: t('drive.restoreBody', { driveN: songsCount(backup.songs.length), date: formatDate(backup.modified), localN: songsCount(local.length) }),
       buttons: [
-        { label: 'Otkaži', value: null },
-        { label: 'Spoji (zadrži obe)', value: 'merge' },
-        { label: 'Zameni sve', value: 'replace', kind: 'danger' },
+        { label: t('common.cancel'), value: null },
+        { label: t('drive.merge'), value: 'merge' },
+        { label: t('drive.replaceAll'), value: 'replace', kind: 'danger' },
       ],
     });
     if (!mode) return false;
   }
   const n = await applyRestore(backup, mode);
-  toast(mode === 'merge' ? (n ? `Dodato pesama sa Drive-a: ${n}` : 'Sve pesme sa Drive-a već postoje na telefonu.') : `Vraćeno pesama: ${n}`);
+  toast(mode === 'merge' ? (n ? t('drive.merged', { n }) : t('drive.mergedNone')) : t('drive.restoredN', { n }));
   return true;
 }
 
@@ -332,12 +337,12 @@ export function formatDate(ts) {
   if (!ts) return '—';
   const d = new Date(ts);
   const p = (x) => String(x).padStart(2, '0');
-  return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()}. u ${p(d.getHours())}:${p(d.getMinutes())}`;
+  return t('drive.date', { d: p(d.getDate()), m: p(d.getMonth() + 1), y: d.getFullYear(), hh: p(d.getHours()), mm: p(d.getMinutes()) });
 }
 
 // ---------------- Povezivanje ----------------
 export async function connect() {
-  if (navigator.onLine === false) throw new DriveError('Nema internet veze. Poveži se na internet i pokušaj ponovo.', 'offline');
+  if (navigator.onLine === false) throw new DriveError(t('drive.e.offline'), 'offline');
   state.email = state.email || '';
   await requestToken({ interactive: true });
   const about = await (await api(`${API}/about?fields=user(emailAddress,displayName)`)).json();
@@ -383,19 +388,19 @@ async function offerRestore() {
   if (offered) return;
   offered = true;
   const ok = await dialog({
-    title: 'Google Drive',
-    body: 'Pronađena je rezervna kopija na Drive-u. Vrati pesme?',
-    buttons: [{ label: 'Ne sada', value: false }, { label: 'Vrati pesme', value: true, kind: 'primary' }],
+    title: t('drive.title'),
+    body: t('drive.offerBody'),
+    buttons: [{ label: t('drive.notNow'), value: false }, { label: t('drive.restoreSongs'), value: true, kind: 'primary' }],
   });
   if (!ok) return;
   try {
     const backup = await readBackup();
     if (!backup) return;
     const n = await applyRestore(backup, 'replace');
-    toast(`Vraćeno pesama: ${n}`);
+    toast(t('drive.restoredN', { n }));
     window.dispatchEvent(new HashChangeEvent('hashchange'));
   } catch (e) {
-    toast(e instanceof DriveError ? e.message : 'Vraćanje nije uspelo.', 'error');
+    toast(e instanceof DriveError ? e.message : t('drive.e.restoreFailed'), 'error');
   }
 }
 
@@ -413,13 +418,13 @@ export function scheduleBackup(delay = BACKUP_DELAY) {
 
 async function runScheduled() {
   if (!state.connected || !state.pending) return;
-  if (navigator.onLine === false) { state.lastError = 'Čeka internet vezu…'; emit(); return; } // 'online' događaj pokreće ponovo
+  if (navigator.onLine === false) { state.lastError = t('drive.waitingNet'); emit(); return; } // 'online' događaj pokreće ponovo
   if (state.busy) { scheduleBackup(2000); return; }
   try {
     await backupNow();
     retryDelay = 30000;
   } catch (e) {
-    state.lastError = e instanceof DriveError ? e.message : 'Rezervna kopija nije uspela.';
+    state.lastError = e instanceof DriveError ? e.message : t('drive.e.backupFailed');
     emit();
     if (e.code === 'reconnect' || e.code === 'denied' || e.code === 'storage') return; // čeka korisnika
     clearTimeout(timer);
@@ -452,11 +457,11 @@ function showReconnectBanner() {
   el.id = 'driveBanner';
   el.className = 'drive-banner';
   el.setAttribute('role', 'alert');
-  el.innerHTML = `<span>Veza sa Google Drive-om je istekla.</span><button class="btn small primary" id="driveReconnect">Ponovo poveži</button><button class="icon-btn" id="driveBannerClose" aria-label="Zatvori">✕</button>`;
+  el.innerHTML = `<span>${t('drive.bannerText')}</span><button class="btn small primary" id="driveReconnect">${t('drive.reconnect')}</button><button class="icon-btn" id="driveBannerClose" aria-label="${t('common.close')}">✕</button>`;
   document.body.appendChild(el);
   el.querySelector('#driveReconnect').addEventListener('click', async () => {
-    try { await reconnect(); toast('Google Drive je ponovo povezan.'); }
-    catch (e) { toast(e instanceof DriveError ? e.message : 'Povezivanje nije uspelo.', 'error'); }
+    try { await reconnect(); toast(t('drive.bannerOk')); }
+    catch (e) { toast(e instanceof DriveError ? e.message : t('drive.e.connectFailed'), 'error'); }
   });
   el.querySelector('#driveBannerClose').addEventListener('click', () => el.remove());
 }

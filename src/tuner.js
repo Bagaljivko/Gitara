@@ -1,4 +1,5 @@
 // Tab "Tuner": štimer za standardno štimovanje gitare (E A D G B E).
+import { t } from './i18n.js';
 // Prikaz: nota, merač (♭ — centar — ♯) i glava gitare sa okruglim dugmićima za žice.
 import { openMic, closeMic, yin, rms, MicError } from './audio.js';
 import { midiToFreq, freqToMidi, midiName } from './music.js';
@@ -37,12 +38,12 @@ function headstockSVG() {
       <rect class="peg-key" x="${kx - 10}" y="${y - 17}" width="20" height="34" rx="9"/>
       <circle class="peg-post" cx="${px}" cy="${y}" r="8"/>
     </g>`;
-    buttons += `<g class="sbtn" data-s="${s.id}" tabindex="0" role="button" aria-label="Žica ${s.num} (${s.full})">
+    buttons += `<g class="sbtn" data-s="${s.id}" tabindex="0" role="button" aria-label="${t('tuner.string', { num: s.num, note: s.full })}">
       <circle class="sbtn-c" cx="${bx}" cy="${y}" r="29"/>
       <text class="sbtn-t" x="${bx}" y="${y + 8}" text-anchor="middle">${s.label}</text>
     </g>`;
   }
-  return `<svg class="headstock" viewBox="0 0 360 440" xmlns="http://www.w3.org/2000/svg" aria-label="Glava gitare">
+  return `<svg class="headstock" viewBox="0 0 360 440" xmlns="http://www.w3.org/2000/svg" aria-label="${t('tuner.headstock')}">
     <defs>
       <linearGradient id="hsWood" x1="0" x2="1" y1="0" y2="1">
         <stop offset="0" stop-color="#3b2c24"/><stop offset="1" stop-color="#211819"/>
@@ -61,11 +62,11 @@ export function createTuner(root) {
   root.innerHTML = `
   <section class="view tuner-view">
     <header class="view-head">
-      <h1>Tuner</h1>
+      <h1>${t('tuner.title')}</h1>
       <label class="switch">
         <input type="checkbox" id="tAuto" checked>
         <span class="switch-track"><span class="switch-thumb"></span></span>
-        <span>Automatski</span>
+        <span>${t('tuner.auto')}</span>
       </label>
     </header>
     <div class="tmeter" id="tMeter" data-state="idle" aria-live="polite">
@@ -80,13 +81,13 @@ export function createTuner(root) {
       </div>
     </div>
     <div class="headstock-wrap" id="tHead">${headstockSVG()}</div>
-    <div class="tuner-foot"><button class="btn small" id="tReset">Resetuj</button></div>
+    <div class="tuner-foot"><button class="btn small" id="tReset">${t('tuner.reset')}</button></div>
     <div class="mic-overlay" id="tStart">
       <div class="mic-card">
-        <button class="mic-btn" id="tStartBtn" aria-label="Pokreni tuner">
+        <button class="mic-btn" id="tStartBtn" aria-label="${t('tuner.start')}">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-2.08A7 7 0 0 0 19 12h-2z"/></svg>
         </button>
-        <p class="mic-label" id="tStartLabel">Pokreni tuner</p>
+        <p class="mic-label" id="tStartLabel">${t('tuner.start')}</p>
         <p class="err" id="tStartMsg" hidden></p>
       </div>
     </div>
@@ -239,9 +240,9 @@ export function createTuner(root) {
       idle();
       raf = requestAnimationFrame(loop);
     } catch (e) {
-      $('tStartMsg').textContent = e instanceof MicError ? e.message : 'Mikrofon nije moguće pokrenuti.';
+      $('tStartMsg').textContent = e instanceof MicError ? e.message : t('mic.failed');
       $('tStartMsg').hidden = false;
-      $('tStartLabel').textContent = 'Pokušaj ponovo';
+      $('tStartLabel').textContent = t('common.retry');
     } finally {
       $('tStartBtn').disabled = false;
     }
@@ -255,7 +256,7 @@ export function createTuner(root) {
     closeMic();
     mic = null;
     $('tStart').hidden = false;
-    $('tStartLabel').textContent = 'Pokreni tuner';
+    $('tStartLabel').textContent = t('tuner.start');
   }
 
   $('tStartBtn').addEventListener('click', start);

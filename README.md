@@ -10,6 +10,8 @@ Gitara je aplikacija za učenika gitare i njegovog nastavnika. Radi na iPhone-u 
 - **Skeniraj pesmu** – fotografiši rukom pisanu pesmu i Google Gemini će je prepisati. Pre čuvanja dobijaš ekran „Proveri i ispravi“.
 - **Podešavanja** – Gemini API ključ (sa uputstvom kako se dobija besplatno), referentni ton A4 i rezervna kopija svih pesama.
 
+**Jezik:** srpski (podrazumevano) ili engleski — bira se u **Podešavanja → Jezik / Language** i menja se odmah. Pesme (naslovi, tekst, akordi) se nikad ne prevode. Svi tekstovi interfejsa su u `src/i18n.js`.
+
 Svi podaci (pesme i ključ) čuvaju se **samo na uređaju** (IndexedDB). Nema servera.
 
 ---
