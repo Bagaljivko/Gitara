@@ -140,8 +140,8 @@ const sr = {
   'song.notFound': 'Pesma nije pronađena.',
   'song.back': 'Nazad na pesme',
   'song.backShort': '‹ Pesme',
-  'song.fontDown': 'Manja slova',
-  'song.fontUp': 'Veća slova',
+  'song.fontDown': 'Smanji tekst',
+  'song.fontUp': 'Uvećaj tekst',
   'song.edit': 'Uredi',
   'song.pdf': 'Skini PDF',
   'song.share': 'Podeli pesmu',
@@ -447,6 +447,14 @@ const sr = {
   'sug.strumBallad': 'Pesma je u 6/8 — mirna, ljuljajuća balada.',
   'sug.strumReggae': 'Rege: udarci na drugu polovinu dobe.',
 
+  // Uvećanje, lakša verzija, skrolovanje
+  'song.zoomPct': 'Veličina teksta: {n} %',
+  'sug.easyBtn': 'Lakša verzija',
+  'sug.easyOff': 'Vraćeni su originalni akordi.',
+  'sug.alreadyEasiest': 'Ovo je već najlakša verzija.',
+  'scroll.collapse': 'Skupi traku',
+  'scroll.expand': 'Proširi traku',
+
   // Google Drive (podešavanja)
   'drive.title': 'Google Drive',
   'drive.intro': 'Automatska rezervna kopija pesama u folder „Gitara“ na tvom Google Drive-u. Aplikacija vidi samo fajlove koje sama napravi. Gemini ključ se ne šalje na Drive.',
@@ -642,8 +650,8 @@ const en = {
   'song.notFound': 'Song not found.',
   'song.back': 'Back to songs',
   'song.backShort': '‹ Songs',
-  'song.fontDown': 'Smaller text',
-  'song.fontUp': 'Larger text',
+  'song.fontDown': 'Zoom out',
+  'song.fontUp': 'Zoom in',
   'song.edit': 'Edit',
   'song.pdf': 'Download PDF',
   'song.share': 'Share song',
@@ -928,6 +936,13 @@ const en = {
   'sug.strumWaltz': 'The song is in three-four (waltz) time.',
   'sug.strumBallad': 'The song is in 6/8 — a calm, swaying ballad.',
   'sug.strumReggae': 'Reggae: strums on the offbeat.',
+
+  'song.zoomPct': 'Text size: {n} %',
+  'sug.easyBtn': 'Easier version',
+  'sug.easyOff': 'Original chords restored.',
+  'sug.alreadyEasiest': 'This is already the easiest version.',
+  'scroll.collapse': 'Collapse bar',
+  'scroll.expand': 'Expand bar',
 
   'drive.title': 'Google Drive',
   'drive.intro': 'Automatic backup of your songs to a “Gitara” folder in your Google Drive. The app can only see files it creates. Your Gemini key is never sent to Drive.',

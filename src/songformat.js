@@ -242,6 +242,8 @@ export function songMeta(raw) {
   const out = {};
   const unc = cleanUncertain(raw.uncertain, raw.sections);
   if (unc.length) out.uncertain = unc;
+  const z = Number(raw.zoom);
+  if (z >= 0.8 && z <= 1.8 && z !== 1) out.zoom = Math.round(z * 100) / 100;
   const ec = Math.round(Number(raw.easyCapo) || 0);
   if (ec >= 1 && ec <= 7) out.easyCapo = ec;
   if (raw.skipped && typeof raw.skipped === 'object') {

@@ -25,7 +25,6 @@ let draft = null; // nesačuvana pesma (npr. posle skeniranja)
 let selectedId = null; // izabrana pesma u prikazu sa dva panela
 export function setSelectedSong(id) { selectedId = id; }
 let draftImage = null;
-let fontScale = Number(localStorageGet('gitara-font') || 1);
 
 function localStorageGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
 function localStorageSet(k, v) { try { localStorage.setItem(k, v); } catch {} }
@@ -592,6 +591,7 @@ export async function renderSong(root, id, nav = null) {
   }
   let tp = stored.transpose || 0;
   let capo = stored.capo || 0;
+  let zoom = Number(stored.zoom) || (Number(localStorageGet('gitara-font')) || 1);
   let speed = stored.scrollSpeed || 4;
   const backHref = nav ? nav.backHref : '#/pesme';
   root.innerHTML = `
@@ -599,8 +599,9 @@ export async function renderSong(root, id, nav = null) {
     <header class="topbar">
       <a href="${backHref}" class="back" aria-label="${t('song.back')}">${nav ? esc(nav.backLabel) : t('song.backShort')}</a>
       <div class="topbar-actions">
-        <button class="btn small" id="sFontDown" aria-label="${t('song.fontDown')}">A−</button>
-        <button class="btn small" id="sFontUp" aria-label="${t('song.fontUp')}">A+</button>
+        <button class="btn small" id="sEasyTop" aria-pressed="false">${t('sug.easyBtn')}</button>
+        <button class="btn small icon-only" id="sFontDown" aria-label="${t('song.fontDown')}" title="${t('song.fontDown')}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 3a7 7 0 0 1 5.6 11.2l5.1 5.1-1.4 1.4-5.1-5.1A7 7 0 1 1 10 3zm0 2a5 5 0 1 0 0 10 5 5 0 0 0 0-10zM7 9h6v2H7z"/></svg></button>
+        <button class="btn small icon-only" id="sFontUp" aria-label="${t('song.fontUp')}" title="${t('song.fontUp')}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 3a7 7 0 0 1 5.6 11.2l5.1 5.1-1.4 1.4-5.1-5.1A7 7 0 1 1 10 3zm0 2a5 5 0 1 0 0 10 5 5 0 0 0 0-10zM9 7h2v2h2v2h-2v2H9v-2H7V9h2z"/></svg></button>
         <a class="btn small" href="#/uredi/${encodeURIComponent(id)}">${t('song.edit')}</a>
       </div>
     </header>
@@ -615,6 +616,7 @@ export async function renderSong(root, id, nav = null) {
       <span class="small muted">${t('scroll.slower')}</span>
       <input type="range" id="sSpeed" min="1" max="10" step="1" value="${speed}" aria-label="${t('scroll.speed')}">
       <span class="small muted">${t('scroll.faster')}</span>
+      <button class="icon-btn scroll-collapse" id="sCollapse" aria-label="${t('scroll.collapse')}" title="${t('scroll.collapse')}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.6 7.4 10 6l6 6-6 6-1.4-1.4L13.2 12z"/></svg></button>
     </div>
     <div class="song-actions">
       <button class="btn primary" id="sPdf">
@@ -662,7 +664,10 @@ export async function renderSong(root, id, nav = null) {
       </div>
       ${prog.length ? `<div class="prog card">${prog.map((p) => `<div class="prog-row"><span class="prog-name">${esc(p.name || t('song.chordsFallback'))}</span><span class="prog-chords">${p.chords.map((c) => `<button class="ch" data-chord="${esc(c)}">${esc(c)}</button>`).join('<span class="arrow">→</span>')}</span></div>`).join('')}</div>` : ''}
       ${chords.length ? `<div class="diagram-row" aria-label="${t('song.diagrams')}">${chords.map((c) => `<button class="diagram-btn" data-chord="${esc(c)}" aria-label="${esc(t('song.enlarge', { name: c }))}">${chordSVG(c)}</button>`).join('')}</div>` : ''}
-      <div class="lyrics" id="sLyrics" style="font-size:${(fontScale * 100).toFixed(0)}%">${renderSectionsHTML(song.sections, unc())}</div>`;
+      <div class="lyrics" id="sLyrics" style="--zoom:${zoom}">${renderSectionsHTML(song.sections, unc())}</div>`;
+    syncEasyTop();
+    $('sFontDown').disabled = zoom <= 0.8;
+    $('sFontUp').disabled = zoom >= 1.8;
   };
 
   // ---- Predlozi (nesigurna mesta, lakša verzija, ritam) ----
@@ -865,6 +870,21 @@ export async function renderSong(root, id, nav = null) {
   const onHash = () => { stopScroll(); stopStrum(); window.removeEventListener('hashchange', onHash); };
   window.addEventListener('hashchange', onHash);
 
+  function easyActive() { return !!stored.easyCapo && capo === stored.easyCapo; }
+  function syncEasyTop() { const b = $('sEasyTop'); if (b) { b.classList.toggle('on', easyActive()); b.setAttribute('aria-pressed', String(easyActive())); } }
+  // Traka za automatsko skrolovanje: može da se skupi na samo dugme za pokretanje
+  const sbar = $('sScrollBar');
+  const setCollapsed = (c) => { sbar.classList.toggle('collapsed', c); localStorageSet('gitara-scrollbar', c ? '1' : ''); $('sCollapse').setAttribute('aria-label', t(c ? 'scroll.expand' : 'scroll.collapse')); };
+  setCollapsed(localStorageGet('gitara-scrollbar') === '1');
+  $('sCollapse').addEventListener('click', (e) => { e.stopPropagation(); setCollapsed(!sbar.classList.contains('collapsed')); });
+  $('sEasyTop').addEventListener('click', async () => {
+    if (easyActive()) { await setCapo(0); toast(t('sug.easyOff')); return; }
+    const e = easiestCapo(stored, tp);
+    if (!e) { toast(t('sug.alreadyEasiest')); return; }
+    stored.easyCapo = e.capo;
+    await setCapo(e.capo);
+    toast(t('sug.easyText', { n: e.capo, shapes: e.shapes.join(', ') }));
+  });
   root.querySelector('.song-view').addEventListener('change', (e) => {
     if (e.target.id === 'sEasy') setCapo(e.target.checked ? stored.easyCapo : 0);
   });
@@ -903,10 +923,15 @@ export async function renderSong(root, id, nav = null) {
     else if (b.id === 'sStrumPlay') playStrum();
     else if (b.id === 'sStrumEdit') editStrum();
   });
-  const setFont = (d) => {
-    fontScale = Math.min(1.8, Math.max(0.7, +(fontScale + d).toFixed(2)));
-    localStorageSet('gitara-font', fontScale);
-    root.querySelector('.lyrics').style.fontSize = (fontScale * 100).toFixed(0) + '%';
+  // Uvećanje teksta, akorda i tablatura (80–180 %), pamti se po pesmi
+  const setFont = async (d) => {
+    zoom = Math.min(1.8, Math.max(0.8, +(zoom + d).toFixed(2)));
+    root.querySelector('.lyrics').style.setProperty('--zoom', zoom);
+    $('sFontDown').disabled = zoom <= 0.8;
+    $('sFontUp').disabled = zoom >= 1.8;
+    toast(t('song.zoomPct', { n: Math.round(zoom * 100) }));
+    if (zoom === 1) delete stored.zoom; else stored.zoom = zoom;
+    await save();
   };
   $('sFontUp').addEventListener('click', () => setFont(0.1));
   $('sFontDown').addEventListener('click', () => setFont(-0.1));
