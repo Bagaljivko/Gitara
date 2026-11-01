@@ -4,6 +4,7 @@ import { testKey, GeminiError } from './gemini.js';
 import { esc, toast, confirmDialog, pickFile, dialog } from './ui.js';
 import { exportAll } from './songs.js';
 import { parseBackup, SongFormatError } from './songformat.js';
+import { APP_VERSION } from './version.js';
 
 let deferredInstall = null;
 window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredInstall = e; });
@@ -73,7 +74,7 @@ export async function renderSettings(root) {
         : '<p class="small">U Chrome-u otvori meni (⋮) i izaberi <b>Instaliraj aplikaciju</b>.</p><button class="btn primary" id="installBtn" hidden>Instaliraj</button>'}
     </div>
 
-    <p class="about muted small">Gitara · verzija ${__APP_VERSION__}<br>Radi bez interneta (osim skeniranja pesama).</p>
+    <p class="about muted small">Gitara · verzija ${APP_VERSION}<br>Radi bez interneta (osim skeniranja pesama).</p>
   </section>`;
 
   const $ = (id) => root.querySelector('#' + id);

@@ -1,6 +1,23 @@
 // PDF izvoz (samo na zahtev korisnika). jsPDF + ugrađen Unicode font (DejaVu Sans Mono) za č, ć, š, ž, đ.
-import monoUrl from 'dejavu-fonts-ttf/ttf/DejaVuSansMono.ttf?url';
-import monoBoldUrl from 'dejavu-fonts-ttf/ttf/DejaVuSansMono-Bold.ttf?url';
+const monoUrl = new URL('../fonts/DejaVuSansMono.ttf', import.meta.url).href;
+const monoBoldUrl = new URL('../fonts/DejaVuSansMono-Bold.ttf', import.meta.url).href;
+const jspdfUrl = new URL('../vendor/jspdf.umd.min.js', import.meta.url).href;
+
+// jsPDF se učitava tek kada korisnik zatraži PDF.
+let jspdfPromise = null;
+function loadJsPDF() {
+  if (window.jspdf) return Promise.resolve(window.jspdf);
+  if (!jspdfPromise) {
+    jspdfPromise = new Promise((resolve, reject) => {
+      const sc = document.createElement('script');
+      sc.src = jspdfUrl;
+      sc.onload = () => (window.jspdf ? resolve(window.jspdf) : reject(new Error('jspdf')));
+      sc.onerror = () => { jspdfPromise = null; reject(new Error('jspdf')); };
+      document.head.appendChild(sc);
+    });
+  }
+  return jspdfPromise;
+}
 import { getVoicings } from './chords.js';
 import { songChords } from './songformat.js';
 
@@ -86,7 +103,7 @@ function drawDiagram(doc, x, y, name, accent) {
 
 /** Pravi PDF i vraća Blob. */
 export async function songToPdf(song, { transposeLabel = '' } = {}) {
-  const [{ jsPDF }, mono, monoBold] = await Promise.all([import('jspdf'), fontBase64(monoUrl), fontBase64(monoBoldUrl)]);
+  const [{ jsPDF }, mono, monoBold] = await Promise.all([loadJsPDF(), fontBase64(monoUrl), fontBase64(monoBoldUrl)]);
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   doc.addFileToVFS('DejaVuSansMono.ttf', mono);
   doc.addFont('DejaVuSansMono.ttf', 'Mono', 'normal');

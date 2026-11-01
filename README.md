@@ -16,14 +16,12 @@ Svi podaci (pesme i ključ) čuvaju se **samo na uređaju** (IndexedDB). Nema se
 
 ## Objavljivanje na GitHub Pages
 
-Aplikacija se automatski objavljuje pri svakom `push`-u na granu `main` (`.github/workflows/deploy.yml`). GitHub Pages treba uključiti samo jednom:
+Aplikacija je statička, bez build koraka (isto kao Trening-za-decu): `index.html`, `manifest.webmanifest`, `sw.js` i ikonice su u korenu repozitorijuma, a sve putanje su relativne. Zato radi na `https://bagaljivko.github.io/Gitara/` na oba načina objavljivanja:
 
-1. Na GitHub-u otvori repozitorijum → **Settings** → **Pages**.
-2. U delu **Build and deployment**, pod **Source**, izaberi **GitHub Actions**.
-3. Pošalji bilo koju izmenu na `main` (ili otvori **Actions** → „Deploy na GitHub Pages“ → **Run workflow**).
-4. Kada se workflow završi, aplikacija je na adresi `https://bagaljivko.github.io/Gitara/`. Tačna adresa piše u **Settings → Pages**.
+- **Settings → Pages → Source: GitHub Actions** (preporučeno). Workflow `.github/workflows/deploy.yml` pokreće testove i objavljuje aplikaciju pri svakom `push`-u na `main`.
+- **Settings → Pages → Source: Deploy from a branch → `main` / `(root)`**. Ovako je podešen Trening-za-decu.
 
-Sve putanje u aplikaciji su relativne, pa manifest i service worker rade ispod podputanje `/gitara/`, bez obzira na velika i mala slova u imenu repozitorijuma.
+Posle izmene fajlova povećaj broj u `CACHE` u `sw.js` (npr. `gitara-v3` → `gitara-v4`), da bi telefoni preuzeli novu verziju.
 
 ## Instalacija na telefon
 
@@ -62,11 +60,9 @@ Ključ se čuva samo na tvom telefonu i šalje se samo Google-u kada skeniraš p
 ## Razvoj
 
 ```bash
-npm install
-npm run dev      # lokalni server
+npm start        # lokalni server na http://localhost:8080
 npm test         # testovi (teorija muzike, format pesme, detekcija tona)
-npm run build    # produkcijski build u dist/ + service worker
 npm run icons    # ponovo pravi PNG ikonice iz SVG-a (treba Playwright)
 ```
 
-Tehnologija: obični HTML/CSS/JavaScript uz Vite, jsPDF sa ugrađenim fontom DejaVu Sans Mono (za č, ć, š, ž, đ) i Web Audio API (YIN za detekciju tona, hromagram za akorde).
+Tehnologija: obični HTML/CSS/JavaScript (ES moduli, bez build koraka). Za PDF se koristi jsPDF (`vendor/`) sa ugrađenim fontom DejaVu Sans Mono (`fonts/`, za č, ć, š, ž, đ). Zvuk se obrađuje preko Web Audio API-ja: YIN za detekciju tona i hromagram za akorde.

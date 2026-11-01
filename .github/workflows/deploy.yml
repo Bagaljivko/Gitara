@@ -1,5 +1,7 @@
 name: Deploy na GitHub Pages
 
+# Aplikacija je statička (nema build koraka), isto kao Trening-za-decu:
+# objavljuje se sadržaj korena repozitorijuma.
 on:
   push:
     branches: [main]
@@ -22,14 +24,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-      - run: npm ci
       - run: npm test
-      - run: npm run build
+      - name: Pripremi fajlove za objavu
+        run: |
+          mkdir -p _site
+          cp -r index.html manifest.webmanifest sw.js .nojekyll src icons screenshots vendor fonts _site/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: _site
 
   deploy:
     needs: build

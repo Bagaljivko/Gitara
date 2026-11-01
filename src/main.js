@@ -1,4 +1,3 @@
-import './styles.css';
 import { createTuner } from './tuner.js';
 import { createChordRec } from './chordrec.js';
 import { renderLibrary, renderSong, renderEditor } from './songs.js';
@@ -63,9 +62,9 @@ window.addEventListener('online', updateOnline);
 window.addEventListener('offline', updateOnline);
 updateOnline();
 
-// Service worker (relativna putanja: radi pod /Gitara/ ili bilo kojom drugom podputanjom).
-if ('serviceWorker' in navigator && import.meta.env.PROD) {
-  navigator.serviceWorker.register('./sw.js', { scope: './', updateViaCache: 'none' }).catch((e) => console.warn('SW', e));
+// Service worker — isto kao u aplikaciji Trening-za-decu: relativna putanja "sw.js" (scope = /Gitara/).
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 }
 
 route();

@@ -1,20 +1,12 @@
 {
   "name": "gitara",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
+  "description": "Gitara PWA — statička aplikacija bez build koraka (isto kao Trening-za-decu).",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build && node scripts/gen-sw.mjs",
-    "preview": "vite preview",
-    "icons": "node scripts/gen-icons.mjs",
-    "test": "node --test tests/*.test.mjs"
-  },
-  "devDependencies": {
-    "vite": "^8.3.5"
-  },
-  "dependencies": {
-    "dejavu-fonts-ttf": "^2.37.3",
-    "jspdf": "^4.2.1"
+    "start": "python3 -m http.server 8080",
+    "test": "node --test tests/*.test.mjs",
+    "icons": "node scripts/gen-icons.mjs"
   }
 }
