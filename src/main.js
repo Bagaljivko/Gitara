@@ -63,10 +63,9 @@ window.addEventListener('online', updateOnline);
 window.addEventListener('offline', updateOnline);
 updateOnline();
 
+// Service worker (relativna putanja: radi pod /Gitara/ ili bilo kojom drugom podputanjom).
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js', { scope: './' }).catch(() => {});
-  });
+  navigator.serviceWorker.register('./sw.js', { scope: './', updateViaCache: 'none' }).catch((e) => console.warn('SW', e));
 }
 
 route();

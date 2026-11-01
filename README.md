@@ -21,7 +21,7 @@ Aplikacija se automatski objavljuje pri svakom `push`-u na granu `main` (`.githu
 1. Na GitHub-u otvori repozitorijum → **Settings** → **Pages**.
 2. U delu **Build and deployment**, pod **Source**, izaberi **GitHub Actions**.
 3. Pošalji bilo koju izmenu na `main` (ili otvori **Actions** → „Deploy na GitHub Pages“ → **Run workflow**).
-4. Kada se workflow završi, aplikacija je na adresi `https://<korisničko-ime>.github.io/gitara/`. Tačna adresa piše u **Settings → Pages**.
+4. Kada se workflow završi, aplikacija je na adresi `https://bagaljivko.github.io/Gitara/`. Tačna adresa piše u **Settings → Pages**.
 
 Sve putanje u aplikaciji su relativne, pa manifest i service worker rade ispod podputanje `/gitara/`, bez obzira na velika i mala slova u imenu repozitorijuma.
 
@@ -39,6 +39,8 @@ Sve putanje u aplikaciji su relativne, pa manifest i service worker rade ispod p
 1. Otvori adresu aplikacije u **Chrome-u**.
 2. Dodirni meni **⋮** → **Instaliraj aplikaciju** (ili **Dodaj na početni ekran**).
 3. Potvrdi sa **Instaliraj**.
+
+Ako Chrome ne nudi „Instaliraj aplikaciju“: otvori stranicu, sačekaj nekoliko sekundi i osveži je (prvo učitavanje priprema rad bez interneta). Ako si sajt otvarao pre poslednje izmene, u Chrome-u idi na ⋮ → Podešavanja → Podešavanja sajta → Svi sajtovi → bagaljivko.github.io → Obriši podatke, pa otvori adresu ponovo.
 
 Ako si slučajno odbio pristup mikrofonu:
 - **iPhone:** Podešavanja → Safari → Mikrofon → Dozvoli.

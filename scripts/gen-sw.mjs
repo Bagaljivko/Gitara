@@ -17,14 +17,26 @@ const assets = files.filter((f) => f !== 'sw.js' && !f.endsWith('.map')).sort();
 const hash = createHash('sha256');
 for (const f of assets) hash.update(f).update(readFileSync(join(dist, f)));
 const version = hash.digest('hex').slice(0, 12);
-const precache = ['./', ...assets.filter((f) => f !== 'index.html').map((f) => './' + f)];
+// Jezgro mora da se kešira da bi aplikacija radila offline; ostalo (fontovi i biblioteke za PDF)
+// keširamo "najbolje što možemo" da jedan neuspeo fajl ne obori instalaciju service worker-a.
+const OPTIONAL = /(\.ttf$|html2canvas|purify|index\.es|jspdf|pdf-|icon-maskable\.svg)/;
+const rest = assets.filter((f) => f !== 'index.html').map((f) => './' + f);
+const core = ['./', './index.html', ...rest.filter((f) => !OPTIONAL.test(f))];
+const optional = rest.filter((f) => OPTIONAL.test(f));
+const CACHE_VERSION = 'v2';
 
 const sw = `// Generisano pri build-u (scripts/gen-sw.mjs). Ne menjati ručno.
-const CACHE = 'gitara-${version}';
-const PRECACHE = ${JSON.stringify(precache, null, 1)};
+const CACHE = 'gitara-${CACHE_VERSION}-${version}';
+const CORE = ${JSON.stringify(core, null, 1)};
+const OPTIONAL = ${JSON.stringify(optional, null, 1)};
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE).then((c) => c.addAll(PRECACHE)).then(() => self.skipWaiting()));
+  event.waitUntil((async () => {
+    const c = await caches.open(CACHE);
+    await c.addAll(CORE.map((u) => new Request(u, { cache: 'reload' })));
+    await Promise.allSettled(OPTIONAL.map((u) => c.add(new Request(u, { cache: 'reload' }))));
+    await self.skipWaiting();
+  })());
 });
 
 self.addEventListener('activate', (event) => {
@@ -47,7 +59,7 @@ self.addEventListener('fetch', (event) => {
         const copy = res.clone();
         caches.open(CACHE).then((c) => c.put('./', copy));
         return res;
-      }).catch(() => caches.match('./', { ignoreSearch: true }))
+      }).catch(() => caches.match('./', { ignoreSearch: true }).then((r) => r || caches.match('./index.html')))
     );
     return;
   }
@@ -60,4 +72,4 @@ self.addEventListener('fetch', (event) => {
 });
 `;
 writeFileSync(join(dist, 'sw.js'), sw);
-console.log(`sw.js: ${precache.length} fajlova, verzija ${version}`);
+console.log(`sw.js: ${core.length} osnovnih + ${optional.length} dodatnih fajlova, keš gitara-${CACHE_VERSION}-${version}`);
