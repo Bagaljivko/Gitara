@@ -8,6 +8,7 @@ import {
   parseSharedFile, toSharedFile, safeFileName, SongFormatError, layoutChordLine,
 } from './songformat.js';
 import { scanSong, prepareImage, getApiKey, GeminiError } from './gemini.js';
+import { driveState, savePdfToDrive, DriveError } from './drive.js';
 
 let draft = null; // nesačuvana pesma (npr. posle skeniranja)
 let draftImage = null;
@@ -344,6 +345,12 @@ export async function renderSong(root, id) {
       const blob = await songToPdf(song, { transposeLabel: t ? `Transpozicija ${t > 0 ? '+' : ''}${t}` : '' });
       const r = await shareOrDownload(blob, safeFileName(song.title) + '.pdf', song.title);
       if (r === 'downloaded') toast('PDF je preuzet.');
+      // Ako je Google Drive povezan, PDF se čuva i u folder „Gitara“ (isti fajl se zamenjuje).
+      if (driveState().connected) {
+        savePdfToDrive(blob, { ...song, id: stored.id })
+          .then(() => toast('PDF je sačuvan i na Google Drive.'))
+          .catch((e) => toast(e instanceof DriveError ? `PDF nije sačuvan na Drive: ${e.message}` : 'PDF nije sačuvan na Google Drive.', 'error'));
+      }
     } catch (e) {
       console.error(e);
       toast('PDF nije moguće napraviti. Pokušaj ponovo.', 'error');

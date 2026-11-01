@@ -5,6 +5,7 @@ import { esc, toast, confirmDialog, pickFile, dialog } from './ui.js';
 import { exportAll } from './songs.js';
 import { parseBackup, SongFormatError } from './songformat.js';
 import { APP_VERSION } from './version.js';
+import { driveState, onDriveChange, connect as driveConnect, disconnect as driveDisconnect, reconnect as driveReconnect, backupNow, restoreFlow, formatDate, DriveError } from './drive.js';
 
 let deferredInstall = null;
 window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredInstall = e; });
@@ -64,8 +65,10 @@ export async function renderSettings(root) {
       <p class="muted small">Standardno je 440 Hz. Menjaj samo ako sviraš uz instrument koji je drugačije naštimovan.</p>
     </div>
 
+    <div class="card drive-card" id="driveCard"></div>
+
     <div class="card">
-      <h2>Rezervna kopija</h2>
+      <h2>Rezervna kopija (fajl)</h2>
       <p class="muted small">Sve pesme se čuvaju samo na ovom uređaju. Napravi rezervnu kopiju pre brisanja aplikacije ili prelaska na novi telefon.</p>
       <div class="row wrap">
         <button class="btn" id="bExport">Izvezi sve pesme</button>
@@ -174,6 +177,64 @@ export async function renderSettings(root) {
       toast(added ? `Vraćeno pesama: ${added}` : 'Sve pesme iz kopije već postoje.');
     } catch (e) {
       await dialog({ title: 'Fajl nije ispravan', body: e instanceof SongFormatError ? e.message : 'Fajl ne može da se učita.' });
+    }
+  });
+
+  // ---- Google Drive ----
+  const driveCard = $('driveCard');
+  let driveMsg = '', driveMsgCls = '';
+  const drawDrive = () => {
+    const d = driveState();
+    if (!d.connected) {
+      driveCard.innerHTML = `
+        <h2>Google Drive</h2>
+        <p class="muted small">Automatska rezervna kopija pesama u folder „Gitara“ na tvom Google Drive-u. Aplikacija vidi samo fajlove koje sama napravi. Gemini ključ se ne šalje na Drive.</p>
+        <button class="btn primary wide" data-d="connect">Poveži Google Drive</button>
+        <p class="status ${driveMsgCls}" role="status">${esc(driveMsg)}</p>`;
+      return;
+    }
+    const status = d.busy ? 'Pravim rezervnu kopiju…'
+      : d.needsReconnect ? 'Veza je istekla — dodirni „Ponovo poveži“.'
+      : d.pending ? (d.lastError || 'Izmene čekaju na rezervnu kopiju…')
+      : driveMsg;
+    driveCard.innerHTML = `
+      <h2>Google Drive</h2>
+      <p class="drive-account">Povezano: <b>${esc(d.email || 'Google nalog')}</b></p>
+      <p class="small">Poslednja rezervna kopija: <b>${d.lastBackup ? esc(formatDate(d.lastBackup)) : 'još nije napravljena'}</b></p>
+      ${d.needsReconnect ? '<button class="btn primary wide" data-d="reconnect">Ponovo poveži</button>' : ''}
+      <div class="row wrap">
+        <button class="btn" data-d="backup" ${d.busy ? 'disabled' : ''}>Napravi rezervnu kopiju</button>
+        <button class="btn" data-d="restore" ${d.busy ? 'disabled' : ''}>Vrati iz Drive-a</button>
+      </div>
+      <p class="status ${d.needsReconnect || (d.pending && d.lastError) ? 'err' : driveMsgCls}" role="status">${esc(status)}</p>
+      <p class="muted small">Kopija se automatski ažurira posle svake izmene pesama. PDF iz „Skini PDF“ se čuva i u folder „Gitara“.</p>
+      <button class="btn danger-text" data-d="disconnect">Prekini vezu</button>`;
+  };
+  const setDriveMsg = (m, cls = '') => { driveMsg = m; driveMsgCls = cls; drawDrive(); };
+  const driveErr = (e) => (e instanceof DriveError ? e.message : 'Došlo je do greške. Pokušaj ponovo.');
+  drawDrive();
+  const unsub = onDriveChange(() => { if (!document.body.contains(driveCard)) return unsub(); drawDrive(); });
+  driveCard.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-d]');
+    if (!b) return;
+    const a = b.dataset.d;
+    if (a === 'connect') {
+      setDriveMsg('Povezujem…');
+      try { await driveConnect(); setDriveMsg('Google Drive je povezan ✓', 'ok'); }
+      catch (err) { setDriveMsg(driveErr(err), 'err'); }
+    } else if (a === 'reconnect') {
+      try { await driveReconnect(); setDriveMsg('Google Drive je ponovo povezan ✓', 'ok'); }
+      catch (err) { setDriveMsg(driveErr(err), 'err'); }
+    } else if (a === 'backup') {
+      try { await backupNow(); setDriveMsg('Rezervna kopija je sačuvana ✓', 'ok'); }
+      catch (err) { setDriveMsg(driveErr(err), 'err'); }
+    } else if (a === 'restore') {
+      try { if (await restoreFlow()) setDriveMsg('Pesme su vraćene sa Drive-a ✓', 'ok'); }
+      catch (err) { setDriveMsg(driveErr(err), 'err'); }
+    } else if (a === 'disconnect') {
+      if (!(await confirmDialog('Prekinuti vezu?', 'Automatska rezervna kopija na Google Drive se gasi. Fajlovi koji su već na Drive-u ostaju tamo.', 'Prekini vezu', 'danger'))) return;
+      await driveDisconnect();
+      setDriveMsg('Veza sa Google Drive-om je prekinuta.');
     }
   });
 

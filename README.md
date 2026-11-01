@@ -54,6 +54,18 @@ Aplikacija podrazumevano koristi model **gemini-3.8-flash**. Ako ga Google ukine
 
 Ključ se čuva samo na tvom telefonu i šalje se samo Google-u kada skeniraš pesmu. **Nikada ne stavljaj ključ u kod ili u ovaj repozitorijum.**
 
+## Google Drive rezervna kopija
+
+U **Podešavanjima → Google Drive** dodirni **Poveži Google Drive** i prijavi se Google nalogom.
+
+- Aplikacija na tvom Drive-u pravi folder **Gitara** i u njemu drži jedan fajl, `gitara-backup.json`, sa svim pesmama i podešavanjima. Gemini ključ se **ne** šalje na Drive.
+- Kopija se automatski ažurira nekoliko sekundi posle svake izmene (dodavanje, izmena, brisanje pesme). Ako nema interneta, pokušava ponovo kada se veza vrati.
+- **Vrati iz Drive-a** vraća pesme. Ako na telefonu već ima pesama, biraš između **Zameni sve** i **Spoji** (zadržava obe verzije, bez duplikata).
+- **Skini PDF** i dalje preuzima PDF, a kada je Drive povezan, čuva ga i u folder Gitara. Ako istu pesmu izvezeš ponovo, fajl se zamenjuje.
+- Aplikacija koristi samo dozvolu `drive.file`, pa vidi isključivo fajlove koje je sama napravila.
+
+**Podešavanje u Google Cloud konzoli (jednom):** OAuth Client ID `633765324865-ki9jk8hvnt9cfqbsemipfl8f796g3s1v.apps.googleusercontent.com` (tip „Web application“) mora pod **Authorized JavaScript origins** da ima `https://bagaljivko.github.io`, a za lokalni rad i `http://localhost:8080`. Client secret se ne koristi i nikada se ne stavlja u repozitorijum. Dok je OAuth ekran za saglasnost u režimu „Testing“, pod **Test users** dodaj Google naloge koji će se prijavljivati.
+
 ## Deljenje pesama između učenika i nastavnika
 
 - U prikazu pesme dodirni **Podeli pesmu**. Telefon otvara meni za deljenje (Viber, WhatsApp, e-pošta…) i šalje mali `.json` fajl. Ako deljenje nije podržano, fajl se preuzme.

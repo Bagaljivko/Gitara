@@ -29,6 +29,10 @@ function tx(store, mode, fn) {
   }));
 }
 
+// Obaveštenja o izmenama (za automatsku rezervnu kopiju na Google Drive).
+export const events = new EventTarget();
+const changed = (type, detail) => events.dispatchEvent(new CustomEvent(type, { detail }));
+
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
 
 export const songs = {
@@ -38,14 +42,16 @@ export const songs = {
     const now = Date.now();
     const rec = { ...song, id: song.id || uid(), createdAt: song.createdAt || now, updatedAt: now };
     await tx('songs', 'readwrite', (s) => s.put(rec));
+    changed('songs-changed', rec.id);
     return rec;
   },
-  put: (rec) => tx('songs', 'readwrite', (s) => s.put(rec)),
-  remove: (id) => tx('songs', 'readwrite', (s) => s.delete(id)),
+  put: (rec) => tx('songs', 'readwrite', (s) => s.put(rec)).then((r) => { changed('songs-changed', rec.id); return r; }),
+  remove: (id) => tx('songs', 'readwrite', (s) => s.delete(id)).then((r) => { changed('songs-changed', id); return r; }),
+  clear: () => tx('songs', 'readwrite', (s) => s.clear()).then((r) => { changed('songs-changed', null); return r; }),
 };
 
 export const settings = {
   get: (key, def) => tx('settings', 'readonly', (s) => s.get(key)).then((v) => (v === undefined ? def : v)),
-  set: (key, val) => tx('settings', 'readwrite', (s) => s.put(val, key)),
+  set: (key, val) => tx('settings', 'readwrite', (s) => s.put(val, key)).then((r) => { changed('settings-changed', key); return r; }),
   remove: (key) => tx('settings', 'readwrite', (s) => s.delete(key)),
 };

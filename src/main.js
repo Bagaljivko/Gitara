@@ -2,6 +2,7 @@ import { createTuner } from './tuner.js';
 import { createChordRec } from './chordrec.js';
 import { renderLibrary, renderSong, renderEditor } from './songs.js';
 import { renderSettings } from './settingsView.js';
+import { initDrive } from './drive.js';
 
 const app = document.getElementById('app');
 const views = {};
@@ -68,3 +69,4 @@ if ('serviceWorker' in navigator) {
 }
 
 route();
+initDrive().catch(() => {});
