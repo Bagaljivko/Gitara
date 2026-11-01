@@ -5,6 +5,7 @@ import { QUALITIES, pcName } from './music.js';
 import { chordSVG } from './diagram.js';
 import { esc } from './ui.js';
 import { keepAwake, allowSleep } from './wakelock.js';
+import { createRhythmPane } from './rhythmView.js';
 
 const MATCH_QUALITIES = ['', 'm', '7', 'maj7', 'm7', 'sus2', 'sus4'];
 // Blaga prednost jednostavnijim akordima (trozvuci su najčešći).
@@ -120,8 +121,13 @@ export function createChordRec(root) {
   root.innerHTML = `
   <section class="view chordrec-view">
     <header class="view-head">
-      <h1>${t('chords.title')} <span class="badge">${t('chords.beta')}</span></h1>
+      <h1>${t('chords.title')}</h1>
     </header>
+    <div class="seg-tabs" role="tablist">
+      <button role="tab" class="active" data-pane="rec">${t('chords.tabRecognize')} <span class="badge">${t('chords.beta')}</span></button>
+      <button role="tab" data-pane="rhythm">${t('chords.tabRhythm')}</button>
+    </div>
+    <div id="crPane">
     <p class="muted">${t('chords.intro')}</p>
     <div class="card cr-result" id="crResult" data-state="idle">
       <div class="cr-name" id="crName">–</div>
@@ -135,6 +141,8 @@ export function createChordRec(root) {
     <button class="btn primary big wide" id="crBtn">${t('chords.listen')}</button>
     <p class="err" id="crErr" hidden></p>
     <p class="hint small">${t('chords.hint')}</p>
+    </div>
+    <div id="rhPane" hidden></div>
   </section>`;
 
   const $ = (id) => root.querySelector('#' + id);
@@ -257,5 +265,16 @@ export function createChordRec(root) {
   }
 
   $('crBtn').addEventListener('click', () => (running ? stop() : start()));
-  return { show() {}, hide: stop };
+
+  // Druga sekcija: metronom i ritmovi
+  let rhythm = null;
+  root.querySelectorAll('[data-pane]').forEach((b) => b.addEventListener('click', () => {
+    root.querySelectorAll('[data-pane]').forEach((x) => x.classList.toggle('active', x === b));
+    const rh = b.dataset.pane === 'rhythm';
+    $('crPane').hidden = rh;
+    $('rhPane').hidden = !rh;
+    if (rh) { stop(); if (!rhythm) rhythm = createRhythmPane($('rhPane')); }
+    else rhythm?.stop();
+  }));
+  return { show() {}, hide() { stop(); rhythm?.stop(); } };
 }

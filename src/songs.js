@@ -5,11 +5,14 @@ import { chordSVG, voicingCount } from './diagram.js';
 import { isChord, parseChord, canonicalName } from './music.js';
 import {
   textToSections, sectionsToText, songChords, progressionSummary, transposeSong,
-  parseSharedFile, toSharedFile, safeFileName, SongFormatError, layoutChordLine,
+  parseSharedFile, toSharedFile, safeFileName, SongFormatError, layoutChordLine, songExtras,
 } from './songformat.js';
 import { scanSong, prepareImage, getApiKey, GeminiError } from './gemini.js';
 import { driveState, savePdfToDrive, DriveError } from './drive.js';
 import { t } from './i18n.js';
+import { settings } from './db.js';
+import { PATTERNS, patternHTML, patternName, Metronome } from './rhythm.js';
+import { keepAwake, allowSleep } from './wakelock.js';
 
 let draft = null; // nesačuvana pesma (npr. posle skeniranja)
 let draftImage = null;
@@ -248,7 +251,7 @@ export function renderLineHTML(line) {
 export function renderSectionsHTML(sections) {
   return (sections || []).map((s) => `
     <div class="sec">
-      ${s.name ? `<div class="sec-name">${esc(s.name)}</div>` : ''}
+      ${s.name || s.strum ? `<div class="sec-head">${s.name ? `<div class="sec-name">${esc(s.name)}</div>` : ''}${s.strum ? patternHTML(s.strum, { compact: true }) : ''}</div>` : ''}
       ${s.lines.map(renderLineHTML).join('')}
     </div>`).join('');
 }
@@ -282,24 +285,38 @@ function showChord(name) {
 }
 
 // ---------------- Prikaz pesme ----------------
-export async function renderSong(root, id) {
+export async function renderSong(root, id, nav = null) {
   const stored = await db.get(id);
   if (!stored) {
     root.innerHTML = `<section class="view"><p>${t('song.notFound')}</p><a class="btn" href="#/pesme">${t('song.back')}</a></section>`;
     return;
   }
   let tp = stored.transpose || 0;
+  let capo = stored.capo || 0;
+  let speed = stored.scrollSpeed || 4;
+  const backHref = nav ? nav.backHref : '#/pesme';
   root.innerHTML = `
   <section class="view song-view">
     <header class="topbar">
-      <a href="#/pesme" class="back" aria-label="${t('song.back')}">${t('song.backShort')}</a>
+      <a href="${backHref}" class="back" aria-label="${t('song.back')}">${nav ? esc(nav.backLabel) : t('song.backShort')}</a>
       <div class="topbar-actions">
         <button class="btn small" id="sFontDown" aria-label="${t('song.fontDown')}">A−</button>
         <button class="btn small" id="sFontUp" aria-label="${t('song.fontUp')}">A+</button>
         <a class="btn small" href="#/uredi/${encodeURIComponent(id)}">${t('song.edit')}</a>
       </div>
     </header>
+    ${nav ? `<div class="setlist-nav card">
+      <a class="btn small ${nav.prevHref ? '' : 'disabled'}" ${nav.prevHref ? `href="${nav.prevHref}"` : 'aria-disabled="true"'}>‹ ${t('sl.prev')}</a>
+      <span class="small muted">${esc(nav.title)} · ${nav.index + 1}/${nav.count}</span>
+      <a class="btn small ${nav.nextHref ? 'primary' : 'disabled'}" ${nav.nextHref ? `href="${nav.nextHref}"` : 'aria-disabled="true"'}>${t('sl.next')} ›</a>
+    </div>` : ''}
     <div id="sBody"></div>
+    <div class="scroll-bar" id="sScrollBar">
+      <button class="btn round small" id="sPlay" aria-label="${t('scroll.play')}"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
+      <span class="small muted">${t('scroll.slower')}</span>
+      <input type="range" id="sSpeed" min="1" max="10" step="1" value="${speed}" aria-label="${t('scroll.speed')}">
+      <span class="small muted">${t('scroll.faster')}</span>
+    </div>
     <div class="song-actions">
       <button class="btn primary" id="sPdf">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z"/></svg> ${t('song.pdf')}</button>
@@ -309,31 +326,141 @@ export async function renderSong(root, id) {
   </section>`;
   const $ = (q) => root.querySelector('#' + q);
 
+  // Akordi koji se SVIRAJU: zapisani akordi (zvučni tonalitet) + transpozicija − kapodaster.
+  const shapesSong = () => transposeSong(stored, tp - capo);
+  const soundingKey = () => (stored.key ? transposeSong({ key: stored.key, sections: [] }, tp).key : '');
+
   const draw = () => {
-    const song = transposeSong(stored, tp);
+    const song = shapesSong();
     const chords = songChords(song);
     const prog = progressionSummary(song);
+    const key = soundingKey();
     $('sBody').innerHTML = `
       <h1 class="song-h1">${esc(song.title)}</h1>
-      <p class="song-meta">${esc(song.artist || '')}${song.key ? `${song.artist ? ' · ' : ''}${t('song.key')} <b>${esc(song.key)}</b>` : ''}</p>
-      <div class="transpose" role="group" aria-label="${t('song.transpose')}">
-        <button class="btn round" id="tDown" aria-label="${t('song.transposeDown')}">−</button>
-        <div class="t-label">${t('song.transpose')}<br><b>${tp > 0 ? '+' + tp : tp}</b></div>
-        <button class="btn round" id="tUp" aria-label="${t('song.transposeUp')}">+</button>
-        ${tp ? `<button class="btn small" id="tReset">${t('song.original')}</button>` : ''}
+      <p class="song-meta">${esc(song.artist || '')}${key ? `${song.artist ? ' · ' : ''}${t('song.key')} <b>${esc(key)}</b>` : ''}${capo && key ? ` · ${t('capo.shapes')} <b>${esc(song.key)}</b>` : ''}</p>
+      <div class="song-controls">
+        <div class="transpose" role="group" aria-label="${t('song.transpose')}">
+          <button class="btn round small" id="tDown" aria-label="${t('song.transposeDown')}">−</button>
+          <div class="t-label">${t('song.transpose')}<br><b>${tp > 0 ? '+' + tp : tp}</b></div>
+          <button class="btn round small" id="tUp" aria-label="${t('song.transposeUp')}">+</button>
+          ${tp ? `<button class="btn small" id="tReset">${t('song.original')}</button>` : ''}
+        </div>
+        <div class="transpose" role="group" aria-label="${t('capo.title')}">
+          <button class="btn round small" id="cDown" aria-label="${t('capo.down')}">−</button>
+          <div class="t-label">${t('capo.title')}<br><b>${capo || t('capo.none')}</b></div>
+          <button class="btn round small" id="cUp" aria-label="${t('capo.up')}">+</button>
+        </div>
+      </div>
+      ${capo ? `<p class="capo-note small">${t('capo.note', { n: capo })}</p>` : ''}
+      <div class="strum-box card">
+        ${stored.strum ? `<div class="strum-head"><span class="small muted">${t('strum.label')}</span> <b>${esc(patternName(stored.strum))}</b> <span class="small muted">${stored.strum.sig}</span>
+          <button class="icon-btn pat-play" id="sStrumPlay" aria-label="${t('pat.play')}"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button></div>
+          ${patternHTML(stored.strum)}` : ''}
+        <button class="btn small" id="sStrumEdit">${stored.strum || stored.sections.some((x) => x.strum) ? t('strum.change') : t('strum.add')}</button>
       </div>
       ${prog.length ? `<div class="prog card">${prog.map((p) => `<div class="prog-row"><span class="prog-name">${esc(p.name || t('song.chordsFallback'))}</span><span class="prog-chords">${p.chords.map((c) => `<button class="ch" data-chord="${esc(c)}">${esc(c)}</button>`).join('<span class="arrow">→</span>')}</span></div>`).join('')}</div>` : ''}
       ${chords.length ? `<div class="diagram-row" aria-label="${t('song.diagrams')}">${chords.map((c) => `<button class="diagram-btn" data-chord="${esc(c)}" aria-label="${esc(t('song.enlarge', { name: c }))}">${chordSVG(c)}</button>`).join('')}</div>` : ''}
-      <div class="lyrics" style="font-size:${(fontScale * 100).toFixed(0)}%">${renderSectionsHTML(song.sections)}</div>`;
+      <div class="lyrics" id="sLyrics" style="font-size:${(fontScale * 100).toFixed(0)}%">${renderSectionsHTML(song.sections)}</div>`;
   };
   draw();
 
-  const setT = async (n) => {
-    tp = ((n + 17) % 12 + 12) % 12 - 5; // opseg −5…+6
+  const save = () => db.put(stored);
+  const setT = async (n) => { tp = ((n + 17) % 12 + 12) % 12 - 5; stored.transpose = tp; draw(); await save(); };
+  const setCapo = async (n) => {
+    capo = Math.max(0, Math.min(7, n));
+    if (capo) stored.capo = capo; else delete stored.capo;
     draw();
-    stored.transpose = tp;
-    await db.put(stored);
+    await save();
   };
+
+  // ---- Ritam (strumming) ----
+  let strumMet = null;
+  const stopStrum = () => { strumMet?.stop(); strumMet = null; root.querySelectorAll('.strum-box .pstep.now').forEach((x) => x.classList.remove('now')); $('sStrumPlay')?.classList.remove('playing'); };
+  const playStrum = () => {
+    if (strumMet) return stopStrum();
+    strumMet = new Metronome();
+    strumMet.pattern = stored.strum;
+    strumMet.sig = stored.strum.sig;
+    settings.get('metBpm', 90).then((b) => { if (!strumMet) return; strumMet.bpm = b; strumMet.start(); });
+    $('sStrumPlay')?.classList.add('playing');
+    strumMet.onStep = (i) => root.querySelectorAll('.strum-box .pstep').forEach((s) => s.classList.toggle('now', +s.dataset.i === i));
+  };
+  async function editStrum() {
+    stopStrum();
+    const targets = [{ v: 'song', label: t('strum.wholeSong') }, ...stored.sections.map((s, i) => ({ v: String(i), label: s.name || t('strum.section', { n: i + 1 }) }))];
+    const current = (target) => (target === 'song' ? stored.strum : stored.sections[+target]?.strum);
+    const body = `
+      <label class="small">${t('strum.for')}
+        <select id="stTarget">${targets.map((x) => `<option value="${x.v}">${esc(x.label)}</option>`).join('')}</select>
+      </label>
+      <div class="strum-pick" id="stList">
+        <label class="strum-opt"><input type="radio" name="st" value=""> <span>${t('strum.none')}</span></label>
+        ${PATTERNS.map((p) => `<label class="strum-opt"><input type="radio" name="st" value="${p.id}"> <span><b>${patternName(p)}</b> <small>${p.sig}</small>${patternHTML(p, { compact: true })}</span></label>`).join('')}
+      </div>`;
+    const wrapPromise = dialog({ title: t('strum.title'), body, html: true, buttons: [{ label: t('common.cancel'), value: null }, { label: t('common.save'), value: 'save', kind: 'primary' }] });
+    const modal = [...document.querySelectorAll('.modal-backdrop')].pop();
+    const sync = () => {
+      const cur = current(modal.querySelector('#stTarget').value);
+      const val = cur ? (cur.id || '') : '';
+      modal.querySelectorAll('input[name=st]').forEach((r) => (r.checked = r.value === val));
+    };
+    let chosen = { target: 'song', id: '' };
+    modal.querySelector('#stTarget').addEventListener('change', sync);
+    modal.addEventListener('change', () => {
+      chosen = { target: modal.querySelector('#stTarget').value, id: (modal.querySelector('input[name=st]:checked') || {}).value || '' };
+    });
+    sync();
+    chosen = { target: 'song', id: (stored.strum && stored.strum.id) || '' };
+    if (stored.strum && !stored.strum.id) chosen.id = '__keep';
+    const r = await wrapPromise;
+    if (r !== 'save') return;
+    const p = PATTERNS.find((x) => x.id === chosen.id);
+    const apply = (obj) => { if (chosen.id === '__keep') return; if (p) obj.strum = { id: p.id, sig: p.sig, steps: p.steps }; else delete obj.strum; };
+    if (chosen.target === 'song') apply(stored); else apply(stored.sections[+chosen.target]);
+    await save();
+    draw();
+  }
+
+  // ---- Automatsko skrolovanje ----
+  let scrolling = false, raf = 0, last = 0, carry = 0;
+  const pxPerSec = () => 6 + speed * 7; // 1 → 13 px/s … 10 → 76 px/s
+  function step(ts) {
+    if (!scrolling) return;
+    const dt = last ? (ts - last) / 1000 : 0;
+    last = ts;
+    carry += pxPerSec() * dt;
+    const px = Math.floor(carry);
+    if (px >= 1) { carry -= px; window.scrollBy(0, px); }
+    if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2) return stopScroll();
+    raf = requestAnimationFrame(step);
+  }
+  function startScroll() {
+    scrolling = true; last = 0; carry = 0;
+    $('sPlay').classList.add('playing');
+    $('sPlay').innerHTML = '<svg viewBox="0 0 24 24"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>';
+    $('sPlay').setAttribute('aria-label', t('scroll.pause'));
+    keepAwake('autoscroll');
+    raf = requestAnimationFrame(step);
+  }
+  function stopScroll() {
+    if (!scrolling) return;
+    scrolling = false;
+    cancelAnimationFrame(raf);
+    allowSleep('autoscroll');
+    const b = $('sPlay');
+    if (!b) return;
+    b.classList.remove('playing');
+    b.innerHTML = '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
+    b.setAttribute('aria-label', t('scroll.play'));
+  }
+  $('sPlay').addEventListener('click', (e) => { e.stopPropagation(); scrolling ? stopScroll() : startScroll(); });
+  $('sSpeed').addEventListener('input', (e) => { speed = +e.target.value; });
+  $('sSpeed').addEventListener('change', async () => { stored.scrollSpeed = speed; await save(); });
+  // Dodir bilo gde na tekstu pauzira skrolovanje
+  $('sBody').addEventListener('pointerdown', () => stopScroll());
+  const onHash = () => { stopScroll(); stopStrum(); window.removeEventListener('hashchange', onHash); };
+  window.addEventListener('hashchange', onHash);
+
   root.querySelector('.song-view').addEventListener('click', (e) => {
     const c = e.target.closest('[data-chord]');
     if (c) return showChord(c.dataset.chord);
@@ -342,6 +469,10 @@ export async function renderSong(root, id) {
     if (b.id === 'tUp') setT(tp + 1);
     else if (b.id === 'tDown') setT(tp - 1);
     else if (b.id === 'tReset') setT(0);
+    else if (b.id === 'cUp') setCapo(capo + 1);
+    else if (b.id === 'cDown') setCapo(capo - 1);
+    else if (b.id === 'sStrumPlay') playStrum();
+    else if (b.id === 'sStrumEdit') editStrum();
   });
   const setFont = (d) => {
     fontScale = Math.min(1.8, Math.max(0.7, +(fontScale + d).toFixed(2)));
@@ -358,8 +489,11 @@ export async function renderSong(root, id) {
     btn.innerHTML = `<span class="spinner"></span> ${t('song.makingPdf')}`;
     try {
       const { songToPdf } = await import('./pdf.js');
-      const song = transposeSong(stored, tp);
-      const blob = await songToPdf(song, { transposeLabel: tp ? t('pdf.transpose', { n: (tp > 0 ? '+' : '') + tp }) : '' });
+      const song = { ...shapesSong(), key: soundingKey(), strum: stored.strum };
+      const blob = await songToPdf(song, {
+        transposeLabel: tp ? t('pdf.transpose', { n: (tp > 0 ? '+' : '') + tp }) : '',
+        capoLabel: capo ? t('pdf.capo', { n: capo }) : '',
+      });
       const r = await shareOrDownload(blob, safeFileName(song.title) + '.pdf', song.title);
       if (r === 'downloaded') toast(t('song.pdfDownloaded'));
       // Ako je Google Drive povezan, PDF se čuva i u folder „Gitara“ (isti fajl se zamenjuje).
@@ -465,8 +599,14 @@ export async function renderEditor(root, id) {
     const sections = validate();
     if (!sections.length) { toast(t('edit.empty'), 'error'); return; }
     const title = $('eTitle').value.trim() || t('common.untitled');
+    // Zadrži ritam po delovima (po nazivu dela) i ostala podešavanja pesme.
+    const oldSecs = song.sections || [];
+    sections.forEach((sec, i) => {
+      const old = oldSecs.find((o) => o.name === sec.name && o.strum) || (oldSecs[i] && oldSecs[i].name === sec.name ? oldSecs[i] : null);
+      if (old && old.strum) sec.strum = old.strum;
+    });
     const rec = await db.save({
-      ...(isNew ? {} : song),
+      ...(isNew ? songExtras(song) : song),
       title,
       artist: $('eArtist').value.trim(),
       key: $('eKey').value.trim(),
@@ -486,7 +626,7 @@ function autoGrow(el) {
 // Za podešavanja: izvoz/uvoz svih pesama
 export async function exportAll() {
   const all = await db.all();
-  const data = JSON.stringify({ app: 'gitara', version: 1, backup: true, exportedAt: new Date().toISOString(), songs: all.map(({ title, artist, key, sections, transpose }) => ({ title, artist, key, sections, transpose })) }, null, 1);
+  const data = JSON.stringify({ app: 'gitara', version: 1, backup: true, exportedAt: new Date().toISOString(), songs: all.map((sg) => ({ title: sg.title, artist: sg.artist, key: sg.key, sections: sg.sections, transpose: sg.transpose, ...songExtras(sg) })) }, null, 1);
   return shareOrDownload(new Blob([data], { type: 'application/json' }), `gitara-pesme-${new Date().toISOString().slice(0, 10)}.json`, t('export.allTitle'));
 }
 

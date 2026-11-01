@@ -1,5 +1,6 @@
 // Konverzija pesme <-> tekst "akordi iznad teksta", validacija i transpozicija pesme.
 import { t } from './i18n.js';
+import { cleanPattern } from './rhythm.js';
 import { isChord, transposeChord, transposeKey, parseChord, parseKey, prefersFlats } from './music.js';
 
 const EXTRA_TOKENS = /^(\||\|\||%|-|–|\/|x\d+|\(x\d+\)|\d+x|\(\d+x\)|\.\.\.?|N\.?C\.?)$/i;
@@ -170,7 +171,7 @@ export function normalizeSong(raw) {
     if (!s || typeof s !== 'object') throw new SongFormatError(t('fmt.badPart', { n: si + 1 }));
     const lines = Array.isArray(s.lines) ? s.lines : [];
     if (lines.length > 500) throw new SongFormatError(t('fmt.tooBig'));
-    return {
+    const sec = {
       name: str(s.name, 80),
       lines: lines.map((l) => {
         if (typeof l === 'string') return { chords: [], text: str(l, 400) };
@@ -182,6 +183,9 @@ export function normalizeSong(raw) {
         return { chords, text: str(l.text, 400).replace(/\s+$/, '') };
       }),
     };
+    const sp = cleanPattern(s.strum);
+    if (sp) sec.strum = sp;
+    return sec;
   });
   const totalLines = sections.reduce((n, s) => n + s.lines.length, 0);
   if (!totalLines) throw new SongFormatError(t('fmt.empty'));
@@ -192,7 +196,20 @@ export function normalizeSong(raw) {
     key: str(raw.key, 12).trim(),
     sections,
     transpose: tr >= -11 && tr <= 11 ? tr : 0,
+    ...songExtras(raw),
   };
+}
+
+/** Podešavanja po pesmi: kapodaster, brzina skrolovanja, ritam (strumming). */
+export function songExtras(raw) {
+  const out = {};
+  const capo = Math.round(Number(raw.capo) || 0);
+  if (capo >= 1 && capo <= 7) out.capo = capo;
+  const sp = Number(raw.scrollSpeed);
+  if (sp >= 1 && sp <= 10) out.scrollSpeed = Math.round(sp);
+  const strum = cleanPattern(raw.strum);
+  if (strum) out.strum = strum;
+  return out;
 }
 
 /** Parsira deljeni .json fajl (format { app: 'gitara', song } ili sama pesma). */
@@ -211,7 +228,7 @@ export function parseSharedFile(text) {
 
 export function toSharedFile(song) {
   const { title, artist, key, sections, transpose = 0 } = song;
-  return JSON.stringify({ app: 'gitara', version: 1, exportedAt: new Date().toISOString(), song: { title, artist, key, sections, transpose } });
+  return JSON.stringify({ app: 'gitara', version: 1, exportedAt: new Date().toISOString(), song: { title, artist, key, sections, transpose, ...songExtras(song) } });
 }
 
 /** Parsira rezervnu kopiju biblioteke. Vraća niz pesama. */

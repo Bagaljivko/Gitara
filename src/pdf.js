@@ -1,5 +1,6 @@
 // PDF izvoz (samo na zahtev korisnika). jsPDF + ugrađen Unicode font (DejaVu Sans Mono) za č, ć, š, ž, đ.
 import { t } from './i18n.js';
+import { patternText, patternName } from './rhythm.js';
 const monoUrl = new URL('../fonts/DejaVuSansMono.ttf', import.meta.url).href;
 const monoBoldUrl = new URL('../fonts/DejaVuSansMono-Bold.ttf', import.meta.url).href;
 const jspdfUrl = new URL('../vendor/jspdf.umd.min.js', import.meta.url).href;
@@ -103,7 +104,7 @@ function drawDiagram(doc, x, y, name, accent) {
 }
 
 /** Pravi PDF i vraća Blob. */
-export async function songToPdf(song, { transposeLabel = '' } = {}) {
+export async function songToPdf(song, { transposeLabel = '', capoLabel = '' } = {}) {
   const [{ jsPDF }, mono, monoBold] = await Promise.all([loadJsPDF(), fontBase64(monoUrl), fontBase64(monoBoldUrl)]);
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   doc.addFileToVFS('DejaVuSansMono.ttf', mono);
@@ -125,8 +126,24 @@ export async function songToPdf(song, { transposeLabel = '' } = {}) {
   doc.setFont('Mono', 'normal');
   doc.setFontSize(11);
   doc.setTextColor(90);
-  const meta = [song.artist, song.key ? t('pdf.key', { key: song.key }) : '', transposeLabel].filter(Boolean).join('  ·  ');
+  const meta = [song.artist, song.key ? t('pdf.key', { key: song.key }) : '', transposeLabel, capoLabel].filter(Boolean).join('  ·  ');
   if (meta) { doc.text(meta, M, y); y += 6; }
+  if (song.strum) {
+    // Ritam (strumming): strelice i brojanje doba
+    const pt = patternText(song.strum);
+    doc.setFontSize(10);
+    doc.setTextColor(90);
+    doc.text(`${t('pdf.strum')}: ${patternName(song.strum)} (${song.strum.sig})`, M, y + 1);
+    doc.setFont('Mono', 'bold');
+    doc.setFontSize(13);
+    doc.setTextColor(30);
+    doc.text(pt.arrows, M, y + 7.5);
+    doc.setFont('Mono', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(110);
+    doc.text(pt.counts, M + 0.6, y + 12);
+    y += 15;
+  }
   doc.setDrawColor(...accent);
   doc.setLineWidth(0.6);
   doc.line(M, y, PW - M, y);
@@ -162,6 +179,11 @@ export async function songToPdf(song, { transposeLabel = '' } = {}) {
       doc.setFontSize(fs);
       doc.setTextColor(...accent);
       doc.text(sec.name, M, y);
+      if (sec.strum) {
+        doc.setFont('Mono', 'normal');
+        doc.setTextColor(110);
+        doc.text(patternText(sec.strum).arrows, M + doc.getTextWidth(sec.name + '   '), y);
+      }
       y += lh + 0.5;
     }
     for (const line of sec.lines || []) {

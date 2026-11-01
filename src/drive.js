@@ -2,7 +2,7 @@
 // Koristi samo opseg drive.file: aplikacija vidi isključivo fajlove koje je sama napravila.
 // Nema client secret-a — token client radi samo sa javnim Client ID-jem.
 import { songs as db, settings, events } from './db.js';
-import { normalizeSong, SongFormatError, safeFileName } from './songformat.js';
+import { normalizeSong, SongFormatError, safeFileName, songExtras } from './songformat.js';
 import { toast, dialog } from './ui.js';
 import { t, songsCount, setLang } from './i18n.js';
 
@@ -218,7 +218,7 @@ async function buildBackup() {
   for (const k of BACKUP_SETTINGS) { const v = await settings.get(k); if (v !== undefined) s[k] = v; }
   return {
     app: 'gitara', version: 1, type: 'backup', exportedAt: new Date().toISOString(),
-    songs: all.map(({ id, title, artist, key, sections, transpose, createdAt, updatedAt }) => ({ id, title, artist, key, sections, transpose: transpose || 0, createdAt, updatedAt })),
+    songs: all.map((sg) => ({ id: sg.id, title: sg.title, artist: sg.artist, key: sg.key, sections: sg.sections, transpose: sg.transpose || 0, createdAt: sg.createdAt, updatedAt: sg.updatedAt, ...songExtras(sg) })),
     settings: s,
   };
 }

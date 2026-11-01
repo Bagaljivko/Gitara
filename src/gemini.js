@@ -50,13 +50,16 @@ PRAVILA:
 5. Podeli pesmu na delove ("sections") po strukturi: npr. "Uvod", "Strofa 1", "Refren", "Most", "Kraj". Ako je deo označen na slici (npr. "Ref.", "R:", "1."), koristi tu oznaku. Ako nema oznaka, koristi "Strofa 1", "Strofa 2"... i "Refren" za ponovljeni deo.
 6. "title" i "artist" uzmi sa slike; ako ih nema, ostavi prazan string. "key" je tonalitet ako je naznačen, inače ga proceni iz akorda (npr. "Am", "G").
 7. Ako neki deo ne može da se pročita, napiši najverovatniju reč; ne izostavljaj linije.
+8. Ako na papiru postoji ritam udaranja (strelice ↓ ↑, ili zapis poput „D DU UDU“ / „dole gore“), vrati ga kao "strum": { "steps": "...", "sig": "4/4" }. "steps" ima jedan znak po osmini: D = udarac na dole, U = na gore, x = prigušen udarac, - = pauza (npr. „↓ ↓↑ ↑↓↑“ u 4/4 je "D-DU-UDU"). "sig" je "2/4", "3/4", "4/4" ili "6/8". Ako ritam važi samo za jedan deo pesme, stavi "strum" u taj deo (sekciju). Ako ritma nema, izostavi polje "strum".
 
-Vrati ISKLJUČIVO JSON ovog oblika:
-{ "title": "", "artist": "", "key": "", "sections": [ { "name": "", "lines": [ { "chords": [ { "chord": "Am", "position": 0 } ], "text": "" } ] } ] }`;
+Vrati ISKLJUČIVO JSON ovog oblika (polja "strum" su opciona):
+{ "title": "", "artist": "", "key": "", "strum": { "steps": "D-DU-UDU", "sig": "4/4" }, "sections": [ { "name": "", "strum": { "steps": "", "sig": "" }, "lines": [ { "chords": [ { "chord": "Am", "position": 0 } ], "text": "" } ] } ] }`;
 
+const STRUM_SCHEMA = { type: 'OBJECT', properties: { steps: { type: 'STRING' }, sig: { type: 'STRING' } } };
 const RESPONSE_SCHEMA = {
   type: 'OBJECT',
   properties: {
+    strum: STRUM_SCHEMA,
     title: { type: 'STRING' },
     artist: { type: 'STRING' },
     key: { type: 'STRING' },
@@ -66,6 +69,7 @@ const RESPONSE_SCHEMA = {
         type: 'OBJECT',
         properties: {
           name: { type: 'STRING' },
+          strum: STRUM_SCHEMA,
           lines: {
             type: 'ARRAY',
             items: {

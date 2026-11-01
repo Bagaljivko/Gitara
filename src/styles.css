@@ -232,7 +232,7 @@ label > input { margin-top: 4px; color: var(--text); font-size: 1rem; }
 .ln.chords-only { display: flex; flex-wrap: wrap; gap: 0 1.5ch; }
 .ch { appearance: none; border: 0; background: none; padding: 0; margin: 0; font: inherit; font-weight: 700; color: var(--accent); cursor: pointer; line-height: inherit; }
 .prog .ch { font-family: var(--mono); padding: 4px 6px; border-radius: 8px; background: var(--accent-soft); }
-.song-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 18px 0 8px; position: sticky; bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 8px); }
+.song-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 18px 0 8px; }
 .song-actions .btn { box-shadow: 0 6px 20px rgba(0,0,0,.4); }
 
 /* Uređivač */
@@ -296,3 +296,58 @@ label > input { margin-top: 4px; color: var(--text); font-size: 1rem; }
 .drive-banner .icon-btn { width: 40px; height: 40px; }
 .song-actions .btn { white-space: nowrap; padding: 0 12px; }
 .lang-tabs { margin: 8px 0 0; }
+
+/* Metronom i ritmovi */
+.metro { text-align: center; }
+.metro-top { display: flex; align-items: center; justify-content: center; gap: 22px; }
+.metro-bpm b { display: block; font-size: 3rem; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+.metro-bpm span { color: var(--muted); font-size: .8rem; letter-spacing: .1em; }
+.metro input[type=range], .scroll-bar input[type=range] { width: 100%; accent-color: var(--accent); min-height: 36px; padding: 0; border: 0; background: none; }
+.sig-tabs { grid-template-columns: repeat(4, 1fr); margin: 8px 0; }
+.pulse { display: flex; justify-content: center; gap: 12px; margin: 12px 0 14px; min-height: 22px; }
+.pulse i { width: 16px; height: 16px; border-radius: 50%; background: var(--surface-2); border: 2px solid var(--line); transition: transform .06s, background .06s; }
+.pulse i.acc { width: 22px; height: 22px; margin-top: -3px; }
+.pulse i.on { background: var(--accent); border-color: var(--accent); transform: scale(1.25); }
+.pulse i.acc.on { background: var(--ok); border-color: var(--ok); }
+.sub-h { margin-top: 18px; }
+.pat-list { list-style: none; padding: 0; margin: 0; }
+.pat-item { padding: 10px 12px; margin: 8px 0; }
+.pat-head { display: flex; align-items: center; gap: 8px; }
+.pat-head b { flex: 1; font-size: .95rem; }
+.pat-play.playing, #sStrumPlay.playing { color: var(--accent); }
+.pattern { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px; }
+.pstep { display: flex; flex-direction: column; align-items: center; min-width: 30px; padding: 4px 2px; border-radius: 8px; transition: background .08s; }
+.pstep b { font-size: 1.5rem; line-height: 1.1; color: var(--text); }
+.pstep i { font-style: normal; font-size: .75rem; color: var(--muted); }
+.pstep.s-rest b { color: var(--line); }
+.pstep.s-x b { color: var(--muted); font-size: 1.1rem; }
+.pstep.now { background: var(--accent); }
+.pstep.now b, .pstep.now i { color: var(--accent-ink); }
+.pattern.compact .pstep { min-width: 20px; padding: 0 1px; }
+.pattern.compact .pstep b { font-size: 1.05rem; }
+.pattern.compact .pstep i { font-size: .62rem; }
+
+/* Pesma: kapodaster, ritam, skrolovanje, setlista */
+.song-controls { display: flex; flex-wrap: wrap; gap: 6px 18px; }
+.song-controls .transpose { margin: 8px 0; gap: 8px; }
+.song-controls .t-label { min-width: 74px; }
+.capo-note { color: var(--accent); margin: 0 0 6px; }
+.strum-box { padding: 10px 12px; }
+.strum-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.strum-head b { flex: 1; }
+.strum-box > .btn { margin-top: 6px; }
+.strum-pick { max-height: 46dvh; overflow-y: auto; margin-top: 8px; }
+.strum-opt { display: flex; gap: 10px; align-items: flex-start; padding: 8px 4px; border-bottom: 1px solid var(--line); color: var(--text); font-size: .9rem; }
+.strum-opt input { width: 20px; min-height: 20px; margin-top: 3px; accent-color: var(--accent); }
+.strum-opt small { color: var(--muted); }
+.modal select { margin-top: 4px; }
+.scroll-bar { position: sticky; bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 8px); display: flex; align-items: center; gap: 8px; padding: 6px 10px; margin-top: 10px; background: rgba(27,29,34,.94); border: 1px solid var(--line); border-radius: 14px; z-index: 6; }
+.scroll-bar input { flex: 1; }
+#sPlay.playing { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+#sPlay svg, .pat-play svg { width: 22px; height: 22px; fill: currentColor; }
+.setlist-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; margin: 4px 0 6px; }
+.setlist-nav span { flex: 1; text-align: center; }
+.btn.disabled { opacity: .35; pointer-events: none; }
+
+.sec-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.sec-head .pattern { margin-top: 0; }
