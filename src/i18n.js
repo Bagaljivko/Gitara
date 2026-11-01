@@ -30,6 +30,9 @@ const sr = {
   'tuner.start': 'Pokreni tuner',
   'tuner.headstock': 'Glava gitare',
   'tuner.string': 'Žica {num} ({note})',
+  'tuner.playRef': 'Pusti ton {note}',
+  'tuner.ready': 'Gitara je spremna',
+  'tuner.readyOk': 'OK',
 
   // Mikrofon
   'mic.insecure': 'Mikrofon radi samo preko sigurne (https) veze.',
@@ -360,6 +363,9 @@ const en = {
   'tuner.start': 'Start tuner',
   'tuner.headstock': 'Guitar headstock',
   'tuner.string': 'String {num} ({note})',
+  'tuner.playRef': 'Play {note}',
+  'tuner.ready': 'Guitar is ready',
+  'tuner.readyOk': 'OK',
 
   'mic.insecure': 'The microphone only works over a secure (https) connection.',
   'mic.unsupported': 'This browser does not support the microphone. Try Safari (iPhone) or Chrome (Android).',

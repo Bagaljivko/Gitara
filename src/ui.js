@@ -26,7 +26,7 @@ export function toast(msg, type = '') {
  * Modalni dijalog. buttons: [{ label, value, kind: 'primary'|'danger'|'' }]
  * Vraća Promise sa vrednošću kliknutog dugmeta (ili null za zatvaranje).
  */
-export function dialog({ title = '', body = '', html = false, buttons = [{ label: t('common.ok'), value: true, kind: 'primary' }], className = '' }) {
+export function dialog({ title = '', body = '', html = false, buttons = [{ label: t('common.ok'), value: true, kind: 'primary' }], className = '', dismissible = true }) {
   return new Promise((resolve) => {
     const wrap = document.createElement('div');
     wrap.className = 'modal-backdrop';
@@ -36,9 +36,9 @@ export function dialog({ title = '', body = '', html = false, buttons = [{ label
       <div class="modal-actions">${buttons.map((b, i) => `<button class="btn ${b.kind || ''}" data-i="${i}">${esc(b.label)}</button>`).join('')}</div>
     </div>`;
     const close = (v) => { wrap.remove(); document.removeEventListener('keydown', onKey); resolve(v); };
-    const onKey = (e) => { if (e.key === 'Escape') close(null); };
+    const onKey = (e) => { if (e.key === 'Escape' && dismissible) close(null); };
     wrap.addEventListener('click', (e) => {
-      if (e.target === wrap) return close(null);
+      if (e.target === wrap) { if (dismissible) close(null); return; }
       const b = e.target.closest('[data-i]');
       if (b) close(buttons[+b.dataset.i].value);
     });

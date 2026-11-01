@@ -4,6 +4,7 @@ import { openMic, closeMic, MicError } from './audio.js';
 import { QUALITIES, pcName } from './music.js';
 import { chordSVG } from './diagram.js';
 import { esc } from './ui.js';
+import { keepAwake, allowSleep } from './wakelock.js';
 
 const MATCH_QUALITIES = ['', 'm', '7', 'maj7', 'm7', 'sus2', 'sus4'];
 // Blaga prednost jednostavnijim akordima (trozvuci su najčešći).
@@ -35,6 +36,7 @@ export function chromaFromSpectrum(db, sampleRate, fftSize, a4 = 440) {
   for (let k = kMin; k <= kMax; k++) if (db[k] > peak) peak = db[k];
   const floor = Math.max(peak - 45, -95);
   let energy = 0;
+  const peaks = [];
   for (let k = kMin; k <= kMax; k++) {
     const y1 = db[k];
     if (y1 < floor || y1 < db[k - 1] || y1 < db[k + 1]) continue;
@@ -51,8 +53,51 @@ export function chromaFromSpectrum(db, sampleRate, fftSize, a4 = 440) {
     chroma[pc] += w;
     if (f < 220) bass[pc] += w;
     energy += w;
+    peaks.push({ f, w: mag });
   }
-  return { chroma, bass, energy };
+  return { chroma, bass, energy, peaks };
+}
+
+/**
+ * Koliki deo energije objašnjava JEDAN niz harmonika (jedan glas/jedan ton).
+ * Akord na gitari ima više osnovnih tonova, pa je ovaj odnos manji; govor/pevanje daju vrednost blizu 1.
+ */
+export function singleSourceRatio(peaks) {
+  const total = peaks.reduce((a, p) => a + p.w, 0);
+  if (!total) return 0;
+  const cands = peaks.filter((p) => p.f >= 70 && p.f < 400).sort((a, b) => b.w - a.w).slice(0, 4);
+  let best = 0;
+  for (const c of cands) {
+    let explained = 0;
+    for (const p of peaks) {
+      const h = p.f / c.f;
+      const n = Math.round(h);
+      if (n >= 1 && Math.abs(h - n) / n < 0.025) explained += p.w;
+    }
+    best = Math.max(best, explained / total);
+  }
+  return best;
+}
+
+/** Deo frekvencijskih opsega (100–5000 Hz) koji su naglo pojačani — znak udarca preko žica. */
+export function broadbandRise(prev, cur, binHz) {
+  const k0 = Math.ceil(100 / binHz), k1 = Math.min(Math.floor(5000 / binHz), cur.length - 1);
+  let rise = 0, n = 0;
+  for (let k = k0; k <= k1; k++) {
+    if (cur[k] < -90 && prev[k] < -90) continue;
+    n++;
+    if (cur[k] - prev[k] > 8) rise++;
+  }
+  return n ? rise / n : 0;
+}
+
+/** Koliko jasno prisutnih tonova (≥ 20 % najjačeg) pripada akordu. */
+export function presentChordNotes(acc, root, quality) {
+  const max = Math.max(...acc) || 1;
+  const tones = new Set(QUALITIES[quality].intervals.map((iv) => (root + iv) % 12));
+  let n = 0;
+  acc.forEach((x, pc) => { if (x >= 0.2 * max && tones.has(pc)) n++; });
+  return n;
 }
 
 export function matchChord(chroma, bass) {
@@ -94,29 +139,55 @@ export function createChordRec(root) {
 
   const $ = (id) => root.querySelector('#' + id);
   const bars = [...root.querySelectorAll('.chroma-bar')];
-  let running = false, mic = null, analyser = null, spec = null, timer = 0;
-  let acc = new Float32Array(12), accBass = new Float32Array(12);
-  let shownName = null, shownAt = 0, stable = null, stableCount = 0;
+  let running = false, mic = null, analyser = null, fast = null, spec = null, fspec = null, fprev = null, tbuf = null;
+  let timer = 0, onsetTimer = 0;
+  const acc = new Float32Array(12), accBass = new Float32Array(12);
+  let shownName = null, stable = null, stableSince = 0;
+  let lastOnset = -1e9, levels = [];
+  const WINDOW = 1600;     // analiziraj ovoliko ms posle udarca
+  const STABLE_MS = 300;   // rezultat mora biti stabilan pre prikaza
+
+  // Brza provera: da li je upravo odsviran akord (nagli skok glasnoće preko celog spektra)?
+  function onsetFrame() {
+    fast.getFloatFrequencyData(fspec);
+    fast.getFloatTimeDomainData(tbuf);
+    let sum = 0;
+    for (let i = 0; i < tbuf.length; i++) sum += tbuf[i] * tbuf[i];
+    const level = Math.sqrt(sum / tbuf.length);
+    const prevLevel = levels.length ? levels.reduce((x, y) => x + y, 0) / levels.length : level;
+    levels.push(level);
+    if (levels.length > 5) levels.shift();
+    const now = performance.now();
+    const rise = fprev ? broadbandRise(fprev, fspec, mic.ctx.sampleRate / fast.fftSize) : 0;
+    fprev = Float32Array.from(fspec);
+    if (rise > 0.3 && level > Math.max(0.004, prevLevel * 2) && now - lastOnset > 150) {
+      lastOnset = now;
+      acc.fill(0); accBass.fill(0);
+      stable = null;
+    }
+  }
 
   function frame() {
     analyser.getFloatFrequencyData(spec);
-    const { chroma, bass, energy } = chromaFromSpectrum(spec, mic.ctx.sampleRate, analyser.fftSize);
+    const now = performance.now();
+    const inWindow = now - lastOnset < WINDOW;
+    if (!inWindow || now - lastOnset < 60) {
+      // Bez udarca nema analize (govor i buka se ignorišu); poslednji akord ostaje prikazan.
+      bars.forEach((b) => (b.style.transform = `scaleY(${(parseFloat(b.style.transform.slice(7)) * 0.85 || 0).toFixed(3)})`));
+      return;
+    }
+    const { chroma, bass, peaks } = chromaFromSpectrum(spec, mic.ctx.sampleRate, analyser.fftSize);
     const decay = 0.82;
     for (let i = 0; i < 12; i++) { acc[i] = acc[i] * decay + chroma[i]; accBass[i] = accBass[i] * decay + bass[i]; }
     const max = Math.max(...acc) || 1;
     bars.forEach((b, i) => (b.style.transform = `scaleY(${(acc[i] / max).toFixed(3)})`));
-    const total = acc.reduce((a, b) => a + b, 0);
-    const now = performance.now();
-    if (energy < 0.5 && total < 3) {
-      if (shownName && now - shownAt > 4000) setIdle(t('chords.playChord'));
-      return;
-    }
+    if (singleSourceRatio(peaks) > 0.88) { stable = null; return; } // jedan glas/ton, ne akord
     const res = matchChord(acc, accBass);
     const best = res[0];
+    if (best.score < 0.75 || presentChordNotes(acc, best.root, best.quality) < 3) { stable = null; return; }
     const name = nice(best);
-    if (best.score < 0.72) return;
-    if (stable === name) stableCount++; else { stable = name; stableCount = 1; }
-    if (stableCount >= 3 && name !== shownName) {
+    if (stable !== name) { stable = name; stableSince = now; return; }
+    if (now - stableSince >= STABLE_MS && name !== shownName) {
       shownName = name;
       const conf = Math.round(Math.min(1, Math.max(0, (best.score - 0.7) / 0.3)) * 100);
       $('crResult').dataset.state = 'found';
@@ -126,7 +197,6 @@ export function createChordRec(root) {
       const alts = res.slice(1, 4).map(nice);
       $('crAlt').innerHTML = `${t('chords.maybe')} ${alts.map((a) => `<b>${esc(a)}</b>`).join(', ')}`;
     }
-    if (name === shownName) shownAt = now;
   }
 
   function setIdle(msg) {
@@ -148,9 +218,18 @@ export function createChordRec(root) {
       analyser.smoothingTimeConstant = 0.5;
       mic.source.connect(analyser);
       spec = new Float32Array(analyser.frequencyBinCount);
+      fast = mic.ctx.createAnalyser();
+      fast.fftSize = 2048;
+      fast.smoothingTimeConstant = 0;
+      mic.source.connect(fast);
+      fspec = new Float32Array(fast.frequencyBinCount);
+      tbuf = new Float32Array(fast.fftSize);
+      fprev = null; levels = []; lastOnset = -1e9;
       acc.fill(0); accBass.fill(0);
       running = true;
       timer = setInterval(frame, 90);
+      onsetTimer = setInterval(onsetFrame, 30);
+      keepAwake('chords');
       $('crBtn').textContent = t('chords.stop');
       $('crBtn').classList.remove('primary');
       setIdle(t('chords.listening'));
@@ -166,7 +245,9 @@ export function createChordRec(root) {
     if (!running) return;
     running = false;
     clearInterval(timer);
-    try { mic.source.disconnect(analyser); } catch {}
+    clearInterval(onsetTimer);
+    try { mic.source.disconnect(analyser); mic.source.disconnect(fast); } catch {}
+    allowSleep('chords');
     closeMic();
     mic = null;
     $('crBtn').textContent = t('chords.listen');
