@@ -365,7 +365,7 @@ export async function connect() {
   // Prazna biblioteka + postojeća kopija → ponudi vraćanje; inače odmah napravi kopiju.
   const local = await db.all();
   const existing = await findBackup();
-  if (!local.length && existing) {
+  if (!local.length && existing && !(await alreadyAsked())) {
     await offerRestore();
   } else if (local.length) {
     await backupNow().catch(() => scheduleBackup());
@@ -392,17 +392,25 @@ export async function disconnect() {
   }
 }
 
-let offered = false;
+// Ponuda za vraćanje se pokazuje samo jednom po instalaciji: odgovor (Vrati / Ne sada) se pamti
+// na uređaju (IndexedDB, nije deo rezervne kopije), pa se briše samo ako se obrišu podaci aplikacije.
+const ASKED_KEY = 'driveRestoreAsked';
+let offering = false;
+const alreadyAsked = async () => !!(await settings.get(ASKED_KEY, false));
+
 async function offerRestore() {
-  if (offered) return;
-  offered = true;
-  const ok = await dialog({
-    title: t('drive.title'),
-    body: t('drive.offerBody'),
-    buttons: [{ label: t('drive.notNow'), value: false }, { label: t('drive.restoreSongs'), value: true, kind: 'primary' }],
-  });
-  if (!ok) return;
+  if (offering || (await alreadyAsked())) return;
+  if ((await db.all()).length) return; // biblioteka već ima pesme — ne pitaj
+  offering = true;
   try {
+    const ok = await dialog({
+      title: t('drive.title'),
+      body: t('drive.offerBody'),
+      buttons: [{ label: t('drive.notNow'), value: false }, { label: t('drive.restoreSongs'), value: true, kind: 'primary' }],
+      dismissible: false, // korisnik mora da odgovori, da bi se odgovor zapamtio
+    });
+    await settings.set(ASKED_KEY, true);
+    if (!ok) return;
     const backup = await readBackup();
     if (!backup) return;
     const n = await applyRestore(backup, 'replace');
@@ -410,6 +418,8 @@ async function offerRestore() {
     window.dispatchEvent(new HashChangeEvent('hashchange'));
   } catch (e) {
     toast(e instanceof DriveError ? e.message : t('drive.e.restoreFailed'), 'error');
+  } finally {
+    offering = false;
   }
 }
 
@@ -494,7 +504,7 @@ export async function initDrive() {
   if (state.token && navigator.onLine !== false) {
     const local = await db.all();
     if (!local.length) {
-      try { if (await findBackup()) await offerRestore(); } catch {}
+      try { if (!(await alreadyAsked()) && (await findBackup())) await offerRestore(); } catch {}
     }
   }
 }
