@@ -2,7 +2,7 @@
 <html lang="sr-Latn">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Gitara</title>
   <meta name="description" content="Tuner, prepoznavanje akorda i pesmarica za gitaru.">
   <meta name="theme-color" content="#121316">
@@ -15,6 +15,12 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Gitara">
+  <script>
+    // iOS Safari ignoriše user-scalable=no: blokiraj pinch-zoom gestove.
+    ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (e) {
+      document.addEventListener(e, function (ev) { ev.preventDefault(); }, { passive: false });
+    });
+  </script>
 </head>
 <body>
   <div id="offline" class="offline-bar" hidden data-i18n="common.offlineBar">Bez interneta — sve radi osim skeniranja pesama.</div>

@@ -20,6 +20,8 @@
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 16px; line-height: 1.45; }
+/* Bez zumiranja dvostrukim dodirom; skrolovanje i dodiri rade normalno */
+html, body { touch-action: manipulation; }
 body { min-height: 100dvh; padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom)); overscroll-behavior-y: none; }
 main { max-width: 640px; margin: 0 auto; padding: calc(env(safe-area-inset-top) + 8px) 16px 24px; }
 h1 { font-size: 1.6rem; margin: 0.4rem 0 0.6rem; letter-spacing: -0.01em; }
@@ -62,7 +64,7 @@ p { margin: 0.4rem 0; }
 .icon-btn:active { background: var(--surface-2); }
 
 input, select, textarea {
-  font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--line);
+  font: inherit; font-size: max(16px, 1em); color: var(--text); background: var(--surface); border: 1px solid var(--line);
   border-radius: 12px; min-height: 48px; padding: 10px 14px; width: 100%; outline: none;
 }
 input:focus, select:focus, textarea:focus { border-color: var(--accent); }
@@ -229,14 +231,14 @@ body.tuner-screen .nav { background: rgba(23, 24, 28, .97); }
 .seg-tabs { display: grid; grid-template-columns: 1fr 1fr; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 4px; margin: 14px 0 10px; }
 .seg-tabs button { appearance: none; border: 0; background: none; color: var(--muted); font: 600 .95rem var(--sans); min-height: 40px; border-radius: 9px; cursor: pointer; }
 .seg-tabs button.active { background: var(--surface-2); color: var(--text); }
-.mono-editor { font-family: var(--mono); font-size: 15px; line-height: 1.45; white-space: pre; overflow-x: auto; resize: vertical; min-height: 240px; tab-size: 4; }
+.mono-editor { font-family: var(--mono); font-size: 16px; line-height: 1.45; white-space: pre; overflow-x: auto; resize: vertical; min-height: 240px; tab-size: 4; }
 .help summary, .photo-ref summary { cursor: pointer; color: var(--accent); min-height: 40px; display: flex; align-items: center; }
 .help pre { background: var(--surface); padding: 10px; border-radius: 10px; overflow-x: auto; font-family: var(--mono); }
 .photo-ref img { width: 100%; border-radius: 10px; margin-top: 8px; }
 
 /* Podešavanja */
 .key-row { display: flex; gap: 8px; margin: 8px 0; }
-.key-row input { flex: 1; font-family: var(--mono); font-size: .9rem; }
+.key-row input { flex: 1; font-family: var(--mono); font-size: 16px; }
 .status { min-height: 1.4em; font-size: .9rem; color: var(--muted); }
 .status.ok { color: var(--ok); font-weight: 600; }
 .status.err { color: var(--danger); }
@@ -272,7 +274,7 @@ body.tuner-screen .nav { background: rgba(23, 24, 28, .97); }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 
 .model-label { margin-top: 10px; }
-.model-label input { font-family: var(--mono); font-size: .9rem; }
+.model-label input { font-family: var(--mono); font-size: 16px; }
 .linklike { appearance: none; background: none; border: 0; padding: 0; color: var(--accent); font: inherit; text-decoration: underline; cursor: pointer; }
 #mUseSuggested { margin-top: 8px; }
 
@@ -374,7 +376,7 @@ body.tuner-screen .nav { background: rgba(23, 24, 28, .97); }
 
 /* Izbor Gemini modela */
 .model-row { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
-.model-row select { flex: 1; font-family: var(--mono); font-size: .88rem; }
+.model-row select { flex: 1; font-family: var(--mono); font-size: 16px; }
 #mRefresh { font-size: 1.2rem; }
 #mRefresh.spin { animation: spin .8s linear infinite; }
 .scan-model { margin-top: -4px; }
@@ -408,7 +410,7 @@ body.tuner-screen .nav { background: rgba(23, 24, 28, .97); }
 mark.unsure { cursor: pointer; }
 .ch.unsure { text-decoration: underline wavy #f2d14b; text-decoration-thickness: 2px; text-underline-offset: 4px; }
 .easy-switch { margin: 8px 0; font-size: .9rem; }
-.link-box { width: 100%; font-family: var(--mono); font-size: .8rem; }
+.link-box { width: 100%; font-family: var(--mono); font-size: 16px; }
 .add-card { border-color: var(--accent); }
 .install-card .btn { margin-top: 6px; }
 
