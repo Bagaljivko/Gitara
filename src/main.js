@@ -1,9 +1,11 @@
 import { createTuner } from './tuner.js';
-import { t, getLang, setLang, onLangChange } from './i18n.js';
+import { t, getLang, setLang, onLangChange, i18nReady } from './i18n.js';
 import { settings, songs as songsDb, events as dbEvents } from './db.js';
 import { setWakeZone } from './wakelock.js';
 import { onNamingChange, loadNoteNamesPref } from './naming.js';
 import { needsUpgrade } from './songmodel.js';
+
+await i18nReady; // engleski prevod (ako je izabran) mora biti učitan pre prvog prikaza
 
 // Ekrani osim tunera se učitavaju tek kad zatrebaju (brže prvo otvaranje).
 const lazy = (load) => { let p; return () => (p ||= load()); };
@@ -66,7 +68,8 @@ async function route() {
     const [rawId, query = ''] = (arg || '').split('?');
     const dec = decodeURIComponent(rawId || '');
     const params = new URLSearchParams(query);
-    const { renderLibrary, renderSong, renderEditor, renderSharedSong, setSelectedSong } = await loadSongs();
+    const { renderLibrary, renderSong, renderSharedSong, setSelectedSong } = await loadSongs();
+    const { renderEditor } = page === 'uredi' ? await import('./songEditor.js') : {};
     const { renderSetlist, setlistNav } = await loadSetlists();
     const { renderSettings } = page === 'podesavanja' ? await loadSettings() : {};
     const { renderStage } = page === 'nastup' ? await loadStage() : {};

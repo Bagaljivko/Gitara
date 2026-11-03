@@ -1,37 +1,29 @@
-// Tab "Pesme": biblioteka, prikaz pesme, uređivanje, skeniranje, deljenje i uvoz.
+// Tab "Pesme": biblioteka, prikaz pesme, deljenje i uvoz. Editor i skeniranje su u songEditor.js (učitava se po potrebi).
+const loadEditor = () => import('./songEditor.js');
 import { songs as db } from './db.js';
-import { esc, toast, dialog, confirmDialog, pickFile, pickFiles, shareOrDownload } from './ui.js';
+import { esc, toast, dialog, confirmDialog, pickFile, shareOrDownload } from './ui.js';
 import { chordSVG, voicingCount } from './diagram.js';
-import { isChord, parseChord, canonicalName } from './music.js';
-import {
-  textToSections, sectionsToText, songChords, progressionSummary, transposeSong,
-  parseSharedFile, toSharedFile, safeFileName, SongFormatError, layoutChordLine, songExtras, songMeta, normalizeSong, cleanUncertain, cleanYoutubeUrl,
-} from './songformat.js';
-import { scanSong, prepareImage, getApiKey, GeminiError } from './gemini.js';
+import { parseChord, canonicalName } from './music.js';
+import { songChords, progressionSummary, transposeSong, parseSharedFile, safeFileName, SongFormatError, layoutChordLine, songExtras, songMeta, cleanUncertain, cleanYoutubeUrl } from './songformat.js';
 import { driveState, savePdfToDrive, DriveError } from './drive.js';
 import { t, getLang } from './i18n.js';
-import { tabBlockHTML, layoutTabs, playTab, noteAt, STRING_NAMES, tabToAscii } from './tabs.js';
+import { tabBlockHTML, layoutTabs, playTab, noteAt, STRING_NAMES } from './tabs.js';
 import { easiestCapo, localStrum, patternById } from './suggest.js';
-import { suggestStrumAI } from './gemini.js';
-import { songLink, songFromHash } from './sharelink.js';
 import { isStandalone, isIOS, canPromptInstall, promptInstall } from './install.js';
-import { APP_VERSION } from './version.js';
 import { settings } from './db.js';
 import { PATTERNS, patternHTML, patternName, Metronome } from './rhythm.js';
 import { keepAwake, allowSleep, setWakeZone } from './wakelock.js';
 import { getFolders, addFolder } from './collections.js';
 import { renderSetlistsPane, editSongFolders, manageFolder, askName } from './setlistsView.js';
 import { seedDemoSong } from './demo.js';
-import { dn, currentNaming } from './naming.js';
-import { upgradeSong, CV, needsUpgrade, snapshotOriginal, restoreOriginal, differsFromOriginal } from './songmodel.js';
-import { keyName, readChord } from './chordnames.js';
+import { dn } from './naming.js';
+import { upgradeSong, CV, needsUpgrade } from './songmodel.js';
+import { keyName } from './chordnames.js';
 import { openKeyWheel } from './keyWheel.js';
-import { TUNING_IDS, cleanTuning, tuningNotes } from './tunings.js';
+import { cleanTuning, tuningNotes } from './tunings.js';
 
-let draft = null; // nesačuvana pesma (npr. posle skeniranja)
 let selectedId = null; // izabrana pesma u prikazu sa dva panela
 export function setSelectedSong(id) { selectedId = id; }
-let draftImage = null;
 
 function localStorageGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
 function localStorageSet(k, v) { try { localStorage.setItem(k, v); } catch {} }
@@ -40,6 +32,21 @@ const norm = (s) => String(s || '').trim().toLocaleLowerCase('sr');
 const fold = (s) => norm(s).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'dj');
 
 // ---------------- Biblioteka ----------------
+// Tonalitet koji zvuči (sa izabranom transpozicijom) i male oznake: kapodaster, štimovanje, tablatura
+const openedMap = () => { try { return JSON.parse(localStorage.getItem('gitara-opened') || '{}'); } catch { return {}; } };
+function markOpened(id) {
+  const m = openedMap(); m[id] = Date.now();
+  const keep = Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 300); // ograniči veličinu
+  try { localStorage.setItem('gitara-opened', JSON.stringify(Object.fromEntries(keep))); } catch {}
+}
+const libKey = (s) => (s.keyN ? keyName({ root: (s.keyN.root + (s.transpose || 0) + 120) % 12, minor: s.keyN.minor }, 'en') : s.key);
+function libBadges(s) {
+  const b = [];
+  if (s.capo) b.push(`<span class="badge-sm" title="${esc(t('capo.title'))}">${esc(t('lib.badgeCapo', { n: s.capo }))}</span>`);
+  if (s.tuning && s.tuning !== 'standard') b.push(`<span class="badge-sm">${esc(t('tuning.' + s.tuning))}</span>`);
+  if ((s.sections || []).some((x) => (x.tabs || []).length)) b.push(`<span class="badge-sm">${esc(t('lib.badgeTab'))}</span>`);
+  return b.length ? ' ' + b.join(' ') : '';
+}
 export async function renderLibrary(root, params = new URLSearchParams()) {
   const sortPref = localStorageGet('gitara-sort') || 'new';
   const tab = params.get('tab') === 'sl' ? 'sl' : 'songs';
@@ -68,6 +75,7 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
         <option value="new">${t('lib.sortNew')}</option>
         <option value="title">${t('lib.sortTitle')}</option>
         <option value="artist">${t('lib.sortArtist')}</option>
+        <option value="recent">${t('lib.sortRecent')}</option>
       </select>
     </div>
     <div class="chips" id="lFolders" role="group" aria-label="${t('folder.title')}"></div>
@@ -129,6 +137,7 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
     const cmp = (a, b) => String(a || '').localeCompare(String(b || ''), 'sr', { sensitivity: 'base' });
     if (sort === 'title') list.sort((a, b) => cmp(a.title, b.title));
     else if (sort === 'artist') list.sort((a, b) => cmp(a.artist, b.artist) || cmp(a.title, b.title));
+    else if (sort === 'recent') { const op = openedMap(); list.sort((a, b) => (op[b.id] || 0) - (op[a.id] || 0) || (b.updatedAt || 0) - (a.updatedAt || 0)); }
     else list.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
     if (!all.length) {
       $('lList').innerHTML = `<li class="empty">
@@ -142,7 +151,7 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
       <li class="song-item${s.id === selectedId ? ' selected' : ''}" data-id="${esc(s.id)}">
         <a href="#/pesma/${encodeURIComponent(s.id)}" class="song-link">
           <span class="song-title">${esc(s.title)}</span>
-          <span class="song-sub">${esc(s.artist || t('lib.unknownArtist'))}${s.key ? ` · <span class="key">${esc(dn(s.key))}</span>` : ''}</span>
+          <span class="song-sub">${esc(s.artist || t('lib.unknownArtist'))}${libKey(s) ? ` · <span class="key">${esc(dn(libKey(s)))}</span>` : ''}${libBadges(s)}</span>
         </a>
         <button class="icon-btn" data-fold="${esc(s.id)}" aria-label="${esc(t('folder.forSong', { title: s.title }))}">
           <svg viewBox="0 0 24 24"><path d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8l-2-2z"/></svg>${(s.folders || []).length ? `<span class="fold-count">${s.folders.length}</span>` : ''}
@@ -173,13 +182,9 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
     toast(t('lib.deleted'));
     draw();
   });
-  $('lScan').addEventListener('click', startScan);
+  $('lScan').addEventListener('click', () => loadEditor().then((m) => m.startScan()));
   $('lImport').addEventListener('click', async () => { if (await importSongFile()) { all = await db.all(); draw(); } });
-  $('lNew').addEventListener('click', () => {
-    draft = { title: '', artist: '', key: '', sections: [{ name: t('lib.defaultSection'), lines: [] }] };
-    draftImage = null;
-    location.hash = '#/uredi/novo';
-  });
+  $('lNew').addEventListener('click', () => loadEditor().then((m) => m.newSongDraft()));
   drawFolders();
   draw();
   backupNudge($('lNudge'), all.filter((x) => !x.demo).length);
@@ -245,6 +250,7 @@ async function importSongFile() {
 
 /** „Podeli pesmu“: link sa celom pesmom (kompresovano u adresi) preko sistemskog menija za deljenje. */
 async function shareSong(song) {
+  const { songLink } = await import('./sharelink.js'); // učitava se tek pri deljenju
   const url = songLink(song);
   const text = song.artist ? t('link.shareTextArtist', { title: song.title, artist: song.artist }) : t('link.shareText', { title: song.title });
   if (navigator.share) {
@@ -264,6 +270,7 @@ async function shareSong(song) {
 export async function renderSharedSong(root) {
   setWakeZone('song');
   let song;
+  const { songFromHash } = await import('./sharelink.js');
   try { song = songFromHash(); } catch (e) {
     root.innerHTML = `<section class="view"><div class="card"><h2>${t('link.badTitle')}</h2><p class="muted">${esc(e.message)}</p>
       <a class="btn primary" href="#/pesme">${t('song.back')}</a></div></section>`;
@@ -318,223 +325,6 @@ export async function renderSharedSong(root) {
     }
     leave('#/pesma/' + encodeURIComponent(rec.id));
   });
-}
-
-// ---------------- Skeniranje ----------------
-async function startScan() {
-  const key = await getApiKey();
-  if (!key) {
-    const go = await dialog({
-      title: t('scan.needKeyTitle'),
-      body: t('scan.needKeyBody'),
-      buttons: [{ label: t('common.later'), value: false }, { label: t('scan.openSettings'), value: true, kind: 'primary' }],
-    });
-    if (go) location.hash = '#/podesavanja';
-    return;
-  }
-  if (navigator.onLine === false) {
-    await dialog({ title: t('scan.offlineTitle'), body: t('scan.offlineBody') });
-    return;
-  }
-  const how = await dialog({
-    title: t('scan.title'),
-    body: t('scan.howBody'),
-    buttons: [{ label: t('scan.gallery'), value: 'gallery' }, { label: t('scan.camera'), value: 'camera', kind: 'primary' }],
-  });
-  if (!how) return;
-  const files = await pickFiles('image/*', how === 'camera' ? 'environment' : null);
-  if (!files.length) return;
-  const pages = await collectPages(files);
-  if (pages) await runScan(pages);
-}
-
-const MAX_PAGES = 10;
-
-/** Ekran sa stranama: pregled, dodavanje još strana, uklanjanje i redosled — pa skeniranje. */
-async function collectPages(initial) {
-  let files = initial.slice(0, MAX_PAGES);
-  return new Promise((resolve) => {
-    const wrap = document.createElement('div');
-    wrap.className = 'modal-backdrop';
-    const urls = new Map();
-    const url = (f) => { if (!urls.has(f)) urls.set(f, URL.createObjectURL(f)); return urls.get(f); };
-    const done = (v) => { wrap.remove(); urls.forEach((u) => URL.revokeObjectURL(u)); resolve(v); };
-    const draw = () => {
-      wrap.innerHTML = `<div class="modal pages-modal" role="dialog" aria-modal="true" aria-label="${t('scan.pagesTitle')}">
-        <h2 class="modal-title">${t('scan.pagesTitle')}</h2>
-        <p class="muted small">${t('scan.pagesHint')}</p>
-        <div class="pages">${files.map((f, i) => `<div class="page-thumb">
-          <img src="${url(f)}" alt="${esc(t('scan.page', { n: i + 1 }))}">
-          <span class="page-n">${i + 1}</span>
-          <button class="page-x" data-rm="${i}" aria-label="${esc(t('scan.removePage', { n: i + 1 }))}">✕</button>
-          ${i > 0 ? `<button class="page-l" data-left="${i}" aria-label="${esc(t('scan.moveLeft'))}">‹</button>` : ''}
-        </div>`).join('')}
-        ${files.length < MAX_PAGES ? `<div class="page-add"><button class="btn small" data-add="camera">+ ${t('scan.camera')}</button><button class="btn small" data-add="gallery">+ ${t('scan.gallery')}</button></div>` : ''}
-        </div>
-        <div class="modal-actions">
-          <button class="btn" data-a="cancel">${t('common.cancel')}</button>
-          <button class="btn primary" data-a="scan" ${files.length ? '' : 'disabled'}>${t('scan.scanN', { n: files.length })}</button>
-        </div></div>`;
-    };
-    wrap.addEventListener('click', async (e) => {
-      const b = e.target.closest('button');
-      if (!b) return;
-      if (b.dataset.rm !== undefined) { files.splice(+b.dataset.rm, 1); draw(); }
-      else if (b.dataset.left !== undefined) { const i = +b.dataset.left; [files[i - 1], files[i]] = [files[i], files[i - 1]]; draw(); }
-      else if (b.dataset.add) {
-        const more = await pickFiles('image/*', b.dataset.add === 'camera' ? 'environment' : null);
-        files = [...files, ...more].slice(0, MAX_PAGES);
-        draw();
-      } else if (b.dataset.a === 'cancel') done(null);
-      else if (b.dataset.a === 'scan' && files.length) done(files);
-    });
-    draw();
-    document.body.appendChild(wrap);
-  });
-}
-
-/** Šalje sliku Geminiju; kada je Gemini zauzet ponavlja automatski, a na kraju nudi „Pokušaj ponovo“. */
-async function runScan(files, prepared = null, opts = {}) {
-  const overlay = document.createElement('div');
-  overlay.className = 'modal-backdrop';
-  overlay.innerHTML = `<div class="modal scan-modal" role="dialog" aria-modal="true" aria-label="${t('scan.label')}">
-    <div class="scan-preview"><div class="scan-line"></div></div>
-    <p class="scan-msg"><span class="spinner"></span> <span id="scanText">${t('scan.stepCompress')}</span> <span class="scan-secs" id="scanSecs"></span></p>
-    <div class="modal-actions"><button class="btn" id="scanCancel">${t('common.cancel')}</button></div></div>`;
-  document.body.appendChild(overlay);
-  const ctrl = new AbortController();
-  let cancelled = false;
-  const t0 = performance.now();
-  const secsTimer = setInterval(() => { const el = overlay.querySelector('#scanSecs'); if (el) el.textContent = `${Math.round((performance.now() - t0) / 1000)} s`; }, 1000);
-  const close = () => { clearInterval(secsTimer); overlay.remove(); };
-  overlay.querySelector('#scanCancel').addEventListener('click', () => { cancelled = true; ctrl.abort(); close(); });
-  const setText = (txt) => { const el = overlay.querySelector('#scanText'); if (el) el.textContent = txt; };
-  const diag = { at: new Date().toISOString(), images: [], attempts: [], selection: '', totalMs: 0 };
-  let imgs = prepared;
-  try {
-    // 1) Smanji svaku sliku u pregledaču (najviše 1600 px, JPEG 0.8, ispod ~500 KB) — jednu po jednu, zbog memorije telefona.
-    if (!imgs) {
-      imgs = [];
-      for (let i = 0; i < files.length; i++) {
-        setText(files.length > 1 ? t('scan.stepCompressN', { i: i + 1, n: files.length }) : t('scan.stepCompress'));
-        imgs.push(await prepareImage(files[i]));
-        if (cancelled) return;
-      }
-    }
-    diag.images = imgs.map((i) => i.info);
-    if (cancelled) return;
-    overlay.querySelector('.scan-preview').style.backgroundImage = `url(${imgs[0].preview})`;
-    // 2) Pošalji i sačekaj odgovor
-    const song = await scanSong(imgs, ctrl.signal, (kind, model) => {
-      if (kind === 'send') setText(t('scan.stepSend'));
-      else if (kind === 'reading') setText(t('scan.stepReading'));
-      else if (kind === 'switch') setText(t('scan.switchModel', { model }));
-      else setText(t('scan.busy'));
-    }, diag);
-    diag.totalMs = performance.now() - t0;
-    close();
-    if (opts.onSong) { opts.onSong(song, imgs); return; }
-    await placeUnplacedTabs(song);
-    if (opts.rescanOf) song.__rescanOf = opts.rescanOf;
-    song.__original = snapshotOriginal(song); // skenirano tačno kako je pročitano — ne menja se nikad
-    draft = song;
-    draftImage = imgs.map((i) => i.preview);
-    location.hash = '#/uredi/sken';
-  } catch (e) {
-    diag.totalMs = performance.now() - t0;
-    close();
-    if (cancelled || (e && e.name === 'AbortError')) { if (opts.onFail) opts.onFail(e); return; }
-    const code = e instanceof GeminiError ? e.code : 'ERROR';
-    const title = code === 'TIMEOUT' ? t('scan.timeoutTitle') : code === 'BUSY' ? t('scan.busyTitle') : t('scan.failedTitle');
-    const report = formatScanDiag(diag, e);
-    const canRetry = imgs && imgs.length && code !== 'BAD_KEY';
-    const p = dialog({
-      title,
-      html: true,
-      body: `<p>${esc(e instanceof GeminiError ? e.message : t('common.error'))}</p>
-        <details class="diag"><summary>${t('scan.details')}</summary><pre id="diagText">${esc(report)}</pre>
-        <button class="btn small" id="diagCopy" type="button">${t('scan.copyDetails')}</button></details>`,
-      buttons: canRetry
-        ? [{ label: t('common.cancel'), value: false }, { label: t('common.retry'), value: true, kind: 'primary' }]
-        : [{ label: t('common.ok'), value: false, kind: 'primary' }],
-    });
-    const modal = [...document.querySelectorAll('.modal-backdrop')].pop();
-    modal.querySelector('#diagCopy').addEventListener('click', async (ev) => {
-      ev.stopPropagation();
-      try { await navigator.clipboard.writeText(report); toast(t('scan.copied')); }
-      catch { const r = document.createRange(); r.selectNodeContents(modal.querySelector('#diagText')); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); }
-    });
-    if (await p) return runScan(files, imgs, opts);
-    if (opts.onFail) opts.onFail(e);
-  }
-}
-
-const kb = (b) => (b >= 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)} MB` : `${Math.round(b / 1024)} KB`);
-const secs = (ms) => `${(ms / 1000).toFixed(1)} s`;
-
-/** Tekst za „Detalji greške“ (bez API ključa) — korisnik ga može kopirati i poslati. */
-function formatScanDiag(d, e) {
-  const L = [];
-  L.push(`${t('diag.time')}: ${d.at}  ·  ${t('diag.total')}: ${secs(d.totalMs)}  ·  ${t('diag.code')}: ${(e && e.code) || (e && e.name) || '?'}`);
-  L.push(`${t('diag.model')}: ${d.selection === 'auto' ? t('set.modelAuto') : d.selection || '?'}`);
-  L.push(`${t('diag.images')} (${d.images.length}):`);
-  d.images.forEach((i, k) => L.push(`  ${k + 1}) ${t('diag.original')} ${i.ow}×${i.oh}, ${kb(i.origBytes)} → ${t('diag.sent')} ${i.w}×${i.h}, ${kb(i.bytes)} (JPEG ${i.quality})`));
-  if (d.images.length) L.push(`  ${t('diag.sentTotal')}: ${kb(d.images.reduce((a, i) => a + i.bytes, 0))}`);
-  L.push(`${t('diag.attempts')} (${d.attempts.length}):`);
-  if (!d.attempts.length) L.push(`  ${t('diag.noAttempts')}`);
-  d.attempts.forEach((a, k) => L.push(`  ${k + 1}. ${a.model} [${a.thinking}] — ${secs(a.ms)} — ${a.status}${a.message ? ': ' + a.message : ''}  (${t('diag.request')} ${kb(a.sentBytes)})`));
-  L.push(`${t('diag.message')}: ${(e && e.message) || String(e)}`);
-  L.push(`${t('diag.app')}: Gitara ${APP_VERSION} · ${navigator.onLine === false ? 'offline' : 'online'} · ${navigator.userAgent}`);
-  return L.join('\n');
-}
-
-/** Samo tablature sa slika (za „Dodaj tablaturu“ → skeniranje). Vraća niz tablatura ili null. */
-function scanTabsFromImages(files) {
-  return new Promise((resolve) => {
-    runScan(files.slice(0, MAX_PAGES), null, {
-      onSong: (song) => {
-        const tabs = song.sections.flatMap((x) => x.tabs || []);
-        if (!tabs.length) { toast(t('tab.noneFound'), 'error'); resolve(null); } else resolve(tabs);
-      },
-      onFail: () => resolve(null),
-    });
-  });
-}
-
-/** „Gde da stavim ovu tablaturu?“ — za tablature koje Gemini nije znao gde da smesti. */
-async function placeUnplacedTabs(song) {
-  const list = (song.unplacedTabs || []).slice().sort((a, b) => b - a);
-  delete song.unplacedTabs;
-  for (const from of list) {
-    const src = song.sections[from];
-    if (!src || !src.tabs) continue;
-    const others = song.sections.map((x, i) => ({ i, label: x.name || t('strum.section', { n: i + 1 }) })).filter((o) => o.i !== from);
-    if (!others.length) continue;
-    const p = dialog({
-      title: t('tab.where'),
-      html: true,
-      body: `<p class="small muted">${esc(src.name ? t('tab.whereFrom', { name: src.name }) : t('tab.whereHint'))}</p>
-        <select id="tabWhere"><option value="keep">${esc(t('tab.keepSeparate'))}</option>${others.map((o) => `<option value="${o.i}">${esc(o.label)}</option>`).join('')}</select>`,
-      buttons: [{ label: t('common.ok'), value: 'ok', kind: 'primary' }],
-      dismissible: false,
-    });
-    const modal = [...document.querySelectorAll('.modal-backdrop')].pop();
-    let choice = 'keep';
-    modal.querySelector('#tabWhere').addEventListener('change', (e) => (choice = e.target.value));
-    await p;
-    if (choice === 'keep') continue;
-    const to = +choice;
-    const dst = song.sections[to];
-    const offset = (dst.tabs || []).length;
-    dst.tabs = [...(dst.tabs || []), ...src.tabs];
-    // premesti i oznake nesigurnih pragova
-    for (const u of song.uncertain || []) if (u.kind === 'fret' && u.section === from) { u.section = to; u.tab += offset; }
-    delete src.tabs;
-    if (!src.lines.length) {
-      song.sections.splice(from, 1);
-      for (const u of song.uncertain || []) if (u.section > from) u.section--;
-    }
-  }
 }
 
 // ---------------- Prikaz linija sa akordima ----------------
@@ -720,6 +510,7 @@ export async function renderSong(root, id, nav = null) {
   }
   // Pesma još nije prebačena u novi zapis akorda (npr. otvorena pre jednokratne konverzije) — uradi to sada
   if (needsUpgrade(stored)) { stored = upgradeSong(stored); db.put(stored).catch(() => {}); }
+  markOpened(stored.id); // za sortiranje „Nedavno otvorene“ (pamti se samo na uređaju, ne pokreće rezervnu kopiju)
   let tp = stored.transpose || 0;
   let capo = stored.capo || 0;
   let zoom = Number(stored.zoom) || (Number(localStorageGet('gitara-font')) || 1);
@@ -734,8 +525,7 @@ export async function renderSong(root, id, nav = null) {
       <a href="${backHref}" class="back" aria-label="${t('song.back')}">${nav ? esc(nav.backLabel) : t('song.backShort')}</a>
       <div class="topbar-actions">
         <button class="btn small" id="sEasyTop" aria-pressed="false" aria-label="${t('sug.easyBtn')}"><span class="lbl-long">${t('sug.easyBtn')}</span><span class="lbl-short" aria-hidden="true">${t('sug.easyBtnShort')}</span></button>
-        <button class="btn small icon-only" id="sFontDown" aria-label="${t('song.fontDown')}" title="${t('song.fontDown')}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 3a7 7 0 0 1 5.6 11.2l5.1 5.1-1.4 1.4-5.1-5.1A7 7 0 1 1 10 3zm0 2a5 5 0 1 0 0 10 5 5 0 0 0 0-10zM7 9h6v2H7z"/></svg></button>
-        <button class="btn small icon-only" id="sFontUp" aria-label="${t('song.fontUp')}" title="${t('song.fontUp')}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 3a7 7 0 0 1 5.6 11.2l5.1 5.1-1.4 1.4-5.1-5.1A7 7 0 1 1 10 3zm0 2a5 5 0 1 0 0 10 5 5 0 0 0 0-10zM9 7h2v2h2v2h-2v2H9v-2H7V9h2z"/></svg></button>
+        <button class="btn small aa-btn" id="sAa" aria-haspopup="true" aria-expanded="false" aria-label="${t('song.textSize')}">Aa</button>
         <a class="btn small" href="#/uredi/${encodeURIComponent(id)}">${t('song.edit')}</a>
       </div>
     </header>
@@ -744,7 +534,21 @@ export async function renderSong(root, id, nav = null) {
       <span class="small muted">${esc(nav.title)} · ${nav.index + 1}/${nav.count}</span>
       <a class="btn small ${nav.nextHref ? 'primary' : 'disabled'}" ${nav.nextHref ? `href="${nav.nextHref}"` : 'aria-disabled="true"'}>${t('sl.next')} ›</a>
     </div>` : ''}
-    <div id="sBody"></div>
+    <div class="aa-pop" id="sAaPop" hidden>
+      <span class="small">A</span>
+      <input type="range" id="sAaRange" min="80" max="180" step="10" aria-label="${t('song.textSize')}">
+      <span class="aa-big">A</span>
+      <b id="sAaVal"></b>
+      <p class="small muted" id="sAaNote" hidden>${t('song.fitNote')}</p>
+    </div>
+    <div id="sBody">
+      <div id="sHead"></div>
+      <div id="sAsk"></div>
+      <div id="sSuggest"></div>
+      <div id="sControls"></div>
+      <details class="song-details" id="sDet"><summary><span>${t('song.details')}</span><span class="small muted" id="sDetSub"></span></summary><div id="sDetBody"></div></details>
+      <div class="lyrics" id="sLyrics" style="--zoom:${zoom}"></div>
+    </div>
     <div class="scroll-bar" id="sScrollBar">
       <div class="loop-row" id="sLoopRow" hidden>
         <span class="loop-name"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10v3l4-4-4-4v3H5v6h2zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2z"/></svg><b id="sLoopName"></b></span>
@@ -791,95 +595,138 @@ export async function renderSong(root, id, nav = null) {
   const answerNaming = async (naming) => { stored = upgradeSong(stored, { naming }); await save(); draw(); };
   const answerKey = async (k) => { stored = upgradeSong(stored, { keyN: k }); await save(); draw(); };
 
-  const draw = () => {
-    const song = shapesSong();
-    const chords = songChords(song);
-    const prog = progressionSummary(song);
+  // Ekran pesme je podeljen na delove; menja se samo deo čiji se podaci promenili (brže na dugim pesmama)
+  const drawHead = () => {
+    $('sHead').innerHTML = `<h1 class="song-h1">${esc(stored.title)}</h1>
+      ${stored.artist || cleanTuning(stored.tuning) !== 'standard' ? `<p class="song-meta">${esc(stored.artist || '')}${cleanTuning(stored.tuning) !== 'standard'
+        ? `${stored.artist ? ' · ' : ''}<button class="tuning-chip" id="sTune" title="${esc(t('tuning.tuneNow'))}">${esc(t('tuning.' + cleanTuning(stored.tuning)))} · ${esc(tuningNotes(stored.tuning))} ›</button>` : ''}</p>` : ''}`;
+  };
+  const drawAsk = () => { $('sAsk').innerHTML = askHTML(); };
+  const drawControls = () => {
     const key = soundingKey();
-    $('sBody').innerHTML = `
-      <h1 class="song-h1">${esc(song.title)}</h1>
-      <p class="song-meta">${esc(song.artist || '')}${key ? `${song.artist ? ' · ' : ''}${t('song.key')} <b>${esc(dn(key))}</b>` : ''}${capo && key ? ` · ${t('capo.shapes')} <b>${esc(dn(keyAt(tp - capo) || song.key))}</b>` : ''}</p>
-      ${askHTML()}
-      ${ytRowHTML(stored)}
-      <div id="sSuggest">${suggestHTML()}</div>
-      <div class="song-controls">
-        <div class="transpose key-row" role="group" aria-label="${t('song.key')}">
-          <button class="btn round small" id="tDown" aria-label="${t('song.transposeDown')}">−1</button>
-          <button class="key-btn" id="kOpen" aria-haspopup="dialog" aria-label="${esc(t('kw.open', { k: dn(key) || '?' }))}">
-            <span class="t-label">${t('song.key')}</span><b>${esc(dn(key) || '–')}</b>${tp ? `<span class="key-delta">${tp > 0 ? '+' + tp : '−' + Math.abs(tp)}</span>` : ''}
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 2v8l5.7 5.7A8 8 0 0 1 12 4z"/></svg></button>
-          <button class="btn round small" id="tUp" aria-label="${t('song.transposeUp')}">+1</button>
-          ${tp ? `<button class="btn small" id="tReset">${t('song.original')}</button>` : ''}
+    const shapesKey = capo ? keyAt(tp - capo) : '';
+    $('sControls').innerHTML = `<div class="ctl-row">
+      <div class="ctl ctl-key" role="group" aria-label="${t('song.key')}">
+        <span class="ctl-label">${t('song.key').replace(/:$/, '')}${tp ? ` <span class="ctl-delta">${tp > 0 ? '+' + tp : '−' + Math.abs(tp)}</span>` : ''}</span>
+        <div class="ctl-step">
+          <button class="btn round small" id="tDown" aria-label="${t('song.transposeDown')}">−</button>
+          <button class="key-btn" id="kOpen" aria-haspopup="dialog" aria-label="${esc(t('kw.open', { k: dn(key) || '?' }))}"><b>${esc(dn(key) || '–')}</b></button>
+          <button class="btn round small" id="tUp" aria-label="${t('song.transposeUp')}">+</button>
         </div>
-        <div class="transpose" role="group" aria-label="${t('capo.title')}">
+        ${tp ? `<button class="ctl-link" id="tReset">${t('song.original')}</button>` : ''}
+      </div>
+      <div class="ctl" role="group" aria-label="${t('capo.title')}">
+        <span class="ctl-label">${t('capo.title')}</span>
+        <div class="ctl-step">
           <button class="btn round small" id="cDown" aria-label="${t('capo.down')}">−</button>
-          <div class="t-label">${t('capo.title')}<br><b>${capo || t('capo.none')}</b></div>
+          <b class="ctl-val">${capo || t('capo.none')}</b>
           <button class="btn round small" id="cUp" aria-label="${t('capo.up')}">+</button>
         </div>
-        ${stored.easyCapo ? `<label class="switch easy-switch"><input type="checkbox" id="sEasy" ${capo === stored.easyCapo ? 'checked' : ''}><span class="switch-track"><span class="switch-thumb"></span></span><span>${t('sug.easySwitch')}</span></label>` : ''}
+        ${capo && shapesKey ? `<span class="ctl-sub">${esc(t('capo.shapesShort', { k: dn(shapesKey) }))}</span>` : ''}
       </div>
-      ${capo ? `<p class="capo-note small">${esc(t('capo.note', { n: capo, key: dn(key) || '?', shapes: dn(keyAt(tp - capo)) || '?' }))}</p>` : ''}
-      ${cleanTuning(stored.tuning) !== 'standard' ? `<div class="tuning-note"><span>${esc(t('tuning.song', { name: t('tuning.' + cleanTuning(stored.tuning)) }))} <span class="muted">(${esc(tuningNotes(stored.tuning))})</span></span>
-        <button class="btn small" id="sTune">${t('tuning.tuneNow')}</button></div>` : ''}
-      <div class="strum-box card">
+      <div class="ctl" role="group" aria-label="${t('song.tempo')}">
+        <span class="ctl-label">${t('song.tempo')}</span>
+        <div class="ctl-step">
+          <button class="btn round small" id="sTempoDown" aria-label="${t('loop.slower')}">−</button>
+          <b class="ctl-val" id="sTempo">${Number(stored.bpm) || '…'}</b>
+          <button class="btn round small" id="sTempoUp" aria-label="${t('loop.faster')}">+</button>
+        </div>
+        <span class="ctl-sub">BPM</span>
+      </div>
+    </div>`;
+    if (!Number(stored.bpm)) songBpm().then((b) => { if ($('sTempo')) $('sTempo').textContent = b; });
+    syncEasyTop();
+  };
+  // „Detalji“: ritam, akordi po delovima, dijagrami, YouTube. Crta se tek kada je otvoren.
+  let detDirty = true;
+  const drawDetails = () => {
+    const song = shapesSong();
+    const chords = songChords(song);
+    $('sDetSub').textContent = [stored.strum ? patternName(stored.strum) : '', chords.length ? chords.slice(0, 6).map((c) => dn(c)).join(' ') + (chords.length > 6 ? ' …' : '') : ''].filter(Boolean).join(' · ');
+    if (!$('sDet').open) { detDirty = true; return; }
+    detDirty = false;
+    const prog = progressionSummary(song);
+    $('sDetBody').innerHTML = `
+      <div class="det-sec strum-box">
         ${stored.strum ? `<div class="strum-head"><span class="small muted">${t('strum.label')}</span> <b>${esc(patternName(stored.strum))}</b> <span class="small muted">${stored.strum.sig}</span>
           <button class="icon-btn pat-play" id="sStrumPlay" aria-label="${t('pat.play')}"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button></div>
           ${patternHTML(stored.strum)}` : ''}
-        <div class="song-tempo" role="group" aria-label="${t('song.tempo')}">
-          <span class="small muted">${t('song.tempo')}</span>
-          <button class="btn round small" id="sTempoDown" aria-label="${t('loop.slower')}">−</button>
-          <b id="sTempo">${Number(stored.bpm) || '…'} BPM</b>
-          <button class="btn round small" id="sTempoUp" aria-label="${t('loop.faster')}">+</button>
-        </div>
         <button class="btn small" id="sStrumEdit">${stored.strum || stored.sections.some((x) => x.strum) ? t('strum.change') : t('strum.add')}</button>
       </div>
-      ${prog.length ? `<div class="prog card">${prog.map((p) => `<div class="prog-row"><span class="prog-name">${esc(p.name || t('song.chordsFallback'))}</span><span class="prog-chords">${p.chords.map((c) => `<button class="ch" data-chord="${esc(c)}">${esc(dn(c))}</button>`).join('<span class="arrow">→</span>')}</span></div>`).join('')}</div>` : ''}
+      ${prog.length ? `<div class="det-sec prog">${prog.map((p) => `<div class="prog-row"><span class="prog-name">${esc(p.name || t('song.chordsFallback'))}</span><span class="prog-chords">${p.chords.map((c) => `<button class="ch" data-chord="${esc(c)}">${esc(dn(c))}</button>`).join('<span class="arrow">→</span>')}</span></div>`).join('')}</div>` : ''}
       ${chords.length ? `<div class="diagram-row" aria-label="${t('song.diagrams')}">${chords.map((c) => `<button class="diagram-btn" data-chord="${esc(c)}" aria-label="${esc(t('song.enlarge', { name: dn(c) }))}">${chordSVG(c)}</button>`).join('')}</div>` : ''}
-      <div class="lyrics" id="sLyrics" style="--zoom:${zoom}">${renderSectionsHTML(song.sections, unc())}</div>`;
-    syncEasyTop();
+      <div class="det-sec">${ytRowHTML(stored)}</div>`;
+  };
+  const drawLyrics = () => {
+    const l = $('sLyrics');
+    l.style.setProperty('--zoom', zoom);
+    l.innerHTML = renderSectionsHTML(shapesSong().sections, unc());
     addLoopButtons();
-    if (!Number(stored.bpm)) songBpm().then((b) => { if ($('sTempo')) $('sTempo').textContent = b + ' BPM'; });
-    $('sFontDown').disabled = zoom <= 0.8;
     fitAndTabs();
   };
+  // Sve odjednom (otvaranje pesme, odgovor na pitanje, izmena ritma…)
+  const draw = () => { drawHead(); drawAsk(); drawSuggest(); drawControls(); drawDetails(); drawLyrics(); };
+  // Tonalitet/kapodaster: samo kontrole, predlozi, detalji i akordi u tekstu
+  const drawKeyChange = () => { drawControls(); drawSuggest(); drawDetails(); drawLyrics(); };
+  // „Detalji“: zatvoreni posle prvog pregleda pesme; pamti se poslednji izbor
+  const detInit = !stored.seen || localStorageGet('gitara-details') === '1';
+  $('sDet').open = detInit;
+  let detAuto = detInit; // prvo otvaranje je automatsko — ne pamti ga kao izbor korisnika
+  $('sDet').addEventListener('toggle', () => {
+    if (detAuto) { detAuto = false; } else localStorageSet('gitara-details', $('sDet').open ? '1' : '');
+    if ($('sDet').open && detDirty) drawDetails();
+  });
+  if (!stored.seen) { stored.seen = true; db.put(stored).catch(() => {}); }
   // Prilagodi veličinu slova širini ekrana (pa tek onda rasporedi tablature)
   function fitAndTabs() {
     const l = root.querySelector('.lyrics');
     if (!l) return;
     const shrunk = fitLyrics(l);
     layoutTabs(l);
-    if ($('sFontUp')) $('sFontUp').disabled = zoom >= 1.8 || shrunk;
+    fitShrunk = shrunk;
+    syncAa();
+  }
+  let fitShrunk = false;
+  function syncAa() {
+    if (!$('sAaRange')) return;
+    $('sAaRange').value = Math.round(zoom * 100);
+    $('sAaVal').textContent = Math.round(zoom * 100) + '%';
+    $('sAaNote').hidden = !fitShrunk;
   }
 
   // ---- Predlozi (nesigurna mesta, lakša verzija, ritam) ----
   const unc = () => cleanUncertain(stored.uncertain, stored.sections);
   const hasStrum = () => !!stored.strum || stored.sections.some((x) => x.strum);
   let strumLoading = false;
+  let uncHidden = false; // „✕“ na nesigurnim mestima: sakrij do sledećeg otvaranja pesme
   function suggestHTML() {
     const items = [];
     const u = unc();
-    if (u.length) {
-      items.push(`<div class="sug-group"><div class="sug-title">${t('sug.unsureTitleN', { n: u.length })}</div><p class="small muted">${t('sug.unsureHint')}</p>
+    if (u.length && !uncHidden) {
+      items.push({ x: 'unc-hide', html: `<div class="sug-title">${t('sug.unsureTitleN', { n: u.length })}</div><p class="small muted">${t('sug.unsureHint')}</p>
         ${u.slice(0, 6).map((x, i) => `<div class="sug-item"><span class="sug-what"><span class="unsure-sample">${esc(x.text)}</span> → <b>${esc(x.suggestion)}</b></span>
-          <button class="btn small" data-unc-skip="${i}">${t('sug.keep')}</button><button class="btn small primary" data-unc-apply="${i}">${esc(t('sug.changeTo', { x: x.suggestion }))}</button></div>`).join('')}</div>`);
+          <button class="btn small" data-unc-skip="${i}">${t('sug.keep')}</button><button class="btn small primary" data-unc-apply="${i}">${esc(t('sug.changeTo', { x: x.suggestion }))}</button></div>`).join('')}` });
     }
     if (!(stored.skipped && stored.skipped.easy) && !stored.easyCapo && !capo) {
       const e = easiestCapo(stored, tp);
-      if (e) items.push(`<div class="sug-group"><div class="sug-title">${t('sug.easyTitle')}</div>
+      if (e) items.push({ x: 'easy-skip', html: `<div class="sug-title">${t('sug.easyTitle')}</div>
         <p class="small">${esc(t('sug.easyText', { n: e.capo, shapes: e.shapes.map((x) => dn(x)).join(', ') }))}</p>
-        <div class="sug-actions"><button class="btn small" data-sug="easy-skip">${t('sug.skip')}</button><button class="btn small primary" data-sug="easy-apply" data-capo="${e.capo}">${t('sug.apply')}</button></div></div>`);
+        <div class="sug-actions"><button class="btn small primary" data-sug="easy-apply" data-capo="${e.capo}">${t('sug.apply')}</button></div>` });
     }
     if (!hasStrum() && !(stored.skipped && stored.skipped.strum)) {
       const ss = stored.suggestStrum && patternById(stored.suggestStrum.id);
-      if (ss) items.push(`<div class="sug-group"><div class="sug-title">${t('sug.strumTitle')}: ${esc(patternName(ss))} <span class="small muted">${ss.sig}</span>
+      if (ss) items.push({ x: 'strum-skip', html: `<div class="sug-title">${t('sug.strumTitle')}: ${esc(patternName(ss))} <span class="small muted">${ss.sig}</span>
           <button class="icon-btn pat-play" data-sug="strum-play" aria-label="${t('pat.play')}"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button></div>
         ${patternHTML(ss, { compact: true })}
         ${stored.suggestStrum.reason ? `<p class="small muted">${esc(stored.suggestStrum.reason)}</p>` : ''}
-        <div class="sug-actions"><button class="btn small" data-sug="strum-skip">${t('sug.skip')}</button><button class="btn small primary" data-sug="strum-apply">${t('sug.apply')}</button></div></div>`);
-      else if (strumLoading) items.push(`<div class="sug-group"><p class="small muted"><span class="spinner"></span> ${t('sug.strumLoading')}</p></div>`);
+        <div class="sug-actions"><button class="btn small primary" data-sug="strum-apply">${t('sug.apply')}</button></div>` });
     }
     if (!items.length) return '';
-    return `<div class="card sug-card"><div class="sug-head">${t('sug.title')}</div>${items.join('')}</div>`;
+    // Samo jedan predlog odjednom; ✕ ga odbacuje i prikazuje sledeći
+    const it = items[0];
+    return `<div class="card sug-card"><div class="sug-head"><span>${t('sug.title')}${items.length > 1 ? ` <span class="muted">1/${items.length}</span>` : ''}</span>
+      <button class="icon-btn sug-x" data-sug="${it.x}" aria-label="${t('sug.dismiss')}" title="${t('sug.dismiss')}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z"/></svg></button></div>
+      <div class="sug-group">${it.html}</div></div>`;
   }
   const drawSuggest = () => { const el = $('sSuggest'); if (el) el.innerHTML = suggestHTML(); };
 
@@ -889,8 +736,9 @@ export async function renderSong(root, id, nav = null) {
     drawSuggest();
     let res = null;
     const lang = getLang();
-    if (navigator.onLine !== false && (await getApiKey())) {
+    if (navigator.onLine !== false && (await settings.get('geminiKey', ''))) {
       try {
+        const { suggestStrumAI } = await import('./gemini.js'); // Gemini se učitava samo kad ima ključa
         res = await suggestStrumAI(stored, PATTERNS.map((p) => ({ id: p.id, sig: p.sig, steps: p.steps, name: patternName(p) })), lang);
       } catch { res = null; }
     }
@@ -966,11 +814,11 @@ export async function renderSong(root, id, nav = null) {
   }
   draw();
   loadStrumSuggestion();
-  const setT = async (n) => { tp = ((n + 17) % 12 + 12) % 12 - 5; stored.transpose = tp; draw(); await save(); };
+  const setT = async (n) => { tp = ((n + 17) % 12 + 12) % 12 - 5; stored.transpose = tp; drawKeyChange(); await save(); };
   const setCapo = async (n) => {
     capo = Math.max(0, Math.min(7, n));
     if (capo) stored.capo = capo; else delete stored.capo;
-    draw();
+    drawKeyChange();
     await save();
   };
 
@@ -1126,7 +974,7 @@ export async function renderSong(root, id, nav = null) {
     loopBpm = b;
     stored.bpm = b;
     if ($('sBpm')) $('sBpm').textContent = b + ' BPM';
-    if ($('sTempo')) $('sTempo').textContent = b + ' BPM';
+    if ($('sTempo')) $('sTempo').textContent = b;
     if (loopMet) loopMet.bpm = b;
     if (strumMet) strumMet.bpm = b;
     await save();
@@ -1200,9 +1048,6 @@ export async function renderSong(root, id, nav = null) {
     await setCapo(e.capo);
     toast(t('sug.easyText', { n: e.capo, shapes: e.shapes.map((x) => dn(x)).join(', ') }));
   });
-  root.querySelector('.song-view').addEventListener('change', (e) => {
-    if (e.target.id === 'sEasy') setCapo(e.target.checked ? stored.easyCapo : 0);
-  });
   root.querySelector('.song-view').addEventListener('click', (e) => {
     const tp_ = e.target.closest('[data-tabplay]');
     if (tp_) return toggleTab(tp_);
@@ -1218,8 +1063,9 @@ export async function renderSong(root, id, nav = null) {
       const a = sg.dataset.sug;
       stored.skipped = stored.skipped || {};
       if (a === 'easy-apply') { stored.easyCapo = +sg.dataset.capo; return setCapo(stored.easyCapo); }
-      if (a === 'easy-skip') { stored.skipped.easy = true; return save().then(draw); }
-      if (a === 'strum-skip') { stopStrum(); stored.skipped.strum = true; return save().then(draw); }
+      if (a === 'unc-hide') { uncHidden = true; return drawSuggest(); }
+      if (a === 'easy-skip') { stored.skipped.easy = true; return save().then(drawSuggest); }
+      if (a === 'strum-skip') { stopStrum(); stored.skipped.strum = true; return save().then(drawSuggest); }
       if (a === 'strum-apply') {
         stopStrum();
         const p = patternById(stored.suggestStrum && stored.suggestStrum.id);
@@ -1249,18 +1095,25 @@ export async function renderSong(root, id, nav = null) {
     else if (b.id === 'sTempoUp') setBpm(5);
     else if (b.id === 'sTune') { settings.set('tuning', cleanTuning(stored.tuning)).then(() => { location.hash = '#/tuner'; }); }
   });
-  // Uvećanje teksta, akorda i tablatura (80–180 %), pamti se po pesmi
-  const setFont = async (d) => {
-    zoom = Math.min(1.8, Math.max(0.8, +(zoom + d).toFixed(2)));
-    root.querySelector('.lyrics').style.setProperty('--zoom', zoom);
-    $('sFontDown').disabled = zoom <= 0.8;
+  // Veličina teksta (Aa): klizač 80–180 %, pamti se po pesmi; tekst nikad ne prelazi širinu ekrana
+  const setZoom = async (z) => {
+    zoom = Math.min(1.8, Math.max(0.8, Math.round(z * 10) / 10));
+    $('sLyrics').style.setProperty('--zoom', zoom);
     fitAndTabs();
-    toast(t('song.zoomPct', { n: Math.round(zoom * 100) }));
     if (zoom === 1) delete stored.zoom; else stored.zoom = zoom;
     await save();
   };
-  $('sFontUp').addEventListener('click', () => setFont(0.1));
-  $('sFontDown').addEventListener('click', () => setFont(-0.1));
+  const aaPop = $('sAaPop');
+  const closeAa = () => { aaPop.hidden = true; $('sAa').setAttribute('aria-expanded', 'false'); document.removeEventListener('pointerdown', outsideAa, true); };
+  const outsideAa = (e) => { if (!aaPop.contains(e.target) && e.target !== $('sAa')) closeAa(); };
+  $('sAa').addEventListener('click', () => {
+    if (!aaPop.hidden) return closeAa();
+    syncAa();
+    aaPop.hidden = false;
+    $('sAa').setAttribute('aria-expanded', 'true');
+    document.addEventListener('pointerdown', outsideAa, true);
+  });
+  $('sAaRange').addEventListener('input', (e) => setZoom(+e.target.value / 100));
 
   $('sPdf').addEventListener('click', async () => {
     const btn = $('sPdf');
@@ -1291,251 +1144,6 @@ export async function renderSong(root, id, nav = null) {
     }
   });
   $('sShare').addEventListener('click', () => shareSong(stored).catch(() => toast(t('share.failed'), 'error')));
-}
-
-// ---------------- Uređivanje ("Proveri i ispravi") ----------------
-export async function renderEditor(root, id) {
-  let song;
-  let isNew = false;
-  let base = null; // postojeća pesma kod „Skeniraj ponovo“
-  if (id === 'sken' || id === 'novo') {
-    if (!draft) { location.hash = '#/pesme'; return; }
-    song = draft;
-    isNew = true;
-    if (draft.__rescanOf) {
-      base = await db.get(draft.__rescanOf);
-      if (base) {
-        song = { ...draft };
-        // naslov/izvođač/tonalitet sa slike, osim ako ih skeniranje nije pročitalo
-        if (!song.title || song.title === t('common.untitled')) song.title = base.title;
-        if (!song.artist) song.artist = base.artist;
-        if (!song.key) song.key = base.key;
-      }
-    }
-  } else {
-    song = await db.get(id);
-    if (!song) { location.hash = '#/pesme'; return; }
-  }
-  const scanned = id === 'sken';
-  // Akordi u editoru su u izabranom imenovanju (H/Fis… ili B/F#…); nova skeniranja se prvo pročitaju
-  const viewSong = needsUpgrade(song) ? upgradeSong(song) : song;
-  const shown = { ...song, key: viewSong.key ? dn(viewSong.key) : song.key || '', sections: viewSong.sections.map((sec) => ({ ...sec, lines: sec.lines.map((l) => ({ ...l, chords: (l.chords || []).map((c) => ({ ...c, chord: dn(c.chord) })) })) })) };
-  const canRestore = !isNew && song.original && differsFromOriginal(song);
-  root.innerHTML = `
-  <section class="view editor-view">
-    <header class="topbar">
-      <button class="back" id="eCancel">${t('edit.cancel')}</button>
-      <div class="topbar-actions">${!isNew ? `<button class="btn small" id="eRescan">${t('rescan.btn')}</button>` : ''}<button class="btn primary" id="eSave">${t('common.save')}</button></div>
-    </header>
-    <h1>${scanned ? t('edit.titleScanned') : isNew ? t('edit.titleNew') : t('edit.titleEdit')}</h1>
-    ${base ? `<p class="rescan-note small">${esc(t('rescan.note', { title: base.title }))}</p>` : ''}
-    ${canRestore ? `<div class="restore-row"><button class="btn small" id="eRestore">${t('orig.restore')}</button><span class="small muted">${t('orig.restoreHint')}</span></div>` : ''}
-    ${scanned ? `<p class="muted">${t('edit.scannedHint')}</p>${song.scanModel ? `<p class="scan-model small muted">${esc(t('edit.scanModel', { model: song.scanModel }))}</p>` : ''}` : ''}
-    ${draftImage && scanned ? `<details class="card photo-ref"><summary>${t('edit.showPhoto')}</summary>${[].concat(draftImage).map((src, i) => `<img src="${src}" alt="${esc(t('scan.page', { n: i + 1 }))}">`).join('')}</details>` : ''}
-    <div class="form">
-      <label>${t('edit.fTitle')}<input id="eTitle" value="${esc(song.title)}" placeholder="${t('edit.fTitlePh')}" autocomplete="off"></label>
-      <div class="row">
-        <label class="grow">${t('edit.fArtist')}<input id="eArtist" value="${esc(song.artist)}" placeholder="${t('edit.fArtist')}" autocomplete="off"></label>
-        <label class="key-input">${t('edit.fKey')}<input id="eKey" value="${esc(shown.key)}" placeholder="${t('edit.fKeyPh')}" autocomplete="off"></label>
-      </div>
-      <label>${t('tuning.label')}<select id="eTuning">${TUNING_IDS.map((id) => `<option value="${id}" ${cleanTuning(song.tuning) === id ? 'selected' : ''}>${esc(t('tuning.' + id))} · ${esc(tuningNotes(id))}</option>`).join('')}</select></label>
-    </div>
-    <div class="seg-tabs" role="tablist">
-      <button role="tab" class="active" data-tab="edit">${t('edit.tabEdit')}</button>
-      <button role="tab" data-tab="preview">${t('edit.tabPreview')}</button>
-    </div>
-    <div id="eSuggest"></div>
-    <div id="eEditPane">
-      <textarea id="eText" class="mono-editor" spellcheck="false" autocapitalize="off" autocomplete="off" wrap="off" aria-label="${t('edit.textLabel')}"></textarea>
-      <div id="eWarn" class="warn small"></div>
-      <div class="edit-tools"><button class="btn small" id="eAddTab" type="button">${t('tab.add')}</button></div>
-      <details class="help small">
-        <summary>${t('edit.howTo')}</summary>
-        <p>${t('edit.howToBody')}</p>
-        <pre>${esc(t('edit.example'))}</pre>
-      </details>
-    </div>
-    <div id ="ePreviewPane" class="lyrics" hidden></div>
-  </section>`;
-  const $ = (q) => root.querySelector('#' + q);
-  const shownText = sectionsToText(shown.sections);
-  $('eText').value = shownText;
-  autoGrow($('eText'));
-
-  const validate = () => {
-    const secs = textToSections($('eText').value);
-    const unknown = new Set();
-    // Reči koje liče na akorde u redu sa akordima, a nisu prepoznate
-    for (const line of $('eText').value.split('\n')) {
-      const toks = line.trim().split(/\s+/).filter(Boolean);
-      const chordish = toks.filter((t) => /^[A-H]/.test(t));
-      const ok = (x) => !!readChord(x.replace(/^\(|\)$/g, ''), currentNaming());
-      if (toks.length && chordish.length === toks.length && toks.some(ok)) {
-        toks.filter((x) => !ok(x)).forEach((x) => unknown.add(x));
-      }
-    }
-    $('eWarn').textContent = unknown.size ? t('edit.unknownChords', { list: [...unknown].join(', ') }) : '';
-    return secs;
-  };
-  // Predlozi posle skeniranja: mesta koja Gemini nije pouzdano pročitao
-  let pendingUnc = isNew ? [...(song.uncertain || [])] : [];
-  const drawEditSuggest = () => {
-    const list = cleanUncertain(pendingUnc, validate());
-    pendingUnc = list;
-    $('eSuggest').innerHTML = list.length ? `<div class="card sug-card"><div class="sug-head">${t('sug.title')}</div>
-      <div class="sug-group"><div class="sug-title">${t('sug.unsureTitleN', { n: list.length })}</div><p class="small muted">${t('sug.unsureHintEdit')}</p>
-      ${list.map((x, i) => `<div class="sug-item"><span class="sug-what"><span class="unsure-sample">${esc(x.text)}</span> → <b>${esc(x.suggestion)}</b></span>
-        <button class="btn small" data-eu-skip="${i}">${t('sug.keep')}</button><button class="btn small primary" data-eu-apply="${i}">${esc(t('sug.changeTo', { x: x.suggestion }))}</button></div>`).join('')}</div></div>` : '';
-  };
-  $('eSuggest').addEventListener('click', (e) => {
-    const a = e.target.closest('[data-eu-apply]'), k = e.target.closest('[data-eu-skip]');
-    if (!a && !k) return;
-    const i = +(a ? a.dataset.euApply : k.dataset.euSkip);
-    const u = pendingUnc[i];
-    if (a && u) {
-      const secs = validate();
-      if (applyUncertain({ sections: secs }, u)) { $('eText').value = sectionsToText(secs); autoGrow($('eText')); }
-    }
-    pendingUnc.splice(i, 1);
-    drawEditSuggest();
-  });
-  drawEditSuggest();
-
-  // „Dodaj tablaturu“: izaberi deo pesme, pa upiši ASCII tablaturu ili je skeniraj sa slike
-  const TAB_TEMPLATE = ['e|----------------|----------------|', 'B|----------------|----------------|', 'G|----------------|----------------|',
-    'D|----------------|----------------|', 'A|----------------|----------------|', 'E|----------------|----------------|'];
-  /** Ubaci redove odmah ispod zaglavlja izabranog dela (ili na kraj kao novi deo). */
-  const insertIntoSection = (target, linesToAdd) => {
-    const ta = $('eText');
-    const rows = ta.value.split('\n');
-    let at;
-    if (target === '__new') {
-      rows.push('', `[${t('tab.newSection')}]`);
-      at = rows.length;
-    } else {
-      const names = textToSections(ta.value).map((x) => x.name);
-      const name = names[+target];
-      const hi = name ? rows.findIndex((r) => r.trim() === `[${name}]`) : -1;
-      at = hi >= 0 ? hi + 1 : 0;
-    }
-    rows.splice(at, 0, ...linesToAdd, '');
-    ta.value = rows.join('\n');
-    autoGrow(ta);
-    validate();
-    // označi prvi takt da korisnik odmah kuca brojeve pragova
-    const before = rows.slice(0, at).join('\n').length + (at ? 1 : 0);
-    ta.focus();
-    ta.setSelectionRange(before + 2, before + 2 + 16);
-  };
-  $('eAddTab').addEventListener('click', async () => {
-    const names = textToSections($('eText').value).map((x, i) => ({ v: String(i), label: x.name || t('strum.section', { n: i + 1 }) }));
-    const p = dialog({
-      title: t('tab.addTitle'),
-      html: true,
-      body: `<label class="small">${t('tab.forSection')}
-        <select id="tabTarget">${names.map((n) => `<option value="${n.v}">${esc(n.label)}</option>`).join('')}<option value="__new">${esc(t('tab.newSectionOpt'))}</option></select></label>
-        <p class="small muted">${t('tab.addHint')}</p>`,
-      buttons: [{ label: t('common.cancel'), value: null }, { label: t('tab.scanIt'), value: 'scan' }, { label: t('tab.typeIt'), value: 'type', kind: 'primary' }],
-    });
-    const modal = [...document.querySelectorAll('.modal-backdrop')].pop();
-    let target = names.length ? '0' : '__new';
-    modal.querySelector('#tabTarget').value = target;
-    modal.querySelector('#tabTarget').addEventListener('change', (e) => (target = e.target.value));
-    const mode = await p;
-    if (mode === 'type') { insertIntoSection(target, TAB_TEMPLATE); toast(t('tab.typeHint')); }
-    else if (mode === 'scan') {
-      const files = await pickFiles('image/*');
-      if (!files.length) return;
-      const res = await scanTabsFromImages(files);
-      if (!res || !res.length) return;
-      insertIntoSection(target, res.flatMap((tab, i) => [...(i ? [''] : []), ...(tab.sig !== '4/4' ? [tab.sig] : []), ...tabToAscii(tab)]));
-      toast(t('tab.scanned', { n: res.length }));
-    }
-  });
-  $('eRescan')?.addEventListener('click', async () => {
-    const how = await dialog({
-      title: t('rescan.btn'),
-      body: t('rescan.body'),
-      buttons: [{ label: t('scan.gallery'), value: 'gallery' }, { label: t('scan.camera'), value: 'camera', kind: 'primary' }],
-    });
-    if (!how) return;
-    if (!(await getApiKey())) { toast(t('scan.needKeyTitle'), 'error'); return; }
-    const files = await pickFiles('image/*', how === 'camera' ? 'environment' : null);
-    if (!files.length) return;
-    const pages = await collectPages(files);
-    if (pages) await runScan(pages, null, { rescanOf: id });
-  });
-  $('eText').addEventListener('input', () => { autoGrow($('eText')); validate(); });
-  validate();
-
-  root.querySelectorAll('.seg-tabs button').forEach((b) => b.addEventListener('click', () => {
-    root.querySelectorAll('.seg-tabs button').forEach((x) => x.classList.toggle('active', x === b));
-    const preview = b.dataset.tab === 'preview';
-    $('eEditPane').hidden = preview;
-    $('ePreviewPane').hidden = !preview;
-    if (preview) { const secs = validate(); $('ePreviewPane').innerHTML = renderSectionsHTML(secs, cleanUncertain(pendingUnc, secs)) || `<p class="muted">${t('edit.noText')}</p>`; layoutTabs($('ePreviewPane')); }
-  }));
-
-  const dirty = () => $('eText').value !== shownText || $('eTitle').value !== (song.title || '');
-  $('eCancel').addEventListener('click', async () => {
-    if (dirty() || scanned) {
-      const ok = await confirmDialog(t('edit.discardTitle'), scanned ? t('edit.discardScanned') : t('edit.discardBody'), t('edit.discard'), 'danger');
-      if (!ok) return;
-    }
-    draft = null; draftImage = null;
-    if (base) { location.replace(`#/pesma/${encodeURIComponent(base.id)}`); return; }
-    history.length > 1 ? history.back() : (location.hash = isNew ? '#/pesme' : `#/pesma/${encodeURIComponent(id)}`);
-  });
-  $('eRestore')?.addEventListener('click', async () => {
-    if (!(await confirmDialog(t('orig.confirmTitle'), t('orig.confirmBody', { title: song.original.title || song.title }), t('orig.restore'), 'danger'))) return;
-    const restored = restoreOriginal(song);
-    await db.put({ ...restored, updatedAt: Date.now() });
-    draft = null; draftImage = null;
-    toast(t('orig.restored'));
-    location.replace(`#/pesma/${encodeURIComponent(song.id)}`);
-  });
-  $('eSave').addEventListener('click', async () => {
-    const sections = validate();
-    if (!sections.length) { toast(t('edit.empty'), 'error'); return; }
-    const title = $('eTitle').value.trim() || t('common.untitled');
-    // Zadrži ritam po delovima (po nazivu dela) i ostala podešavanja pesme.
-    const oldSecs = song.sections || [];
-    sections.forEach((sec, i) => {
-      const old = oldSecs.find((o) => o.name === sec.name && o.strum) || (oldSecs[i] && oldSecs[i].name === sec.name ? oldSecs[i] : null);
-      if (old && old.strum) sec.strum = old.strum;
-    });
-    const keyText = $('eKey').value.trim();
-    let rec0 = {
-      // ponovo skenirana pesma zadržava sve svoje (kapodaster, ritam, YouTube, folderi, setliste — isti id)
-      ...(base ? base : isNew ? songExtras(song) : song),
-      title,
-      artist: $('eArtist').value.trim(),
-      tuning: $('eTuning').value === 'standard' ? undefined : $('eTuning').value,
-      ...(isNew ? { uncertain: cleanUncertain(pendingUnc, sections) } : {}),
-    };
-    // Novo skeniranje (i „Skeniraj ponovo“) = novi original, tačno kako je pročitan
-    if (isNew) rec0.original = song.__original || undefined;
-    if ($('eText').value === shownText && keyText === shown.key) {
-      // Tekst i akordi nisu menjani: zadrži pročitane akorde (i eventualno otvoreno pitanje o B/H ili tonalitetu)
-      const keep = ['sections', 'key', 'keyN', 'keyAlt', 'keyAsk', 'naming', 'namingAsk', 'cv'];
-      for (const k of keep) rec0[k] = viewSong[k];
-      rec0.sections = viewSong.sections.map((sec, i) => ({ ...sec, ...(sections[i] && sections[i].strum ? { strum: sections[i].strum } : {}) }));
-      if (!rec0.original) rec0.original = viewSong.original;
-    } else {
-      // Akordi su upisani u izabranom imenovanju → nov neutralni sloj (original ostaje kakav je bio)
-      rec0 = upgradeSong({ ...rec0, sections, key: keyText, cv: 0, keyN: undefined, keyAlt: undefined, namingAsk: false, keyAsk: false }, { naming: currentNaming(), keyText });
-    }
-    delete rec0.__original; delete rec0.__rescanOf;
-    const rec = await db.save(rec0);
-    draft = null; draftImage = null;
-    toast(t('edit.saved'));
-    location.replace(`#/pesma/${encodeURIComponent(rec.id)}`);
-  });
-}
-
-function autoGrow(el) {
-  el.style.height = 'auto';
-  el.style.height = Math.max(240, el.scrollHeight + 4) + 'px';
 }
 
 // Za podešavanja: izvoz/uvoz svih pesama

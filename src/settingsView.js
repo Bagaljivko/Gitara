@@ -138,6 +138,30 @@ export async function renderSettings(root) {
 
   const $ = (id) => root.querySelector('#' + id);
 
+  // Svaka celina podešavanja se otvara/zatvara dodirom na naslov; pamti se šta je otvoreno
+  const openSet = (() => { try { return new Set(JSON.parse(localStorage.getItem('gitara-set-open') || '["lang"]')); } catch { return new Set(['lang']); } })();
+  const saveOpen = () => { try { localStorage.setItem('gitara-set-open', JSON.stringify([...openSet])); } catch {} };
+  const groups = [['lang', 0], ['scan', 1], ['tuner', 2], ['screen', 3], ['drive', 4], ['file', 5], ['install', 6]];
+  const cards = [...root.querySelectorAll('.settings-view > .card')];
+  groups.forEach(([key, idx]) => {
+    const card = cards[idx];
+    if (!card) return;
+    const det = document.createElement('details');
+    det.className = 'card set-group' + (card.id === 'installCard' ? ' install-group' : '');
+    det.dataset.g = key;
+    if (card.hidden) det.hidden = true;
+    det.open = openSet.has(key);
+    const sum = document.createElement('summary');
+    const h2 = card.querySelector(':scope > h2');
+    sum.innerHTML = `<h2>${h2 ? h2.innerHTML : t('drive.title')}</h2>`;
+    if (h2) h2.remove();
+    card.replaceWith(det);
+    det.appendChild(sum);
+    if (key === 'drive') { card.classList.remove('card'); det.appendChild(card); } // Drive karta se sama ponovo iscrtava
+    else { const body = document.createElement('div'); body.className = 'set-body'; while (card.firstChild) body.appendChild(card.firstChild); det.appendChild(body); for (const a of card.attributes) if (a.name !== 'class' && a.name !== 'hidden') body.setAttribute(a.name, a.value); }
+    det.addEventListener('toggle', () => { if (det.open) openSet.add(key); else openSet.delete(key); saveOpen(); });
+  });
+
   // ---- Podeli aplikaciju: QR kod koji drugi telefon skenira kamerom ----
   $('bShareApp').addEventListener('click', async () => {
     const url = appUrl();

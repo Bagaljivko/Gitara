@@ -10,7 +10,20 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
  * @param {string} name ime akorda (prikazuje se kako je napisano)
  * @param {object} opts { voicing: index, size: 'sm'|'lg', showName }
  */
-export function chordSVG(name, { voicing = 0, showName = true, showFingers = true } = {}) {
+// Već nacrtani dijagrami (isti akord se ne crta ponovo pri svakom osvežavanju ekrana)
+const cache = new Map();
+export function chordSVG(name, opts = {}) {
+  const k = [name, opts.voicing || 0, opts.showName !== false, opts.showFingers !== false, dn(name), t('diagram.chord', { name: '' })].join('|');
+  let svg = cache.get(k);
+  if (svg === undefined) {
+    svg = drawChordSVG(name, opts);
+    if (cache.size > 400) cache.clear();
+    cache.set(k, svg);
+  }
+  return svg;
+}
+
+function drawChordSVG(name, { voicing = 0, showName = true, showFingers = true } = {}) {
   const list = getVoicings(name);
   const v = list[voicing % Math.max(list.length, 1)];
   const W = 100, H = 124;
