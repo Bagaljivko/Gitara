@@ -65,10 +65,22 @@ test('chord check: lowercase lines and chords saved as lyrics are found, nothing
   assert.equal(lowercaseChordLine('e     a     D'), true);
   assert.equal(lowercaseChordLine('a ja tebe volim'), false);
   assert.equal(lowercaseChordLine('a'), false);
-  const a = analyzeSong({ sections: textToSections('A           Fism\nKad se setim tvojih reči,\ne       a\nnešto drugo\nG     D\nla la la') });
+  // Pesma sačuvana starom verzijom: red „A  Fism“ je tada ostao tekst
+  const old = { sections: [{ name: '', lines: [
+    { text: 'A           Fism', chords: [] }, { text: 'Kad se setim tvojih reči,', chords: [] },
+    { text: 'e       a', chords: [] }, { text: 'nešto drugo', chords: [] },
+    { text: 'la la la', chords: [{ chord: 'G', position: 0 }, { chord: 'D', position: 6 }] },
+  ] }] };
+  const a = analyzeSong(old);
   assert.equal(a.flags.lifted, 1);
   assert.equal(a.flags.lower, 1);
   assert.equal(a.sections[0].lines[0].chords[1].chord, 'Fism');
   const plain = analyzeSong({ sections: textToSections('G      D\nla la\nC      G\nla la') });
   assert.equal(plain.flags.any, false);
+});
+
+test('typed text with Serbian names is now read as chords directly', () => {
+  const secs = textToSections('A           Fism\nKad se setim tvojih reči,\nHm   Cis7\nla la');
+  assert.deepEqual(secs[0].lines[0].chords.map((c) => c.chord), ['A', 'Fism']);
+  assert.deepEqual(secs[0].lines[1].chords.map((c) => c.chord), ['Hm', 'Cis7']);
 });

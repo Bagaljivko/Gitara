@@ -21,6 +21,7 @@ function loadJsPDF() {
   return jspdfPromise;
 }
 import { getVoicings } from './chords.js';
+import { dn } from './naming.js';
 import { songChords } from './songformat.js';
 import { tabToAscii } from './tabs.js';
 
@@ -58,7 +59,7 @@ export function wrapPair(chords, text, max) {
   let t = text || '';
   let guard = 0;
   while (guard++ < 50) {
-    const chordEnd = cs.reduce((m, c) => Math.max(m, c.position + c.chord.length), 0);
+    const chordEnd = cs.reduce((m, c) => Math.max(m, c.position + dn(c.chord).length), 0);
     if (t.length <= max && chordEnd <= max) { out.push([cs, t]); break; }
     let cut = t.length > max ? t.lastIndexOf(' ', max) : max;
     if (cut <= 0) cut = Math.min(max, Math.max(t.length, 1));
@@ -79,7 +80,7 @@ function chordLineString(chords) {
   for (const c of chords) {
     let pos = c.position;
     if (s.length && pos < s.length + 1) pos = s.length + 1;
-    s = s.padEnd(pos, ' ') + c.chord;
+    s = s.padEnd(pos, ' ') + dn(c.chord);
   }
   return s;
 }
@@ -90,7 +91,7 @@ function drawDiagram(doc, x, y, name, accent) {
   doc.setFont('Mono', 'bold');
   doc.setFontSize(10);
   doc.setTextColor(20);
-  doc.text(name, x + w / 2, y, { align: 'center' });
+  doc.text(dn(name), x + w / 2, y, { align: 'center' });
   const top = y + 5;
   doc.setDrawColor(60);
   if (!v) {
@@ -145,7 +146,7 @@ export async function songToPdf(song, { transposeLabel = '', capoLabel = '' } = 
   doc.setFont('Mono', 'normal');
   doc.setFontSize(11);
   doc.setTextColor(90);
-  const meta = [song.artist, song.key ? t('pdf.key', { key: song.key }) : '', transposeLabel, capoLabel].filter(Boolean).join('  ·  ');
+  const meta = [song.artist, song.key ? t('pdf.key', { key: dn(song.key) }) : '', transposeLabel, capoLabel].filter(Boolean).join('  ·  ');
   if (meta) { doc.text(meta, M, y); y += 6; }
   if (song.strum) {
     // Ritam (strumming): strelice i brojanje doba

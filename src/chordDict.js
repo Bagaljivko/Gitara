@@ -5,6 +5,7 @@ import { getVoicings } from './chords.js';
 import { QUALITIES, parseChord, pcName } from './music.js';
 import { pluck, audioCtx } from './synth.js';
 import { esc } from './ui.js';
+import { dn } from './naming.js';
 
 const ROOTS = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
 const QUALS = ['', 'm', '7', 'm7', 'maj7', 'sus2', 'sus4', 'add9', '6', 'm6', '9', 'dim', 'aug'];
@@ -36,7 +37,7 @@ export function createChordDict(root) {
   root.innerHTML = `
     <p class="muted">${t('dict.intro')}</p>
     <div class="dict-roots" role="radiogroup" aria-label="${t('dict.root')}">
-      ${ROOTS.map((r) => `<button role="radio" class="chip" data-r="${r}">${esc(r)}</button>`).join('')}
+      ${ROOTS.map((r) => `<button role="radio" class="chip" data-r="${r}">${esc(dn(r))}</button>`).join('')}
     </div>
     <div class="dict-quals chips" role="radiogroup" aria-label="${t('dict.quality')}">
       ${QUALS.map((q) => `<button role="radio" class="chip" data-q="${q}">${esc(q === '' ? t('q.') : q === 'm' ? t('q.m') : q)}</button>`).join('')}
@@ -60,9 +61,9 @@ export function createChordDict(root) {
     const v = list[voicing % Math.max(n, 1)];
     root.querySelectorAll('[data-r]').forEach((b) => { const on = b.dataset.r === rootName; b.classList.toggle('active', on); b.setAttribute('aria-checked', on); });
     root.querySelectorAll('[data-q]').forEach((b) => { const on = b.dataset.q === qual; b.classList.toggle('active', on); b.setAttribute('aria-checked', on); });
-    $('dName').textContent = name;
+    $('dName').textContent = dn(name);
     const p = parseChord(name);
-    const notes = p ? QUALITIES[qual].intervals.map((iv) => pcName((p.root + iv) % 12, { flat: /b/.test(rootName) || ['Eb', 'Ab', 'Bb'].includes(rootName) })) : [];
+    const notes = p ? QUALITIES[qual].intervals.map((iv) => dn(pcName((p.root + iv) % 12, { flat: /b/.test(rootName) || ['Eb', 'Ab', 'Bb'].includes(rootName) }))) : [];
     $('dSub').textContent = `${t('q.' + qual)} · ${t('dict.notes')}: ${notes.join(' – ')}${v && v.approx ? ' · ' + t('dict.approx') : ''}`;
     $('dDiagram').innerHTML = chordSVG(name, { voicing, showName: false });
     $('dNext').hidden = n < 2;

@@ -102,7 +102,8 @@ function altHTML(a) {
 
 export async function renderChordCheck(root) {
   const songs = (await db.all()).sort((x, y) => String(x.title).localeCompare(String(y.title), 'sr'));
-  const results = songs.map((s) => ({ song: s, a: analyzeSong(s) }));
+  // Pregled se radi nad ORIGINALOM (kako je napisano), ne nad već prebačenim akordima
+  const results = songs.map((s) => ({ song: s, a: analyzeSong(s.original ? { ...s, ...s.original } : s) }));
   const flagged = results.filter((r) => r.a.flags.any);
   let showAll = !flagged.length;
   root.innerHTML = `

@@ -3,7 +3,11 @@ import { t } from './i18n.js';
 import { cleanPattern } from './rhythm.js';
 import { cleanTuning } from './tunings.js';
 import { isTabLine, parseAsciiTab, tabToAscii, cleanTab, noteAt } from './tabs.js';
-import { isChord, transposeChord, transposeKey, parseChord, parseKey, prefersFlats } from './music.js';
+import { isChord as isEnglishChord, transposeChord, transposeKey, parseChord, parseKey, prefersFlats } from './music.js';
+import { readChord, renderChord, keyName } from './chordnames.js';
+
+// Akord u bilo kom imenovanju (G, Hm, Fism, Es, Bb, D/Fis…) — značenje „B“ određuje se kasnije, za celu pesmu
+const isChord = (tok) => !!readChord(tok, 'sr') || isEnglishChord(tok);
 
 const EXTRA_TOKENS = /^(\||\|\||%|-|–|\/|x\d+|\(x\d+\)|\d+x|\(\d+x\)|\.\.\.?|N\.?C\.?)$/i;
 
@@ -148,8 +152,32 @@ function compressRepeats(seq) {
 
 export function transposeSong(song, n) {
   if (!n) return song;
+  const hasN = (song.sections || []).some((s) => s.lines.some((l) => (l.chords || []).some((c) => c.n)));
+  if (hasN || song.keyN) {
+    // Neutralni akordi: pomeri koren i bas, a povisilice/snizilice odredi prema NOVOM tonalitetu i ulozi akorda
+    const key = song.keyN ? { root: (song.keyN.root + n + 120) % 12, minor: song.keyN.minor } : null;
+    const shiftTab = (tab) => ({ ...tab, bars: tab.bars.map((b) => ({ ...b, notes: b.notes.map((x) => {
+      if (!/^\d+$/.test(String(x.f))) return x; // npr. „x“ (prigušeno) ostaje
+      let f = Number(x.f) + n;
+      while (f < 0) f += 12;
+      while (f > 24) f -= 12;
+      return { ...x, f: typeof x.f === 'number' ? f : String(f) };
+    }) })) });
+    return {
+      ...song,
+      keyN: key || song.keyN,
+      key: key ? keyName(key, 'en') : song.key,
+      sections: (song.sections || []).map((s) => ({
+        ...s,
+        ...(s.tabs ? { tabs: s.tabs.map(shiftTab) } : {}),
+        lines: s.lines.map((l) => ({ ...l, chords: (l.chords || []).map((c) => (c.n && c.n.t === undefined
+          ? { ...c, chord: renderChord(c.n, 'en', key, n), n: { ...c.n, r: (c.n.r + n + 120) % 12, b: c.n.b === null || c.n.b === undefined ? null : (c.n.b + n + 120) % 12 } }
+          : c)) })),
+      })),
+    };
+  }
   const useH = songUsesH(song);
-  // Snizilice ili povisilice biramo prema novom tonalitetu (ili prvom akordu ako tonalitet nije zadat).
+  // Stari zapis (bez neutralnih akorda): snizilice ili povisilice prema novom tonalitetu (ili prvom akordu).
   const first = songChords(song)[0];
   const k = parseKey(song.key) || (first && parseKey(first.replace(/\/.*/, '').replace(/^([A-H][#b]?m?).*$/, '$1')));
   const flat = k ? prefersFlats((k.root + n + 120) % 12, k.minor) : undefined;
@@ -260,6 +288,19 @@ function cleanYt(raw) {
  */
 export function songMeta(raw) {
   const out = {};
+  // Nov zapis akorda (neutralni sloj) i original — čuvaju se u rezervnoj kopiji
+  if (Number(raw.cv) >= 2) out.cv = Number(raw.cv);
+  if (raw.naming === 'sr' || raw.naming === 'en') out.naming = raw.naming;
+  if (raw.keyN && Number.isInteger(raw.keyN.root) && raw.keyN.root >= 0 && raw.keyN.root < 12) out.keyN = { root: raw.keyN.root, minor: !!raw.keyN.minor };
+  if (raw.keyAsk) out.keyAsk = true;
+  if (raw.namingAsk) out.namingAsk = true;
+  if (Array.isArray(raw.keyAlt)) out.keyAlt = raw.keyAlt.filter((k) => k && Number.isInteger(k.root) && k.root >= 0 && k.root < 12).slice(0, 2).map((k) => ({ root: k.root, minor: !!k.minor }));
+  if (raw.original && typeof raw.original === 'object') {
+    try {
+      const o = normalizeSong({ ...raw.original, transpose: 0 });
+      out.original = { title: o.title, artist: o.artist, key: o.key, sections: o.sections, ...(o.strum ? { strum: o.strum } : {}) };
+    } catch {}
+  }
   const unc = cleanUncertain(raw.uncertain, raw.sections);
   if (unc.length) out.uncertain = unc;
   const z = Number(raw.zoom);
@@ -299,7 +340,7 @@ export function cleanUncertain(raw, sections) {
     const text = String(u.text || '').trim().slice(0, 40);
     const suggestion = String(u.suggestion || '').trim().slice(0, 40);
     if (!text || !suggestion || text === suggestion) continue;
-    if (kind === 'chord' && !(line.chords || []).some((c) => c.chord === text)) continue;
+    if (kind === 'chord' && !(line.chords || []).some((c) => c.chord === text || c.w === text)) continue; // w = kako je napisano na papiru
     if (kind === 'word' && !(line.text || '').includes(text)) continue;
     const position = Math.max(0, Math.round(Number(u.position) || 0));
     out.push({ section: si, line: li, kind, text, suggestion, position });

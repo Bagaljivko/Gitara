@@ -21,6 +21,7 @@ function pack(song) {
   if (ex.tuning) o.u = ex.tuning;
   if (ex.bpm) o.b = ex.bpm;
   if (song.transpose) o.tr = song.transpose;
+  if (song.cv >= 2) { o.cv = song.cv; if (song.keyN) o.kn = [song.keyN.root, song.keyN.minor ? 1 : 0]; } // akordi su u nedvosmislenom engleskom zapisu
   return o;
 }
 
@@ -53,7 +54,10 @@ export function songFromHash(hash = location.hash) {
   if (!json) throw new SongFormatError(t('link.bad'));
   let o;
   try { o = JSON.parse(json); } catch { throw new SongFormatError(t('link.bad')); }
-  return unpack(o);
+  const song = unpack(o);
+  // Novi linkovi: akordi su već nedvosmisleni (B = H, Bb = B); primalac ih prikazuje u svom imenovanju
+  if (o.cv >= 2) { song.cv = o.cv; if (Array.isArray(o.kn)) song.keyN = { root: Number(o.kn[0]) % 12, minor: !!o.kn[1] }; }
+  return song;
 }
 
 // Za testove

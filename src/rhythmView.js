@@ -5,8 +5,9 @@ import { Metronome, PATTERNS, SIGNATURES, patternHTML, patternName, makeTapTempo
 import { settings } from './db.js';
 import { t } from './i18n.js';
 import { esc } from './ui.js';
-import { isChord } from './music.js';
 import { keepAwake, allowSleep } from './wakelock.js';
+import { dn, currentNaming } from './naming.js';
+import { readChord, renderChord } from './chordnames.js';
 
 export const PROGRESSIONS = [
   { id: 'em', chords: ['Em'] },
@@ -23,8 +24,10 @@ const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v === 
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
 
 /** „G C D“ / „G-C-D“ / „G, C, D“ → ['G','C','D'] (samo ispravni akordi, najviše 16). */
-export function parseProgression(text) {
-  return String(text || '').split(/[\s,;|–—-]+/).map((x) => x.trim()).filter((x) => x && isChord(x)).slice(0, 16);
+export function parseProgression(text, naming = currentNaming()) {
+  // Akordi upisani u izabranom imenovanju (npr. „G Em H7“ ili „G Em B7“) → nedvosmislen engleski zapis
+  return String(text || '').split(/[\s,;|–—-]+/).map((x) => x.trim()).filter(Boolean)
+    .map((x) => readChord(x, naming)).filter(Boolean).map((c) => renderChord(c, 'en')).slice(0, 16);
 }
 
 export function createRhythmPane(el) {
@@ -75,7 +78,7 @@ export function createRhythmPane(el) {
       <div id="mChordsBox">
         <label class="rh-field">${t('rh.chords')}
           <select id="mProg">
-            ${PROGRESSIONS.map((p) => `<option value="${p.id}">${esc(p.chords.join(' – '))}</option>`).join('')}
+            ${PROGRESSIONS.map((p) => `<option value="${p.id}">${esc(p.chords.map((c) => dn(c)).join(' – '))}</option>`).join('')}
             <option value="custom">${t('rh.customProg')}</option>
           </select>
         </label>
@@ -130,8 +133,8 @@ export function createRhythmPane(el) {
     $('mBig').innerHTML = p ? patternHTML(p).replace('class="pattern"', 'class="pattern big"')
       : `<div class="pulse big">${Array.from({ length: sp.beats }, (_, i) => `<i class="${sp.accents.includes(i) ? 'acc' : ''}"><span>${i + 1}</span></i>`).join('')}</div>`;
     const ch = chords();
-    $('mChordNow').textContent = ch[0] || '';
-    $('mChordNext').textContent = ch.length > 1 ? t('rh.next', { c: ch[1] }) : '';
+    $('mChordNow').textContent = dn(ch[0] || '');
+    $('mChordNext').textContent = ch.length > 1 ? t('rh.next', { c: dn(ch[1]) }) : '';
     $('mCustom').hidden = progId !== 'custom';
   }
   $('mPattern').value = patId;
@@ -173,8 +176,8 @@ export function createRhythmPane(el) {
     } else if (p) {
       const ch = chords();
       $('mChordNow').classList.remove('count');
-      $('mChordNow').textContent = info.chord || '';
-      $('mChordNext').textContent = ch.length > 1 ? t('rh.next', { c: ch[(info.bar + 1) % ch.length] }) : '';
+      $('mChordNow').textContent = dn(info.chord || '');
+      $('mChordNext').textContent = ch.length > 1 ? t('rh.next', { c: dn(ch[(info.bar + 1) % ch.length]) }) : '';
     }
     if (p) el.querySelectorAll('#mBig .pstep').forEach((s) => s.classList.toggle('now', !info.countIn && +s.dataset.i === i));
     if (beat !== null) el.querySelectorAll('#mBig .pulse i').forEach((d, k) => d.classList.toggle('on', k === beat));

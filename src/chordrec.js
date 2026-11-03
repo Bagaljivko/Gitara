@@ -4,6 +4,7 @@ import { openMic, closeMic, MicError } from './audio.js';
 import { QUALITIES, pcName } from './music.js';
 import { chordSVG } from './diagram.js';
 import { esc } from './ui.js';
+import { dn } from './naming.js';
 import { keepAwake, allowSleep, setWakeZone } from './wakelock.js';
 import { createRhythmPane } from './rhythmView.js';
 import { createChordDict } from './chordDict.js';
@@ -140,7 +141,7 @@ export function createChordRec(root) {
       <div class="cr-alt" id="crAlt"></div>
     </div>
     <div class="chroma" id="crChroma" aria-hidden="true">
-      ${Array.from({ length: 12 }, (_, i) => `<div class="chroma-col"><div class="chroma-bar"></div><span>${pcName(i)}</span></div>`).join('')}
+      ${Array.from({ length: 12 }, (_, i) => `<div class="chroma-col"><div class="chroma-bar"></div><span>${dn(pcName(i))}</span></div>`).join('')}
     </div>
     <button class="btn primary big wide" id="crBtn">${t('chords.listen')}</button>
     <p class="err" id="crErr" hidden></p>
@@ -209,11 +210,11 @@ export function createChordRec(root) {
       shownName = name;
       const conf = Math.round(Math.min(1, Math.max(0, (best.score - 0.7) / 0.3)) * 100);
       $('crResult').dataset.state = 'found';
-      $('crName').textContent = name;
+      $('crName').textContent = dn(name);
       $('crSub').textContent = t('chords.confidence', { quality: t('q.' + best.quality), pct: conf });
       $('crDiagram').innerHTML = chordSVG(name, { showName: false });
       const alts = res.slice(1, 4).map(nice);
-      $('crAlt').innerHTML = `${t('chords.maybe')} ${alts.map((a) => `<b>${esc(a)}</b>`).join(', ')}`;
+      $('crAlt').innerHTML = `${t('chords.maybe')} ${alts.map((a) => `<b>${esc(dn(a))}</b>`).join(', ')}`;
     }
   }
 

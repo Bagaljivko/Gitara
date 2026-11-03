@@ -10,6 +10,7 @@ import { pluck } from './synth.js';
 import { dialog } from './ui.js';
 import { KNOBS, ART_W, ART_H } from './headstockKnobs.js';
 import { TUNING_IDS, tuningOf, cleanTuning, tuningNotes } from './tunings.js';
+import { dn } from './naming.js';
 
 // slot 0 = najviši par ključeva
 const STRINGS = [
@@ -125,7 +126,7 @@ export function createTuner(root) {
   let a4 = 440;
   const tracker = new PitchTracker({ a4 });
   let tuning = 'standard';
-  const noteOf = (id) => tuningOf(tuning).names[id];
+  const noteOf = (id) => dn(tuningOf(tuning).names[id]);
   let shownCents = 0;     // izglađen položaj kazaljke
   let shownSid = -1;
   let shownCal = false;   // prikazana poruka „merim buku“
@@ -233,7 +234,7 @@ export function createTuner(root) {
       else if (Math.abs(d) > 0.8) shownCents += d * (Math.abs(d) > 12 ? 0.65 : 0.4);
       shownSid = sid;
       setNeedle(shownCents);
-      $('tNote').textContent = midiName(69 + 12 * Math.log2(r.freq / a4)).name;
+      $('tNote').textContent = dn(midiName(69 + 12 * Math.log2(r.freq / a4)).name);
       const cr = Math.round(shownCents);
       const ac = Math.abs(cr), m10 = ac % 10, m100 = ac % 100;
       const form = m10 === 1 && m100 !== 11 ? 'tuner.cents1' : m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? 'tuner.cents2' : 'tuner.cents';
@@ -312,8 +313,8 @@ export function createTuner(root) {
     tracker.setTuning(tu.midi);
     root.querySelectorAll('.knob').forEach((g) => {
       const i = +g.dataset.s;
-      g.querySelector('.knob-label').textContent = tu.names[i];
-      g.setAttribute('aria-label', t('tuner.string', { num: STRINGS[i].num, note: tu.names[i] + (Math.floor(tu.midi[i] / 12) - 1) }));
+      g.querySelector('.knob-label').textContent = dn(tu.names[i]);
+      g.setAttribute('aria-label', t('tuner.string', { num: STRINGS[i].num, note: dn(tu.names[i]) + (Math.floor(tu.midi[i] / 12) - 1) }));
     });
     $('tTuning').innerHTML = `${t('tuning.' + tuning)} <span aria-hidden="true">▾</span>`;
     $('tTuning').setAttribute('aria-label', t('tuning.label') + ': ' + t('tuning.' + tuning));

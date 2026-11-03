@@ -2,6 +2,8 @@ import { createTuner } from './tuner.js';
 import { t, getLang, setLang, onLangChange } from './i18n.js';
 import { settings, songs as songsDb, events as dbEvents } from './db.js';
 import { setWakeZone } from './wakelock.js';
+import { onNamingChange, loadNoteNamesPref } from './naming.js';
+import { needsUpgrade } from './songmodel.js';
 
 // Ekrani osim tunera se učitavaju tek kad zatrebaju (brže prvo otvaranje).
 const lazy = (load) => { let p; return () => (p ||= load()); };
@@ -159,9 +161,7 @@ function applyStaticText() {
   document.querySelectorAll('[data-i18n]').forEach((el) => { el.textContent = t(el.dataset.i18n); });
   document.querySelectorAll('[data-i18n-aria]').forEach((el) => el.setAttribute('aria-label', t(el.dataset.i18nAria)));
 }
-onLangChange(() => {
-  // Odmah ponovo iscrtaj sve ekrane na novom jeziku (bez ponovnog učitavanja stranice).
-  applyStaticText();
+function rerenderAll() {
   for (const name of Object.keys(views)) {
     views[name].ctl.hide();
     views[name].el.remove();
@@ -170,7 +170,13 @@ onLangChange(() => {
   activeLive = null;
   app.querySelector(':scope > .page')?.remove();
   route();
-});
+}
+// Odmah ponovo iscrtaj sve ekrane na novom jeziku ili sa novim imenima nota (bez ponovnog učitavanja stranice).
+onLangChange(() => { applyStaticText(); rerenderAll(); });
+onNamingChange(() => rerenderAll());
+// Imena nota iz IndexedDB-a (npr. posle vraćanja iz rezervne kopije)
+settings.get('noteNames', null).then((v) => { if (v) loadNoteNamesPref(v); }).catch(() => {});
+dbEvents.addEventListener('settings-changed', (e) => { if (e.detail === 'noteNames') settings.get('noteNames', null).then((v) => v && loadNoteNamesPref(v)); });
 applyStaticText();
 // Jezik iz IndexedDB (npr. posle vraćanja iz rezervne kopije) ima prednost.
 settings.get('lang', null).then((v) => { if (v && v !== getLang()) setLang(v, { save: false }); }).catch(() => {});
@@ -178,4 +184,6 @@ settings.get('lang', null).then((v) => { if (v && v !== getLang()) setLang(v, { 
 route();
 // Drive (automatska rezervna kopija) se učitava malo kasnije, kad se prvi ekran već prikaže.
 const idle = window.requestIdleCallback || ((f) => setTimeout(f, 1200));
+// Jednokratna konverzija postojećih pesama u novi zapis akorda (original ostaje netaknut)
+idle(() => songsDb.all().then((list) => Promise.all(list.filter(needsUpgrade).map((x) => songsDb.put(x)))).catch(() => {}));
 idle(() => import('./drive.js').then((m) => m.initDrive()).catch(() => {}));

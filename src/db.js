@@ -1,4 +1,5 @@
 // Jednostavan IndexedDB omotač: pesme i podešavanja ostaju samo na uređaju.
+import { upgradeSong, needsUpgrade } from './songmodel.js';
 const DB_NAME = 'gitara';
 const DB_VERSION = 1;
 let dbPromise = null;
@@ -40,12 +41,14 @@ export const songs = {
   get: (id) => tx('songs', 'readonly', (s) => s.get(id)),
   async save(song) {
     const now = Date.now();
-    const rec = { ...song, id: song.id || uid(), createdAt: song.createdAt || now, updatedAt: now };
+    // Svaka pesma dobija neutralni sloj akorda i snimak originala (ako ih još nema)
+    const up = needsUpgrade(song) ? upgradeSong(song) : song;
+    const rec = { ...up, id: song.id || uid(), createdAt: song.createdAt || now, updatedAt: now };
     await tx('songs', 'readwrite', (s) => s.put(rec));
     changed('songs-changed', rec.id);
     return rec;
   },
-  put: (rec) => tx('songs', 'readwrite', (s) => s.put(rec)).then((r) => { changed('songs-changed', rec.id); return r; }),
+  put: (rec0) => { const rec = needsUpgrade(rec0) ? upgradeSong(rec0) : rec0; return tx('songs', 'readwrite', (s) => s.put(rec)).then((r) => { changed('songs-changed', rec.id); return r; }); },
   remove: (id) => tx('songs', 'readwrite', (s) => s.delete(id)).then((r) => { changed('songs-changed', id); return r; }),
   clear: () => tx('songs', 'readwrite', (s) => s.clear()).then((r) => { changed('songs-changed', null); return r; }),
 };

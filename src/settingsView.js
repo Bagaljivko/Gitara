@@ -11,6 +11,7 @@ import { driveState, onDriveChange, connect as driveConnect, disconnect as drive
 import { isStandalone, isIOS, canPromptInstall, promptInstall } from './install.js';
 import { checkForUpdate, appUrl } from './update.js';
 import { WAKE_MODES, WAKE_MINUTES } from './wakelock.js';
+import { NOTE_NAMES, noteNamesPref, setNoteNamesPref } from './naming.js';
 
 export async function renderSettings(root) {
   const key = await settings.get('geminiKey', '');
@@ -33,6 +34,10 @@ export async function renderSettings(root) {
       <div class="seg-tabs lang-tabs" role="radiogroup" aria-label="${t('set.lang')}">
         <button role="radio" data-lang="sr" class="${getLang() === 'sr' ? 'active' : ''}" aria-checked="${getLang() === 'sr'}">${t('set.langSr')}</button>
         <button role="radio" data-lang="en" class="${getLang() === 'en' ? 'active' : ''}" aria-checked="${getLang() === 'en'}">${t('set.langEn')}</button>
+      </div>
+      <h3 class="sens-title">${t('nn.title')}</h3>
+      <div class="wake-opts" role="radiogroup" aria-label="${t('nn.title')}">
+        ${NOTE_NAMES.map((v) => `<button role="radio" class="wake-opt${noteNamesPref() === v ? ' active' : ''}" data-nn="${v}" aria-checked="${noteNamesPref() === v}"><b>${t('nn.' + v)}</b><span class="small muted">${t('nn.note_' + v)}</span></button>`).join('')}
       </div>
     </div>
 
@@ -157,6 +162,12 @@ export async function renderSettings(root) {
       catch { toast(url); }
     }
   });
+
+  // ---- Imena nota ----
+  root.querySelectorAll('[data-nn]').forEach((b) => b.addEventListener('click', () => {
+    root.querySelectorAll('[data-nn]').forEach((x) => { x.classList.toggle('active', x === b); x.setAttribute('aria-checked', String(x === b)); });
+    setNoteNamesPref(b.dataset.nn); // ekrani se odmah ponovo iscrtavaju
+  }));
 
   // ---- Ekran ostaje upaljen ----
   root.querySelectorAll('[data-wake]').forEach((b) => b.addEventListener('click', async () => {

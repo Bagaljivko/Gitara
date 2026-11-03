@@ -22,6 +22,10 @@ import { keepAwake, allowSleep, setWakeZone, onWakeChange, wakeState, toggleWake
 import { getFolders, addFolder } from './collections.js';
 import { renderSetlistsPane, editSongFolders, manageFolder, askName } from './setlistsView.js';
 import { seedDemoSong } from './demo.js';
+import { dn, currentNaming } from './naming.js';
+import { upgradeSong, CV, needsUpgrade, snapshotOriginal, restoreOriginal, differsFromOriginal } from './songmodel.js';
+import { keyName, readChord } from './chordnames.js';
+import { openKeyWheel } from './keyWheel.js';
 import { TUNING_IDS, cleanTuning, tuningNotes } from './tunings.js';
 
 let draft = null; // nesačuvana pesma (npr. posle skeniranja)
@@ -138,7 +142,7 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
       <li class="song-item${s.id === selectedId ? ' selected' : ''}" data-id="${esc(s.id)}">
         <a href="#/pesma/${encodeURIComponent(s.id)}" class="song-link">
           <span class="song-title">${esc(s.title)}</span>
-          <span class="song-sub">${esc(s.artist || t('lib.unknownArtist'))}${s.key ? ` · <span class="key">${esc(s.key)}</span>` : ''}</span>
+          <span class="song-sub">${esc(s.artist || t('lib.unknownArtist'))}${s.key ? ` · <span class="key">${esc(dn(s.key))}</span>` : ''}</span>
         </a>
         <button class="icon-btn" data-fold="${esc(s.id)}" aria-label="${esc(t('folder.forSong', { title: s.title }))}">
           <svg viewBox="0 0 24 24"><path d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8l-2-2z"/></svg>${(s.folders || []).length ? `<span class="fold-count">${s.folders.length}</span>` : ''}
@@ -266,8 +270,11 @@ export async function renderSharedSong(root) {
     history.replaceState(null, '', location.pathname + location.search + '#/pesme');
     return;
   }
+  // Primljena pesma se prikazuje u MOM imenovanju (akordi u linku su nedvosmisleni ili se prepoznaju)
+  song = upgradeSong(song);
   const shapes = transposeSong(song, (song.transpose || 0) - (song.capo || 0));
   const chords = songChords(shapes);
+  const shownKey = song.keyN ? keyName({ root: (song.keyN.root + (song.transpose || 0) + 120) % 12, minor: song.keyN.minor }, 'en') : song.key; // tonalitet koji zvuči
   root.innerHTML = `
   <section class="view shared-view">
     <div class="card add-card">
@@ -280,7 +287,7 @@ export async function renderSharedSong(root) {
       ${canPromptInstall() ? `<button class="btn small primary" id="shInstallBtn">${t('set.install')}</button>` : `<p class="small muted">${isIOS() ? t('set.installIos') : t('set.installAndroid')}</p>`}
     </div>`}
     <h1 class="song-h1">${esc(song.title)}</h1>
-    <p class="song-meta">${esc(song.artist || '')}${song.key ? `${song.artist ? ' · ' : ''}${t('song.key')} <b>${esc(song.key)}</b>` : ''}${song.capo ? ` · ${t('capo.title')} ${song.capo}` : ''}</p>
+    <p class="song-meta">${esc(song.artist || '')}${shownKey ? `${song.artist ? ' · ' : ''}${t('song.key')} <b>${esc(dn(shownKey))}</b>` : ''}${song.capo ? ` · ${t('capo.title')} ${song.capo}` : ''}</p>
     ${song.strum ? `<div class="strum-box card"><div class="strum-head"><span class="small muted">${t('strum.label')}</span> <b>${esc(patternName(song.strum))}</b></div>${patternHTML(song.strum)}</div>` : ''}
     ${chords.length ? `<div class="diagram-row">${chords.map((c) => `<div class="diagram-btn">${chordSVG(c)}</div>`).join('')}</div>` : ''}
     <div class="lyrics">${renderSectionsHTML(shapes.sections)}</div>
@@ -428,6 +435,7 @@ async function runScan(files, prepared = null, opts = {}) {
     if (opts.onSong) { opts.onSong(song, imgs); return; }
     await placeUnplacedTabs(song);
     if (opts.rescanOf) song.__rescanOf = opts.rescanOf;
+    song.__original = snapshotOriginal(song); // skenirano tačno kako je pročitano — ne menja se nikad
     draft = song;
     draftImage = imgs.map((i) => i.preview);
     location.hash = '#/uredi/sken';
@@ -530,7 +538,7 @@ async function placeUnplacedTabs(song) {
 
 // ---------------- Prikaz linija sa akordima ----------------
 function chordSpan(c, mark) {
-  return `<button class="ch${mark !== undefined ? ' unsure' : ''}" data-chord="${esc(c)}"${mark !== undefined ? ` data-unsure="${mark}"` : ''}>${esc(c)}</button>`;
+  return `<button class="ch${mark !== undefined ? ' unsure' : ''}" data-chord="${esc(c)}"${mark !== undefined ? ` data-unsure="${mark}"` : ''}>${esc(dn(c))}</button>`;
 }
 
 /** Mesto reči (indeks u tekstu) najbliže poziciji koju je dao Gemini. */
@@ -621,9 +629,12 @@ export function applyUncertain(song, u) {
   const line = song.sections[u.section] && song.sections[u.section].lines[u.line];
   if (!line) return false;
   if (u.kind === 'chord') {
-    const c = line.chords.find((x) => x.position === u.position && x.chord === u.text) || line.chords.find((x) => x.chord === u.text);
+    // Akord se traži po onome kako je napisan na papiru (w), ne po internom zapisu
+    const wr = (x) => (x.w !== undefined ? x.w : x.chord);
+    const c = line.chords.find((x) => x.position === u.position && wr(x) === u.text) || line.chords.find((x) => wr(x) === u.text);
     if (!c) return false;
     c.chord = u.suggestion;
+    if (c.w !== undefined) { c.w = u.suggestion; delete c.n; }
     return true;
   }
   const at = findWord(line.text, u.text, u.position);
@@ -661,8 +672,8 @@ function showChord(name) {
   const draw = () => {
     wrap.innerHTML = `<div class="modal chord-modal" role="dialog" aria-modal="true" aria-label="${esc(t('diagram.chord', { name }))}">
       <div class="chord-big">${chordSVG(name, { voicing: v })}</div>
-      ${canon !== name ? `<p class="muted center">${t('chordModal.same')} <b>${esc(canon)}</b></p>` : ''}
-      ${p && p.bass !== null ? `<p class="muted center small">${esc(t('chordModal.bass', { bass: name.split('/')[1] }))}</p>` : ''}
+      ${dn(canon) !== dn(name) ? `<p class="muted center">${t('chordModal.same')} <b>${esc(dn(canon))}</b></p>` : ''}
+      ${p && p.bass !== null ? `<p class="muted center small">${esc(t('chordModal.bass', { bass: dn(name.split('/')[1]) }))}</p>` : ''}
       ${n === 0 ? `<p class="muted center">${t('chordModal.none')}</p>` : ''}
       <div class="modal-actions">
         ${n > 1 ? `<button class="btn" data-a="next">${t('chordModal.next', { i: (v % n) + 1, n })}</button>` : ''}
@@ -680,11 +691,13 @@ function showChord(name) {
 
 // ---------------- Prikaz pesme ----------------
 export async function renderSong(root, id, nav = null) {
-  const stored = await db.get(id);
+  let stored = await db.get(id);
   if (!stored) {
     root.innerHTML = `<section class="view"><p>${t('song.notFound')}</p><a class="btn" href="#/pesme">${t('song.back')}</a></section>`;
     return;
   }
+  // Pesma još nije prebačena u novi zapis akorda (npr. otvorena pre jednokratne konverzije) — uradi to sada
+  if (needsUpgrade(stored)) { stored = upgradeSong(stored); db.put(stored).catch(() => {}); }
   let tp = stored.transpose || 0;
   let capo = stored.capo || 0;
   let zoom = Number(stored.zoom) || (Number(localStorageGet('gitara-font')) || 1);
@@ -738,7 +751,24 @@ export async function renderSong(root, id, nav = null) {
 
   // Akordi koji se SVIRAJU: zapisani akordi (zvučni tonalitet) + transpozicija − kapodaster.
   const shapesSong = () => transposeSong(stored, tp - capo);
-  const soundingKey = () => (stored.key ? transposeSong({ key: stored.key, sections: [] }, tp).key : '');
+  const keyAt = (n) => (stored.keyN ? keyName({ root: (stored.keyN.root + n + 120) % 12, minor: stored.keyN.minor }, 'en') : '');
+  const soundingKey = () => keyAt(tp) || (stored.key ? transposeSong({ key: stored.key, sections: [] }, tp).key : '');
+
+  // Pitanja posle konverzije: nejasno „B“ ili nesiguran tonalitet
+  function askHTML() {
+    if (stored.namingAsk) {
+      const bs = [...new Set(stored.sections.flatMap((s) => s.lines.flatMap((l) => (l.chords || []).map((c) => c.w || '').filter((w) => /^B(?!b)/.test(w)))))].slice(0, 4);
+      return `<div class="card ask-card"><b>${t('ask.bTitle', { list: bs.join(', ') || 'B' })}</b><p class="small muted">${t('ask.bHint')}</p>
+        <div class="row"><button class="btn small" data-ask="en">${t('ask.bIsH')}</button><button class="btn small" data-ask="sr">${t('ask.bIsBb')}</button></div></div>`;
+    }
+    if (stored.keyAsk && stored.keyAlt && stored.keyAlt.length) {
+      return `<div class="card ask-card"><b>${t('ask.keyTitle')}</b><p class="small muted">${t('ask.keyHint')}</p>
+        <div class="row">${stored.keyAlt.map((k, i) => `<button class="btn small" data-askkey="${i}">${esc(dn(keyName(k, 'en')))}</button>`).join('')}<button class="btn small ghost" data-askkey="wheel">${t('ask.keyOther')}</button></div></div>`;
+    }
+    return '';
+  }
+  const answerNaming = async (naming) => { stored = upgradeSong(stored, { naming }); await save(); draw(); };
+  const answerKey = async (k) => { stored = upgradeSong(stored, { keyN: k }); await save(); draw(); };
 
   const draw = () => {
     const song = shapesSong();
@@ -747,14 +777,17 @@ export async function renderSong(root, id, nav = null) {
     const key = soundingKey();
     $('sBody').innerHTML = `
       <h1 class="song-h1">${esc(song.title)}</h1>
-      <p class="song-meta">${esc(song.artist || '')}${key ? `${song.artist ? ' · ' : ''}${t('song.key')} <b>${esc(key)}</b>` : ''}${capo && key ? ` · ${t('capo.shapes')} <b>${esc(song.key)}</b>` : ''}</p>
+      <p class="song-meta">${esc(song.artist || '')}${key ? `${song.artist ? ' · ' : ''}${t('song.key')} <b>${esc(dn(key))}</b>` : ''}${capo && key ? ` · ${t('capo.shapes')} <b>${esc(dn(keyAt(tp - capo) || song.key))}</b>` : ''}</p>
+      ${askHTML()}
       ${ytRowHTML(stored)}
       <div id="sSuggest">${suggestHTML()}</div>
       <div class="song-controls">
-        <div class="transpose" role="group" aria-label="${t('song.transpose')}">
-          <button class="btn round small" id="tDown" aria-label="${t('song.transposeDown')}">−</button>
-          <div class="t-label">${t('song.transpose')}<br><b>${tp > 0 ? '+' + tp : tp}</b></div>
-          <button class="btn round small" id="tUp" aria-label="${t('song.transposeUp')}">+</button>
+        <div class="transpose key-row" role="group" aria-label="${t('song.key')}">
+          <button class="btn round small" id="tDown" aria-label="${t('song.transposeDown')}">−1</button>
+          <button class="key-btn" id="kOpen" aria-haspopup="dialog" aria-label="${esc(t('kw.open', { k: dn(key) || '?' }))}">
+            <span class="t-label">${t('song.key')}</span><b>${esc(dn(key) || '–')}</b>${tp ? `<span class="key-delta">${tp > 0 ? '+' + tp : '−' + Math.abs(tp)}</span>` : ''}
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 2v8l5.7 5.7A8 8 0 0 1 12 4z"/></svg></button>
+          <button class="btn round small" id="tUp" aria-label="${t('song.transposeUp')}">+1</button>
           ${tp ? `<button class="btn small" id="tReset">${t('song.original')}</button>` : ''}
         </div>
         <div class="transpose" role="group" aria-label="${t('capo.title')}">
@@ -764,7 +797,7 @@ export async function renderSong(root, id, nav = null) {
         </div>
         ${stored.easyCapo ? `<label class="switch easy-switch"><input type="checkbox" id="sEasy" ${capo === stored.easyCapo ? 'checked' : ''}><span class="switch-track"><span class="switch-thumb"></span></span><span>${t('sug.easySwitch')}</span></label>` : ''}
       </div>
-      ${capo ? `<p class="capo-note small">${t('capo.note', { n: capo })}</p>` : ''}
+      ${capo ? `<p class="capo-note small">${esc(t('capo.note', { n: capo, key: dn(key) || '?', shapes: dn(keyAt(tp - capo)) || '?' }))}</p>` : ''}
       ${cleanTuning(stored.tuning) !== 'standard' ? `<div class="tuning-note"><span>${esc(t('tuning.song', { name: t('tuning.' + cleanTuning(stored.tuning)) }))} <span class="muted">(${esc(tuningNotes(stored.tuning))})</span></span>
         <button class="btn small" id="sTune">${t('tuning.tuneNow')}</button></div>` : ''}
       <div class="strum-box card">
@@ -779,8 +812,8 @@ export async function renderSong(root, id, nav = null) {
         </div>
         <button class="btn small" id="sStrumEdit">${stored.strum || stored.sections.some((x) => x.strum) ? t('strum.change') : t('strum.add')}</button>
       </div>
-      ${prog.length ? `<div class="prog card">${prog.map((p) => `<div class="prog-row"><span class="prog-name">${esc(p.name || t('song.chordsFallback'))}</span><span class="prog-chords">${p.chords.map((c) => `<button class="ch" data-chord="${esc(c)}">${esc(c)}</button>`).join('<span class="arrow">→</span>')}</span></div>`).join('')}</div>` : ''}
-      ${chords.length ? `<div class="diagram-row" aria-label="${t('song.diagrams')}">${chords.map((c) => `<button class="diagram-btn" data-chord="${esc(c)}" aria-label="${esc(t('song.enlarge', { name: c }))}">${chordSVG(c)}</button>`).join('')}</div>` : ''}
+      ${prog.length ? `<div class="prog card">${prog.map((p) => `<div class="prog-row"><span class="prog-name">${esc(p.name || t('song.chordsFallback'))}</span><span class="prog-chords">${p.chords.map((c) => `<button class="ch" data-chord="${esc(c)}">${esc(dn(c))}</button>`).join('<span class="arrow">→</span>')}</span></div>`).join('')}</div>` : ''}
+      ${chords.length ? `<div class="diagram-row" aria-label="${t('song.diagrams')}">${chords.map((c) => `<button class="diagram-btn" data-chord="${esc(c)}" aria-label="${esc(t('song.enlarge', { name: dn(c) }))}">${chordSVG(c)}</button>`).join('')}</div>` : ''}
       <div class="lyrics" id="sLyrics" style="--zoom:${zoom}">${renderSectionsHTML(song.sections, unc())}</div>`;
     syncEasyTop();
     addLoopButtons();
@@ -805,7 +838,7 @@ export async function renderSong(root, id, nav = null) {
     if (!(stored.skipped && stored.skipped.easy) && !stored.easyCapo && !capo) {
       const e = easiestCapo(stored, tp);
       if (e) items.push(`<div class="sug-group"><div class="sug-title">${t('sug.easyTitle')}</div>
-        <p class="small">${esc(t('sug.easyText', { n: e.capo, shapes: e.shapes.join(', ') }))}</p>
+        <p class="small">${esc(t('sug.easyText', { n: e.capo, shapes: e.shapes.map((x) => dn(x)).join(', ') }))}</p>
         <div class="sug-actions"><button class="btn small" data-sug="easy-skip">${t('sug.skip')}</button><button class="btn small primary" data-sug="easy-apply" data-capo="${e.capo}">${t('sug.apply')}</button></div></div>`);
     }
     if (!hasStrum() && !(stored.skipped && stored.skipped.strum)) {
@@ -844,7 +877,11 @@ export async function renderSong(root, id, nav = null) {
     const list = unc();
     const u = list[i];
     if (!u) return;
-    if (apply) applyUncertain(stored, u);
+    if (apply) {
+      applyUncertain(stored, u);
+      // ponovo pročitaj akorde (ispravljeni akord je zapisan kao na papiru)
+      if (stored.cv >= CV) stored = upgradeSong(stored, { naming: stored.naming || 'en', keyN: stored.keyN || undefined });
+    }
     stored.uncertain = list.filter((x, k) => k !== i);
     if (!stored.uncertain.length) delete stored.uncertain;
     await save();
@@ -890,6 +927,15 @@ export async function renderSong(root, id, nav = null) {
   }
 
   const save = () => db.put(stored);
+  // Točak tonaliteta. pickBase = biranje OSNOVNOG tonaliteta pesme (kada aplikacija nije bila sigurna)
+  function openWheel(pickBase) {
+    if (pickBase) {
+      const base = stored.keyN || { root: 0, minor: false };
+      openKeyWheel({ song: { ...stored, keyN: base }, tp: 0, capo: 0, onPick: (o) => { answerKey({ root: (base.root + o + 120) % 12, minor: base.minor }); } });
+      return;
+    }
+    openKeyWheel({ song: stored, tp, capo, onPick: (o, c) => { setT(o); if (c !== undefined && c !== capo) setCapo(c); } });
+  }
   draw();
   loadStrumSuggestion();
   const setT = async (n) => { tp = ((n + 17) % 12 + 12) % 12 - 5; stored.transpose = tp; draw(); await save(); };
@@ -1125,7 +1171,7 @@ export async function renderSong(root, id, nav = null) {
     if (!e) { toast(t('sug.alreadyEasiest')); return; }
     stored.easyCapo = e.capo;
     await setCapo(e.capo);
-    toast(t('sug.easyText', { n: e.capo, shapes: e.shapes.join(', ') }));
+    toast(t('sug.easyText', { n: e.capo, shapes: e.shapes.map((x) => dn(x)).join(', ') }));
   });
   root.querySelector('.song-view').addEventListener('change', (e) => {
     if (e.target.id === 'sEasy') setCapo(e.target.checked ? stored.easyCapo : 0);
@@ -1159,6 +1205,12 @@ export async function renderSong(root, id, nav = null) {
     if (c) return showChord(c.dataset.chord);
     const b = e.target.closest('button');
     if (!b) return;
+    if (b.dataset.ask) return answerNaming(b.dataset.ask);
+    if (b.dataset.askkey !== undefined) {
+      if (b.dataset.askkey === 'wheel') return openWheel(true);
+      return answerKey(stored.keyAlt[+b.dataset.askkey]);
+    }
+    if (b.id === 'kOpen') return openWheel(false);
     if (b.id === 'tUp') setT(tp + 1);
     else if (b.id === 'tDown') setT(tp - 1);
     else if (b.id === 'tReset') setT(0);
@@ -1239,6 +1291,10 @@ export async function renderEditor(root, id) {
     if (!song) { location.hash = '#/pesme'; return; }
   }
   const scanned = id === 'sken';
+  // Akordi u editoru su u izabranom imenovanju (H/Fis… ili B/F#…); nova skeniranja se prvo pročitaju
+  const viewSong = needsUpgrade(song) ? upgradeSong(song) : song;
+  const shown = { ...song, key: viewSong.key ? dn(viewSong.key) : song.key || '', sections: viewSong.sections.map((sec) => ({ ...sec, lines: sec.lines.map((l) => ({ ...l, chords: (l.chords || []).map((c) => ({ ...c, chord: dn(c.chord) })) })) })) };
+  const canRestore = !isNew && song.original && differsFromOriginal(song);
   root.innerHTML = `
   <section class="view editor-view">
     <header class="topbar">
@@ -1247,13 +1303,14 @@ export async function renderEditor(root, id) {
     </header>
     <h1>${scanned ? t('edit.titleScanned') : isNew ? t('edit.titleNew') : t('edit.titleEdit')}</h1>
     ${base ? `<p class="rescan-note small">${esc(t('rescan.note', { title: base.title }))}</p>` : ''}
+    ${canRestore ? `<div class="restore-row"><button class="btn small" id="eRestore">${t('orig.restore')}</button><span class="small muted">${t('orig.restoreHint')}</span></div>` : ''}
     ${scanned ? `<p class="muted">${t('edit.scannedHint')}</p>${song.scanModel ? `<p class="scan-model small muted">${esc(t('edit.scanModel', { model: song.scanModel }))}</p>` : ''}` : ''}
     ${draftImage && scanned ? `<details class="card photo-ref"><summary>${t('edit.showPhoto')}</summary>${[].concat(draftImage).map((src, i) => `<img src="${src}" alt="${esc(t('scan.page', { n: i + 1 }))}">`).join('')}</details>` : ''}
     <div class="form">
       <label>${t('edit.fTitle')}<input id="eTitle" value="${esc(song.title)}" placeholder="${t('edit.fTitlePh')}" autocomplete="off"></label>
       <div class="row">
         <label class="grow">${t('edit.fArtist')}<input id="eArtist" value="${esc(song.artist)}" placeholder="${t('edit.fArtist')}" autocomplete="off"></label>
-        <label class="key-input">${t('edit.fKey')}<input id="eKey" value="${esc(song.key)}" placeholder="${t('edit.fKeyPh')}" autocomplete="off"></label>
+        <label class="key-input">${t('edit.fKey')}<input id="eKey" value="${esc(shown.key)}" placeholder="${t('edit.fKeyPh')}" autocomplete="off"></label>
       </div>
       <label>${t('tuning.label')}<select id="eTuning">${TUNING_IDS.map((id) => `<option value="${id}" ${cleanTuning(song.tuning) === id ? 'selected' : ''}>${esc(t('tuning.' + id))} · ${esc(tuningNotes(id))}</option>`).join('')}</select></label>
     </div>
@@ -1275,7 +1332,8 @@ export async function renderEditor(root, id) {
     <div id ="ePreviewPane" class="lyrics" hidden></div>
   </section>`;
   const $ = (q) => root.querySelector('#' + q);
-  $('eText').value = sectionsToText(song.sections);
+  const shownText = sectionsToText(shown.sections);
+  $('eText').value = shownText;
   autoGrow($('eText'));
 
   const validate = () => {
@@ -1285,8 +1343,9 @@ export async function renderEditor(root, id) {
     for (const line of $('eText').value.split('\n')) {
       const toks = line.trim().split(/\s+/).filter(Boolean);
       const chordish = toks.filter((t) => /^[A-H]/.test(t));
-      if (toks.length && chordish.length === toks.length && toks.some((t) => isChord(t))) {
-        toks.filter((t) => !isChord(t.replace(/^\(|\)$/g, ''))).forEach((t) => unknown.add(t));
+      const ok = (x) => !!readChord(x.replace(/^\(|\)$/g, ''), currentNaming());
+      if (toks.length && chordish.length === toks.length && toks.some(ok)) {
+        toks.filter((x) => !ok(x)).forEach((x) => unknown.add(x));
       }
     }
     $('eWarn').textContent = unknown.size ? t('edit.unknownChords', { list: [...unknown].join(', ') }) : '';
@@ -1391,7 +1450,7 @@ export async function renderEditor(root, id) {
     if (preview) { const secs = validate(); $('ePreviewPane').innerHTML = renderSectionsHTML(secs, cleanUncertain(pendingUnc, secs)) || `<p class="muted">${t('edit.noText')}</p>`; layoutTabs($('ePreviewPane')); }
   }));
 
-  const dirty = () => $('eText').value !== sectionsToText(song.sections) || $('eTitle').value !== (song.title || '');
+  const dirty = () => $('eText').value !== shownText || $('eTitle').value !== (song.title || '');
   $('eCancel').addEventListener('click', async () => {
     if (dirty() || scanned) {
       const ok = await confirmDialog(t('edit.discardTitle'), scanned ? t('edit.discardScanned') : t('edit.discardBody'), t('edit.discard'), 'danger');
@@ -1400,6 +1459,14 @@ export async function renderEditor(root, id) {
     draft = null; draftImage = null;
     if (base) { location.replace(`#/pesma/${encodeURIComponent(base.id)}`); return; }
     history.length > 1 ? history.back() : (location.hash = isNew ? '#/pesme' : `#/pesma/${encodeURIComponent(id)}`);
+  });
+  $('eRestore')?.addEventListener('click', async () => {
+    if (!(await confirmDialog(t('orig.confirmTitle'), t('orig.confirmBody', { title: song.original.title || song.title }), t('orig.restore'), 'danger'))) return;
+    const restored = restoreOriginal(song);
+    await db.put({ ...restored, updatedAt: Date.now() });
+    draft = null; draftImage = null;
+    toast(t('orig.restored'));
+    location.replace(`#/pesma/${encodeURIComponent(song.id)}`);
   });
   $('eSave').addEventListener('click', async () => {
     const sections = validate();
@@ -1411,16 +1478,29 @@ export async function renderEditor(root, id) {
       const old = oldSecs.find((o) => o.name === sec.name && o.strum) || (oldSecs[i] && oldSecs[i].name === sec.name ? oldSecs[i] : null);
       if (old && old.strum) sec.strum = old.strum;
     });
-    const rec = await db.save({
+    const keyText = $('eKey').value.trim();
+    let rec0 = {
       // ponovo skenirana pesma zadržava sve svoje (kapodaster, ritam, YouTube, folderi, setliste — isti id)
       ...(base ? base : isNew ? songExtras(song) : song),
       title,
       artist: $('eArtist').value.trim(),
-      key: $('eKey').value.trim(),
       tuning: $('eTuning').value === 'standard' ? undefined : $('eTuning').value,
-      sections,
       ...(isNew ? { uncertain: cleanUncertain(pendingUnc, sections) } : {}),
-    });
+    };
+    // Novo skeniranje (i „Skeniraj ponovo“) = novi original, tačno kako je pročitan
+    if (isNew) rec0.original = song.__original || undefined;
+    if ($('eText').value === shownText && keyText === shown.key) {
+      // Tekst i akordi nisu menjani: zadrži pročitane akorde (i eventualno otvoreno pitanje o B/H ili tonalitetu)
+      const keep = ['sections', 'key', 'keyN', 'keyAlt', 'keyAsk', 'naming', 'namingAsk', 'cv'];
+      for (const k of keep) rec0[k] = viewSong[k];
+      rec0.sections = viewSong.sections.map((sec, i) => ({ ...sec, ...(sections[i] && sections[i].strum ? { strum: sections[i].strum } : {}) }));
+      if (!rec0.original) rec0.original = viewSong.original;
+    } else {
+      // Akordi su upisani u izabranom imenovanju → nov neutralni sloj (original ostaje kakav je bio)
+      rec0 = upgradeSong({ ...rec0, sections, key: keyText, cv: 0, keyN: undefined, keyAlt: undefined, namingAsk: false, keyAsk: false }, { naming: currentNaming(), keyText });
+    }
+    delete rec0.__original; delete rec0.__rescanOf;
+    const rec = await db.save(rec0);
     draft = null; draftImage = null;
     toast(t('edit.saved'));
     location.replace(`#/pesma/${encodeURIComponent(rec.id)}`);

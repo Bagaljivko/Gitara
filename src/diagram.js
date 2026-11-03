@@ -1,6 +1,7 @@
 // SVG prikaz dijagrama akorda.
 import { t } from './i18n.js';
 import { getVoicings } from './chords.js';
+import { dn } from './naming.js';
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -14,8 +15,9 @@ export function chordSVG(name, { voicing = 0, showName = true, showFingers = tru
   const v = list[voicing % Math.max(list.length, 1)];
   const W = 100, H = 124;
   const left = 18, top = showName ? 34 : 14, sw = 64 / 5, fh = 17, frets = 5;
-  let s = `<svg class="chord-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(t('diagram.chord', { name }))}" xmlns="http://www.w3.org/2000/svg">`;
-  if (showName) s += `<text x="${W / 2}" y="16" class="cd-name" text-anchor="middle">${esc(name)}</text>`;
+  const label = dn(name); // prikaz u izabranom imenovanju (H, Fis, Es / B, F#, Eb)
+  let s = `<svg class="chord-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(t('diagram.chord', { name: label }))}" xmlns="http://www.w3.org/2000/svg">`;
+  if (showName) s += `<text x="${W / 2}" y="16" class="cd-name" text-anchor="middle">${esc(label)}</text>`;
   if (!v) {
     s += `<text x="${W / 2}" y="${top + 40}" class="cd-none" text-anchor="middle">${esc(t('diagram.none'))}</text></svg>`;
     return s;

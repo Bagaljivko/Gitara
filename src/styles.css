@@ -711,3 +711,45 @@ mark.cc-b { background: rgba(245, 165, 36, .35); color: var(--text); border-radi
 mark.cc-unknown { background: rgba(255, 90, 90, .3); color: var(--text); border-radius: 4px; padding: 0 2px; }
 .cc-alt { margin: -4px 0 10px; }
 .cc-alt mark { margin: 0 2px; }
+/* Tonalitet: dugme, pitanja, kvintni krug */
+.key-row { align-items: center; }
+.key-btn { appearance: none; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; min-width: 92px; min-height: 52px; padding: 4px 12px; border-radius: 14px; border: 1px solid var(--accent); background: var(--accent-soft); color: var(--text); font: inherit; cursor: pointer; position: relative; }
+.key-btn b { font-size: 1.35rem; line-height: 1.1; color: var(--accent); }
+.key-btn .t-label { font-size: .7rem; color: var(--muted); }
+.key-btn .key-delta { font-size: .7rem; color: var(--muted); }
+.key-btn svg { position: absolute; right: 6px; top: 6px; width: 12px; height: 12px; fill: var(--accent); opacity: .7; }
+.ask-card { border-color: var(--accent); }
+.ask-card p { margin: 4px 0 8px; }
+.ask-card .row { display: flex; flex-wrap: wrap; gap: 8px; }
+.ask-card .row > * { flex: 0 1 auto; }
+.kw-modal { max-width: 420px; width: 100%; }
+.kw-chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 4px; }
+.kw-chip { appearance: none; flex: none; display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 6px 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); font: inherit; cursor: pointer; text-align: left; max-width: 190px; }
+.kw-chip b { color: var(--accent); }
+.kw-chip span { font-size: .75rem; color: var(--muted); }
+.kw-wheel-wrap { position: relative; width: min(300px, 78vw, 46dvh); margin: 0 auto; touch-action: none; }
+.kw-wheel { display: block; width: 100%; height: auto; -webkit-user-select: none; user-select: none; cursor: grab; }
+.kw-seg { stroke: var(--bg); stroke-width: 1.5; }
+.kw-seg.out { fill: var(--surface-2); }
+.kw-seg.in { fill: var(--surface); }
+.kw-orig { fill: none; stroke: var(--ok); stroke-width: 3; stroke-dasharray: 4 3; }
+.kw-key.sel .kw-seg.out, .kw-key.sel .kw-seg.in { fill: var(--accent-soft); }
+.kw-lbl { fill: var(--text); font: 600 15px var(--sans); text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+.kw-lbl.min { font-size: 12.5px; fill: var(--muted); }
+.kw-lbl.mode { font-weight: 800; }
+.kw-key.sel .kw-lbl.mode { fill: var(--accent); font-size: 19px; }
+.kw-star { fill: #f5c542; font-size: 12px; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+.kw-hub { fill: var(--bg); stroke: var(--line); }
+.kw-pointer { fill: var(--accent); }
+.kw-hub-btn { position: absolute; left: 50%; top: calc(174 / 324 * 100%); transform: translate(-50%, -50%); width: 64px; height: 64px; border-radius: 50%; border: 0; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; cursor: pointer; }
+.kw-hub-btn svg { width: 28px; height: 28px; fill: currentColor; }
+.kw-hub-btn.playing { animation: kwpulse .95s ease-in-out infinite; }
+@keyframes kwpulse { 50% { transform: translate(-50%, -50%) scale(1.08); } }
+.kw-info { text-align: center; margin-top: 4px; }
+.kw-step { display: flex; align-items: center; justify-content: center; gap: 14px; }
+.kw-step b { font-size: 1.6rem; color: var(--accent); min-width: 72px; }
+.kw-info p { margin: 4px 0 0; min-height: 1.3em; }
+.kw-legend { text-align: center; margin: 6px 0; }
+.kw-orig-sw { display: inline-block; width: 14px; height: 10px; border: 2px dashed var(--ok); border-radius: 3px; vertical-align: middle; }
+.kw-select { display: block; margin-top: 4px; }
+.restore-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 4px 0 10px; }

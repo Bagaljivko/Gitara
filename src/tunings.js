@@ -1,4 +1,5 @@
 // Štimovanja gitare (MIDI brojevi žica od 6. do 1. žice) i nazivi tonova za prikaz.
+import { dn } from './naming.js';
 export const TUNINGS = {
   standard: { midi: [40, 45, 50, 55, 59, 64], names: ['E', 'A', 'D', 'G', 'B', 'E'] },
   dropD: { midi: [38, 45, 50, 55, 59, 64], names: ['D', 'A', 'D', 'G', 'B', 'E'] },
@@ -10,4 +11,4 @@ export const TUNING_IDS = Object.keys(TUNINGS);
 export const tuningOf = (id) => TUNINGS[id] || TUNINGS.standard;
 export const cleanTuning = (id) => (typeof id === 'string' && TUNINGS[id] ? id : 'standard');
 /** Kratak zapis, npr. „D A D G B E“. */
-export const tuningNotes = (id) => tuningOf(id).names.join(' ');
+export const tuningNotes = (id) => tuningOf(id).names.map((n) => dn(n)).join(' ');
