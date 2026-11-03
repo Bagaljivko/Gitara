@@ -631,3 +631,10 @@ body.stage-mode main { max-width: 900px; padding-top: 0; }
 .qr-svg { display: block; width: 100%; height: auto; }
 .qr-hint { text-align: center; color: var(--text); margin: 0 0 6px; }
 .qr-url { text-align: center; font-family: var(--mono); font-size: .8rem; word-break: break-all; margin: 0; }
+/* Osećaj prave aplikacije: dugi pritisak na dugmad, meni, akorde i dijagrame ne označava tekst i ne otvara iOS meni „Kopiraj / Potraži“.
+   Tekst pesme, polja za unos i detalji greške ostaju označivi. */
+button, .btn, .nav, .nav a, .chip, .seg-tabs, .icon-btn, .ch, .diagram-btn, .chord-svg, .tab-staff, .knob, .topbar, .view-head, .switch, .sl-item, .stage-bar, .update-bar, img, svg {
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+}
+img { -webkit-user-drag: none; }
+input, textarea, select, [contenteditable], .diag pre, .qr-url { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
