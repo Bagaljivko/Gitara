@@ -112,6 +112,8 @@ export async function renderSettings(root) {
         <button class="btn" id="bExport">${t('set.exportAll')}</button>
         <button class="btn" id="bImport">${t('set.importBackup')}</button>
       </div>
+      <a class="btn wide cc-open" href="#/provera">${t('cc.open')}</a>
+      <p class="muted small">${t('cc.openNote')}</p>
     </div>
 
     <div class="card" id="installCard" ${isStandalone() ? 'hidden' : ''}>

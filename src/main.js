@@ -10,6 +10,7 @@ const loadSetlists = lazy(() => import('./setlistsView.js'));
 const loadSettings = lazy(() => import('./settingsView.js'));
 const loadChordRec = lazy(() => import('./chordrec.js'));
 const loadStage = lazy(() => import('./stage.js'));
+const loadChordCheck = lazy(() => import('./chordCheck.js'));
 const hasSharedSong = () => location.hash.startsWith('#pesma='); // isto kao u sharelink.js
 
 const app = document.getElementById('app');
@@ -37,7 +38,7 @@ async function route() {
   const shared = hasSharedSong();
   const hash = shared ? '#/primljena' : location.hash || '#/tuner';
   const [, page, arg] = hash.match(/^#\/([^/?]*)\/?(.*)$/) || [, 'tuner', ''];
-  const tab = { tuner: 'tuner', akordi: 'akordi', pesme: 'pesme', pesma: 'pesme', uredi: 'pesme', setlista: 'pesme', nastup: 'pesme', primljena: 'pesme', podesavanja: 'podesavanja' }[page] || 'tuner';
+  const tab = { tuner: 'tuner', akordi: 'akordi', pesme: 'pesme', pesma: 'pesme', uredi: 'pesme', setlista: 'pesme', nastup: 'pesme', primljena: 'pesme', podesavanja: 'podesavanja', provera: 'podesavanja' }[page] || 'tuner';
   document.body.classList.toggle('tuner-screen', tab === 'tuner');
   document.querySelectorAll('.nav a').forEach((a) => {
     const on = a.dataset.tab === tab;
@@ -67,6 +68,7 @@ async function route() {
     const { renderSetlist, setlistNav } = await loadSetlists();
     const { renderSettings } = page === 'podesavanja' ? await loadSettings() : {};
     const { renderStage } = page === 'nastup' ? await loadStage() : {};
+    const { renderChordCheck } = page === 'provera' ? await loadChordCheck() : {};
     if (routeId !== myRoute) return;
     // Tablet položeno: dva panela — lista pesama levo, izabrana pesma desno
     const twoPane = TWO_PANE.matches && (page === 'pesme' || page === 'pesma') && params.get('tab') !== 'sl';
@@ -103,6 +105,7 @@ async function route() {
     else if (page === 'primljena') await renderSharedSong(el);
     else if (page === 'uredi') await renderEditor(el, dec);
     else if (page === 'podesavanja') await renderSettings(el);
+    else if (page === 'provera') await renderChordCheck(el);
   }
   window.scrollTo(0, 0);
 }
