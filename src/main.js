@@ -8,6 +8,7 @@ const loadSongs = lazy(() => import('./songs.js'));
 const loadSetlists = lazy(() => import('./setlistsView.js'));
 const loadSettings = lazy(() => import('./settingsView.js'));
 const loadChordRec = lazy(() => import('./chordrec.js'));
+const loadStage = lazy(() => import('./stage.js'));
 const hasSharedSong = () => location.hash.startsWith('#pesma='); // isto kao u sharelink.js
 
 const app = document.getElementById('app');
@@ -34,7 +35,7 @@ async function route() {
   const shared = hasSharedSong();
   const hash = shared ? '#/primljena' : location.hash || '#/tuner';
   const [, page, arg] = hash.match(/^#\/([^/?]*)\/?(.*)$/) || [, 'tuner', ''];
-  const tab = { tuner: 'tuner', akordi: 'akordi', pesme: 'pesme', pesma: 'pesme', uredi: 'pesme', setlista: 'pesme', primljena: 'pesme', podesavanja: 'podesavanja' }[page] || 'tuner';
+  const tab = { tuner: 'tuner', akordi: 'akordi', pesme: 'pesme', pesma: 'pesme', uredi: 'pesme', setlista: 'pesme', nastup: 'pesme', primljena: 'pesme', podesavanja: 'podesavanja' }[page] || 'tuner';
   document.body.classList.toggle('tuner-screen', tab === 'tuner');
   document.querySelectorAll('.nav a').forEach((a) => {
     const on = a.dataset.tab === tab;
@@ -63,6 +64,7 @@ async function route() {
     const { renderLibrary, renderSong, renderEditor, renderSharedSong, setSelectedSong } = await loadSongs();
     const { renderSetlist, setlistNav } = await loadSetlists();
     const { renderSettings } = page === 'podesavanja' ? await loadSettings() : {};
+    const { renderStage } = page === 'nastup' ? await loadStage() : {};
     if (routeId !== myRoute) return;
     // Tablet položeno: dva panela — lista pesama levo, izabrana pesma desno
     const twoPane = TWO_PANE.matches && (page === 'pesme' || page === 'pesma') && params.get('tab') !== 'sl';
@@ -95,6 +97,7 @@ async function route() {
     if (page === 'pesme') await renderLibrary(el, params);
     else if (page === 'pesma') await renderSong(el, dec, await setlistNav(params));
     else if (page === 'setlista') await renderSetlist(el, dec);
+    else if (page === 'nastup') await renderStage(el, dec, params);
     else if (page === 'primljena') await renderSharedSong(el);
     else if (page === 'uredi') await renderEditor(el, dec);
     else if (page === 'podesavanja') await renderSettings(el);

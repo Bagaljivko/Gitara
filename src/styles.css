@@ -608,3 +608,17 @@ body.two-pane-mode main { max-width: 1320px; }
 .loop-btn svg { width: 20px; height: 20px; }
 .loop-btn.on { color: var(--accent); background: var(--accent-soft); }
 .sec.looping { border-left: 3px solid var(--accent); padding-left: 10px; margin-left: -13px; }
+/* Nastup (setlista preko celog ekrana) */
+.stage-btn { margin-top: 10px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.stage-btn svg { width: 20px; height: 20px; fill: currentColor; }
+body.stage-mode { padding-bottom: env(safe-area-inset-bottom); padding-left: 0; }
+body.stage-mode .nav, body.stage-mode .update-bar { display: none; }
+body.stage-mode main { max-width: 900px; padding-top: 0; }
+.stage-bar { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 6px; padding: calc(env(safe-area-inset-top) + 4px) 0 6px; background: var(--bg); border-bottom: 1px solid var(--line); transition: transform .2s; }
+.stage.bar-hidden .stage-bar { transform: translateY(-110%); }
+.stage-info { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.stage-info b, .stage-info span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stage-h1 { font-size: 1.6rem; margin: 14px 0 6px; }
+.stage-lyrics { --lyr-base: 1.05rem; }
+.stage-end { display: flex; flex-direction: column; gap: 10px; margin: 28px 0 16vh; }
+.stage .tab-play { display: none; }

@@ -115,6 +115,7 @@ export async function renderSetlist(root, id) {
       <button class="btn" id="slAdd">${t('sl.addSongs')}</button>
       <button class="btn primary" id="slPlay">${t('sl.play')}</button>
     </div>
+    <button class="btn wide stage-btn" id="slStage"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18v11H3zm2 2v7h14V7zM8 19h8v2H8z"/></svg>${t('stage.start')}</button>
     <p class="hint small">${t('sl.dragHint')}</p>
     <ol class="sl-list" id="slList"></ol>
   </section>`;
@@ -123,6 +124,7 @@ export async function renderSetlist(root, id) {
 
   const draw = () => {
     $('slPlay').disabled = !ids.length;
+    $('slStage').disabled = !ids.length;
     $('slList').innerHTML = ids.length ? ids.map((sid, i) => {
       const s = byId.get(sid);
       return `<li class="sl-item" data-id="${esc(sid)}">
@@ -181,6 +183,7 @@ export async function renderSetlist(root, id) {
     await save();
   });
   $('slPlay').addEventListener('click', () => { if (ids.length) location.hash = `#/pesma/${encodeURIComponent(ids[0])}?sl=${encodeURIComponent(id)}&i=0`; });
+  $('slStage').addEventListener('click', async () => { if (ids.length) (await import('./stage.js')).enterStage(id, 0); });
   $('slRename').addEventListener('click', async () => {
     const n = await askName(t('folder.rename'), sl.name);
     if (!n) return;
