@@ -86,4 +86,4 @@ npm test         # testovi (teorija muzike, format pesme, detekcija tona)
 npm run icons    # ponovo pravi PNG ikonice iz SVG-a (treba Playwright)
 ```
 
-Tehnologija: obični HTML/CSS/JavaScript (ES moduli, bez build koraka). Za PDF se koristi jsPDF (`vendor/`) sa ugrađenim fontom DejaVu Sans Mono (`fonts/`, skraćen na latinicu, srpska slova i ćirilicu); oba se preuzimaju u pozadini posle instalacije. Zvuk se obrađuje preko Web Audio API-ja: YIN za detekciju tona i hromagram za akorde.
+Tehnologija: obični HTML/CSS/JavaScript (ES moduli, bez build koraka). Za PDF se koristi jsPDF (`vendor/`) sa ugrađenim fontom DejaVu Sans Mono (`fonts/`, skraćen na latinicu sa srpskim slovima č, ć, š, ž, đ); oba se preuzimaju u pozadini posle instalacije. Zvuk se obrađuje preko Web Audio API-ja: YIN za detekciju tona i hromagram za akorde.
