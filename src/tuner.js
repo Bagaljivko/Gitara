@@ -62,6 +62,7 @@ function headstockArt() {
   const knobs = KNOBS.map((k) => {
     const s = STRINGS[k.id];
     return `<g class="knob" data-s="${k.id}" tabindex="0" role="button" aria-label="${t('tuner.string', { num: s.num, note: s.full })}">
+      <circle class="knob-hit" cx="${(k.cx * sx).toFixed(1)}" cy="${(k.cy * sy).toFixed(1)}" r="62"/>
       <polygon class="knob-shape" points="${pts(k)}"/>
       <text class="knob-label" x="${(k.cx * sx).toFixed(1)}" y="${(k.cy * sy + 17).toFixed(1)}" text-anchor="middle">${s.label === 'e' ? 'E' : s.label}</text>
     </g>`;
@@ -78,6 +79,8 @@ function headstockArt() {
     </svg>
   </div>`;
 }
+
+const buzz = (p) => { try { navigator.vibrate && navigator.vibrate(p); } catch {} };
 
 export function createTuner(root) {
   root.innerHTML = `
@@ -241,6 +244,7 @@ export function createTuner(root) {
         if (now - okSince >= HOLD_MS && !done.has(sid)) {
           done.add(sid);
           applyDone();
+          buzz(done.size === 6 ? [60, 80, 60, 80, 160] : 70); // kratka vibracija (Android)
           if (done.size === 6 && !popupOpen) allTuned();
         }
       } else if (Math.abs(shownCents) > lim) okSince = 0;

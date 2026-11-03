@@ -6,6 +6,8 @@ import { chordSVG } from './diagram.js';
 import { esc } from './ui.js';
 import { keepAwake, allowSleep } from './wakelock.js';
 import { createRhythmPane } from './rhythmView.js';
+import { SENSITIVITY } from './pitchtrack.js';
+import { settings } from './db.js';
 
 const MATCH_QUALITIES = ['', 'm', '7', 'maj7', 'm7', 'sus2', 'sus4'];
 // Blaga prednost jednostavnijim akordima (trozvuci su najčešći).
@@ -152,6 +154,7 @@ export function createChordRec(root) {
   const acc = new Float32Array(12), accBass = new Float32Array(12);
   let shownName = null, stable = null, stableSince = 0;
   let lastOnset = -1e9, levels = [];
+  let floor = 0, calib = [], calibStart = 0, sens = SENSITIVITY.medium;
   const WINDOW = 1600;     // analiziraj ovoliko ms posle udarca
   const STABLE_MS = 300;   // rezultat mora biti stabilan pre prikaza
 
@@ -168,7 +171,11 @@ export function createChordRec(root) {
     const now = performance.now();
     const rise = fprev ? broadbandRise(fprev, fspec, mic.ctx.sampleRate / fast.fftSize) : 0;
     fprev = Float32Array.from(fspec);
-    if (rise > 0.3 && level > Math.max(0.004, prevLevel * 2) && now - lastOnset > 150) {
+    // Prag prati buku u prostoriji (prva sekunda = merenje, posle sporo prilagođavanje), kao u tuneru.
+    if (now - calibStart < 1000) { calib.push(level); const c = [...calib].sort((a, b) => a - b); floor = c[Math.floor(c.length * 0.6)]; }
+    else if (now - lastOnset > WINDOW) floor = level < floor ? floor * 0.9 + level * 0.1 : floor * 0.997 + level * 0.003;
+    const onLevel = Math.max(sens.minLevel * 2, floor * sens.onMult);
+    if (now - calibStart > 300 && rise > 0.3 && level > Math.max(onLevel, prevLevel * 2) && now - lastOnset > 150) {
       lastOnset = now;
       acc.fill(0); accBass.fill(0);
       stable = null;
@@ -233,6 +240,8 @@ export function createChordRec(root) {
       fspec = new Float32Array(fast.frequencyBinCount);
       tbuf = new Float32Array(fast.fftSize);
       fprev = null; levels = []; lastOnset = -1e9;
+      sens = SENSITIVITY[await settings.get('tunerSens', 'medium')] || SENSITIVITY.medium;
+      floor = 0; calib = []; calibStart = performance.now();
       acc.fill(0); accBass.fill(0);
       running = true;
       timer = setInterval(frame, 90);

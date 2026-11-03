@@ -21,6 +21,7 @@ import { PATTERNS, patternHTML, patternName, Metronome } from './rhythm.js';
 import { keepAwake, allowSleep } from './wakelock.js';
 import { getFolders, addFolder } from './collections.js';
 import { renderSetlistsPane, editSongFolders, manageFolder, askName } from './setlistsView.js';
+import { seedDemoSong } from './demo.js';
 
 let draft = null; // nesačuvana pesma (npr. posle skeniranja)
 let selectedId = null; // izabrana pesma u prikazu sa dva panela
@@ -71,6 +72,7 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
   </section>`;
   const $ = (id) => root.querySelector('#' + id);
   $('lSort').value = sortPref;
+  await seedDemoSong(getLang()).catch(() => {});
   let all = await db.all();
   let folders = await getFolders();
   let folderFilter = localStorageGet('gitara-folder') || '';

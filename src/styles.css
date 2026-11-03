@@ -344,7 +344,7 @@ body.tuner-screen .nav { background: rgba(23, 24, 28, .97); }
 
 /* Folderi i setliste */
 .chips { display: flex; gap: 6px; overflow-x: auto; padding: 4px 0 8px; margin: 0 -16px; padding-left: 16px; padding-right: 16px; }
-.chip { flex: none; appearance: none; border: 1px solid var(--line); background: var(--surface); color: var(--text); font: 600 .88rem var(--sans); min-height: 38px; padding: 0 14px; border-radius: 999px; cursor: pointer; white-space: nowrap; }
+.chip { flex: none; appearance: none; border: 1px solid var(--line); background: var(--surface); color: var(--text); font: 600 .88rem var(--sans); min-height: 44px; padding: 0 16px; border-radius: 999px; cursor: pointer; white-space: nowrap; }
 .chip.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
 .chip.add { color: var(--muted); border-style: dashed; }
 .chip-edit { margin-left: 4px; }
@@ -572,3 +572,6 @@ body.two-pane-mode main { max-width: 1320px; }
 .nudge p { margin: 6px 0 10px; }
 .nudge .row { display: flex; flex-wrap: wrap; gap: 8px; }
 .nudge .row .btn { display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; padding: 0 10px; }
+/* Veće površine za dodir (najmanje ~44 px) */
+.knob-hit { fill: transparent; pointer-events: all; }
+.about a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px; margin-left: -4px; }
