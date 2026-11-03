@@ -688,6 +688,7 @@ export async function renderSong(root, id, nav = null) {
   let capo = stored.capo || 0;
   let zoom = Number(stored.zoom) || (Number(localStorageGet('gitara-font')) || 1);
   let speed = stored.scrollSpeed || 4;
+  let loopSec = -1, loopMet = null, loopBpm = 90; // vežbanje jedne sekcije
   const backHref = nav ? nav.backHref : '#/pesme';
   root.innerHTML = `
   <section class="view song-view">
@@ -707,6 +708,15 @@ export async function renderSong(root, id, nav = null) {
     </div>` : ''}
     <div id="sBody"></div>
     <div class="scroll-bar" id="sScrollBar">
+      <div class="loop-row" id="sLoopRow" hidden>
+        <span class="loop-name"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10v3l4-4-4-4v3H5v6h2zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2z"/></svg><b id="sLoopName"></b></span>
+        <span class="loop-bpm" role="group" aria-label="${t('loop.tempo')}">
+          <button class="btn round small" id="sBpmDown" aria-label="${t('loop.slower')}">−</button>
+          <b id="sBpm"></b>
+          <button class="btn round small" id="sBpmUp" aria-label="${t('loop.faster')}">+</button>
+        </span>
+        <button class="icon-btn" id="sLoopStop" aria-label="${t('loop.stop')}" title="${t('loop.stop')}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z"/></svg></button>
+      </div>
       <button class="btn round small" id="sPlay" aria-label="${t('scroll.play')}"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
       <span class="small muted">${t('scroll.slower')}</span>
       <input type="range" id="sSpeed" min="1" max="10" step="1" value="${speed}" aria-label="${t('scroll.speed')}">
@@ -763,6 +773,7 @@ export async function renderSong(root, id, nav = null) {
       ${chords.length ? `<div class="diagram-row" aria-label="${t('song.diagrams')}">${chords.map((c) => `<button class="diagram-btn" data-chord="${esc(c)}" aria-label="${esc(t('song.enlarge', { name: c }))}">${chordSVG(c)}</button>`).join('')}</div>` : ''}
       <div class="lyrics" id="sLyrics" style="--zoom:${zoom}">${renderSectionsHTML(song.sections, unc())}</div>`;
     syncEasyTop();
+    addLoopButtons();
     layoutTabs($('sLyrics'));
     $('sFontDown').disabled = zoom <= 0.8;
     $('sFontUp').disabled = zoom >= 1.8;
@@ -938,7 +949,9 @@ export async function renderSong(root, id, nav = null) {
     carry += pxPerSec() * dt;
     const px = Math.floor(carry);
     if (px >= 1) { carry -= px; window.scrollBy(0, px); }
-    if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2) return stopScroll();
+    const atEnd = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2;
+    if (loopSec >= 0 && (atEnd || window.scrollY >= loopEndY())) { window.scrollTo(0, loopStartY()); carry = 0; }
+    else if (atEnd) return stopScroll();
     raf = requestAnimationFrame(step);
   }
   function startScroll() {
@@ -960,11 +973,75 @@ export async function renderSong(root, id, nav = null) {
     b.innerHTML = '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
     b.setAttribute('aria-label', t('scroll.play'));
   }
-  $('sPlay').addEventListener('click', (e) => { e.stopPropagation(); scrolling ? stopScroll() : startScroll(); });
+  $('sPlay').addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (scrolling) { stopScroll(); loopMet?.stop(); }
+    else { startScroll(); if (loopSec >= 0) loopMet?.start(); }
+  });
+
+  // ---- Vežbanje dela pesme: ponavljaj jednu sekciju (auto-skrol + metronom) ----
+  function secEls() { return $('sLyrics') ? [...$('sLyrics').querySelectorAll(':scope > .sec')] : []; }
+  function topOffset() { return (root.querySelector('.topbar')?.offsetHeight || 0) + 8; }
+  function loopStartY() { const el = secEls()[loopSec]; return el ? Math.max(0, el.getBoundingClientRect().top + window.scrollY - topOffset()) : 0; }
+  function loopEndY() { const el = secEls()[loopSec]; if (!el) return Infinity; const h = el.offsetHeight; return loopStartY() + Math.max(h * 0.6, h - window.innerHeight * 0.35); }
+  function addLoopButtons() {
+    secEls().forEach((el, i) => {
+      const sec = stored.sections[i];
+      if (!sec || (!sec.lines.length && !(sec.tabs || []).length)) return;
+      let head = el.querySelector(':scope > .sec-head');
+      if (!head) { head = document.createElement('div'); head.className = 'sec-head'; el.prepend(head); }
+      const name = sec.name || t('strum.section', { n: i + 1 });
+      head.insertAdjacentHTML('beforeend', `<button class="icon-btn loop-btn${i === loopSec ? ' on' : ''}" data-loop="${i}" aria-pressed="${i === loopSec}" aria-label="${esc(t('loop.start', { name }))}" title="${esc(t('loop.start', { name }))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10v3l4-4-4-4v3H5v6h2zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2z"/></svg></button>`);
+      el.classList.toggle('looping', i === loopSec);
+    });
+  }
+  async function startLoop(i) {
+    stopStrum();
+    loopMet?.stop();
+    loopSec = i;
+    const sec = stored.sections[i];
+    $('sLoopName').textContent = sec.name || t('strum.section', { n: i + 1 });
+    $('sLoopRow').hidden = false;
+    setCollapsed(false);
+    loopBpm = Number(await settings.get('metBpm', 90)) || 90;
+    $('sBpm').textContent = loopBpm + ' BPM';
+    secEls().forEach((el, k) => { el.classList.toggle('looping', k === i); const b = el.querySelector('.loop-btn'); if (b) { b.classList.toggle('on', k === i); b.setAttribute('aria-pressed', String(k === i)); } });
+    window.scrollTo(0, loopStartY());
+    loopMet = new Metronome();
+    const pat = sec.strum || stored.strum;
+    if (pat) { loopMet.pattern = pat; loopMet.sig = pat.sig; }
+    loopMet.bpm = loopBpm;
+    loopMet.start();
+    if (!scrolling) startScroll();
+  }
+  function stopLoop() {
+    loopMet?.stop(); loopMet = null;
+    if (loopSec < 0) return;
+    loopSec = -1;
+    $('sLoopRow').hidden = true;
+    secEls().forEach((el) => { el.classList.remove('looping'); const b = el.querySelector('.loop-btn'); if (b) { b.classList.remove('on'); b.setAttribute('aria-pressed', 'false'); } });
+    stopScroll();
+  }
+  const setBpm = async (d) => {
+    loopBpm = Math.max(40, Math.min(220, loopBpm + d));
+    $('sBpm').textContent = loopBpm + ' BPM';
+    if (loopMet) loopMet.bpm = loopBpm;
+    await settings.set('metBpm', loopBpm);
+  };
+  $('sBpmDown').addEventListener('click', (e) => { e.stopPropagation(); setBpm(-5); });
+  $('sBpmUp').addEventListener('click', (e) => { e.stopPropagation(); setBpm(5); });
+  $('sLoopStop').addEventListener('click', (e) => { e.stopPropagation(); stopLoop(); });
+  $('sBody').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-loop]');
+    if (!b) return;
+    e.stopPropagation();
+    const i = +b.dataset.loop;
+    if (i === loopSec) stopLoop(); else startLoop(i);
+  });
   $('sSpeed').addEventListener('input', (e) => { speed = +e.target.value; });
   $('sSpeed').addEventListener('change', async () => { stored.scrollSpeed = speed; await save(); });
   // Dodir bilo gde na tekstu pauzira skrolovanje
-  $('sBody').addEventListener('pointerdown', () => stopScroll());
+  $('sBody').addEventListener('pointerdown', () => { stopScroll(); loopMet?.stop(); });
   // ---- Tablature: reprodukcija u tempu metronoma, ističe svaku notu ----
   let stopTab = null, tabBtn = null;
   const endTab = () => {
@@ -997,7 +1074,7 @@ export async function renderSong(root, id, nav = null) {
   }
   const ro = new ResizeObserver(() => { const l = root.querySelector('.lyrics'); if (l) layoutTabs(l); });
   ro.observe(root.querySelector('.song-view'));
-  const onHash = () => { stopScroll(); stopStrum(); endTab(); ro.disconnect(); window.removeEventListener('hashchange', onHash); };
+  const onHash = () => { stopLoop(); stopScroll(); stopStrum(); endTab(); ro.disconnect(); window.removeEventListener('hashchange', onHash); };
   window.addEventListener('hashchange', onHash);
 
   function easyActive() { return !!stored.easyCapo && capo === stored.easyCapo; }

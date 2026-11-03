@@ -538,6 +538,7 @@ body.two-pane-mode main { max-width: 1320px; }
 .scroll-bar:not(.collapsed) .scroll-collapse svg { transform: rotate(90deg); }
 .scroll-bar.collapsed { max-width: max-content; margin-left: auto; padding: 4px; gap: 2px; }
 .scroll-bar.collapsed > :not(#sPlay):not(.scroll-collapse) { display: none; }
+.scroll-bar.collapsed > .loop-row:not([hidden]) { display: flex; }
 .scroll-bar.collapsed .scroll-collapse svg { transform: rotate(180deg); }
 
 /* Tablature */
@@ -595,3 +596,15 @@ body.two-pane-mode main { max-width: 1320px; }
 .tuning-note { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 8px 0; padding: 8px 8px 8px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
 #sEasyTop .lbl-short { display: none; }
 @media (max-width: 380px) { #sEasyTop .lbl-long { display: none; } #sEasyTop .lbl-short { display: inline; } }
+/* Vežbanje dela pesme */
+.scroll-bar { flex-wrap: wrap; }
+.loop-row { flex-basis: 100%; display: flex; align-items: center; gap: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--line); margin-bottom: 2px; }
+.loop-row[hidden] { display: none; }
+.loop-name { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; color: var(--accent); overflow: hidden; }
+.loop-name b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.loop-name svg { width: 18px; height: 18px; fill: currentColor; flex: none; }
+.loop-bpm { display: flex; align-items: center; gap: 6px; font-size: .9rem; white-space: nowrap; }
+.loop-btn { width: 40px; height: 40px; margin-left: auto; color: var(--muted); }
+.loop-btn svg { width: 20px; height: 20px; }
+.loop-btn.on { color: var(--accent); background: var(--accent-soft); }
+.sec.looping { border-left: 3px solid var(--accent); padding-left: 10px; margin-left: -13px; }
