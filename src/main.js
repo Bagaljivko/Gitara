@@ -1,18 +1,21 @@
 import { createTuner } from './tuner.js';
-import { createChordRec } from './chordrec.js';
-import { renderLibrary, renderSong, renderEditor, renderSharedSong, setSelectedSong } from './songs.js';
-import { hasSharedSong } from './sharelink.js';
-import { renderSetlist, setlistNav } from './setlistsView.js';
-import { renderSettings } from './settingsView.js';
-import { initDrive } from './drive.js';
 import { t, getLang, setLang, onLangChange } from './i18n.js';
-import { settings } from './db.js';
+import { settings, songs as songsDb, events as dbEvents } from './db.js';
+
+// Ekrani osim tunera se učitavaju tek kad zatrebaju (brže prvo otvaranje).
+const lazy = (load) => { let p; return () => (p ||= load()); };
+const loadSongs = lazy(() => import('./songs.js'));
+const loadSetlists = lazy(() => import('./setlistsView.js'));
+const loadSettings = lazy(() => import('./settingsView.js'));
+const loadChordRec = lazy(() => import('./chordrec.js'));
+const hasSharedSong = () => location.hash.startsWith('#pesma='); // isto kao u sharelink.js
 
 const app = document.getElementById('app');
 const views = {};
 let activeLive = null; // tuner/akordi koriste mikrofon — gasimo ga pri promeni taba
 
-function liveView(name, factory) {
+async function liveView(name) {
+  const factory = name === 'tuner' ? createTuner : (await loadChordRec()).createChordRec;
   if (!views[name]) {
     const el = document.createElement('div');
     el.className = 'live';
@@ -25,7 +28,9 @@ function liveView(name, factory) {
 const TWO_PANE = window.matchMedia('(min-width: 900px) and (min-height: 600px) and (orientation: landscape)');
 TWO_PANE.addEventListener('change', () => { app.querySelector(':scope > .page')?.remove(); route(); });
 
+let routeId = 0;
 async function route() {
+  const myRoute = ++routeId;
   const shared = hasSharedSong();
   const hash = shared ? '#/primljena' : location.hash || '#/tuner';
   const [, page, arg] = hash.match(/^#\/([^/?]*)\/?(.*)$/) || [, 'tuner', ''];
@@ -44,7 +49,8 @@ async function route() {
 
   if (tab === 'tuner' || tab === 'akordi') {
     const name = page === 'akordi' ? 'akordi' : 'tuner';
-    const v = liveView(name, name === 'tuner' ? createTuner : createChordRec);
+    const v = await liveView(name);
+    if (routeId !== myRoute) return;
     if (!v.el.parentNode) app.appendChild(v.el);
     v.el.hidden = false;
     v.ctl.show();
@@ -54,6 +60,10 @@ async function route() {
     const [rawId, query = ''] = (arg || '').split('?');
     const dec = decodeURIComponent(rawId || '');
     const params = new URLSearchParams(query);
+    const { renderLibrary, renderSong, renderEditor, renderSharedSong, setSelectedSong } = await loadSongs();
+    const { renderSetlist, setlistNav } = await loadSetlists();
+    const { renderSettings } = page === 'podesavanja' ? await loadSettings() : {};
+    if (routeId !== myRoute) return;
     // Tablet položeno: dva panela — lista pesama levo, izabrana pesma desno
     const twoPane = TWO_PANE.matches && (page === 'pesme' || page === 'pesma') && params.get('tab') !== 'sl';
     document.body.classList.toggle('two-pane-mode', twoPane);
@@ -103,10 +113,37 @@ window.addEventListener('online', updateOnline);
 window.addEventListener('offline', updateOnline);
 updateOnline();
 
-// Service worker — isto kao u aplikaciji Trening-za-decu: relativna putanja "sw.js" (scope = /Gitara/).
+// Service worker — relativna putanja "sw.js" (scope = /Gitara/).
+// Nova verzija se preuzme u pozadini; traka „Osveži“ je primenjuje jednim dodirom.
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  let updating = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (updating) location.reload(); });
+  const offerUpdate = (w) => {
+    const bar = document.getElementById('updateBar');
+    if (!bar || !navigator.serviceWorker.controller) return;
+    bar.hidden = false;
+    bar.querySelector('button').onclick = () => { updating = true; bar.querySelector('button').disabled = true; w.postMessage('SKIP_WAITING'); };
+  };
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').then((reg) => {
+    if (reg.waiting) offerUpdate(reg.waiting);
+    reg.addEventListener('updatefound', () => {
+      const w = reg.installing;
+      w && w.addEventListener('statechange', () => { if (w.state === 'installed') offerUpdate(w); });
+    });
+    // Instalirana aplikacija se često samo vrati iz pozadine — tada proveri ima li nove verzije.
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) reg.update().catch(() => {}); });
+  }).catch(() => {}));
 }
+
+// Zamoli pregledač da ne briše pesme kad ponestane prostora (ili posle 7 dana na iPhone-u).
+async function persistStorage() {
+  try {
+    if (!navigator.storage?.persist || await navigator.storage.persisted()) return;
+    if ((await songsDb.all()).length) await navigator.storage.persist();
+  } catch {}
+}
+persistStorage();
+dbEvents.addEventListener('songs-changed', persistStorage, { once: true });
 
 // ---- Jezik ----
 function applyStaticText() {
@@ -131,4 +168,6 @@ applyStaticText();
 settings.get('lang', null).then((v) => { if (v && v !== getLang()) setLang(v, { save: false }); }).catch(() => {});
 
 route();
-initDrive().catch(() => {});
+// Drive (automatska rezervna kopija) se učitava malo kasnije, kad se prvi ekran već prikaže.
+const idle = window.requestIdleCallback || ((f) => setTimeout(f, 1200));
+idle(() => import('./drive.js').then((m) => m.initDrive()).catch(() => {}));

@@ -211,6 +211,7 @@ export async function renderSettings(root) {
     if (!n) { toast(t('set.nothingToExport')); return; }
     const r = await exportAll();
     if (r === 'downloaded') toast(t('set.backupDownloaded'));
+    settings.set('backupNudge', { ...((await settings.get('backupNudge', null)) || {}), exportedAt: Date.now() });
   });
   $('bImport').addEventListener('click', async () => {
     const file = await pickFile('.json,application/json,text/plain');

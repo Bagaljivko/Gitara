@@ -65,6 +65,7 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
       </select>
     </div>
     <div class="chips" id="lFolders" role="group" aria-label="${t('folder.title')}"></div>
+    <div id="lNudge"></div>
     <ul class="song-list" id="lList"></ul>
     </div>
   </section>`;
@@ -174,6 +175,34 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
   });
   drawFolders();
   draw();
+  backupNudge($('lNudge'), all.filter((x) => !x.demo).length);
+}
+
+// Podsetnik za rezervnu kopiju: posle 3+ pesama bez Google Drive-a; „Ne sada“ ga sakrije na 30 dana.
+const NUDGE_MIN = 3, NUDGE_SNOOZE = 30 * 864e5;
+async function backupNudge(box, count) {
+  if (count < NUDGE_MIN || driveState().connected) return;
+  const st = (await settings.get('backupNudge', null)) || {};
+  if (st.snoozedAt && Date.now() - st.snoozedAt < NUDGE_SNOOZE) return;
+  if (st.exportedAt && Date.now() - st.exportedAt < NUDGE_SNOOZE) return;
+  box.innerHTML = `<div class="card nudge" role="note">
+    <b>${t('nudge.title')}</b>
+    <p class="muted small">${t(isIOS() && !isStandalone() ? 'nudge.bodyIos' : 'nudge.body')}</p>
+    <div class="row">
+      <a class="btn small primary" href="#/podesavanja">${t('nudge.drive')}</a>
+      <button class="btn small" data-n="export">${t('nudge.export')}</button>
+      <button class="btn small ghost" data-n="later">${t('nudge.later')}</button>
+    </div></div>`;
+  box.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-n]');
+    if (!b) return;
+    if (b.dataset.n === 'export') {
+      const r = await exportAll();
+      if (r === 'downloaded') toast(t('set.backupDownloaded'));
+      await settings.set('backupNudge', { ...st, exportedAt: Date.now() });
+    } else await settings.set('backupNudge', { ...st, snoozedAt: Date.now() });
+    box.innerHTML = '';
+  });
 }
 
 // ---------------- Uvoz / deljenje ----------------
