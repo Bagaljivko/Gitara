@@ -18,7 +18,7 @@ import { isStandalone, isIOS, canPromptInstall, promptInstall } from './install.
 import { APP_VERSION } from './version.js';
 import { settings } from './db.js';
 import { PATTERNS, patternHTML, patternName, Metronome } from './rhythm.js';
-import { keepAwake, allowSleep } from './wakelock.js';
+import { keepAwake, allowSleep, setWakeZone, onWakeChange, wakeState, toggleWakePause } from './wakelock.js';
 import { getFolders, addFolder } from './collections.js';
 import { renderSetlistsPane, editSongFolders, manageFolder, askName } from './setlistsView.js';
 import { seedDemoSong } from './demo.js';
@@ -258,6 +258,7 @@ async function shareSong(song) {
 
 // ---------------- Pesma iz linka (#pesma=...) ----------------
 export async function renderSharedSong(root) {
+  setWakeZone('song');
   let song;
   try { song = songFromHash(); } catch (e) {
     root.innerHTML = `<section class="view"><div class="card"><h2>${t('link.badTitle')}</h2><p class="muted">${esc(e.message)}</p>
@@ -723,6 +724,7 @@ export async function renderSong(root, id, nav = null) {
       <span class="small muted">${t('scroll.slower')}</span>
       <input type="range" id="sSpeed" min="1" max="10" step="1" value="${speed}" aria-label="${t('scroll.speed')}">
       <span class="small muted">${t('scroll.faster')}</span>
+      <button class="icon-btn awake-btn" id="sAwake" hidden aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7a5 5 0 1 1 0 10 5 5 0 0 1 0-10zm0-5 1 3h-2zm0 20-1-3h2zM2 12l3-1v2zm20 0-3 1v-2zM4.9 4.9l2.8 1.4-1.4 1.4zm14.2 14.2-2.8-1.4 1.4-1.4zM4.9 19.1l1.4-2.8 1.4 1.4zM19.1 4.9l-1.4 2.8-1.4-1.4z"/></svg></button>
       <button class="icon-btn scroll-collapse" id="sCollapse" aria-label="${t('scroll.collapse')}" title="${t('scroll.collapse')}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.6 7.4 10 6l6 6-6 6-1.4-1.4L13.2 12z"/></svg></button>
     </div>
     <div class="song-actions">
@@ -900,7 +902,7 @@ export async function renderSong(root, id, nav = null) {
 
   // ---- Ritam (strumming) ----
   let strumMet = null;
-  const stopStrum = () => { strumMet?.stop(); strumMet = null; root.querySelectorAll('.pstep.now').forEach((x) => x.classList.remove('now')); $('sStrumPlay')?.classList.remove('playing'); };
+  const stopStrum = () => { strumMet?.stop(); strumMet = null; allowSleep('strum'); root.querySelectorAll('.pstep.now').forEach((x) => x.classList.remove('now')); $('sStrumPlay')?.classList.remove('playing'); };
   const playStrum = () => playPattern(stored.strum, '.strum-box');
   const playPattern = (pattern, scope) => {
     if (strumMet) return stopStrum();
@@ -908,6 +910,7 @@ export async function renderSong(root, id, nav = null) {
     strumMet = new Metronome();
     strumMet.pattern = pattern;
     strumMet.sig = pattern.sig;
+    keepAwake('strum');
     songBpm().then((b) => { if (!strumMet) return; strumMet.bpm = b; strumMet.start(); });
     $('sStrumPlay')?.classList.add('playing');
     strumMet.onStep = (i) => root.querySelectorAll(scope + ' .pstep').forEach((s) => s.classList.toggle('now', +s.dataset.i === i));
@@ -1061,6 +1064,7 @@ export async function renderSong(root, id, nav = null) {
   const endTab = () => {
     if (stopTab) stopTab();
     stopTab = null;
+    allowSleep('tabplay');
     tabBtn?.classList.remove('playing');
     tabBtn = null;
     root.querySelectorAll('.tab-note.now').forEach((x) => x.classList.remove('now'));
@@ -1074,6 +1078,7 @@ export async function renderSong(root, id, nav = null) {
     if (!tab) return;
     tabBtn = btn;
     btn.classList.add('playing');
+    keepAwake('tabplay');
     const staff = btn.closest('.tab-block').querySelector('.tab-staff');
     const bpm = await songBpm();
     const a4 = Number(await settings.get('a4', 440)) || 440;
@@ -1088,7 +1093,23 @@ export async function renderSong(root, id, nav = null) {
   }
   const ro = new ResizeObserver(() => { const l = root.querySelector('.lyrics'); if (l) layoutTabs(l); });
   ro.observe(root.querySelector('.song-view'));
-  const onHash = () => { stopLoop(); stopScroll(); stopStrum(); endTab(); ro.disconnect(); window.removeEventListener('hashchange', onHash); };
+  // Ekran ostaje upaljen dok koristiš pesmu (Podešavanja → Ekran); ikonica u traci ga isključuje za ovu pesmu
+  setWakeZone('song');
+  const drawAwake = (st) => {
+    const b = $('sAwake');
+    if (!b) return;
+    b.hidden = st.mode !== 'songs' || !('wakeLock' in navigator);
+    const on = !st.paused;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-pressed', String(on));
+    const label = t(on ? 'wake.onLabel' : 'wake.offLabel', { n: st.minutes });
+    b.setAttribute('aria-label', label);
+    b.title = label;
+  };
+  const offWake = onWakeChange(drawAwake);
+  drawAwake(wakeState());
+  $('sAwake').addEventListener('click', (e) => { e.stopPropagation(); const p = toggleWakePause(); toast(t(p ? 'wake.pausedToast' : 'wake.resumedToast', { n: wakeState().minutes })); });
+  const onHash = () => { stopLoop(); stopScroll(); stopStrum(); endTab(); offWake(); ro.disconnect(); window.removeEventListener('hashchange', onHash); };
   window.addEventListener('hashchange', onHash);
 
   function easyActive() { return !!stored.easyCapo && capo === stored.easyCapo; }

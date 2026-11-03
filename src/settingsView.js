@@ -10,6 +10,7 @@ import { driveState, onDriveChange, connect as driveConnect, disconnect as drive
 
 import { isStandalone, isIOS, canPromptInstall, promptInstall } from './install.js';
 import { checkForUpdate, appUrl } from './update.js';
+import { WAKE_MODES, WAKE_MINUTES } from './wakelock.js';
 
 export async function renderSettings(root) {
   const key = await settings.get('geminiKey', '');
@@ -18,6 +19,8 @@ export async function renderSettings(root) {
   const cachedModels = ((await settings.get('geminiModels', null)) || {}).list || [];
   const a4 = Number(await settings.get('a4', 440)) || 440;
   const sens = await settings.get('tunerSens', 'medium');
+  const wakeMode = WAKE_MODES.includes(await settings.get('wakeMode', 'songs')) ? await settings.get('wakeMode', 'songs') : 'songs';
+  const wakeMin = WAKE_MINUTES.includes(Number(await settings.get('wakeMinutes', 10))) ? Number(await settings.get('wakeMinutes', 10)) : 10;
   root.innerHTML = `
   <section class="view settings-view">
     <header class="view-head"><h1>${t('set.title')}</h1>
@@ -85,6 +88,21 @@ export async function renderSettings(root) {
       <p class="muted small" id="sensNote">${t('set.sensNote_' + sens)}</p>
     </div>
 
+    <div class="card">
+      <h2>${t('wake.title')}</h2>
+      <div class="wake-opts" role="radiogroup" aria-label="${t('wake.title')}">
+        ${WAKE_MODES.map((m) => `<button role="radio" class="wake-opt${m === wakeMode ? ' active' : ''}" data-wake="${m}" aria-checked="${m === wakeMode}">
+          <b>${t('wake.mode_' + m)}</b><span class="small muted">${t('wake.note_' + m)}</span></button>`).join('')}
+      </div>
+      <div id="wakeMinBox" ${wakeMode === 'songs' ? '' : 'hidden'}>
+        <h3 class="sens-title">${t('wake.minutes')}</h3>
+        <div class="seg-tabs sens-tabs" role="radiogroup" aria-label="${t('wake.minutes')}">
+          ${WAKE_MINUTES.map((n) => `<button role="radio" data-wmin="${n}" class="${n === wakeMin ? 'active' : ''}" aria-checked="${n === wakeMin}">${t('wake.min', { n })}</button>`).join('')}
+        </div>
+      </div>
+      ${'wakeLock' in navigator ? '' : `<p class="small muted">${t('wake.unsupported')}</p>`}
+    </div>
+
     <div class="card drive-card" id="driveCard"></div>
 
     <div class="card">
@@ -137,6 +155,17 @@ export async function renderSettings(root) {
       catch { toast(url); }
     }
   });
+
+  // ---- Ekran ostaje upaljen ----
+  root.querySelectorAll('[data-wake]').forEach((b) => b.addEventListener('click', async () => {
+    root.querySelectorAll('[data-wake]').forEach((x) => { x.classList.toggle('active', x === b); x.setAttribute('aria-checked', String(x === b)); });
+    $('wakeMinBox').hidden = b.dataset.wake !== 'songs';
+    await settings.set('wakeMode', b.dataset.wake);
+  }));
+  root.querySelectorAll('[data-wmin]').forEach((b) => b.addEventListener('click', async () => {
+    root.querySelectorAll('[data-wmin]').forEach((x) => { x.classList.toggle('active', x === b); x.setAttribute('aria-checked', String(x === b)); });
+    await settings.set('wakeMinutes', Number(b.dataset.wmin));
+  }));
 
   // ---- Proveri ažuriranja ----
   $('bUpdate').addEventListener('click', async () => {

@@ -537,7 +537,7 @@ body.two-pane-mode main { max-width: 1320px; }
 .scroll-collapse svg { width: 20px; height: 20px; transform: rotate(0); transition: transform .2s; }
 .scroll-bar:not(.collapsed) .scroll-collapse svg { transform: rotate(90deg); }
 .scroll-bar.collapsed { max-width: max-content; margin-left: auto; padding: 4px; gap: 2px; }
-.scroll-bar.collapsed > :not(#sPlay):not(.scroll-collapse) { display: none; }
+.scroll-bar.collapsed > :not(#sPlay):not(.scroll-collapse):not(#sAwake) { display: none; }
 .scroll-bar.collapsed > .loop-row:not([hidden]) { display: flex; }
 .scroll-bar.collapsed .scroll-collapse svg { transform: rotate(180deg); }
 
@@ -673,3 +673,14 @@ input, textarea, select, [contenteditable], .diag pre, .qr-url { -webkit-user-se
 .rh-step b { min-width: 92px; text-align: center; }
 .song-tempo { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
 .song-tempo b { min-width: 76px; text-align: center; }
+.awake-btn { color: var(--muted); flex: none; }
+.awake-btn svg { width: 22px; height: 22px; fill: currentColor; }
+.awake-btn.on { color: var(--accent); }
+.awake-btn:not(.on) svg { opacity: .5; }
+.scroll-bar .awake-btn[hidden] { display: none; }
+/* Ekran ostaje upaljen (podešavanja) */
+.wake-opts { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.wake-opt { appearance: none; text-align: left; display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--text); font: inherit; cursor: pointer; min-height: 44px; }
+.wake-opt b { font-size: .98rem; }
+.wake-opt.active { border-color: var(--accent); background: var(--accent-soft); }
+.wake-opt.active b { color: var(--accent); }

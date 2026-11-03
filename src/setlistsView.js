@@ -1,5 +1,6 @@
 // Setliste (spisak setlista, detalj sa prevlačenjem za redosled) i dijalozi za foldere.
 import { songs as db } from './db.js';
+import { setWakeZone } from './wakelock.js';
 import { esc, toast, dialog, confirmDialog } from './ui.js';
 import { t, songsCount } from './i18n.js';
 import {
@@ -95,6 +96,7 @@ export async function renderSetlistsPane(el) {
 
 // ---------------- Detalj setliste ----------------
 export async function renderSetlist(root, id) {
+  setWakeZone('setlist');
   const sl = await getSetlist(id);
   if (!sl) { location.hash = '#/pesme'; return; }
   const all = await db.all();

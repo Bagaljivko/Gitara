@@ -1,6 +1,7 @@
 import { createTuner } from './tuner.js';
 import { t, getLang, setLang, onLangChange } from './i18n.js';
 import { settings, songs as songsDb, events as dbEvents } from './db.js';
+import { setWakeZone } from './wakelock.js';
 
 // Ekrani osim tunera se učitavaju tek kad zatrebaju (brže prvo otvaranje).
 const lazy = (load) => { let p; return () => (p ||= load()); };
@@ -32,6 +33,7 @@ TWO_PANE.addEventListener('change', () => { app.querySelector(':scope > .page')?
 let routeId = 0;
 async function route() {
   const myRoute = ++routeId;
+  setWakeZone(null); // ekrani koji računaju aktivnost (pesma, setlista, rečnik) je ponovo uključe
   const shared = hasSharedSong();
   const hash = shared ? '#/primljena' : location.hash || '#/tuner';
   const [, page, arg] = hash.match(/^#\/([^/?]*)\/?(.*)$/) || [, 'tuner', ''];

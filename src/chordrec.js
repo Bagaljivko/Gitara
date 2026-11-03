@@ -4,7 +4,7 @@ import { openMic, closeMic, MicError } from './audio.js';
 import { QUALITIES, pcName } from './music.js';
 import { chordSVG } from './diagram.js';
 import { esc } from './ui.js';
-import { keepAwake, allowSleep } from './wakelock.js';
+import { keepAwake, allowSleep, setWakeZone } from './wakelock.js';
 import { createRhythmPane } from './rhythmView.js';
 import { createChordDict } from './chordDict.js';
 import { SENSITIVITY } from './pitchtrack.js';
@@ -290,6 +290,10 @@ export function createChordRec(root) {
     if (pane === 'rhythm' && !rhythm) rhythm = createRhythmPane($('rhPane'));
     if (pane !== 'rhythm') rhythm?.stop();
     if (pane === 'dict' && !dict) dict = createChordDict($('dictPane'));
+    setWakeZone(pane === 'dict' ? 'dict' : null);
   }));
-  return { show() {}, hide() { stop(); rhythm?.stop(); } };
+  return {
+    show() { if (!$('dictPane').hidden) setWakeZone('dict'); },
+    hide() { stop(); rhythm?.stop(); setWakeZone(null); },
+  };
 }

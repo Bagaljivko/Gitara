@@ -16,7 +16,7 @@ const FOLDER_NAME = 'Gitara';
 const BACKUP_NAME = 'gitara-backup.json';
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
 const BACKUP_DELAY = 4000; // ms posle izmene
-const BACKUP_SETTINGS = ['a4', 'geminiModel', 'geminiModelSel', 'lang', 'metBpm', 'folders', 'setlists', 'tunerSens']; // Gemini ključ se NIKAD ne šalje na Drive
+const BACKUP_SETTINGS = ['a4', 'geminiModel', 'geminiModelSel', 'lang', 'metBpm', 'folders', 'setlists', 'tunerSens', 'wakeMode', 'wakeMinutes']; // Gemini ključ se NIKAD ne šalje na Drive
 
 export class DriveError extends Error {
   constructor(message, code = '') { super(message); this.code = code; }
@@ -274,6 +274,8 @@ export async function readBackup() {
     const bpm = Number(data.settings.metBpm);
     if (bpm >= 40 && bpm <= 220) st.metBpm = bpm;
     if (['low', 'medium', 'high'].includes(data.settings.tunerSens)) st.tunerSens = data.settings.tunerSens;
+    if (['songs', 'active', 'never'].includes(data.settings.wakeMode)) st.wakeMode = data.settings.wakeMode;
+    if ([5, 10, 20].includes(Number(data.settings.wakeMinutes))) st.wakeMinutes = Number(data.settings.wakeMinutes);
     const fo = cleanFolders(data.settings.folders);
     if (fo) st.folders = fo;
     const sl = cleanSetlists(data.settings.setlists);
