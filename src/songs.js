@@ -1,8 +1,10 @@
 // Tab "Pesme": biblioteka, prikaz pesme, deljenje i uvoz. Editor i skeniranje su u songEditor.js (učitava se po potrebi).
 const loadEditor = () => import('./songEditor.js');
 import { songs as db } from './db.js';
-import { esc, toast, dialog, confirmDialog, pickFile, shareOrDownload } from './ui.js';
-import { chordSVG, voicingCount } from './diagram.js';
+import { esc, toast, dialog, confirmDialog, pickFile, shareOrDownload, closeXHTML } from './ui.js';
+import { chordSVG, voicingCount, shapeNavHTML, onShapeSwipe } from './diagram.js';
+import { getVoicings } from './chords.js';
+import { stopGroup } from './synth.js';
 import { parseChord, canonicalName } from './music.js';
 import { songChords, progressionSummary, transposeSong, parseSharedFile, safeFileName, SongFormatError, layoutChordLine, songExtras, songMeta, cleanUncertain, cleanYoutubeUrl } from './songformat.js';
 import { driveState, savePdfToDrive, DriveError } from './drive.js';
@@ -296,7 +298,7 @@ export async function renderSharedSong(root) {
     <h1 class="song-h1">${esc(song.title)}</h1>
     <p class="song-meta">${esc(song.artist || '')}${shownKey ? `${song.artist ? ' · ' : ''}${t('song.key')} <b>${esc(dn(shownKey))}</b>` : ''}${song.capo ? ` · ${t('capo.title')} ${song.capo}` : ''}</p>
     ${song.strum ? `<div class="strum-box card"><div class="strum-head"><span class="small muted">${t('strum.label')}</span> <b>${esc(patternName(song.strum))}</b></div>${patternHTML(song.strum)}</div>` : ''}
-    ${chords.length ? `<div class="diagram-row">${chords.map((c) => `<div class="diagram-btn">${chordSVG(c)}</div>`).join('')}</div>` : ''}
+    ${chords.length ? `<div class="diagram-row">${chords.map((c) => `<div class="diagram-btn">${chordSVG(c, { voicing: (song.shapes || {})[c] || 0 })}</div>`).join('')}</div>` : ''}
     <div class="lyrics">${renderSectionsHTML(shapes.sections)}</div>
   </section>`;
   fitLyrics(root.querySelector('.lyrics'));
@@ -474,30 +476,41 @@ function ytRowHTML(song) {
 }
 
 // ---------------- Uvećan dijagram ----------------
-function showChord(name) {
+// opts.voicing: hvat sa kojim se otvara; opts.onPick(i): pamti izabrani hvat za ovu pesmu (pri zatvaranju)
+function showChord(name, opts = {}) {
   const n = voicingCount(name);
-  let v = 0;
+  const start = n ? ((opts.voicing || 0) % n) : 0;
+  let v = start;
   const canon = canonicalName(name);
   const wrap = document.createElement('div');
   wrap.className = 'modal-backdrop';
   const p = parseChord(name);
-  const draw = () => {
-    wrap.innerHTML = `<div class="modal chord-modal" role="dialog" aria-modal="true" aria-label="${esc(t('diagram.chord', { name }))}">
-      <div class="chord-big">${chordSVG(name, { voicing: v })}</div>
+  wrap.innerHTML = `<div class="modal chord-modal has-x" role="dialog" aria-modal="true" aria-label="${esc(t('diagram.chord', { name: dn(name) }))}">
+      ${closeXHTML('data-a="close"')}
+      <div class="chord-big" id="cmBig"></div>
+      <div id="cmNav"></div>
       ${dn(canon) !== dn(name) ? `<p class="muted center">${t('chordModal.same')} <b>${esc(dn(canon))}</b></p>` : ''}
       ${p && p.bass !== null ? `<p class="muted center small">${esc(t('chordModal.bass', { bass: dn(name.split('/')[1]) }))}</p>` : ''}
-      ${n === 0 ? `<p class="muted center">${t('chordModal.none')}</p>` : ''}
-      <div class="modal-actions">
-        ${n > 1 ? `<button class="btn" data-a="next">${t('chordModal.next', { i: (v % n) + 1, n })}</button>` : ''}
-        <button class="btn primary" data-a="close">${t('common.close')}</button>
-      </div></div>`;
+      ${n === 0 ? `<p class="muted center">${t('chordModal.none')}</p>` : `<div class="modal-actions"><button class="btn primary" data-a="play"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>${t('dict.play')}</button></div>`}
+    </div>`;
+  const big = wrap.querySelector('#cmBig'), nav = wrap.querySelector('#cmNav');
+  const draw = () => { big.innerHTML = chordSVG(name, { voicing: v }); nav.innerHTML = shapeNavHTML(name, v); };
+  const play = () => import('./chordDict.js').then((m) => m.playVoicing(getVoicings(name)[v], 'chordpop'));
+  const shift = (d) => { if (n < 2) return; v = (v + d + n) % n; draw(); play(); };
+  const close = () => {
+    stopGroup('chordpop');
+    wrap.remove();
+    if (opts.onPick && v !== start) opts.onPick(v);
   };
   draw();
-  wrap.__close = () => wrap.remove(); // dugme „nazad“
+  wrap.__close = close; // dugme „nazad“
+  onShapeSwipe(big, shift);
   wrap.addEventListener('click', (e) => {
-    const a = e.target.closest('[data-a]');
-    if (e.target === wrap || (a && a.dataset.a === 'close')) return wrap.remove();
-    if (a && a.dataset.a === 'next') { v++; draw(); }
+    const a = e.target.closest('[data-a], [data-shape]');
+    if (e.target === wrap || (a && a.dataset.a === 'close')) return close();
+    if (!a) return;
+    if (a.dataset.shape) return shift(+a.dataset.shape);
+    if (a.dataset.a === 'play') play();
   });
   document.body.appendChild(wrap);
 }
@@ -655,7 +668,7 @@ export async function renderSong(root, id, nav = null) {
         <button class="btn small" id="sStrumEdit">${stored.strum || stored.sections.some((x) => x.strum) ? t('strum.change') : t('strum.add')}</button>
       </div>
       ${prog.length ? `<div class="det-sec prog">${prog.map((p) => `<div class="prog-row"><span class="prog-name">${esc(p.name || t('song.chordsFallback'))}</span><span class="prog-chords">${p.chords.map((c) => `<button class="ch" data-chord="${esc(c)}">${esc(dn(c))}</button>`).join('<span class="arrow">→</span>')}</span></div>`).join('')}</div>` : ''}
-      ${chords.length ? `<div class="diagram-row" aria-label="${t('song.diagrams')}">${chords.map((c) => `<button class="diagram-btn" data-chord="${esc(c)}" aria-label="${esc(t('song.enlarge', { name: dn(c) }))}">${chordSVG(c)}</button>`).join('')}</div>` : ''}
+      ${chords.length ? `<div class="diagram-row" aria-label="${t('song.diagrams')}">${chords.map((c) => `<button class="diagram-btn" data-chord="${esc(c)}" aria-label="${esc(t('song.enlarge', { name: dn(c) }))}">${chordSVG(c, { voicing: (stored.shapes || {})[c] || 0 })}</button>`).join('')}</div>` : ''}
       <div class="det-sec">${ytRowHTML(stored)}</div>`;
   };
   const drawLyrics = () => {
@@ -1076,7 +1089,16 @@ export async function renderSong(root, id, nav = null) {
       if (a === 'strum-play') return playPattern(patternById(stored.suggestStrum.id), '#sSuggest');
     }
     const c = e.target.closest('[data-chord]');
-    if (c) return showChord(c.dataset.chord);
+    if (c) {
+      // Izabrani hvat se pamti uz pesmu i koristi u dijagramima „Detalja“
+      const name = c.dataset.chord;
+      return showChord(name, { voicing: (stored.shapes || {})[name] || 0, onPick: (i) => {
+        const sh = { ...(stored.shapes || {}) };
+        if (i) sh[name] = i; else delete sh[name];
+        stored.shapes = sh;
+        save().then(() => { detDirty = true; if ($('sDet').open) drawDetails(); });
+      } });
+    }
     const b = e.target.closest('button');
     if (!b) return;
     if (b.dataset.ask) return answerNaming(b.dataset.ask);

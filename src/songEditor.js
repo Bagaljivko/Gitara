@@ -1,6 +1,6 @@
 // Pesme → uređivanje i skeniranje (učitava se tek kada zatreba: editor, skeniranje, Gemini).
 import { songs as db } from './db.js';
-import { esc, toast, dialog, confirmDialog, pickFiles } from './ui.js';
+import { esc, toast, dialog, confirmDialog, pickFiles, closeXHTML } from './ui.js';
 import { textToSections, sectionsToText, songExtras, cleanUncertain } from './songformat.js';
 import { scanSong, prepareImage, getApiKey, GeminiError } from './gemini.js';
 import { t } from './i18n.js';
@@ -63,7 +63,8 @@ async function collectPages(initial) {
     const done = (v) => { wrap.remove(); urls.forEach((u) => URL.revokeObjectURL(u)); resolve(v); };
     wrap.__close = () => done(null); // dugme „nazad“ = odustani
     const draw = () => {
-      wrap.innerHTML = `<div class="modal pages-modal" role="dialog" aria-modal="true" aria-label="${t('scan.pagesTitle')}">
+      wrap.innerHTML = `<div class="modal pages-modal has-x" role="dialog" aria-modal="true" aria-label="${t('scan.pagesTitle')}">
+        ${closeXHTML('data-a="cancel"')}
         <h2 class="modal-title">${t('scan.pagesTitle')}</h2>
         <p class="muted small">${t('scan.pagesHint')}</p>
         <div class="pages">${files.map((f, i) => `<div class="page-thumb">

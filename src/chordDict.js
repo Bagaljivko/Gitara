@@ -1,9 +1,9 @@
 // Tab "Akordi" → "Rečnik": izaberi osnovni ton i vrstu akorda, vidi hvat i čuj kako zvuči.
 import { t } from './i18n.js';
-import { chordSVG } from './diagram.js';
+import { chordSVG, shapeNavHTML, onShapeSwipe } from './diagram.js';
 import { getVoicings } from './chords.js';
 import { QUALITIES, parseChord, pcName } from './music.js';
-import { pluck, audioCtx } from './synth.js';
+import { pluck, audioCtx, stopGroup } from './synth.js';
 import { esc } from './ui.js';
 import { dn } from './naming.js';
 
@@ -15,7 +15,8 @@ function localGet(k) { try { return localStorage.getItem(k); } catch { return nu
 function localSet(k, v) { try { localStorage.setItem(k, v); } catch {} }
 
 /** Odsviraj hvat kao blagi trzaj odozdo nagore. */
-export function playVoicing(v) {
+export function playVoicing(v, group = 'chord') {
+  stopGroup(group); // novi trzaj prekida prethodni
   if (!v) return;
   const ctx = audioCtx();
   const t0 = ctx.currentTime + 0.03;
@@ -23,7 +24,7 @@ export function playVoicing(v) {
   v.frets.forEach((f, i) => {
     if (f < 0) return;
     const midi = OPEN_MIDI[i] + f;
-    pluck(440 * Math.pow(2, (midi - 69) / 12), { when: t0 + k++ * 0.028 + Math.random() * 0.004, gain: 0.6, duration: 3 });
+    pluck(440 * Math.pow(2, (midi - 69) / 12), { when: t0 + k++ * 0.028 + Math.random() * 0.004, gain: 0.6, duration: 3, group });
   });
 }
 
@@ -46,10 +47,10 @@ export function createChordDict(root) {
       <div class="dict-name" id="dName"></div>
       <div class="dict-sub muted small" id="dSub"></div>
       <div class="chord-big" id="dDiagram"></div>
+      <div id="dNav"></div>
       <div class="dict-actions">
         <button class="btn primary" id="dPlay">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>${t('dict.play')}</button>
-        <button class="btn" id="dNext"></button>
       </div>
     </div>`;
   const $ = (id) => root.querySelector('#' + id);
@@ -66,8 +67,7 @@ export function createChordDict(root) {
     const notes = p ? QUALITIES[qual].intervals.map((iv) => dn(pcName((p.root + iv) % 12, { flat: /b/.test(rootName) || ['Eb', 'Ab', 'Bb'].includes(rootName) }))) : [];
     $('dSub').textContent = `${t('q.' + qual)} · ${t('dict.notes')}: ${notes.join(' – ')}${v && v.approx ? ' · ' + t('dict.approx') : ''}`;
     $('dDiagram').innerHTML = chordSVG(name, { voicing, showName: false });
-    $('dNext').hidden = n < 2;
-    $('dNext').textContent = t('chordModal.next', { i: (voicing % Math.max(n, 1)) + 1, n });
+    $('dNav').innerHTML = shapeNavHTML(name, voicing);
     $('dPlay').disabled = !v;
   }
 
@@ -76,7 +76,9 @@ export function createChordDict(root) {
     if (r) { rootName = r.dataset.r; voicing = 0; localSet('gitara-dict-root', rootName); draw(); }
     else if (q) { qual = q.dataset.q; voicing = 0; localSet('gitara-dict-q', qual); draw(); }
   });
-  $('dNext').addEventListener('click', () => { voicing++; draw(); playVoicing(getVoicings(rootName + qual)[voicing % getVoicings(rootName + qual).length]); });
+  const shift = (d) => { const l = getVoicings(rootName + qual); if (l.length < 2) return; voicing = (voicing + d + l.length) % l.length; draw(); playVoicing(l[voicing]); };
+  $('dNav').addEventListener('click', (e) => { const b = e.target.closest('[data-shape]'); if (b) shift(+b.dataset.shape); });
+  onShapeSwipe($('dDiagram'), shift);
   $('dPlay').addEventListener('click', () => { const l = getVoicings(rootName + qual); playVoicing(l[voicing % Math.max(l.length, 1)]); });
   draw();
   return { stop() {} };

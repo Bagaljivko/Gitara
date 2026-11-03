@@ -121,10 +121,13 @@ export default {
   'scan.busyTitle': 'Gemini is busy',
   'scan.failedTitle': 'Scan failed',
 
+  'chord.shapeOf': 'Shape {i} of {n}',
+  'chord.fretPos': 'from fret {n}',
+  'chord.prevShape': 'Previous shape',
+  'chord.nextShape': 'Next shape',
   'chordModal.same': 'Same as',
   'chordModal.bass': 'Bass note: {bass} (the basic chord is shown)',
   'chordModal.none': 'There is no diagram for this chord in the library.',
-  'chordModal.next': 'Other position ({i}/{n})',
 
   'song.notFound': 'Song not found.',
   'song.back': 'Back to songs',

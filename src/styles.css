@@ -809,7 +809,18 @@ mark.cc-unknown { background: rgba(255, 90, 90, .3); color: var(--text); border-
 .set-group > .set-body, .set-group > .drive-card { padding: 0 16px 16px; }
 .set-group .drive-card > h2:first-child { display: none; }
 .badge-sm { display: inline-block; font-size: .68rem; line-height: 1.5; padding: 0 6px; border-radius: 6px; background: var(--surface-2); color: var(--muted); vertical-align: 1px; }
-.kw-top { display: flex; align-items: center; justify-content: space-between; }
-.kw-top .modal-title { margin: 0; }
-.kw-x { width: 44px; height: 44px; margin-right: -8px; }
-.kw-x svg { width: 22px; height: 22px; fill: currentColor; }
+/* Isti ✕ u gornjem desnom uglu svih prozora */
+.modal { position: relative; }
+.modal-x { position: absolute; top: 8px; right: 8px; width: 44px; height: 44px; z-index: 2; }
+.modal-x svg { width: 22px; height: 22px; fill: currentColor; }
+.modal.has-x .modal-title { padding-right: 40px; }
+.chord-modal.has-x { padding-top: 22px; }
+/* ‹ Hvat 1 od 3 › */
+.shape-nav { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 6px 0 4px; }
+.shape-arrow { width: 48px; height: 48px; border: 1px solid var(--line); border-radius: 999px; }
+.shape-arrow svg { width: 26px; height: 26px; fill: currentColor; }
+.shape-lbl { min-width: 128px; text-align: center; display: flex; flex-direction: column; line-height: 1.25; }
+.shape-lbl span { font-size: .85rem; color: var(--muted); }
+.shape-nav-solo { text-align: center; margin: 4px 0; }
+.chord-big { touch-action: pan-y; }
+.chord-modal .modal-actions .btn svg { width: 20px; height: 20px; fill: currentColor; margin-right: 6px; vertical-align: -4px; }

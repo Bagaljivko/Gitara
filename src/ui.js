@@ -22,6 +22,9 @@ export function toast(msg, type = '') {
   toastTimer = setTimeout(() => (el.className = 'toast ' + type), 3200);
 }
 
+/** Dugme ✕ u gornjem desnom uglu prozora (isto u svim prozorima). */
+export const closeXHTML = (attrs = 'data-x') => `<button class="icon-btn modal-x" ${attrs} aria-label="${t('common.close')}" title="${t('common.close')}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z"/></svg></button>`;
+
 /**
  * Modalni dijalog. buttons: [{ label, value, kind: 'primary'|'danger'|'' }]
  * Vraća Promise sa vrednošću kliknutog dugmeta (ili null za zatvaranje).
@@ -30,16 +33,19 @@ export function dialog({ title = '', body = '', html = false, buttons = [{ label
   return new Promise((resolve) => {
     const wrap = document.createElement('div');
     wrap.className = 'modal-backdrop';
-    wrap.innerHTML = `<div class="modal ${className}" role="dialog" aria-modal="true" aria-label="${esc(title)}">
+    // Samo „Zatvori“ kao dugme nema smisla kad postoji ✕ — takvo dugme se izostavlja
+    buttons = dismissible ? buttons.filter((b) => !(b.value === null && b.label === t('common.close'))) : buttons;
+    wrap.innerHTML = `<div class="modal ${className}${dismissible ? ' has-x' : ''}" role="dialog" aria-modal="true" aria-label="${esc(title)}">
+      ${dismissible ? closeXHTML() : ''}
       ${title ? `<h2 class="modal-title">${esc(title)}</h2>` : ''}
       <div class="modal-body">${html ? body : `<p>${esc(body)}</p>`}</div>
-      <div class="modal-actions">${buttons.map((b, i) => `<button class="btn ${b.kind || ''}" data-i="${i}">${esc(b.label)}</button>`).join('')}</div>
+      ${buttons.length ? `<div class="modal-actions">${buttons.map((b, i) => `<button class="btn ${b.kind || ''}" data-i="${i}">${esc(b.label)}</button>`).join('')}</div>` : ''}
     </div>`;
     const close = (v) => { wrap.remove(); document.removeEventListener('keydown', onKey); resolve(v); };
     if (dismissible) wrap.__close = () => close(null); // dugme „nazad“
     const onKey = (e) => { if (e.key === 'Escape' && dismissible) close(null); };
     wrap.addEventListener('click', (e) => {
-      if (e.target === wrap) { if (dismissible) close(null); return; }
+      if (e.target === wrap || e.target.closest('[data-x]')) { if (dismissible) close(null); return; }
       const b = e.target.closest('[data-i]');
       if (b) close(buttons[+b.dataset.i].value);
     });

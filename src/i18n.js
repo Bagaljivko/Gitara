@@ -134,10 +134,13 @@ const sr = {
   'scan.failedTitle': 'Skeniranje nije uspelo',
 
   // Uvećan akord
+  'chord.shapeOf': 'Hvat {i} od {n}',
+  'chord.fretPos': 'od {n}. praga',
+  'chord.prevShape': 'Prethodni hvat',
+  'chord.nextShape': 'Sledeći hvat',
   'chordModal.same': 'Isto što i',
   'chordModal.bass': 'Bas ton: {bass} (prikazan je osnovni akord)',
   'chordModal.none': 'Za ovaj akord nema dijagrama u biblioteci.',
-  'chordModal.next': 'Drugi položaj ({i}/{n})',
 
   // Prikaz pesme
   'song.notFound': 'Pesma nije pronađena.',

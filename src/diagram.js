@@ -38,7 +38,7 @@ function drawChordSVG(name, { voicing = 0, showName = true, showFingers = true }
   const base = v.baseFret;
   // Prag 0 (nut) ili oznaka pozicije
   if (base === 1) s += `<rect x="${left - 1}" y="${top - 4}" width="${sw * 5 + 2}" height="4" class="cd-nut"/>`;
-  else s += `<text x="${left + sw * 5 + 5}" y="${top + fh * 0.7}" class="cd-pos">${base}</text>`;
+  else s += `<text x="${left + sw * 5 + 9}" y="${top + fh * 0.7}" class="cd-pos">${base}</text>`;
   for (let i = 0; i <= frets; i++) s += `<line x1="${left}" x2="${left + sw * 5}" y1="${top + i * fh}" y2="${top + i * fh}" class="cd-fret"/>`;
   for (let i = 0; i < 6; i++) s += `<line x1="${left + i * sw}" x2="${left + i * sw}" y1="${top}" y2="${top + frets * fh}" class="cd-string"/>`;
   // Otvorene / prigušene
@@ -63,6 +63,42 @@ function drawChordSVG(name, { voicing = 0, showName = true, showFingers = true }
   });
   s += '</svg>';
   return s;
+}
+
+/** Na kom pragu počinje hvat (1 = uz glavu vrata). */
+export function shapeBaseFret(name, voicing = 0) {
+  const list = getVoicings(name);
+  const v = list[voicing % Math.max(list.length, 1)];
+  return v ? v.baseFret : 1;
+}
+
+/** „‹ Hvat 2 od 3 · 5. prag ›“ — isto u prozoru akorda i u rečniku. */
+export function shapeNavHTML(name, voicing) {
+  const n = getVoicings(name).length;
+  if (n < 2) {
+    const base = shapeBaseFret(name, voicing);
+    return base > 1 ? `<p class="shape-nav-solo small muted">${esc(t('chord.fretPos', { n: base }))}</p>` : '';
+  }
+  const i = ((voicing % n) + n) % n;
+  const base = shapeBaseFret(name, i);
+  const arrow = (d, label, path) => `<button class="icon-btn shape-arrow" data-shape="${d}" aria-label="${esc(label)}" title="${esc(label)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="${path}"/></svg></button>`;
+  return `<div class="shape-nav">
+    ${arrow(-1, t('chord.prevShape'), 'M15.4 7.4 14 6l-6 6 6 6 1.4-1.4L10.8 12z')}
+    <div class="shape-lbl"><b>${esc(t('chord.shapeOf', { i: i + 1, n }))}</b>${base > 1 ? `<span>${esc(t('chord.fretPos', { n: base }))}</span>` : ''}</div>
+    ${arrow(1, t('chord.nextShape'), 'M8.6 16.6 10 18l6-6-6-6-1.4 1.4 4.6 4.6z')}
+  </div>`;
+}
+
+/** Prevlačenje levo/desno po elementu menja hvat. */
+export function onShapeSwipe(el, cb) {
+  let sx = 0, sy = 0, on = false;
+  el.addEventListener('pointerdown', (e) => { sx = e.clientX; sy = e.clientY; on = true; });
+  el.addEventListener('pointerup', (e) => {
+    if (!on) return; on = false;
+    const dx = e.clientX - sx, dy = e.clientY - sy;
+    if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.5) cb(dx < 0 ? 1 : -1);
+  });
+  el.addEventListener('pointercancel', () => { on = false; });
 }
 
 export function voicingCount(name) {

@@ -2,7 +2,7 @@
 // Izabrani tonalitet je gore. Zvezdica = svi akordi ove pesme su tada laki otvoreni hvatovi.
 // Za teže tonalitete predlaže put sa kapodasterom. Predlozi su samo saveti — primenjuju se tek na dodir.
 import { t } from './i18n.js';
-import { esc } from './ui.js';
+import { esc, closeXHTML } from './ui.js';
 import { dn } from './naming.js';
 import { CIRCLE, keyName } from './chordnames.js';
 import { transposeSong, songChords } from './songformat.js';
@@ -78,9 +78,9 @@ export function openKeyWheel({ song, tp, capo, onPick }) {
     </g>`;
   }).join('');
 
-  wrap.innerHTML = `<div class="modal kw-modal" role="dialog" aria-modal="true" aria-label="${esc(t('kw.title'))}">
-    <div class="kw-top"><h2 class="modal-title">${t('kw.title')}</h2>
-      <button class="icon-btn kw-x" data-a="done" aria-label="${t('common.close')}" title="${t('common.close')}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z"/></svg></button></div>
+  wrap.innerHTML = `<div class="modal kw-modal has-x" role="dialog" aria-modal="true" aria-label="${esc(t('kw.title'))}">
+    ${closeXHTML('data-a="done"')}
+    <h2 class="modal-title">${t('kw.title')}</h2>
     <div class="kw-chips" id="kwChips"></div>
     <div class="kw-wheel-wrap">
       <svg class="kw-wheel" viewBox="0 -24 300 324" id="kwSvg" aria-hidden="true">
