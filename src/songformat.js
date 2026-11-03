@@ -1,6 +1,7 @@
 // Konverzija pesme <-> tekst "akordi iznad teksta", validacija i transpozicija pesme.
 import { t } from './i18n.js';
 import { cleanPattern } from './rhythm.js';
+import { cleanTuning } from './tunings.js';
 import { isTabLine, parseAsciiTab, tabToAscii, cleanTab, noteAt } from './tabs.js';
 import { isChord, transposeChord, transposeKey, parseChord, parseKey, prefersFlats } from './music.js';
 
@@ -227,6 +228,8 @@ export function songExtras(raw) {
   if (strum) out.strum = strum;
   const yt = cleanYt(raw.yt);
   if (yt) out.yt = yt;
+  const tuning = cleanTuning(raw.tuning);
+  if (tuning !== 'standard') out.tuning = tuning;
   return out;
 }
 

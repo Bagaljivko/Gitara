@@ -1,7 +1,7 @@
-// Tab "Tuner": štimer za standardno štimovanje gitare (E A D G B E).
+// Tab "Tuner": štimer za gitaru (standardno E A D G B E, Drop D, pola tona niže, DADGAD, Open G).
 // Kazaljka (♭ — ♯), velika nota, glava gitare sa okruglim dugmićima za žice.
 import { openMic, closeMic, MicError } from './audio.js';
-import { PitchTracker, GUITAR } from './pitchtrack.js';
+import { PitchTracker } from './pitchtrack.js';
 import { settings } from './db.js';
 import { t } from './i18n.js';
 import { midiName } from './music.js';
@@ -9,6 +9,7 @@ import { keepAwake, allowSleep } from './wakelock.js';
 import { pluck } from './synth.js';
 import { dialog } from './ui.js';
 import { KNOBS, ART_W, ART_H } from './headstockKnobs.js';
+import { TUNING_IDS, tuningOf, cleanTuning, tuningNotes } from './tunings.js';
 
 // slot 0 = najviši par ključeva
 const STRINGS = [
@@ -87,6 +88,7 @@ export function createTuner(root) {
   <section class="view tuner-view">
     <header class="view-head">
       <h1>${t('tuner.title')}</h1>
+      <button class="tuning-pill" id="tTuning" type="button" aria-haspopup="dialog"></button>
       <button class="btn small ghost" id="tReset">${t('tuner.reset')}</button>
       <label class="switch">
         <input type="checkbox" id="tAuto" checked>
@@ -122,6 +124,8 @@ export function createTuner(root) {
   let mic = null, analyser = null, buf = null, timer = 0;
   let a4 = 440;
   const tracker = new PitchTracker({ a4 });
+  let tuning = 'standard';
+  const noteOf = (id) => tuningOf(tuning).names[id];
   let shownCents = 0;     // izglađen položaj kazaljke
   let shownSid = -1;
   let shownCal = false;   // prikazana poruka „merim buku“
@@ -162,7 +166,7 @@ export function createTuner(root) {
 
   // Dodir = izbor žice; dugi pritisak ili ikonica zvučnika = referentni ton.
   function playRef(id) {
-    const f = a4 * Math.pow(2, (GUITAR[id] - 69) / 12);
+    const f = a4 * Math.pow(2, (tuningOf(tuning).midi[id] - 69) / 12);
     const ms = pluck(f);
     tracker.mute(ms + 400, performance.now()); // sopstveni ton ne sme da pokrene tuner
     const btn = root.querySelector(`.knob[data-s="${id}"]`);
@@ -193,7 +197,7 @@ export function createTuner(root) {
 
   function idle() {
     meter.dataset.state = 'idle';
-    $('tNote').textContent = auto ? '–' : STRINGS[selected].label;
+    $('tNote').textContent = auto ? '–' : noteOf(selected);
     $('tCents').innerHTML = '&nbsp;';
     shownCents = 0;
     shownSid = -1;
@@ -299,12 +303,44 @@ export function createTuner(root) {
     $('tStartLabel').textContent = t('tuner.start');
   }
 
+  // ---- Štimovanje (standardno, Drop D, pola tona niže…) ----
+  function applyTuning(id) {
+    const next = cleanTuning(id);
+    const changed = next !== tuning;
+    tuning = next;
+    const tu = tuningOf(tuning);
+    tracker.setTuning(tu.midi);
+    root.querySelectorAll('.knob').forEach((g) => {
+      const i = +g.dataset.s;
+      g.querySelector('.knob-label').textContent = tu.names[i];
+      g.setAttribute('aria-label', t('tuner.string', { num: STRINGS[i].num, note: tu.names[i] + (Math.floor(tu.midi[i] / 12) - 1) }));
+    });
+    $('tTuning').innerHTML = `${t('tuning.' + tuning)} <span aria-hidden="true">▾</span>`;
+    $('tTuning').setAttribute('aria-label', t('tuning.label') + ': ' + t('tuning.' + tuning));
+    if (changed) { done.clear(); applyDone(); okSince = 0; }
+    idle();
+  }
+  $('tTuning').addEventListener('click', async () => {
+    const v = await dialog({
+      title: t('tuning.label'),
+      body: t('tuning.pick'),
+      className: 'tuning-modal',
+      buttons: TUNING_IDS.map((id) => ({ label: `${t('tuning.' + id)} · ${tuningNotes(id)}`, value: id, kind: id === tuning ? 'primary' : '' })),
+    });
+    if (!v) return;
+    await settings.set('tuning', v);
+    applyTuning(v);
+  });
+  const loadTuning = async () => applyTuning(await settings.get('tuning', 'standard'));
+  applyTuning('standard');
+  loadTuning();
+
   $('tStartBtn').addEventListener('click', start);
   idle();
 
   return {
     // Na mobilnim uređajima mikrofon mora da se pokrene dodirom korisnika.
-    show() {},
+    show() { loadTuning(); },
     hide: stop,
   };
 }

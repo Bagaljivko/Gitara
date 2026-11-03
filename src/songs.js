@@ -22,6 +22,7 @@ import { keepAwake, allowSleep } from './wakelock.js';
 import { getFolders, addFolder } from './collections.js';
 import { renderSetlistsPane, editSongFolders, manageFolder, askName } from './setlistsView.js';
 import { seedDemoSong } from './demo.js';
+import { TUNING_IDS, cleanTuning, tuningNotes } from './tunings.js';
 
 let draft = null; // nesačuvana pesma (npr. posle skeniranja)
 let selectedId = null; // izabrana pesma u prikazu sa dva panela
@@ -693,7 +694,7 @@ export async function renderSong(root, id, nav = null) {
     <header class="topbar">
       <a href="${backHref}" class="back" aria-label="${t('song.back')}">${nav ? esc(nav.backLabel) : t('song.backShort')}</a>
       <div class="topbar-actions">
-        <button class="btn small" id="sEasyTop" aria-pressed="false">${t('sug.easyBtn')}</button>
+        <button class="btn small" id="sEasyTop" aria-pressed="false" aria-label="${t('sug.easyBtn')}"><span class="lbl-long">${t('sug.easyBtn')}</span><span class="lbl-short" aria-hidden="true">${t('sug.easyBtnShort')}</span></button>
         <button class="btn small icon-only" id="sFontDown" aria-label="${t('song.fontDown')}" title="${t('song.fontDown')}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 3a7 7 0 0 1 5.6 11.2l5.1 5.1-1.4 1.4-5.1-5.1A7 7 0 1 1 10 3zm0 2a5 5 0 1 0 0 10 5 5 0 0 0 0-10zM7 9h6v2H7z"/></svg></button>
         <button class="btn small icon-only" id="sFontUp" aria-label="${t('song.fontUp')}" title="${t('song.fontUp')}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 3a7 7 0 0 1 5.6 11.2l5.1 5.1-1.4 1.4-5.1-5.1A7 7 0 1 1 10 3zm0 2a5 5 0 1 0 0 10 5 5 0 0 0 0-10zM9 7h2v2h2v2h-2v2H9v-2H7V9h2z"/></svg></button>
         <a class="btn small" href="#/uredi/${encodeURIComponent(id)}">${t('song.edit')}</a>
@@ -750,6 +751,8 @@ export async function renderSong(root, id, nav = null) {
         ${stored.easyCapo ? `<label class="switch easy-switch"><input type="checkbox" id="sEasy" ${capo === stored.easyCapo ? 'checked' : ''}><span class="switch-track"><span class="switch-thumb"></span></span><span>${t('sug.easySwitch')}</span></label>` : ''}
       </div>
       ${capo ? `<p class="capo-note small">${t('capo.note', { n: capo })}</p>` : ''}
+      ${cleanTuning(stored.tuning) !== 'standard' ? `<div class="tuning-note"><span>${esc(t('tuning.song', { name: t('tuning.' + cleanTuning(stored.tuning)) }))} <span class="muted">(${esc(tuningNotes(stored.tuning))})</span></span>
+        <button class="btn small" id="sTune">${t('tuning.tuneNow')}</button></div>` : ''}
       <div class="strum-box card">
         ${stored.strum ? `<div class="strum-head"><span class="small muted">${t('strum.label')}</span> <b>${esc(patternName(stored.strum))}</b> <span class="small muted">${stored.strum.sig}</span>
           <button class="icon-btn pat-play" id="sStrumPlay" aria-label="${t('pat.play')}"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button></div>
@@ -1051,6 +1054,7 @@ export async function renderSong(root, id, nav = null) {
     else if (b.id === 'cDown') setCapo(capo - 1);
     else if (b.id === 'sStrumPlay') playStrum();
     else if (b.id === 'sStrumEdit') editStrum();
+    else if (b.id === 'sTune') { settings.set('tuning', cleanTuning(stored.tuning)).then(() => { location.hash = '#/tuner'; }); }
   });
   // Uvećanje teksta, akorda i tablatura (80–180 %), pamti se po pesmi
   const setFont = async (d) => {
@@ -1076,7 +1080,7 @@ export async function renderSong(root, id, nav = null) {
       const song = { ...shapesSong(), key: soundingKey(), strum: stored.strum };
       const blob = await songToPdf(song, {
         transposeLabel: tp ? t('pdf.transpose', { n: (tp > 0 ? '+' : '') + tp }) : '',
-        capoLabel: capo ? t('pdf.capo', { n: capo }) : '',
+        capoLabel: [capo ? t('pdf.capo', { n: capo }) : '', cleanTuning(stored.tuning) !== 'standard' ? t('tuning.song', { name: `${t('tuning.' + cleanTuning(stored.tuning))} (${tuningNotes(stored.tuning)})` }) : ''].filter(Boolean).join('  ·  '),
       });
       const r = await shareOrDownload(blob, safeFileName(song.title) + '.pdf', song.title);
       if (r === 'downloaded') toast(t('song.pdfDownloaded'));
@@ -1137,6 +1141,7 @@ export async function renderEditor(root, id) {
         <label class="grow">${t('edit.fArtist')}<input id="eArtist" value="${esc(song.artist)}" placeholder="${t('edit.fArtist')}" autocomplete="off"></label>
         <label class="key-input">${t('edit.fKey')}<input id="eKey" value="${esc(song.key)}" placeholder="${t('edit.fKeyPh')}" autocomplete="off"></label>
       </div>
+      <label>${t('tuning.label')}<select id="eTuning">${TUNING_IDS.map((id) => `<option value="${id}" ${cleanTuning(song.tuning) === id ? 'selected' : ''}>${esc(t('tuning.' + id))} · ${esc(tuningNotes(id))}</option>`).join('')}</select></label>
     </div>
     <div class="seg-tabs" role="tablist">
       <button role="tab" class="active" data-tab="edit">${t('edit.tabEdit')}</button>
@@ -1298,6 +1303,7 @@ export async function renderEditor(root, id) {
       title,
       artist: $('eArtist').value.trim(),
       key: $('eKey').value.trim(),
+      tuning: $('eTuning').value === 'standard' ? undefined : $('eTuning').value,
       sections,
       ...(isNew ? { uncertain: cleanUncertain(pendingUnc, sections) } : {}),
     });

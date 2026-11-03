@@ -161,3 +161,16 @@ test('nothing reacts during the first 300 ms while the room is measured', () => 
   const r = run(render(2, pluck(110, 0.3, 0.05)));
   assert.ok(tracking(r).every((x) => x.now > 300));
 });
+
+test('Drop D: low D2 is tracked on the 6th string after setTuning', () => {
+  const tr = new PitchTracker();
+  tr.setTuning([38, 45, 50, 55, 59, 64]);
+  const sig = render(4, pluck(73.42, 0.2, 1.5));
+  const res = [];
+  for (let s = 0; s + WIN <= sig.length; s += HOP) { const now = ((s + WIN) / SR) * 1000; res.push(tr.process(sig.subarray(s, s + WIN), SR, now)); }
+  const st = res.filter((x) => x.state === 'tracking' && x.stable);
+  assert.ok(st.length > 20, 'stable frames ' + st.length);
+  assert.ok(st.every((x) => x.sid === 0 && Math.abs(x.cents) < 3));
+  // Standardno štimovanje: isti ton je 2 polutona ispod E2 → izvan prozora, ne prikazuje se kao E
+  assert.equal(run(sig).filter((x) => x.state === 'tracking' && x.sid === 0 && Math.abs(x.cents) < 20).length, 0);
+});

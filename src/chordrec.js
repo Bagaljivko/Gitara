@@ -6,6 +6,7 @@ import { chordSVG } from './diagram.js';
 import { esc } from './ui.js';
 import { keepAwake, allowSleep } from './wakelock.js';
 import { createRhythmPane } from './rhythmView.js';
+import { createChordDict } from './chordDict.js';
 import { SENSITIVITY } from './pitchtrack.js';
 import { settings } from './db.js';
 
@@ -125,8 +126,9 @@ export function createChordRec(root) {
     <header class="view-head">
       <h1>${t('chords.title')}</h1>
     </header>
-    <div class="seg-tabs" role="tablist">
+    <div class="seg-tabs seg3" role="tablist">
       <button role="tab" class="active" data-pane="rec">${t('chords.tabRecognize')} <span class="badge">${t('chords.beta')}</span></button>
+      <button role="tab" data-pane="dict">${t('chords.tabDict')}</button>
       <button role="tab" data-pane="rhythm">${t('chords.tabRhythm')}</button>
     </div>
     <div id="crPane">
@@ -145,6 +147,7 @@ export function createChordRec(root) {
     <p class="hint small">${t('chords.hint')}</p>
     </div>
     <div id="rhPane" hidden></div>
+    <div id="dictPane" hidden></div>
   </section>`;
 
   const $ = (id) => root.querySelector('#' + id);
@@ -276,14 +279,17 @@ export function createChordRec(root) {
   $('crBtn').addEventListener('click', () => (running ? stop() : start()));
 
   // Druga sekcija: metronom i ritmovi
-  let rhythm = null;
+  let rhythm = null, dict = null;
   root.querySelectorAll('[data-pane]').forEach((b) => b.addEventListener('click', () => {
     root.querySelectorAll('[data-pane]').forEach((x) => x.classList.toggle('active', x === b));
-    const rh = b.dataset.pane === 'rhythm';
-    $('crPane').hidden = rh;
-    $('rhPane').hidden = !rh;
-    if (rh) { stop(); if (!rhythm) rhythm = createRhythmPane($('rhPane')); }
-    else rhythm?.stop();
+    const pane = b.dataset.pane;
+    $('crPane').hidden = pane !== 'rec';
+    $('rhPane').hidden = pane !== 'rhythm';
+    $('dictPane').hidden = pane !== 'dict';
+    if (pane !== 'rec') stop();
+    if (pane === 'rhythm' && !rhythm) rhythm = createRhythmPane($('rhPane'));
+    if (pane !== 'rhythm') rhythm?.stop();
+    if (pane === 'dict' && !dict) dict = createChordDict($('dictPane'));
   }));
   return { show() {}, hide() { stop(); rhythm?.stop(); } };
 }

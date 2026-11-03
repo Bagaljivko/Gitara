@@ -27,6 +27,7 @@ export class PitchTracker {
   constructor({ a4 = 440, sensitivity = 'medium' } = {}) {
     this.a4 = a4;
     this.allowed = [0, 1, 2, 3, 4, 5];
+    this.strings = GUITAR;
     this.setSensitivity(sensitivity);
     this.reset();
   }
@@ -54,7 +55,10 @@ export class PitchTracker {
   /** Privremeno ignoriši mikrofon (npr. dok aplikacija sama svira referentni ton). */
   mute(ms, now) { this.muteUntil = Math.max(this.muteUntil, now + ms); this.release(); }
 
-  target(sid) { return this.a4 * Math.pow(2, (GUITAR[sid] - 69) / 12); }
+  /** Druga štimovanja (npr. Drop D): MIDI brojevi šest žica. */
+  setTuning(midi) { this.strings = midi && midi.length === 6 ? midi : GUITAR; this.release(); }
+
+  target(sid) { return this.a4 * Math.pow(2, (this.strings[sid] - 69) / 12); }
 
   classify(freq) {
     let best = -1, bc = Infinity;

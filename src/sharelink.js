@@ -18,6 +18,7 @@ function pack(song) {
   if (ex.capo) o.c = ex.capo;
   if (ex.strum) o.p = ex.strum;
   if (ex.yt) o.y = ex.yt;
+  if (ex.tuning) o.u = ex.tuning;
   if (song.transpose) o.tr = song.transpose;
   return o;
 }
@@ -25,7 +26,7 @@ function pack(song) {
 function unpack(o) {
   if (!o || o.v !== 1 || !Array.isArray(o.s)) throw new SongFormatError(t('link.bad'));
   return normalizeSong({
-    title: o.t, artist: o.a, key: o.k, capo: o.c, strum: o.p, yt: o.y, transpose: o.tr,
+    title: o.t, artist: o.a, key: o.k, capo: o.c, strum: o.p, yt: o.y, tuning: o.u, transpose: o.tr,
     sections: o.s.map((x) => ({
       name: x.n || '',
       strum: x.p,

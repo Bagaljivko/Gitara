@@ -575,3 +575,23 @@ body.two-pane-mode main { max-width: 1320px; }
 /* Veće površine za dodir (najmanje ~44 px) */
 .knob-hit { fill: transparent; pointer-events: all; }
 .about a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px; margin-left: -4px; }
+/* Rečnik akorda */
+.seg-tabs.seg3 { grid-template-columns: 1.35fr 1fr 1fr; }
+.seg-tabs.seg3 button { padding: 0 4px; }
+.dict-roots { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin: 12px 0 8px; }
+.dict-roots .chip { padding: 0; min-width: 0; }
+.dict-quals { flex-wrap: wrap; margin: 0 0 4px; padding: 4px 0 8px; overflow: visible; }
+.dict-card { text-align: center; }
+.dict-name { font-size: 2.2rem; font-weight: 800; line-height: 1.1; }
+.dict-sub { margin-top: 4px; }
+.dict-card .chord-big { max-width: 220px; margin: 8px auto; }
+.dict-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.dict-actions .btn svg { width: 20px; height: 20px; fill: currentColor; margin-right: 6px; }
+/* Štimovanje */
+.tuner-view > .view-head { flex-wrap: wrap; row-gap: 0; position: relative; z-index: 6; }
+.tuning-pill { order: 5; flex-basis: 100%; justify-content: flex-start; appearance: none; background: none; border: 0; color: var(--accent); font: 600 .95rem var(--sans); min-height: 44px; padding: 0; margin-top: -10px; text-align: left; cursor: pointer; display: flex; align-items: center; gap: 4px; }
+.tuning-modal .modal-actions { flex-direction: column; align-items: stretch; }
+.tuning-modal .modal-actions .btn { width: 100%; justify-content: flex-start; }
+.tuning-note { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 8px 0; padding: 8px 8px 8px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+#sEasyTop .lbl-short { display: none; }
+@media (max-width: 380px) { #sEasyTop .lbl-long { display: none; } #sEasyTop .lbl-short { display: inline; } }
