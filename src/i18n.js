@@ -651,6 +651,7 @@ const sr = {
   'orig.confirmTitle': 'Vrati na original?',
   'orig.confirmBody': 'Tekst, akordi i naslov biće vraćeni tačno kako su skenirani („{title}“). Tonalitet se vraća na original, a kapodaster se isključuje. Tvoje izmene u tekstu i akordima biće izgubljene.',
   'orig.restored': 'Pesma je vraćena na original.',
+  'kw.stopPreview': 'Zaustavi pregled',
   // Google Drive (podešavanja)
   'drive.title': 'Google Drive',
   'drive.intro': 'Automatska rezervna kopija pesama u folder „Gitara“ na tvom Google Drive-u. Aplikacija vidi samo fajlove koje sama napravi. Gemini ključ se ne šalje na Drive.',
@@ -1335,6 +1336,7 @@ const en = {
   'orig.confirmTitle': 'Restore the original?',
   'orig.confirmBody': 'The lyrics, chords and title will go back to exactly how they were scanned (“{title}”). The key goes back to the original and the capo is turned off. Your edits to the lyrics and chords will be lost.',
   'orig.restored': 'The song was restored to the original.',
+  'kw.stopPreview': 'Stop preview',
   'drive.title': 'Google Drive',
   'drive.intro': 'Automatic backup of your songs to a “Gitara” folder in your Google Drive. The app can only see files it creates. Your Gemini key is never sent to Drive.',
   'drive.connect': 'Connect Google Drive',

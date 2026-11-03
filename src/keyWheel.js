@@ -8,7 +8,7 @@ import { CIRCLE, keyName } from './chordnames.js';
 import { transposeSong, songChords } from './songformat.js';
 import { shapeCost } from './suggest.js';
 import { chordNotes } from './rhythm.js';
-import { audioCtx, strum } from './synth.js';
+import { audioCtx, strum, stopGroup } from './synth.js';
 
 /** Pomeraj u opsegu −5…+6 (G→A = +2, G→F = −2). */
 export const offsetIn = (o) => { const x = ((o % 12) + 12) % 12; return x > 6 ? x - 12 : x; };
@@ -54,6 +54,7 @@ export function openKeyWheel({ song, tp, capo, onPick }) {
   const label = (k) => dn(keyName(k, 'en'));
   const fr = CIRCLE.map((_, i) => friendliness(song, offsetOf(i)));
   let sel = idxOf(tp);
+  let stopPreview = () => {}; // pravi se ispod, uz dugme ▶
   let rot = -sel * 30; // stepeni
 
   const wrap = document.createElement('div');
@@ -135,6 +136,7 @@ export function openKeyWheel({ song, tp, capo, onPick }) {
     }).join('');
   }
   const pick = (i, animate = true) => {
+    stopPreview();
     const was = sel;
     sel = ((i % 12) + 12) % 12;
     // najkraći put rotacije do novog položaja
@@ -159,7 +161,7 @@ export function openKeyWheel({ song, tp, capo, onPick }) {
     if (!drag) return;
     let d = angleAt(e) - drag.a0;
     if (d > 180) d -= 360; if (d < -180) d += 360;
-    if (Math.abs(e.clientX - drag.x) + Math.abs(e.clientY - drag.y) > 6) drag.moved = true;
+    if (!drag.moved && Math.abs(e.clientX - drag.x) + Math.abs(e.clientY - drag.y) > 6) { drag.moved = true; stopPreview(); }
     if (!drag.moved) return;
     rot = drag.rot0 + d;
     applyRotation(false);
@@ -181,13 +183,29 @@ export function openKeyWheel({ song, tp, capo, onPick }) {
   svg.addEventListener('pointercancel', end);
 
   // ---- Pregled zvuka: prvih nekoliko akorda u izabranom tonalitetu ----
+  // Svaki pokret točka (ili ponovni dodir na ▶/■) odmah prekida pregled, da se zvuci ne preklapaju.
+  const PLAY_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>';
+  const STOP_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10v10H7z"/></svg>';
+  let previewTimer = 0, previewing = false;
+  stopPreview = () => {
+    if (!previewing) return;
+    previewing = false;
+    clearTimeout(previewTimer);
+    stopGroup('kw-preview');
+    const b = $('kwPlay');
+    if (b) { b.classList.remove('playing'); b.innerHTML = PLAY_ICON; b.setAttribute('aria-label', t('kw.preview')); }
+  };
   $('kwPlay').addEventListener('click', () => {
+    if (previewing) { stopPreview(); return; }
     const sounding = songChords(transposeSong(song, offsetOf(sel))).slice(0, 4);
+    if (!sounding.length) return;
     const c = audioCtx();
     let tt = c.currentTime + 0.08;
-    for (const ch of sounding) { strum(tt, 'D', { notes: chordNotes(ch) }); tt += 0.95; }
-    $('kwPlay').classList.add('playing');
-    setTimeout(() => $('kwPlay')?.classList.remove('playing'), sounding.length * 950 + 300);
+    for (const ch of sounding) { strum(tt, 'D', { notes: chordNotes(ch), group: 'kw-preview' }); tt += 0.95; }
+    previewing = true;
+    const b = $('kwPlay');
+    b.classList.add('playing'); b.innerHTML = STOP_ICON; b.setAttribute('aria-label', t('kw.stopPreview'));
+    previewTimer = setTimeout(() => { previewing = true; stopPreview(); }, sounding.length * 950 + 2400);
   });
   $('kwSelect').addEventListener('change', (e) => pick(+e.target.value));
   $('kwDown').addEventListener('click', () => pick(idxOf(offsetIn(offsetOf(sel) - 1))));
@@ -205,7 +223,7 @@ export function openKeyWheel({ song, tp, capo, onPick }) {
     else if (e.key === 'ArrowLeft') pick(sel - 1);
   };
   document.addEventListener('keydown', onKey);
-  function close() { wrap.remove(); document.removeEventListener('keydown', onKey); }
+  function close() { stopPreview(); wrap.remove(); document.removeEventListener('keydown', onKey); }
   applyRotation(false);
   drawInfo();
   return { setOffset(o) { pick(idxOf(o)); }, close };

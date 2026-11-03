@@ -60,8 +60,34 @@ function guitarBus(c) {
 
 const SAMPLE_GAIN = 3.0; // izjednačava glasnoću snimaka sa ranijim zvukom
 
+// ---- Grupe zvukova koje mogu da se prekinu (npr. pregled tonaliteta na kvintnom krugu) ----
+const groups = new Map(); // ime → { gen, voices: Set<{ src, g }> }
+const groupOf = (name) => { let G = groups.get(name); if (!G) { G = { gen: 0, voices: new Set() }; groups.set(name, G); } return G; };
+function track(group, src, g) {
+  if (!group) return;
+  const G = groupOf(group), v = { src, g };
+  G.voices.add(v);
+  src.onended = () => G.voices.delete(v);
+}
+/** Odmah (uz kratko utišavanje) prekini sve zvuke iz grupe, i one zakazane za kasnije. */
+export function stopGroup(group, fade = 0.06) {
+  const G = groups.get(group);
+  if (!G) return;
+  G.gen++;
+  const c = audioCtx(), now = c.currentTime;
+  for (const v of G.voices) {
+    try {
+      v.g.gain.cancelScheduledValues(now);
+      v.g.gain.setValueAtTime(v.g.gain.value, now);
+      v.g.gain.linearRampToValueAtTime(0.0001, now + fade);
+      v.src.stop(now + fade + 0.02); // zakazani a još nezapočeti zvuk se tako i ne čuje
+    } catch {}
+  }
+  G.voices.clear();
+}
+
 /** Pusti snimljeni ton (tačna visina preko brzine reprodukcije). */
-function playSample(c, buf, m, freq, t0, { gain, duration, mute }) {
+function playSample(c, buf, m, freq, t0, { gain, duration, mute, group }) {
   const src = c.createBufferSource();
   src.buffer = buf;
   const rate = freq / sampleFreq(m);
@@ -84,10 +110,11 @@ function playSample(c, buf, m, freq, t0, { gain, duration, mute }) {
   out.connect(guitarBus(c).sample);
   src.start(t0);
   src.stop(mute ? t0 + 0.3 : end + 0.02);
+  track(group, src, g);
 }
 
 /** Rezerva: fizički model žice. */
-function playSynth(c, freq, t0, { gain, duration, mute, brightness }) {
+function playSynth(c, freq, t0, { gain, duration, mute, brightness, group }) {
   const data = pluckedString(c.sampleRate, freq, mute
     ? { duration: Math.min(duration, 0.25), t60: 0.09, brightness: 0.25, pickPos: 0.2 }
     : { duration, brightness });
@@ -99,6 +126,7 @@ function playSynth(c, freq, t0, { gain, duration, mute, brightness }) {
   g.gain.value = gain;
   src.connect(g).connect(guitarBus(c).synth);
   src.start(t0);
+  track(group, src, g);
 }
 
 /**
@@ -106,19 +134,22 @@ function playSynth(c, freq, t0, { gain, duration, mute, brightness }) {
  * mute = prigušena žica (dlanom), brightness 0–1 (samo za rezervni, sintetizovani zvuk).
  * Ako snimak još nije učitan, ton se pusti čim stigne (prvi put to traje delić sekunde).
  */
-export function pluck(freq, { when = 0, gain = 0.35, duration = 2.6, mute = false, brightness = 0.35, ctx = null } = {}) {
+export function pluck(freq, { when = 0, gain = 0.35, duration = 2.6, mute = false, brightness = 0.35, ctx = null, group = null } = {}) {
   const c = ctx || audioCtx();
   const t0 = Math.max(c.currentTime, when || c.currentTime) + 0.01;
-  const o = { gain, duration, mute, brightness };
+  const o = { gain, duration, mute, brightness, group };
+  const gen = group ? groupOf(group).gen : 0;
+  const stopped = () => group && groupOf(group).gen !== gen; // grupa je prekinuta dok se snimak učitavao
   const m = nearestNote(freq);
   const buf = loadedNote(m);
   if (buf) playSample(c, buf, m, freq, t0, o);
   else {
     loadNote(c, m).then((b) => {
+      if (stopped()) return;
       const at = Math.max(t0, c.currentTime + 0.005);
       if (when && at - t0 > 0.15) return; // zakasnio udarac u ritmu — preskoči, da ne „šepa“
       playSample(c, b, m, freq, at, o);
-    }).catch(() => playSynth(c, freq, Math.max(t0, c.currentTime + 0.005), o));
+    }).catch(() => { if (!stopped()) playSynth(c, freq, Math.max(t0, c.currentTime + 0.005), o); });
   }
   return duration * 1000;
 }
@@ -142,12 +173,12 @@ export function click(when, accent = false) {
 const STRUM_NOTES = [82.41, 123.47, 164.81, 196.0, 246.94, 329.63];
 
 /** Udarac preko žica: dir 'D' (dole) ili 'U' (gore); mute = prigušen „čik“. */
-export function strum(when, dir = 'D', { accent = false, mute = false, ctx = null, notes: chord = null } = {}) {
+export function strum(when, dir = 'D', { accent = false, mute = false, ctx = null, notes: chord = null, group = null } = {}) {
   // Udarac nadole kreće od debelih žica, nagore od tankih (i obično zahvati samo 4 žice)
   const all = chord && chord.length ? chord : STRUM_NOTES;
   const notes = dir === 'U' ? [...all].reverse().slice(0, 4) : all;
   const spread = dir === 'U' ? 0.009 : 0.011;
   notes.forEach((f, i) => {
-    pluck(f, { when: when + i * spread + Math.random() * 0.002, gain: (accent ? 0.25 : 0.19) * (mute ? 0.7 : 1) * (dir === 'U' ? 0.85 : 1), duration: 1.1, mute, brightness: dir === 'U' ? 0.6 : 0.45, ctx });
+    pluck(f, { when: when + i * spread + Math.random() * 0.002, gain: (accent ? 0.25 : 0.19) * (mute ? 0.7 : 1) * (dir === 'U' ? 0.85 : 1), duration: 1.1, mute, brightness: dir === 'U' ? 0.6 : 0.45, ctx, group });
   });
 }
