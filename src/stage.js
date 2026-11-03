@@ -6,7 +6,7 @@ import { getSetlist } from './collections.js';
 import { t } from './i18n.js';
 import { esc } from './ui.js';
 import { transposeSong } from './songformat.js';
-import { renderSectionsHTML } from './songs.js';
+import { renderSectionsHTML, fitLyrics } from './songs.js';
 import { layoutTabs } from './tabs.js';
 import { keepAwake, allowSleep } from './wakelock.js';
 import { cleanTuning } from './tunings.js';
@@ -59,6 +59,7 @@ export async function renderStage(root, setlistId, params) {
         ${next ? `<button class="btn primary big wide" data-go="next">${esc(t('stage.nextSong', { title: next.title }))} ›</button>` : `<p class="muted center">${t('stage.end')}</p>`}
         ${i > 0 ? `<button class="btn wide" data-go="prev">‹ ${t('stage.prev')}</button>` : ''}
       </div>`;
+    fitLyrics(root.querySelector('.stage-lyrics'));
     layoutTabs($('stBody'));
     window.scrollTo(0, 0);
     history.replaceState(null, '', `#/nastup/${encodeURIComponent(setlistId)}?i=${i}`);
@@ -68,7 +69,7 @@ export async function renderStage(root, setlistId, params) {
   const atBottom = () => window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4;
   function pageDown() { if (atBottom()) go(1); else window.scrollBy({ top: window.innerHeight * 0.82 - barH(), behavior: 'smooth' }); }
   function pageUp() { if (window.scrollY <= 4) { if (go(-1)) requestAnimationFrame(() => window.scrollTo(0, document.documentElement.scrollHeight)); } else window.scrollBy({ top: -(window.innerHeight * 0.82 - barH()), behavior: 'smooth' }); }
-  const setZoom = (d) => { zoom = Math.min(2.4, Math.max(0.9, +(zoom + d).toFixed(2))); setZoomPref(zoom); const l = root.querySelector('.stage-lyrics'); if (l) { l.style.setProperty('--zoom', zoom); layoutTabs($('stBody')); } };
+  const setZoom = (d) => { zoom = Math.min(2.4, Math.max(0.9, +(zoom + d).toFixed(2))); setZoomPref(zoom); const l = root.querySelector('.stage-lyrics'); if (l) { l.style.setProperty('--zoom', zoom); fitLyrics(l); layoutTabs($('stBody')); } };
 
   $('stDown').addEventListener('click', () => setZoom(-0.1));
   $('stUp').addEventListener('click', () => setZoom(0.1));

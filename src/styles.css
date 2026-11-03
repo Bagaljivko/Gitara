@@ -537,7 +537,7 @@ body.two-pane-mode main { max-width: 1320px; }
 .scroll-collapse svg { width: 20px; height: 20px; transform: rotate(0); transition: transform .2s; }
 .scroll-bar:not(.collapsed) .scroll-collapse svg { transform: rotate(90deg); }
 .scroll-bar.collapsed { max-width: max-content; margin-left: auto; padding: 4px; gap: 2px; }
-.scroll-bar.collapsed > :not(#sPlay):not(.scroll-collapse):not(#sAwake) { display: none; }
+.scroll-bar.collapsed > :not(#sPlay):not(.scroll-collapse) { display: none; }
 .scroll-bar.collapsed > .loop-row:not([hidden]) { display: flex; }
 .scroll-bar.collapsed .scroll-collapse svg { transform: rotate(180deg); }
 
@@ -753,3 +753,10 @@ mark.cc-unknown { background: rgba(255, 90, 90, .3); color: var(--text); border-
 .kw-orig-sw { display: inline-block; width: 14px; height: 10px; border: 2px dashed var(--ok); border-radius: 3px; vertical-align: middle; }
 .kw-select { display: block; margin-top: 4px; }
 .restore-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 4px 0 10px; }
+/* Tekst pesme staje u širinu: privremeno merenje bez prelamanja */
+.lyrics.measuring .ln { white-space: nowrap; width: max-content; max-width: none; }
+.lyrics.measuring .ln.chords-only { flex-wrap: nowrap; }
+/* Donja traka dok pesma skroluje: skoro providna, ali vidljiva */
+.scroll-bar { transition: opacity .45s ease, max-width .2s; }
+.scroll-bar.dim { opacity: .18; }
+.scroll-bar.dim.peek { opacity: 1; }

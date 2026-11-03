@@ -18,7 +18,7 @@ import { isStandalone, isIOS, canPromptInstall, promptInstall } from './install.
 import { APP_VERSION } from './version.js';
 import { settings } from './db.js';
 import { PATTERNS, patternHTML, patternName, Metronome } from './rhythm.js';
-import { keepAwake, allowSleep, setWakeZone, onWakeChange, wakeState, toggleWakePause } from './wakelock.js';
+import { keepAwake, allowSleep, setWakeZone } from './wakelock.js';
 import { getFolders, addFolder } from './collections.js';
 import { renderSetlistsPane, editSongFolders, manageFolder, askName } from './setlistsView.js';
 import { seedDemoSong } from './demo.js';
@@ -292,6 +292,7 @@ export async function renderSharedSong(root) {
     ${chords.length ? `<div class="diagram-row">${chords.map((c) => `<div class="diagram-btn">${chordSVG(c)}</div>`).join('')}</div>` : ''}
     <div class="lyrics">${renderSectionsHTML(shapes.sections)}</div>
   </section>`;
+  fitLyrics(root.querySelector('.lyrics'));
   layoutTabs(root);
   const $ = (q) => root.querySelector('#' + q);
   const leave = (hash) => location.replace(location.pathname + location.search + hash); // briše #pesma= iz adrese
@@ -607,6 +608,27 @@ export function renderLineHTML(line, marks = []) {
   return html + '</div>';
 }
 
+/**
+ * Tekst pesme uvek staje u širinu ekrana: izmeri najduži red (sa akordima) bez prelamanja
+ * i smanji slova tako da stane — ali ne ispod ~13 px (tada se izuzetno dugi redovi ipak prelome).
+ * Vraća true ako su slova smanjena zbog širine (tada A+ nema smisla).
+ */
+export function fitLyrics(el, minPx = 13) {
+  if (!el || !el.isConnected) return false;
+  el.style.fontSize = '';
+  const want = parseFloat(getComputedStyle(el).fontSize) || 16;
+  const avail = el.clientWidth;
+  if (!avail) return false;
+  el.classList.add('measuring');
+  let widest = 0;
+  el.querySelectorAll('.ln').forEach((ln) => { widest = Math.max(widest, ln.scrollWidth); });
+  el.classList.remove('measuring');
+  if (widest <= avail) return false;
+  const px = Math.max(minPx, Math.floor(want * (avail / widest) * 0.98 * 10) / 10);
+  el.style.fontSize = px + 'px';
+  return true;
+}
+
 /** Svi delovi pesme. uncertain = lista nesigurnih mesta (indeksi se odnose na ove sekcije). */
 export function renderSectionsHTML(sections, uncertain = []) {
   return (sections || []).map((s, si) => `
@@ -737,7 +759,6 @@ export async function renderSong(root, id, nav = null) {
       <span class="small muted">${t('scroll.slower')}</span>
       <input type="range" id="sSpeed" min="1" max="10" step="1" value="${speed}" aria-label="${t('scroll.speed')}">
       <span class="small muted">${t('scroll.faster')}</span>
-      <button class="icon-btn awake-btn" id="sAwake" hidden aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7a5 5 0 1 1 0 10 5 5 0 0 1 0-10zm0-5 1 3h-2zm0 20-1-3h2zM2 12l3-1v2zm20 0-3 1v-2zM4.9 4.9l2.8 1.4-1.4 1.4zm14.2 14.2-2.8-1.4 1.4-1.4zM4.9 19.1l1.4-2.8 1.4 1.4zM19.1 4.9l-1.4 2.8-1.4-1.4z"/></svg></button>
       <button class="icon-btn scroll-collapse" id="sCollapse" aria-label="${t('scroll.collapse')}" title="${t('scroll.collapse')}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.6 7.4 10 6l6 6-6 6-1.4-1.4L13.2 12z"/></svg></button>
     </div>
     <div class="song-actions">
@@ -818,10 +839,17 @@ export async function renderSong(root, id, nav = null) {
     syncEasyTop();
     addLoopButtons();
     if (!Number(stored.bpm)) songBpm().then((b) => { if ($('sTempo')) $('sTempo').textContent = b + ' BPM'; });
-    layoutTabs($('sLyrics'));
     $('sFontDown').disabled = zoom <= 0.8;
-    $('sFontUp').disabled = zoom >= 1.8;
+    fitAndTabs();
   };
+  // Prilagodi veličinu slova širini ekrana (pa tek onda rasporedi tablature)
+  function fitAndTabs() {
+    const l = root.querySelector('.lyrics');
+    if (!l) return;
+    const shrunk = fitLyrics(l);
+    layoutTabs(l);
+    if ($('sFontUp')) $('sFontUp').disabled = zoom >= 1.8 || shrunk;
+  }
 
   // ---- Predlozi (nesigurna mesta, lakša verzija, ritam) ----
   const unc = () => cleanUncertain(stored.uncertain, stored.sections);
@@ -1012,8 +1040,19 @@ export async function renderSong(root, id, nav = null) {
     else if (atEnd) return stopScroll();
     raf = requestAnimationFrame(step);
   }
+  // Dok pesma skroluje, donja traka se skoro sasvim povuče (dodir je vraća na par sekundi)
+  let peekTimer = 0;
+  const dimBar = (on) => { const bar = $('sScrollBar'); if (bar) { bar.classList.toggle('dim', on); bar.classList.remove('peek'); clearTimeout(peekTimer); } };
+  $('sScrollBar').addEventListener('pointerdown', () => {
+    const bar = $('sScrollBar');
+    if (!bar.classList.contains('dim')) return;
+    bar.classList.add('peek');
+    clearTimeout(peekTimer);
+    peekTimer = setTimeout(() => bar.classList.remove('peek'), 3500);
+  });
   function startScroll() {
     scrolling = true; last = 0; carry = 0;
+    dimBar(true);
     $('sPlay').classList.add('playing');
     $('sPlay').innerHTML = '<svg viewBox="0 0 24 24"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>';
     $('sPlay').setAttribute('aria-label', t('scroll.pause'));
@@ -1023,6 +1062,7 @@ export async function renderSong(root, id, nav = null) {
   function stopScroll() {
     if (!scrolling) return;
     scrolling = false;
+    dimBar(false);
     cancelAnimationFrame(raf);
     allowSleep('autoscroll');
     const b = $('sPlay');
@@ -1137,25 +1177,12 @@ export async function renderSong(root, id, nav = null) {
       onEnd: endTab,
     });
   }
-  const ro = new ResizeObserver(() => { const l = root.querySelector('.lyrics'); if (l) layoutTabs(l); });
+  let roW = 0;
+  const ro = new ResizeObserver(() => { const w = root.querySelector('.lyrics')?.clientWidth || 0; if (w !== roW) { roW = w; fitAndTabs(); } });
   ro.observe(root.querySelector('.song-view'));
   // Ekran ostaje upaljen dok koristiš pesmu (Podešavanja → Ekran); ikonica u traci ga isključuje za ovu pesmu
   setWakeZone('song');
-  const drawAwake = (st) => {
-    const b = $('sAwake');
-    if (!b) return;
-    b.hidden = st.mode !== 'songs' || !('wakeLock' in navigator);
-    const on = !st.paused;
-    b.classList.toggle('on', on);
-    b.setAttribute('aria-pressed', String(on));
-    const label = t(on ? 'wake.onLabel' : 'wake.offLabel', { n: st.minutes });
-    b.setAttribute('aria-label', label);
-    b.title = label;
-  };
-  const offWake = onWakeChange(drawAwake);
-  drawAwake(wakeState());
-  $('sAwake').addEventListener('click', (e) => { e.stopPropagation(); const p = toggleWakePause(); toast(t(p ? 'wake.pausedToast' : 'wake.resumedToast', { n: wakeState().minutes })); });
-  const onHash = () => { stopLoop(); stopScroll(); stopStrum(); endTab(); offWake(); ro.disconnect(); window.removeEventListener('hashchange', onHash); };
+  const onHash = () => { stopLoop(); stopScroll(); stopStrum(); endTab(); ro.disconnect(); window.removeEventListener('hashchange', onHash); };
   window.addEventListener('hashchange', onHash);
 
   function easyActive() { return !!stored.easyCapo && capo === stored.easyCapo; }
@@ -1226,9 +1253,8 @@ export async function renderSong(root, id, nav = null) {
   const setFont = async (d) => {
     zoom = Math.min(1.8, Math.max(0.8, +(zoom + d).toFixed(2)));
     root.querySelector('.lyrics').style.setProperty('--zoom', zoom);
-    layoutTabs(root.querySelector('.lyrics'));
     $('sFontDown').disabled = zoom <= 0.8;
-    $('sFontUp').disabled = zoom >= 1.8;
+    fitAndTabs();
     toast(t('song.zoomPct', { n: Math.round(zoom * 100) }));
     if (zoom === 1) delete stored.zoom; else stored.zoom = zoom;
     await save();
