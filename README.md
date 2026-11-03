@@ -8,7 +8,7 @@ Gitara je aplikacija za učenika gitare i njegovog nastavnika. Radi na iPhone-u 
 - **Akordi** – prepoznavanje odsviranog akorda (beta; analizira samo posle udarca preko žica), **Rečnik** akorda (hvat, tonovi i zvuk za svaki akord) i **Ritam**: metronom 40–220 BPM sa tap tempom, taktovima 2/4, 3/4, 4/4, 6/8 i biblioteka ritmova (strelice ↓ ↑) koji se sviraju uz metronom.
 - **Pesme** – biblioteka sa folderima i setlistama, akordi iznad teksta, dijagrami, transpozicija, **kapodaster** (prikazuje hvatove koje sviraš), **ritam** za pesmu ili deo pesme, **automatsko skrolovanje**, **vežbanje dela pesme** (jedna sekcija u krug uz metronom), štimovanje po pesmi, PDF („Skini PDF“), deljenje i uvoz. Setlista ima i **Nastup** preko celog ekrana (veliki tekst, listanje dodirom, prevlačenjem ili Bluetooth pedalom). Pri prvom pokretanju dodaje se primer pesme.
 - **Skeniraj pesmu** – fotografiši rukom pisanu pesmu ili napravi snimke ekrana (može više strana odjednom) i Google Gemini je prepisuje u jednu pesmu, zajedno sa ritmom ako je zapisan. Pre čuvanja dobijaš ekran „Proveri i ispravi“.
-- **Podešavanja** – jezik, Gemini API ključ i model, referentni ton A4, Google Drive rezervna kopija i rezervna kopija u fajlu.
+- **Podešavanja** – jezik, Gemini API ključ i model, referentni ton A4, Google Drive rezervna kopija i rezervna kopija u fajlu. Dugme **Podeli** (gore desno) prikazuje QR kod sa linkom ka aplikaciji za drugi telefon (QR se pravi na samom uređaju, `src/qr.js`), a **Proveri ažuriranja** (dole) odmah učitava najnoviju verziju.
 
 Ekran ostaje upaljen dok tuner ili prepoznavanje akorda slušaju, dok svira metronom i dok pesma sama skroluje.
 

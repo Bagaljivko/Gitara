@@ -9,6 +9,7 @@ import { t, getLang, setLang } from './i18n.js';
 import { driveState, onDriveChange, connect as driveConnect, disconnect as driveDisconnect, reconnect as driveReconnect, backupNow, restoreFlow, formatDate, DriveError } from './drive.js';
 
 import { isStandalone, isIOS, canPromptInstall, promptInstall } from './install.js';
+import { checkForUpdate, appUrl } from './update.js';
 
 export async function renderSettings(root) {
   const key = await settings.get('geminiKey', '');
@@ -19,7 +20,10 @@ export async function renderSettings(root) {
   const sens = await settings.get('tunerSens', 'medium');
   root.innerHTML = `
   <section class="view settings-view">
-    <header class="view-head"><h1>${t('set.title')}</h1></header>
+    <header class="view-head"><h1>${t('set.title')}</h1>
+      <button class="btn small share-app-btn" id="bShareApp" aria-label="${t('appShare.btnLabel')}">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h8v8H3zm2 2v4h4V5zm8-2h8v8h-8zm2 2v4h4V5zM3 13h8v8H3zm2 2v4h4v-4zm8-2h2v2h-2zm2 2h2v2h-2zm-2 2h2v2h-2zm4 0h2v4h-4v-2h2zm0-4h2v2h-2zm2 2h2v2h-2zM6 6h2v2H6zm10 0h2v2h-2zM6 16h2v2H6z"/></svg>${t('appShare.btn')}</button>
+    </header>
 
     <div class="card">
       <h2>${t('set.lang')}</h2>
@@ -99,10 +103,53 @@ export async function renderSettings(root) {
         : `<p class="small">${t('set.installAndroid')}</p><button class="btn primary" id="installBtn" hidden>${t('set.install')}</button>`}
     </div>
 
-    <p class="about muted small">${t('set.about', { v: APP_VERSION })}<br><a href="privacy.html" target="_blank" rel="noopener">${t('set.privacy')}</a></p>
+    <div class="about muted small">
+      <p>${t('set.about', { v: APP_VERSION })}</p>
+      <button class="btn small" id="bUpdate">${t('update.check')}</button>
+      <p><a href="privacy.html" target="_blank" rel="noopener">${t('set.privacy')}</a></p>
+    </div>
   </section>`;
 
   const $ = (id) => root.querySelector('#' + id);
+
+  // ---- Podeli aplikaciju: QR kod koji drugi telefon skenira kamerom ----
+  $('bShareApp').addEventListener('click', async () => {
+    const url = appUrl();
+    const { qrSVG } = await import('./qr.js');
+    const canShare = !!navigator.share;
+    const v = await dialog({
+      title: t('appShare.title'),
+      html: true,
+      className: 'qr-modal',
+      body: `<div class="qr-box">${qrSVG(url, { label: t('appShare.qrLabel') })}</div>
+        <p class="qr-hint">${esc(t('appShare.hint'))}</p>
+        <p class="qr-url">${esc(url)}</p>`,
+      buttons: [
+        ...(canShare ? [{ label: t('appShare.send'), value: 'share' }] : []),
+        { label: t('appShare.copy'), value: 'copy' },
+        { label: t('common.close'), value: null, kind: 'primary' },
+      ],
+    });
+    if (v === 'share') { try { await navigator.share({ title: 'Gitara', text: t('appShare.shareText'), url }); } catch {} }
+    else if (v === 'copy') {
+      try { await navigator.clipboard.writeText(url); toast(t('appShare.copied')); }
+      catch { toast(url); }
+    }
+  });
+
+  // ---- Proveri ažuriranja ----
+  $('bUpdate').addEventListener('click', async () => {
+    const b = $('bUpdate');
+    b.disabled = true;
+    b.innerHTML = `<span class="spinner"></span> ${t('update.checking')}`;
+    let r = 'unsupported';
+    try { r = await checkForUpdate(); } catch {}
+    if (r === 'updating') { b.innerHTML = `<span class="spinner"></span> ${t('update.installing')}`; return; }
+    b.disabled = false;
+    b.textContent = t('update.check');
+    toast(r === 'latest' ? t('update.latest', { v: APP_VERSION }) : r === 'offline' ? t('update.offline') : t('update.unsupported'));
+  });
+
   const status = (msg, cls = '') => { const s = $('kStatus'); s.textContent = msg; s.className = 'status ' + cls; };
 
   $('kShow').addEventListener('click', () => {

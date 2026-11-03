@@ -575,7 +575,9 @@ body.two-pane-mode main { max-width: 1320px; }
 .nudge .row .btn { display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; padding: 0 10px; }
 /* Veće površine za dodir (najmanje ~44 px) */
 .knob-hit { fill: transparent; pointer-events: all; }
-.about a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px; margin-left: -4px; }
+.about a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px; }
+.about p { margin: 0 0 8px; }
+.about p:last-child { margin: 6px 0 0; }
 /* Rečnik akorda */
 .seg-tabs.seg3 { grid-template-columns: 1.35fr 1fr 1fr; }
 .seg-tabs.seg3 button { padding: 0 4px; }
@@ -622,3 +624,10 @@ body.stage-mode main { max-width: 900px; padding-top: 0; }
 .stage-lyrics { --lyr-base: 1.05rem; }
 .stage-end { display: flex; flex-direction: column; gap: 10px; margin: 28px 0 16vh; }
 .stage .tab-play { display: none; }
+/* Podeli aplikaciju (QR) */
+.share-app-btn { display: inline-flex; align-items: center; gap: 6px; flex: none; }
+.share-app-btn svg { width: 18px; height: 18px; fill: currentColor; }
+.qr-box { background: #fff; border-radius: 14px; padding: 8px; width: min(260px, 70vw); margin: 4px auto 12px; }
+.qr-svg { display: block; width: 100%; height: auto; }
+.qr-hint { text-align: center; color: var(--text); margin: 0 0 6px; }
+.qr-url { text-align: center; font-family: var(--mono); font-size: .8rem; word-break: break-all; margin: 0; }
