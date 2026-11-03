@@ -61,6 +61,7 @@ async function collectPages(initial) {
     const urls = new Map();
     const url = (f) => { if (!urls.has(f)) urls.set(f, URL.createObjectURL(f)); return urls.get(f); };
     const done = (v) => { wrap.remove(); urls.forEach((u) => URL.revokeObjectURL(u)); resolve(v); };
+    wrap.__close = () => done(null); // dugme „nazad“ = odustani
     const draw = () => {
       wrap.innerHTML = `<div class="modal pages-modal" role="dialog" aria-modal="true" aria-label="${t('scan.pagesTitle')}">
         <h2 class="modal-title">${t('scan.pagesTitle')}</h2>
@@ -103,6 +104,7 @@ async function runScan(files, prepared = null, opts = {}) {
     <div class="scan-preview"><div class="scan-line"></div></div>
     <p class="scan-msg"><span class="spinner"></span> <span id="scanText">${t('scan.stepCompress')}</span> <span class="scan-secs" id="scanSecs"></span></p>
     <div class="modal-actions"><button class="btn" id="scanCancel">${t('common.cancel')}</button></div></div>`;
+  overlay.__close = () => overlay.querySelector('#scanCancel')?.click(); // dugme „nazad“ = otkaži skeniranje
   document.body.appendChild(overlay);
   const ctrl = new AbortController();
   let cancelled = false;

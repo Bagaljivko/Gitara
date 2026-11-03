@@ -493,6 +493,7 @@ function showChord(name) {
       </div></div>`;
   };
   draw();
+  wrap.__close = () => wrap.remove(); // dugme „nazad“
   wrap.addEventListener('click', (e) => {
     const a = e.target.closest('[data-a]');
     if (e.target === wrap || (a && a.dataset.a === 'close')) return wrap.remove();

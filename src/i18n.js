@@ -660,6 +660,8 @@ const sr = {
   'song.details': 'Detalji',
   'capo.shapesShort': 'hvatovi {k}',
   'sug.dismiss': 'Odbaci predlog',
+  'kw.use': 'Sviraj u {k}',
+  'kw.origBtn': 'Original ({k})',
   // Google Drive (podešavanja)
   'drive.title': 'Google Drive',
   'drive.intro': 'Automatska rezervna kopija pesama u folder „Gitara“ na tvom Google Drive-u. Aplikacija vidi samo fajlove koje sama napravi. Gemini ključ se ne šalje na Drive.',

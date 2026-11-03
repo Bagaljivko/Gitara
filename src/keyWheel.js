@@ -79,7 +79,8 @@ export function openKeyWheel({ song, tp, capo, onPick }) {
   }).join('');
 
   wrap.innerHTML = `<div class="modal kw-modal" role="dialog" aria-modal="true" aria-label="${esc(t('kw.title'))}">
-    <h2 class="modal-title">${t('kw.title')}</h2>
+    <div class="kw-top"><h2 class="modal-title">${t('kw.title')}</h2>
+      <button class="icon-btn kw-x" data-a="done" aria-label="${t('common.close')}" title="${t('common.close')}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z"/></svg></button></div>
     <div class="kw-chips" id="kwChips"></div>
     <div class="kw-wheel-wrap">
       <svg class="kw-wheel" viewBox="0 -24 300 324" id="kwSvg" aria-hidden="true">
@@ -97,9 +98,10 @@ export function openKeyWheel({ song, tp, capo, onPick }) {
       <select id="kwSelect">${CIRCLE.map((_, i) => `<option value="${i}">${esc(label(keyAt(i)))}${fr[i].open ? ' ★' : ''}${i === origIdx ? ' · ' + esc(t('kw.origShort')) : ''}</option>`).join('')}</select>
     </label>
     <div class="modal-actions">
-      <button class="btn" data-a="orig">${t('song.original')}</button>
-      <button class="btn primary" data-a="done">${t('kw.done')}</button>
+      <button class="btn" data-a="orig" id="kwOrig"></button>
+      <button class="btn primary" data-a="done" id="kwUse"></button>
     </div></div>`;
+  wrap.__close = () => close(); // dugme „nazad“ zatvara točak (izabrani tonalitet ostaje)
   document.body.appendChild(wrap);
   const $ = (id) => wrap.querySelector('#' + id);
   const g = $('kwRot');
@@ -128,6 +130,10 @@ export function openKeyWheel({ song, tp, capo, onPick }) {
     }
     $('kwHint').textContent = hint;
     $('kwSelect').value = String(sel);
+    // Dugmad govore šta rade: tonalitet se menja odmah, ovim se samo zatvara prozor
+    $('kwUse').textContent = t('kw.use', { k: label(k) });
+    $('kwOrig').textContent = t('kw.origBtn', { k: label(base) });
+    $('kwOrig').disabled = o === 0;
     // Predlozi (čipovi)
     $('kwChips').innerHTML = keySuggestions(song, o).map((s) => {
       const k2 = { root: (base.root + s.o + 120) % 12, minor };

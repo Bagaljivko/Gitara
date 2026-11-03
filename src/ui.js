@@ -36,6 +36,7 @@ export function dialog({ title = '', body = '', html = false, buttons = [{ label
       <div class="modal-actions">${buttons.map((b, i) => `<button class="btn ${b.kind || ''}" data-i="${i}">${esc(b.label)}</button>`).join('')}</div>
     </div>`;
     const close = (v) => { wrap.remove(); document.removeEventListener('keydown', onKey); resolve(v); };
+    if (dismissible) wrap.__close = () => close(null); // dugme „nazad“
     const onKey = (e) => { if (e.key === 'Escape' && dismissible) close(null); };
     wrap.addEventListener('click', (e) => {
       if (e.target === wrap) { if (dismissible) close(null); return; }
@@ -102,4 +103,42 @@ export async function shareOrDownload(blob, filename, title) {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 10000);
   return 'downloaded';
+}
+
+// ---- Dugme „nazad“ (Android, pokret nazad) zatvara otvoren prozor, umesto da menja stranu ----
+// Svaki prozor (.modal-backdrop) pri otvaranju dodaje korak u istoriju; „nazad“ ga zatvara preko wrap.__close.
+// Ako se prozor zatvori dugmetom, njegov korak se samo označi kao prazan i kasnije se preskoči.
+if (typeof document !== 'undefined' && typeof MutationObserver !== 'undefined') {
+  let lastHash = location.hash;
+  let cur = history.state; // stanje koraka istorije na kome smo sada
+  const openModals = () => [...document.querySelectorAll('body > .modal-backdrop')];
+  new MutationObserver((muts) => {
+    for (const m of muts) {
+      m.addedNodes.forEach((n) => {
+        if (!n.classList || !n.classList.contains('modal-backdrop')) return;
+        n.__gm = Math.random().toString(36).slice(2);
+        cur = { gm: n.__gm }; history.pushState(cur, '');
+      });
+      m.removedNodes.forEach((n) => {
+        if (!n.__gm || n.__byBack) return;
+        if (history.state && history.state.gm === n.__gm) { cur = { gmStale: true }; history.replaceState(cur, ''); }
+      });
+    }
+  }).observe(document.body, { childList: true });
+  window.addEventListener('popstate', (e) => {
+    const prev = lastHash;
+    lastHash = location.hash;
+    const leftStale = !!(cur && cur.gmStale);
+    cur = e.state;
+    const open = openModals();
+    const top = open[open.length - 1];
+    if (top) {
+      if (typeof top.__close === 'function') { top.__byBack = true; top.__close(); }
+      else { cur = { gm: top.__gm }; history.pushState(cur, ''); } // prozor koji mora da ostane (npr. „Gitara je spremna“)
+      return;
+    }
+    // Napušten je prazan korak od već zatvorenog prozora (ista strana, ništa se nije promenilo) — idi još jedan korak nazad
+    if (leftStale && location.hash === prev) history.back();
+  });
+  window.addEventListener('hashchange', () => { lastHash = location.hash; cur = history.state; });
 }

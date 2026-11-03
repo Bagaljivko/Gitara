@@ -624,6 +624,8 @@ export default {
   'song.details': 'Details',
   'capo.shapesShort': 'shapes {k}',
   'sug.dismiss': 'Dismiss suggestion',
+  'kw.use': 'Play in {k}',
+  'kw.origBtn': 'Original ({k})',
   'drive.title': 'Google Drive',
   'drive.intro': 'Automatic backup of your songs to a “Gitara” folder in your Google Drive. The app can only see files it creates. Your Gemini key is never sent to Drive.',
   'drive.connect': 'Connect Google Drive',
