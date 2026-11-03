@@ -638,3 +638,5 @@ button, .btn, .nav, .nav a, .chip, .seg-tabs, .icon-btn, .ch, .diagram-btn, .cho
 }
 img { -webkit-user-drag: none; }
 input, textarea, select, [contenteditable], .diag pre, .qr-url { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
+.about .credits { font-size: .75rem; max-width: 420px; margin: 8px auto 0; }
+.about .credits a { min-height: 0; display: inline; padding: 0; }

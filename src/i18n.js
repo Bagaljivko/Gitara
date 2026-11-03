@@ -536,6 +536,7 @@ const sr = {
   'update.latest': 'Imaš najnoviju verziju ({v}).',
   'update.offline': 'Nema interneta — pokušaj ponovo kad budeš na mreži.',
   'update.unsupported': 'Provera nije moguća u ovom pregledaču. Osveži stranicu da dobiješ najnoviju verziju.',
+  'set.credits': 'Zvuk gitare: FluidR3 GM (Frank Wen), MIDI.js Soundfonts (Benjamin Gleitzman), licenca <a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener">CC BY 3.0</a>.',
   // Google Drive (podešavanja)
   'drive.title': 'Google Drive',
   'drive.intro': 'Automatska rezervna kopija pesama u folder „Gitara“ na tvom Google Drive-u. Aplikacija vidi samo fajlove koje sama napravi. Gemini ključ se ne šalje na Drive.',
@@ -1105,6 +1106,7 @@ const en = {
   'update.latest': 'You have the latest version ({v}).',
   'update.offline': 'No internet — try again when you\'re online.',
   'update.unsupported': 'This browser can\'t check for updates. Reload the page to get the latest version.',
+  'set.credits': 'Guitar sound: FluidR3 GM (Frank Wen), MIDI.js Soundfonts (Benjamin Gleitzman), licensed <a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener">CC BY 3.0</a>.',
   'drive.title': 'Google Drive',
   'drive.intro': 'Automatic backup of your songs to a “Gitara” folder in your Google Drive. The app can only see files it creates. Your Gemini key is never sent to Drive.',
   'drive.connect': 'Connect Google Drive',

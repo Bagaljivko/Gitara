@@ -1,0 +1,12 @@
+Guitar sound (assets/guitar/*.mp3)
+
+Steel-string acoustic guitar notes from the "FluidR3_GM" General MIDI SoundFont
+by Frank Wen, as pre-rendered MP3 files by the MIDI.js Soundfonts project
+(Benjamin Gleitzman): https://github.com/gleitz/midi-js-soundfonts
+
+License: Creative Commons Attribution 3.0
+https://creativecommons.org/licenses/by/3.0/
+
+Changes made for Gitara: files renamed by MIDI note number (40 = E2 ... 86 = D6).
+The audio itself is unchanged; the app corrects each note's pitch by a few cents
+during playback so tuner reference tones are exact.

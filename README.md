@@ -87,3 +87,5 @@ npm run icons    # ponovo pravi PNG ikonice iz SVG-a (treba Playwright)
 ```
 
 Tehnologija: obični HTML/CSS/JavaScript (ES moduli, bez build koraka). Za PDF se koristi jsPDF (`vendor/`) sa ugrađenim fontom DejaVu Sans Mono (`fonts/`, skraćen na latinicu sa srpskim slovima č, ć, š, ž, đ); oba se preuzimaju u pozadini posle instalacije. Zvuk se obrađuje preko Web Audio API-ja: YIN za detekciju tona i hromagram za akorde.
+
+Zvuk gitare (tuner, rečnik akorda, tablature, ritmovi): snimljeni tonovi akustične gitare `assets/guitar/40.mp3`–`86.mp3` iz FluidR3_GM (Frank Wen), u MP3 obliku iz projekta [MIDI.js Soundfonts](https://github.com/gleitz/midi-js-soundfonts) (Benjamin Gleitzman), licenca CC BY 3.0 (`assets/guitar/LICENSE.txt`). Ako snimak ne može da se učita, koristi se fizički model žice (`src/ks.js`).

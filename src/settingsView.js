@@ -107,6 +107,7 @@ export async function renderSettings(root) {
       <p>${t('set.about', { v: APP_VERSION })}</p>
       <button class="btn small" id="bUpdate">${t('update.check')}</button>
       <p><a href="privacy.html" target="_blank" rel="noopener">${t('set.privacy')}</a></p>
+      <p class="credits">${t('set.credits')}</p>
     </div>
   </section>`;
 

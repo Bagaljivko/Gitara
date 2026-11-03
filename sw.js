@@ -1,6 +1,6 @@
 // Rad bez interneta: cela aplikacija se čuva u kešu i služi iz njega (uvek ista, usklađena verzija).
 // Nova verzija = novi broj u CACHE (scripts/update-sw.mjs). Aplikacija tada prikaže „Osveži“.
-const CACHE = "gitara-v35";
+const CACHE = "gitara-v37";
 const SHELL = [
   "./",
   "index.html",
@@ -16,6 +16,7 @@ const SHELL = [
   "src/diagram.js",
   "src/drive.js",
   "src/gemini.js",
+  "src/guitarSamples.js",
   "src/headstockKnobs.js",
   "src/i18n.js",
   "src/install.js",
@@ -52,7 +53,7 @@ const SHELL = [
   "assets/headstock.webp"
 ];
 // Retko korišćeni veliki fajlovi (PDF): preuzimaju se u pozadini, posle instalacije, da ne usporavaju prvo otvaranje.
-const LAZY = ["vendor/jspdf.umd.min.js", "fonts/DejaVuSansMono.ttf", "fonts/DejaVuSansMono-Bold.ttf"];
+const LAZY = ["vendor/jspdf.umd.min.js", "fonts/DejaVuSansMono.ttf", "fonts/DejaVuSansMono-Bold.ttf", "assets/guitar/40.mp3", "assets/guitar/41.mp3", "assets/guitar/42.mp3", "assets/guitar/43.mp3", "assets/guitar/44.mp3", "assets/guitar/45.mp3", "assets/guitar/46.mp3", "assets/guitar/47.mp3", "assets/guitar/48.mp3", "assets/guitar/49.mp3", "assets/guitar/50.mp3", "assets/guitar/51.mp3", "assets/guitar/52.mp3", "assets/guitar/53.mp3", "assets/guitar/54.mp3", "assets/guitar/55.mp3", "assets/guitar/56.mp3", "assets/guitar/57.mp3", "assets/guitar/58.mp3", "assets/guitar/59.mp3", "assets/guitar/60.mp3", "assets/guitar/61.mp3", "assets/guitar/62.mp3", "assets/guitar/63.mp3", "assets/guitar/64.mp3", "assets/guitar/65.mp3", "assets/guitar/66.mp3", "assets/guitar/67.mp3", "assets/guitar/68.mp3", "assets/guitar/69.mp3", "assets/guitar/70.mp3", "assets/guitar/71.mp3", "assets/guitar/72.mp3", "assets/guitar/73.mp3", "assets/guitar/74.mp3", "assets/guitar/75.mp3", "assets/guitar/76.mp3", "assets/guitar/77.mp3", "assets/guitar/78.mp3", "assets/guitar/79.mp3", "assets/guitar/80.mp3", "assets/guitar/81.mp3", "assets/guitar/82.mp3", "assets/guitar/83.mp3", "assets/guitar/84.mp3", "assets/guitar/85.mp3", "assets/guitar/86.mp3"];
 const fresh = (u) => new Request(u, { cache: "reload" }); // zaobiđi HTTP keš da se verzije ne pomešaju
 
 self.addEventListener("install", e => {
