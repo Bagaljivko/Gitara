@@ -11,7 +11,7 @@
   <style>
     :root { --bg: #121316; --surface: #1b1d22; --line: #2f333b; --text: #eceef2; --muted: #9aa1ad; --accent: #f5a524; color-scheme: dark; }
     * { box-sizing: border-box; }
-    html, body { touch-action: manipulation; }
+    html, body { touch-action: pan-x pan-y; }
     html, body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; }
     main { max-width: 760px; margin: 0 auto; padding: calc(env(safe-area-inset-top) + 20px) 16px calc(env(safe-area-inset-bottom) + 40px); }
     header { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
@@ -31,10 +31,15 @@
     footer { margin-top: 24px; }
   </style>
   <script>
-    // iOS Safari ignoriše user-scalable=no: blokiraj pinch-zoom gestove.
-    ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (e) {
-      document.addEventListener(e, function (ev) { ev.preventDefault(); }, { passive: false });
-    });
+    // Bez zumiranja (osećaj prave aplikacije). iOS Safari ignoriše user-scalable=no, pa:
+    // 1) blokiraj njegove pinch gestove, 2) otkaži svaki pokret sa dva ili više prstiju.
+    (function () {
+      var stop = function (ev) { ev.preventDefault(); };
+      ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (e) { document.addEventListener(e, stop, { passive: false }); });
+      document.addEventListener('touchmove', function (ev) {
+        if (ev.touches.length > 1 || (ev.scale !== undefined && ev.scale !== 1)) ev.preventDefault();
+      }, { passive: false });
+    })();
   </script>
 </head>
 <body>

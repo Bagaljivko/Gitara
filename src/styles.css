@@ -20,8 +20,8 @@
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 16px; line-height: 1.45; }
-/* Bez zumiranja dvostrukim dodirom; skrolovanje i dodiri rade normalno */
-html, body { touch-action: manipulation; }
+/* Bez zumiranja (ni prstima ni dvostrukim dodirom); skrolovanje i dodiri rade normalno */
+html, body { touch-action: pan-x pan-y; }
 body { min-height: 100dvh; padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom)); overscroll-behavior-y: none; }
 main { max-width: 640px; margin: 0 auto; padding: calc(env(safe-area-inset-top) + 8px) 16px 24px; }
 h1 { font-size: 1.6rem; margin: 0.4rem 0 0.6rem; letter-spacing: -0.01em; }
