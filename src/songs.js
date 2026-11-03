@@ -689,6 +689,8 @@ export async function renderSong(root, id, nav = null) {
   let zoom = Number(stored.zoom) || (Number(localStorageGet('gitara-font')) || 1);
   let speed = stored.scrollSpeed || 4;
   let loopSec = -1, loopMet = null, loopBpm = 90; // vežbanje jedne sekcije
+  // Tempo pesme: sačuvan uz pesmu (ili, ako ga nema, opšti tempo metronoma)
+  const songBpm = async () => Number(stored.bpm) || Number(await settings.get('metBpm', 90)) || 90;
   const backHref = nav ? nav.backHref : '#/pesme';
   root.innerHTML = `
   <section class="view song-view">
@@ -767,6 +769,12 @@ export async function renderSong(root, id, nav = null) {
         ${stored.strum ? `<div class="strum-head"><span class="small muted">${t('strum.label')}</span> <b>${esc(patternName(stored.strum))}</b> <span class="small muted">${stored.strum.sig}</span>
           <button class="icon-btn pat-play" id="sStrumPlay" aria-label="${t('pat.play')}"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button></div>
           ${patternHTML(stored.strum)}` : ''}
+        <div class="song-tempo" role="group" aria-label="${t('song.tempo')}">
+          <span class="small muted">${t('song.tempo')}</span>
+          <button class="btn round small" id="sTempoDown" aria-label="${t('loop.slower')}">−</button>
+          <b id="sTempo">${Number(stored.bpm) || '…'} BPM</b>
+          <button class="btn round small" id="sTempoUp" aria-label="${t('loop.faster')}">+</button>
+        </div>
         <button class="btn small" id="sStrumEdit">${stored.strum || stored.sections.some((x) => x.strum) ? t('strum.change') : t('strum.add')}</button>
       </div>
       ${prog.length ? `<div class="prog card">${prog.map((p) => `<div class="prog-row"><span class="prog-name">${esc(p.name || t('song.chordsFallback'))}</span><span class="prog-chords">${p.chords.map((c) => `<button class="ch" data-chord="${esc(c)}">${esc(c)}</button>`).join('<span class="arrow">→</span>')}</span></div>`).join('')}</div>` : ''}
@@ -774,6 +782,7 @@ export async function renderSong(root, id, nav = null) {
       <div class="lyrics" id="sLyrics" style="--zoom:${zoom}">${renderSectionsHTML(song.sections, unc())}</div>`;
     syncEasyTop();
     addLoopButtons();
+    if (!Number(stored.bpm)) songBpm().then((b) => { if ($('sTempo')) $('sTempo').textContent = b + ' BPM'; });
     layoutTabs($('sLyrics'));
     $('sFontDown').disabled = zoom <= 0.8;
     $('sFontUp').disabled = zoom >= 1.8;
@@ -899,7 +908,7 @@ export async function renderSong(root, id, nav = null) {
     strumMet = new Metronome();
     strumMet.pattern = pattern;
     strumMet.sig = pattern.sig;
-    settings.get('metBpm', 90).then((b) => { if (!strumMet) return; strumMet.bpm = b; strumMet.start(); });
+    songBpm().then((b) => { if (!strumMet) return; strumMet.bpm = b; strumMet.start(); });
     $('sStrumPlay')?.classList.add('playing');
     strumMet.onStep = (i) => root.querySelectorAll(scope + ' .pstep').forEach((s) => s.classList.toggle('now', +s.dataset.i === i));
   };
@@ -1003,7 +1012,7 @@ export async function renderSong(root, id, nav = null) {
     $('sLoopName').textContent = sec.name || t('strum.section', { n: i + 1 });
     $('sLoopRow').hidden = false;
     setCollapsed(false);
-    loopBpm = Number(await settings.get('metBpm', 90)) || 90;
+    loopBpm = await songBpm();
     $('sBpm').textContent = loopBpm + ' BPM';
     secEls().forEach((el, k) => { el.classList.toggle('looping', k === i); const b = el.querySelector('.loop-btn'); if (b) { b.classList.toggle('on', k === i); b.setAttribute('aria-pressed', String(k === i)); } });
     window.scrollTo(0, loopStartY());
@@ -1022,11 +1031,16 @@ export async function renderSong(root, id, nav = null) {
     secEls().forEach((el) => { el.classList.remove('looping'); const b = el.querySelector('.loop-btn'); if (b) { b.classList.remove('on'); b.setAttribute('aria-pressed', 'false'); } });
     stopScroll();
   }
+  // Promena tempa (traka za vežbanje ili kutija „Ritam“) se čuva uz pesmu
   const setBpm = async (d) => {
-    loopBpm = Math.max(40, Math.min(220, loopBpm + d));
-    $('sBpm').textContent = loopBpm + ' BPM';
-    if (loopMet) loopMet.bpm = loopBpm;
-    await settings.set('metBpm', loopBpm);
+    const b = Math.max(40, Math.min(220, (loopSec >= 0 ? loopBpm : await songBpm()) + d));
+    loopBpm = b;
+    stored.bpm = b;
+    if ($('sBpm')) $('sBpm').textContent = b + ' BPM';
+    if ($('sTempo')) $('sTempo').textContent = b + ' BPM';
+    if (loopMet) loopMet.bpm = b;
+    if (strumMet) strumMet.bpm = b;
+    await save();
   };
   $('sBpmDown').addEventListener('click', (e) => { e.stopPropagation(); setBpm(-5); });
   $('sBpmUp').addEventListener('click', (e) => { e.stopPropagation(); setBpm(5); });
@@ -1061,7 +1075,7 @@ export async function renderSong(root, id, nav = null) {
     tabBtn = btn;
     btn.classList.add('playing');
     const staff = btn.closest('.tab-block').querySelector('.tab-staff');
-    const bpm = Number(await settings.get('metBpm', 90)) || 90;
+    const bpm = await songBpm();
     const a4 = Number(await settings.get('a4', 440)) || 440;
     stopTab = playTab(tab, {
       bpm, a4,
@@ -1131,6 +1145,8 @@ export async function renderSong(root, id, nav = null) {
     else if (b.id === 'cDown') setCapo(capo - 1);
     else if (b.id === 'sStrumPlay') playStrum();
     else if (b.id === 'sStrumEdit') editStrum();
+    else if (b.id === 'sTempoDown') setBpm(-5);
+    else if (b.id === 'sTempoUp') setBpm(5);
     else if (b.id === 'sTune') { settings.set('tuning', cleanTuning(stored.tuning)).then(() => { location.hash = '#/tuner'; }); }
   });
   // Uvećanje teksta, akorda i tablatura (80–180 %), pamti se po pesmi
@@ -1157,7 +1173,7 @@ export async function renderSong(root, id, nav = null) {
       const song = { ...shapesSong(), key: soundingKey(), strum: stored.strum };
       const blob = await songToPdf(song, {
         transposeLabel: tp ? t('pdf.transpose', { n: (tp > 0 ? '+' : '') + tp }) : '',
-        capoLabel: [capo ? t('pdf.capo', { n: capo }) : '', cleanTuning(stored.tuning) !== 'standard' ? t('tuning.song', { name: `${t('tuning.' + cleanTuning(stored.tuning))} (${tuningNotes(stored.tuning)})` }) : ''].filter(Boolean).join('  ·  '),
+        capoLabel: [capo ? t('pdf.capo', { n: capo }) : '', Number(stored.bpm) ? t('pdf.tempo', { n: stored.bpm }) : '', cleanTuning(stored.tuning) !== 'standard' ? t('tuning.song', { name: `${t('tuning.' + cleanTuning(stored.tuning))} (${tuningNotes(stored.tuning)})` }) : ''].filter(Boolean).join('  ·  '),
       });
       const r = await shareOrDownload(blob, safeFileName(song.title) + '.pdf', song.title);
       if (r === 'downloaded') toast(t('song.pdfDownloaded'));

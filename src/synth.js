@@ -142,9 +142,10 @@ export function click(when, accent = false) {
 const STRUM_NOTES = [82.41, 123.47, 164.81, 196.0, 246.94, 329.63];
 
 /** Udarac preko žica: dir 'D' (dole) ili 'U' (gore); mute = prigušen „čik“. */
-export function strum(when, dir = 'D', { accent = false, mute = false, ctx = null } = {}) {
+export function strum(when, dir = 'D', { accent = false, mute = false, ctx = null, notes: chord = null } = {}) {
   // Udarac nadole kreće od debelih žica, nagore od tankih (i obično zahvati samo 4 žice)
-  const notes = dir === 'U' ? [...STRUM_NOTES].reverse().slice(0, 4) : STRUM_NOTES;
+  const all = chord && chord.length ? chord : STRUM_NOTES;
+  const notes = dir === 'U' ? [...all].reverse().slice(0, 4) : all;
   const spread = dir === 'U' ? 0.009 : 0.011;
   notes.forEach((f, i) => {
     pluck(f, { when: when + i * spread + Math.random() * 0.002, gain: (accent ? 0.25 : 0.19) * (mute ? 0.7 : 1) * (dir === 'U' ? 0.85 : 1), duration: 1.1, mute, brightness: dir === 'U' ? 0.6 : 0.45, ctx });

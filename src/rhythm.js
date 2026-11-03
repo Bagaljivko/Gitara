@@ -1,6 +1,7 @@
 // Metronom i ritmovi (strumming): biblioteka obrazaca, precizno zakazivanje preko Web Audio i prikaz strelica.
 import { audioCtx, click, strum } from './synth.js';
 import { t } from './i18n.js';
+import { getVoicings } from './chords.js';
 
 export const SIGNATURES = {
   '2/4': { beats: 2, slotsPerBeat: 2, accents: [0] },
@@ -38,7 +39,8 @@ export function cleanPattern(p) {
 /** Oznake doba ispod strelica: „1 & 2 &…“ ili „1 2 3 4 5 6“ za 6/8. */
 export function countLabels(p) {
   const sg = SIGNATURES[p.sig] || SIGNATURES['4/4'];
-  return [...p.steps].map((_, i) => (sg.slotsPerBeat === 2 ? (i % 2 ? '&' : String(i / 2 + 1)) : String(i + 1)));
+  const and = t('pat.and');
+  return [...p.steps].map((_, i) => (sg.slotsPerBeat === 2 ? (i % 2 ? and : String(i / 2 + 1)) : String(i + 1)));
 }
 
 const ARROW = { D: '↓', U: '↑', x: '✕', '-': '·' };
@@ -67,7 +69,11 @@ export class Metronome {
     this.pattern = null;   // ako je zadat, svira se i udarac preko žica
     this.clicks = true;
     this.running = false;
-    this.onStep = null;
+    this.onStep = null;    // (slot, beat|null, accent, info{ bar, countIn, chord }) u trenutku kada se čuje
+    this.onTempo = null;   // (bpm) kada trener brzine ubrza
+    this.chords = null;    // npr. ['G','C','D','G'] — jedan akord po taktu (inače Em)
+    this.countIn = 0;      // broj taktova odbrojavanja (samo klik) pre ritma
+    this.trainer = null;   // { step: 5, every: 4, target: 140 } — postepeno ubrzavanje
     this.timer = 0;
   }
 
@@ -94,21 +100,33 @@ export class Metronome {
     const c = audioCtx();
     const sp = this.spec;
     const slotsPerBar = this.pattern ? this.pattern.steps.length : sp.beats * sp.slotsPerBeat;
-    const slotDur = 60 / this.bpm / sp.slotsPerBeat;
     this.pendingUi = (this.pendingUi || []).filter(Boolean);
     while (this.next < c.currentTime + 0.12) {
       const i = this.slot % slotsPerBar;
+      const barAll = Math.floor(this.slot / slotsPerBar);
+      const countIn = barAll < this.countIn;
+      const bar = barAll - this.countIn; // 0 = prvi takt posle odbrojavanja
+      // Trener brzine: na početku takta, posle svakih „every“ taktova, dodaj „step“ BPM do cilja
+      if (i === 0 && !countIn && bar > 0 && this.trainer && bar % this.trainer.every === 0 && this.bpm < this.trainer.target) {
+        this.bpm = Math.min(this.trainer.target, this.bpm + this.trainer.step);
+        const b = this.bpm, d = Math.max(0, (this.next - c.currentTime) * 1000);
+        this.pendingUi.push(setTimeout(() => this.running && this.onTempo && this.onTempo(b), d));
+      }
+      const slotDur = 60 / this.bpm / sp.slotsPerBeat;
       const isBeat = i % sp.slotsPerBeat === 0;
       const beat = isBeat ? Math.floor(i / sp.slotsPerBeat) % sp.beats : null;
       const accent = isBeat && sp.accents.includes(beat) && (beat === 0 || this.sig === '6/8');
-      if (isBeat && this.clicks) click(this.next, beat === 0);
-      if (this.pattern) {
+      const chord = this.chords && this.chords.length && !countIn ? this.chords[bar % this.chords.length] : null;
+      if (isBeat && (this.clicks || countIn)) click(this.next, beat === 0);
+      if (this.pattern && !countIn) {
         const s = this.pattern.steps[i];
-        if (s === 'D' || s === 'U') strum(this.next, s, { accent: isBeat && beat === 0 });
-        else if (s === 'x') strum(this.next, 'D', { mute: true });
+        const notes = chordNotes(chord);
+        if (s === 'D' || s === 'U') strum(this.next, s, { accent: isBeat && beat === 0, notes });
+        else if (s === 'x') strum(this.next, 'D', { mute: true, notes });
       }
       const delay = Math.max(0, (this.next - c.currentTime) * 1000);
-      const id = setTimeout(() => this.running && this.onStep && this.onStep(i, beat, accent), delay);
+      const info = { bar, countIn, chord, countBeat: countIn ? beat : null };
+      const id = setTimeout(() => this.running && this.onStep && this.onStep(i, beat, accent, info), delay);
       this.pendingUi.push(id);
       if (this.pendingUi.length > 64) this.pendingUi.splice(0, 32);
       this.next += slotDur;
@@ -117,16 +135,33 @@ export class Metronome {
   }
 }
 
-/** Tap tempo: vraća BPM iz poslednjih dodira (ili null). */
+// Frekvencije žica za akord (prvi, najlakši hvat); null = podrazumevani Em
+const OPEN_MIDI = [40, 45, 50, 55, 59, 64];
+const noteCache = new Map();
+export function chordNotes(name) {
+  if (!name) return null;
+  if (noteCache.has(name)) return noteCache.get(name);
+  const v = getVoicings(name)[0];
+  const out = v ? v.frets.map((f, i) => (f < 0 ? null : 440 * Math.pow(2, (OPEN_MIDI[i] + f - 69) / 12))).filter(Boolean) : null;
+  noteCache.set(name, out);
+  return out;
+}
+
+/**
+ * Tap tempo: tapni u ritmu muzike koju slušaš. Vraća { count, bpm }:
+ * bpm je null dok ne bude bar 4 dodira (3 razmaka); posle toga se računa iz medijane poslednjih razmaka.
+ * Pauza duža od 2,5 s počinje ispočetka.
+ */
+export const TAP_NEEDED = 4;
 export function makeTapTempo() {
   let taps = [];
-  return () => {
-    const now = performance.now();
-    if (taps.length && now - taps[taps.length - 1] > 2000) taps = [];
+  return (now = performance.now()) => {
+    if (taps.length && now - taps[taps.length - 1] > 2500) taps = [];
     taps.push(now);
-    if (taps.length > 5) taps.shift();
-    if (taps.length < 2) return null;
-    const avg = (taps[taps.length - 1] - taps[0]) / (taps.length - 1);
-    return Math.max(40, Math.min(220, Math.round(60000 / avg)));
+    if (taps.length > 8) taps.shift();
+    if (taps.length < TAP_NEEDED) return { count: taps.length, bpm: null };
+    const gaps = taps.slice(1).map((x, i) => x - taps[i]).sort((x, y) => x - y);
+    const med = gaps[Math.floor(gaps.length / 2)];
+    return { count: taps.length, bpm: Math.max(40, Math.min(220, Math.round(60000 / med))) };
   };
 }

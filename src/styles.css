@@ -640,3 +640,36 @@ img { -webkit-user-drag: none; }
 input, textarea, select, [contenteditable], .diag pre, .qr-url { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
 .about .credits { font-size: .75rem; max-width: 420px; margin: 8px auto 0; }
 .about .credits a { min-height: 0; display: inline; padding: 0; }
+/* Ritam (jedan ekran) */
+.tap-btn { margin-top: 10px; display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; font-size: 1.05rem; -webkit-user-select: none; user-select: none; }
+.tap-btn svg { width: 22px; height: 22px; fill: currentColor; }
+.tap-btn.flash { animation: tapflash .18s ease-out; }
+@keyframes tapflash { from { background: var(--accent); color: var(--accent-ink); transform: scale(.97); } to { background: var(--surface-2); } }
+.tap-hint { margin: 6px 0 0; min-height: 1.4em; }
+.rh-card { display: flex; flex-direction: column; gap: 10px; }
+.rh-field { display: block; }
+.rh-field select { margin-top: 4px; }
+.rh-card .sig-tabs { margin: 0; }
+.rh-card .sig-tabs[hidden], .rh-card [hidden] { display: none; }
+.rh-stage { background: var(--bg); border: 1px solid var(--line); border-radius: 14px; padding: 12px 8px; text-align: center; }
+.rh-chord { display: flex; align-items: baseline; justify-content: center; gap: 10px; min-height: 3rem; }
+.rh-chord b { font-size: 2.6rem; font-weight: 800; line-height: 1; color: var(--accent); }
+.rh-chord b.count { color: var(--text); }
+.rh-chord span { color: var(--muted); font-size: .9rem; }
+.pattern.big { justify-content: center; gap: 2px; flex-wrap: nowrap; }
+.pattern.big .pstep { min-width: 0; flex: 1; max-width: 46px; padding: 6px 0; }
+.pattern.big .pstep b { font-size: 1.9rem; }
+.pattern.big .pstep i { font-size: .85rem; }
+.pulse.big { margin: 6px 0; gap: 14px; }
+.pulse.big i { width: 34px; height: 34px; display: grid; place-items: center; font-style: normal; }
+.pulse.big i.acc { width: 40px; height: 40px; margin-top: -3px; }
+.pulse.big i span { font-size: .85rem; font-weight: 700; color: var(--muted); }
+.pulse.big i.on span { color: var(--accent-ink); }
+.rh-custom { margin-top: 6px; font-family: var(--mono); }
+.rh-switch { min-height: 44px; }
+.rh-trainer { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 12px; }
+.rh-step { display: flex; align-items: center; gap: 8px; }
+.rh-step span { flex: 1; color: var(--muted); }
+.rh-step b { min-width: 92px; text-align: center; }
+.song-tempo { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
+.song-tempo b { min-width: 76px; text-align: center; }

@@ -228,6 +228,8 @@ export function songExtras(raw) {
   if (strum) out.strum = strum;
   const yt = cleanYt(raw.yt);
   if (yt) out.yt = yt;
+  const bpm = Math.round(Number(raw.bpm) || 0);
+  if (bpm >= 40 && bpm <= 220) out.bpm = bpm;
   const tuning = cleanTuning(raw.tuning);
   if (tuning !== 'standard') out.tuning = tuning;
   return out;
