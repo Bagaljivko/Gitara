@@ -19,7 +19,7 @@ test('plucked string is normalized, rings and fades out without a click', () => 
   let peak = 0;
   for (const v of s) peak = Math.max(peak, Math.abs(v));
   assert.ok(Math.abs(peak - 1) < 1e-6);
-  assert.equal(s[s.length - 1], 0);
+  assert.ok(Math.abs(s[s.length - 1]) < 1e-6, 'ends silent (no click)');
   const rms = (a, b) => { let t = 0; for (let i = a; i < b; i++) t += s[i] * s[i]; return Math.sqrt(t / (b - a)); };
   assert.ok(rms(sr, sr + 4800) > 0.01, 'still ringing after 1 s');
 });

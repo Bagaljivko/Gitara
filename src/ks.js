@@ -53,9 +53,10 @@ function string(sr, freq, n, { t60, brightness, pickPos, rnd }) {
  * @param {number} freq visina tona (Hz)
  * @param {object} o duration (s), t60 (s, trajanje do −60 dB), brightness 0–1, pickPos (0–0.5), seed
  */
-export function pluckedString(sr, freq, { duration = 2.6, t60, brightness = 0.55, pickPos = 0.14, seed = (Math.random() * 2 ** 31) | 0 } = {}) {
+export function pluckedString(sr, freq, { duration = 2.6, t60, brightness = 0.35, pickPos = 0.14, seed = (Math.random() * 2 ** 31) | 0 } = {}) {
   const n = Math.max(1, Math.round(duration * sr));
-  const T = t60 || Math.max(0.6, Math.min(duration, 5.5 - Math.log2(freq / 82.41) * 1.1)); // niže žice zvone duže
+  // Prirodno zvonjenje: debela E ~4,8 s, tanka E ~3,2 s (nezavisno od toga koliko dugo puštamo zvuk)
+  const T = t60 || Math.max(1.5, 4.8 - Math.log2(freq / 82.41) * 0.8);
   const rnd = rand(seed);
   const det = Math.pow(2, 0.35 / 1200); // ±0,35 centi između polarizacija
   const h = string(sr, freq * det, n, { t60: T, brightness, pickPos, rnd });
@@ -63,11 +64,11 @@ export function pluckedString(sr, freq, { duration = 2.6, t60, brightness = 0.55
   const out = new Float32Array(n);
   let peak = 1e-9;
   for (let i = 0; i < n; i++) { out[i] = 0.62 * h[i] + 0.38 * v[i]; peak = Math.max(peak, Math.abs(out[i])); }
-  // Blag kraj (bez pucketanja) i normalizacija
-  const fade = Math.min(n, Math.round(0.06 * sr));
+  // Normalizacija i mekan kraj u poslednjoj trećini (kao kad se žica lagano priguši), bez pucketanja
+  const fade = Math.min(n, Math.round(Math.max(0.06, duration * 0.35) * sr));
   for (let i = 0; i < n; i++) {
     let s = out[i] / peak;
-    if (i >= n - fade) s *= (n - i) / fade;
+    if (i >= n - fade) { const x = (n - i) / fade; s *= x * x; }
     out[i] = s;
   }
   return out;

@@ -90,6 +90,6 @@ export function strum(when, dir = 'D', { accent = false, mute = false, ctx = nul
   const notes = dir === 'U' ? [...STRUM_NOTES].reverse().slice(0, 4) : STRUM_NOTES;
   const spread = dir === 'U' ? 0.009 : 0.011;
   notes.forEach((f, i) => {
-    pluck(f, { when: when + i * spread + Math.random() * 0.002, gain: (accent ? 0.36 : 0.27) * (mute ? 0.7 : 1) * (dir === 'U' ? 0.85 : 1), duration: 1.1, mute, brightness: dir === 'U' ? 0.6 : 0.45, ctx });
+    pluck(f, { when: when + i * spread + Math.random() * 0.002, gain: (accent ? 0.25 : 0.19) * (mute ? 0.7 : 1) * (dir === 'U' ? 0.85 : 1), duration: 1.1, mute, brightness: dir === 'U' ? 0.6 : 0.45, ctx });
   });
 }
