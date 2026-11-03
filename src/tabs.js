@@ -248,7 +248,7 @@ export function playTab(tab, { bpm = 90, a4 = 440, onNote, onEnd } = {}) {
       const e = events[i++];
       if (e.n.f !== 'x') {
         const midi = OPEN_MIDI[e.n.s - 1] + Number(e.n.f);
-        pluck(a4 * Math.pow(2, (midi - 69) / 12), { when: e.when, gain: 0.3, duration: 1.6 });
+        pluck(a4 * Math.pow(2, (midi - 69) / 12), { when: e.when, gain: 0.75, duration: 1.8 });
       }
       timers.push(setTimeout(() => !stopped && onNote && onNote(e.bi, e.ni), Math.max(0, (e.when - c.currentTime) * 1000)));
     }

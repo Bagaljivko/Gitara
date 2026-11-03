@@ -167,7 +167,7 @@ export function createTuner(root) {
   // Dodir = izbor žice; dugi pritisak ili ikonica zvučnika = referentni ton.
   function playRef(id) {
     const f = a4 * Math.pow(2, (tuningOf(tuning).midi[id] - 69) / 12);
-    const ms = pluck(f);
+    const ms = pluck(f, { duration: 3, gain: 0.95 });
     tracker.mute(ms + 400, performance.now()); // sopstveni ton ne sme da pokrene tuner
     const btn = root.querySelector(`.knob[data-s="${id}"]`);
     btn.classList.add('ringing');

@@ -22,7 +22,7 @@ export function playVoicing(v) {
   v.frets.forEach((f, i) => {
     if (f < 0) return;
     const midi = OPEN_MIDI[i] + f;
-    pluck(440 * Math.pow(2, (midi - 69) / 12), { when: t0 + k++ * 0.045, gain: 0.22, duration: 2.4 });
+    pluck(440 * Math.pow(2, (midi - 69) / 12), { when: t0 + k++ * 0.028 + Math.random() * 0.004, gain: 0.6, duration: 3 });
   });
 }
 
