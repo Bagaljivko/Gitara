@@ -15,6 +15,7 @@ const loadSettings = lazy(() => import('./settingsView.js'));
 const loadChordRec = lazy(() => import('./chordrec.js'));
 const loadStage = lazy(() => import('./stage.js'));
 const loadChordCheck = lazy(() => import('./chordCheck.js'));
+const loadPractice = lazy(() => import('./practice.js')); // Vežbe: učitava se tek kad se otvori
 const hasSharedSong = () => location.hash.startsWith('#pesma='); // isto kao u sharelink.js
 
 const app = document.getElementById('app');
@@ -86,7 +87,7 @@ async function routeInner() {
   const shared = hasSharedSong();
   const hash = shared ? '#/primljena' : location.hash || '#/tuner';
   const [, page, arg] = hash.match(/^#\/([^/?]*)\/?(.*)$/) || [, 'tuner', ''];
-  const tab = { tuner: 'tuner', akordi: 'akordi', pesme: 'pesme', pesma: 'pesme', uredi: 'pesme', setlista: 'pesme', nastup: 'pesme', primljena: 'pesme', podesavanja: 'podesavanja', provera: 'podesavanja' }[page] || 'tuner';
+  const tab = { tuner: 'tuner', akordi: 'akordi', pesme: 'pesme', pesma: 'pesme', uredi: 'pesme', setlista: 'pesme', nastup: 'pesme', primljena: 'pesme', podesavanja: 'podesavanja', provera: 'podesavanja', vezbe: 'vezbe' }[page] || 'tuner';
   document.body.classList.toggle('tuner-screen', tab === 'tuner');
   document.querySelectorAll('.nav a').forEach((a) => {
     const on = a.dataset.tab === tab;
@@ -107,6 +108,16 @@ async function routeInner() {
     v.el.hidden = false;
     v.ctl.show();
     activeLive = name;
+  } else if (tab === 'vezbe') {
+    // Vežbe: posebna stranica, bez učitavanja pesmarice (osim kad igra „Delovi pesme“ sama zatraži pesmu)
+    activeLive = null;
+    const { renderPractice } = await loadPractice();
+    if (routeId !== myRoute) return;
+    const el = document.createElement('div');
+    el.className = 'page';
+    app.appendChild(el);
+    const [rest, query = ''] = (arg || '').split('?');
+    await renderPractice(el, rest.split('/').map(decodeURIComponent), new URLSearchParams(query));
   } else {
     activeLive = null;
     const [rawId, query = ''] = (arg || '').split('?');
