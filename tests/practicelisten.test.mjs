@@ -104,3 +104,18 @@ test('the speaker click while a string is still ringing is not counted as a stru
   console.log(`  clicks over a ringing string: ${hits.length} hit(s) (only the real pluck expected)`);
   assert.equal(hits.length, 1);
 });
+
+test('a pluck that comes 40–80 ms after the speaker click (a bit late) is still heard, at its own time', () => {
+  let sig = room(9, 0.0006);
+  const plucks = [];
+  [40, 50, 60, 70, 80, 45, 55, 65, 75, 85].forEach((late, i) => {
+    const beat = 1 + i * 0.7;
+    addClick(sig, beat, 0.05);
+    plucks.push({ t: beat + late / 1000, midi: STRINGS[i % 6] + 2 });
+    addPluck(sig, beat + late / 1000, STRINGS[i % 6] + 2, 0.05);
+  });
+  const r = score(listen(phoneMic(sig)).hits, plucks);
+  console.log(`  late plucks after a click: ${r.found}/${plucks.length}, ${r.notes} right notes, max timing error ${r.maxErr.toFixed(0)} ms`);
+  assert.equal(r.found, plucks.length);
+  assert.ok(r.maxErr <= 25);
+});

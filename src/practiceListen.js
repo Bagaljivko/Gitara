@@ -73,8 +73,10 @@ export function createDetector({ sensitivity = 'auto', a4 = 440 } = {}) {
   const tr = new PracticePitch({ sensitivity, a4 });
   tr.a4 = a4;
   tr.setAnyNote();
-  let lastAt = -1e9, prevEnd = null, pend = null;
+  let lastAt = -1e9, lastCand = -1e9, prevEnd = null;
+  const pends = [];        // napadi koji čekaju proveru (~90 ms)
   const blocks = [];       // energija blokova od 2,5 ms (poslednjih ~25 ms)
+  const hist = [];         // isto, sa vremenom (poslednjih ~200 ms) — da li je napad „umro“ pre sledećeg
   let fl = -1;             // buka sobe: brzo pada, sporo raste (~10 s) — sviranje bez prestanka je ne podiže
   let a = 0, y1 = 0, y2 = 0;
   function process(buf, sr, now) {
@@ -94,22 +96,33 @@ export function createDetector({ sensitivity = 'auto', a4 = 440 } = {}) {
       const pre = blocks.length >= 8 ? blocks.slice(-8).reduce((x, y) => x + y, 0) / 8 : Infinity;
       blocks.push(e); if (blocks.length > 12) blocks.shift();
       const at = now - ((buf.length - i) / sr) * 1000;
-      if (e > pre * 4 && Math.sqrt(e) > minAbs && at > lastAt + 70) {
-        lastAt = at;
-        pend = { at, rms: Math.sqrt(e), preRms: Math.sqrt(pre) };
+      hist.push({ at, e }); if (hist.length > 80) hist.shift();
+      // novi napad; i kad prethodni još čeka proveru (klik metronoma pa trzaj odmah posle njega — oba čekaju)
+      if (e > pre * 4 && Math.sqrt(e) > minAbs && at > lastAt + 70 && at > lastCand + 25) {
+        lastCand = at;
+        pends.push({ at, rms: Math.sqrt(e), preRms: Math.sqrt(pre) });
       }
     }
     // ~90 ms posle napada: trzaj se prihvata samo ako zvuk još traje (klik metronoma iz zvučnika i kucanje
     // nestanu za ~50 ms, žica zvoni dalje) — pa se uzme isečak novog zvuka (od 15 ms posle napada) za proveru note
-    if (pend && now - pend.at >= 90) {
-      // i zvuk mora trajno da bude jači nego pre napada (klik preko žice koja već zvoni to ne ispunjava)
-      if (out.level >= pend.rms * 0.12 && out.level >= pend.preRms * 1.35) {
-        const from = Math.max(0, buf.length - Math.round(((now - (pend.at + 15)) / 1000) * sr));
-        const seg = Float32Array.from(tr.lowpass(buf.subarray(from), sr));
-        out.onset = { at: pend.at };
-        out.pluck = { at: pend.at, seg, sr, level: out.level };
+    while (pends.length && now - pends[0].at >= 90 && !out.pluck) {
+      const c = pends.shift(), d = pends[0];
+      if (c.at <= lastAt + 70) continue;
+      // Sledeći napad ubrzo posle ovog: ako je ovaj zvuk utihnuo pre njega, bio je klik — računa se sledeći
+      if (d && d.at - c.at >= 30 && d.at - c.at < 90) {
+        const mid = hist.filter((h) => h.at >= Math.max(c.at + 20, d.at - 12.5) && h.at <= d.at - 2.5);
+        const m = mid.length ? Math.sqrt(mid.reduce((x, h) => x + h.e, 0) / mid.length) : 0;
+        // „utihnuo“ = vratio se na nivo od pre napada (tišina ili žica koja je već zvonila)
+        if (m < Math.max(c.preRms * 1.35, minAbs)) continue;
       }
-      pend = null;
+      // i zvuk mora trajno da bude jači nego pre napada (klik preko žice koja već zvoni to ne ispunjava)
+      if (out.level >= c.rms * 0.12 && out.level >= c.preRms * 1.35) {
+        lastAt = c.at;
+        const from = Math.max(0, buf.length - Math.round(((now - (c.at + 15)) / 1000) * sr));
+        const seg = Float32Array.from(tr.lowpass(buf.subarray(from), sr));
+        out.onset = { at: c.at };
+        out.pluck = { at: c.at, seg, sr, level: out.level };
+      }
     }
     const r = tr.process(buf, sr, now);
     if (r.state === 'tracking') out.note = { midi: tr.midiOf(r.sid), cents: r.cents, stable: r.stable, freq: r.freq };

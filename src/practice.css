@@ -99,3 +99,68 @@
 .ps-list { list-style: none; margin: 0; padding: 0; width: 100%; }
 .ps-list a { display: flex; flex-direction: column; padding: 12px 4px; border-bottom: 1px solid var(--line); color: var(--text); text-decoration: none; }
 .chip small { color: var(--muted); font-weight: 600; margin-left: 4px; }
+/* Objašnjenje igre + demo, jačina ulaza (na svakom ekranu igre) */
+.pr-explain { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; margin: 8px 0 10px; display: flex; flex-direction: column; gap: 10px; }
+.pr-explain p { margin: 0; line-height: 1.5; }
+.pr-demo { align-self: flex-start; border-color: var(--accent); color: var(--accent); }
+.pr-demo svg { width: 16px; height: 16px; }
+.pr-meter { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 2px 0 8px; font-size: .85rem; color: var(--muted); }
+.pr-lvl { width: 110px; height: 8px; border-radius: 4px; background: var(--surface-2); border: 1px solid var(--line); overflow: hidden; display: inline-block; }
+.pr-lvl i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--ok), var(--accent)); transition: width .06s linear; }
+.pr-heard { min-width: 9ch; font-variant-numeric: tabular-nums; }
+
+/* ---------------- Staza (položeni ekran) ---------------- */
+body.trk-open { overflow: hidden; }
+.trk { position: fixed; inset: 0; z-index: 200; background: #07080a; color: var(--text); display: flex; flex-direction: column;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); touch-action: none; user-select: none; }
+.trk-top { display: flex; align-items: center; gap: 12px; padding: 6px 10px; flex: 0 0 auto; }
+.trk-x { appearance: none; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); width: 40px; height: 40px; border-radius: 12px; font-size: 1.05rem; cursor: pointer; }
+.trk-prog { flex: 1; height: 8px; border-radius: 4px; background: var(--surface-2); overflow: hidden; }
+.trk-prog i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--accent), var(--ok)); transition: width .2s; }
+.trk-combo { display: flex; align-items: baseline; gap: 4px; min-width: 64px; justify-content: flex-end; }
+.trk-combo b { font-size: 1.5rem; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--accent); }
+.trk-combo small { color: var(--muted); font-size: .75rem; }
+.trk-combo.hot b { color: var(--ok); text-shadow: 0 0 12px rgba(61,214,140,.7); }
+.trk-combo.bump b { animation: trkBump .25s ease-out; }
+@keyframes trkBump { from { transform: scale(1.45); } to { transform: scale(1); } }
+.trk-meter { display: flex; align-items: center; gap: 8px; font-size: .8rem; color: var(--muted); }
+.trk-meter .pr-lvl { width: 64px; }
+.trk-heard { min-width: 8ch; }
+.trk-lane { position: relative; flex: 1 1 auto; min-height: 0; }
+.trk-lane canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.trk-big { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; font-size: min(26vh, 9rem); font-weight: 900; color: #fff; opacity: 0; text-shadow: 0 0 30px rgba(245,165,36,.8); }
+.trk-big.show { animation: trkBig .7s ease-out forwards; }
+@keyframes trkBig { 0% { opacity: 0; transform: scale(1.6); } 25% { opacity: 1; transform: scale(1); } 100% { opacity: .0; transform: scale(.9); } }
+.trk-pop { position: absolute; left: 12%; top: 8%; pointer-events: none; font-size: 1.6rem; font-weight: 900; opacity: 0; color: var(--ok); }
+.trk-pop.miss { color: var(--danger); }
+.trk-pop.early, .trk-pop.late { color: var(--accent); }
+.trk-pop.show { animation: trkPop .7s ease-out forwards; }
+@keyframes trkPop { 0% { opacity: 0; transform: translateY(8px) scale(.8); } 20% { opacity: 1; transform: translateY(0) scale(1.15); } 100% { opacity: 0; transform: translateY(-14px) scale(1); } }
+.trk::after { content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0; }
+.trk.fl-hit::after { background: radial-gradient(circle at 18% 50%, rgba(61,214,140,.35), transparent 60%); animation: trkFlash .35s ease-out; }
+.trk.fl-miss::after { background: radial-gradient(circle at 18% 50%, rgba(255,107,107,.35), transparent 60%); animation: trkFlash .35s ease-out; }
+.trk.fl-miss .trk-lane { animation: trkShake .25s; }
+@keyframes trkFlash { from { opacity: 1; } to { opacity: 0; } }
+@keyframes trkShake { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+.trk-cap { flex: 0 0 auto; min-height: 0; text-align: center; font-weight: 600; padding: 0 16px; max-height: 0; overflow: hidden; transition: max-height .2s, padding .2s; }
+.trk-cap.on { max-height: 4em; padding: 6px 16px 8px; background: rgba(245,165,36,.12); color: var(--text); }
+.trk-res { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(0,0,0,.72); z-index: 2; padding: 12px; }
+.trk-res-card { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 16px 22px; text-align: center; max-width: 560px; width: 100%; max-height: 100%; overflow: auto; animation: trkIn .3s ease-out; }
+.trk-res-card h2 { margin: 0 0 4px; font-size: 1.3rem; }
+@keyframes trkIn { from { opacity: 0; transform: scale(.92); } to { opacity: 1; transform: scale(1); } }
+.trk-stars { font-size: 2.6rem; line-height: 1; letter-spacing: 6px; }
+.trk-stars span { color: var(--surface-2); -webkit-text-stroke: 1px var(--line); display: inline-block; }
+.trk-stars span.on { color: var(--accent); -webkit-text-stroke: 0; text-shadow: 0 0 14px rgba(245,165,36,.7); animation: trkStar .45s ease-out backwards; }
+@keyframes trkStar { from { transform: scale(0) rotate(-40deg); } 70% { transform: scale(1.3); } to { transform: scale(1); } }
+.trk-res .pr-res-row { margin: 8px 0; }
+.trk-res-note { color: var(--ok); font-weight: 700; margin: 4px 0; }
+.trk-res-btns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 10px; }
+.trk-res-btns .btn { min-width: 120px; }
+.trk-rotate { display: none; position: absolute; inset: 0; z-index: 3; background: #07080a; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; padding: 24px; }
+.trk-rotate b { font-size: 1.4rem; }
+.trk-rotate small { color: var(--muted); max-width: 30ch; }
+.trk-phone { width: 54px; height: 92px; border: 3px solid var(--accent); border-radius: 12px; position: relative; margin-bottom: 14px; animation: trkTurn 2s ease-in-out infinite; }
+.trk-phone i { position: absolute; left: 50%; bottom: 6px; width: 14px; height: 3px; margin-left: -7px; border-radius: 2px; background: var(--accent); }
+@keyframes trkTurn { 0%, 20% { transform: rotate(0); } 55%, 100% { transform: rotate(-90deg); } }
+@media (orientation: portrait) { .trk-rotate { display: flex; } }
+@media (prefers-reduced-motion: reduce) { .trk-phone, .trk.fl-miss .trk-lane { animation: none; } }

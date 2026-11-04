@@ -8,6 +8,7 @@ import { esc } from './ui.js';
 import { settings } from './db.js';
 import { keepAwake, allowSleep, setWakeZone } from './wakelock.js';
 import { stopGroup } from './synth.js';
+import { noteLabel } from './practiceBoard.js';
 
 // Tekstovi i stilovi Vežbi se učitavaju tek ovde (ne pri pokretanju aplikacije)
 function mergeTexts() { Object.assign(LANGS.sr, TEXTS.sr); if (LANGS.en) Object.assign(LANGS.en, TEXTS.en); }
@@ -118,7 +119,9 @@ async function renderGame(root, game, args, params) {
       <a href="#/vezbe" class="back">‹ ${t('pr.title')}</a>
       <span class="pr-gtitle">${ico(game)}<b>${t('pr.g.' + game.id)}</b></span>
     </header>
+    <div class="pr-explain" id="prExplain" hidden></div>
     <div class="pr-pulse" id="prPulse" aria-hidden="true"></div>
+    <div class="pr-meter" id="prMeter" aria-hidden="true"><span class="pr-lvl"><i></i></span><span class="pr-heard" id="prHeard">${t('pr.meter.idle')}</span></div>
     <div class="pr-stage" id="prStage"><p class="muted center">${t('common.loading')}</p></div>
     <div class="pr-fb" id="prFb" role="status" aria-live="polite">&nbsp;</div>
     <div class="pr-opts" id="prOpts"></div>
@@ -137,7 +140,21 @@ async function renderGame(root, game, args, params) {
   const st = await loadStats();
   const rec = st.games[game.id] || {};
   let running = false, bpm = 90, gameObj = null, listener = null;
-  const cleanups = new Set();
+  const cleanups = new Set(), levelSubs = new Set();
+  // Jačina ulaza + poslednja čuta nota: na svakom ekranu igre (da se odmah vidi da li mikrofon čuje gitaru)
+  let lastHeard = null, meterAt = 0;
+  function onLevel(ev) {
+    const lvlI = root.querySelector('#prMeter .pr-lvl i');
+    if (!ev) { if (lvlI) lvlI.style.width = '0%'; return; }
+    if (ev.note != null) lastHeard = ev.note;
+    levelSubs.forEach((fn) => fn(ev.level, lastHeard));
+    const now = performance.now();
+    if (now - meterAt < 50 || !lvlI) return; // ~20 osvežavanja u sekundi je dovoljno
+    meterAt = now;
+    const db = ev.level ? 20 * Math.log10(ev.level) : -100;
+    lvlI.style.width = `${Math.round(Math.max(0, Math.min(1, (db + 60) / 50)) * 100)}%`;
+    $('prHeard').textContent = lastHeard != null ? `${t('pr.meter.heard')}: ${noteLabel(lastHeard)}` : t('pr.meter.listening');
+  }
 
   const api = {
     stage: $('prStage'),
@@ -167,29 +184,47 @@ async function renderGame(root, game, args, params) {
     /** Slušanje (mikrofon) — zajedničko za sve igre; gasi se automatski pri izlasku. */
     async listen(opts) {
       if (!listener) { const { createListener } = await import('./practiceListen.js'); listener = createListener(); }
-      await listener.start(opts);
+      const gameLevel = opts.onLevel;
+      await listener.start({ ...opts, onLevel: (ev) => { onLevel(ev); gameLevel?.(ev); } });
       return listener;
     },
+    /** Pretplata na jačinu ulaza (lv, poslednja nota); vraća odjavu. */
+    onLevel(fn) { levelSubs.add(fn); return () => levelSubs.delete(fn); },
     onCleanup(fn) { cleanups.add(fn); },
     /** Zaustavi bez rezultata (npr. posle podešavanja kašnjenja). */
     stopNow() { stopRun(false); },
+    /** Potpuno zaustavi (i zatvori ekran igre, npr. stazu) — i kad runda već nije u toku. */
+    stop() { stopRun(false); try { gameObj?.stop(); } catch {} },
+    /** Nova runda sa trenutnim tempom (pozvati iz dodira, npr. dugme na stazi). */
+    restart() { stopRun(false); return startRun(); },
     /** Pokreni posebnu rundu (npr. podešavanje kašnjenja) sa istim gašenjem kao igra. */
     startCustom(fn) { return startRun(fn); },
     /** Kraj runde: rezultat 0–100, tempo, tačnost (0–1). key = [songId, deo] za „Delovi pesme“. */
     async finish(res, key = null) {
       stopRun(false);
       const nextTempo = res.score > 90 ? Math.max(B.min, Math.min(B.max, res.tempo + B.step * B.dir)) : res.tempo;
-      await saveResult(game.id, { ...res, nextTempo }, key);
       const prevBest = key ? ((st.songs[key[0]] || {})[key[1]] || {}).best || 0 : rec.best || 0;
-      showResult({ ...res, nextTempo, newBest: res.score > prevBest });
+      const fresh = await saveResult(game.id, { ...res, nextTempo }, key);
+      Object.assign(rec, fresh.games[game.id]); Object.assign(st.songs, fresh.songs);
+      const info = { ...res, nextTempo, newBest: res.score > prevBest };
+      if (!res.quiet) showResult(info); // „staza“ prikazuje rezultat sama
       if (nextTempo !== res.tempo) api.setBpm(nextTempo);
       gameObj?.onResult?.(res);
+      return info;
     },
     t, esc,
   };
 
   gameObj = await mod.createGame(api);
   api.pulse(null, gameObj.beats ?? 4); // tačke otkucaja odmah (ekran ne „skače“ na startu)
+  // Objašnjenje (2–3 rečenice) i „Pogledaj demo“ — demo se pušta samo na dugme, nikad sam
+  const explain = t('pr.x.' + game.id);
+  if (explain !== 'pr.x.' + game.id || gameObj.demo) {
+    $('prExplain').hidden = false;
+    $('prExplain').innerHTML = `${explain !== 'pr.x.' + game.id ? `<p>${explain}</p>` : ''}${gameObj.demo ? `<button class="btn small pr-demo" id="prDemo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>${t('pr.demo')}</button>` : ''}`;
+    $('prDemo')?.addEventListener('click', () => { if (!running) startRun(() => gameObj.demo()); });
+  }
+  if (gameObj.track) { $('prPulse').hidden = true; $('prFb').hidden = true; }
   // Brzina: BPM (više = brže) ili npr. sekunde po noti (dir: -1 → manje = brže)
   const B = { start: 80, min: 40, max: 200, step: 5, dir: 1, fmt: (v) => String(v), unit: 'BPM', ...(gameObj.bpm || {}) };
   $('prUnit').textContent = B.unit;
@@ -240,6 +275,8 @@ async function renderGame(root, game, args, params) {
     $('prGo').classList.add('primary');
     if (callGame && was) { try { gameObj.stop(); } catch {} }
     listener?.stop();
+    lastHeard = null;
+    if ($('prHeard')) $('prHeard').textContent = t('pr.meter.idle');
     stopGroup('practice');
     allowSleep('practice');
   }
