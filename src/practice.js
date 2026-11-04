@@ -173,7 +173,7 @@ async function renderGame(root, game, args, params) {
   };
 
   gameObj = await mod.createGame(api);
-  api.pulse(null, gameObj.beats || 4); // tačke otkucaja odmah (ekran ne „skače“ na startu)
+  api.pulse(null, gameObj.beats ?? 4); // tačke otkucaja odmah (ekran ne „skače“ na startu)
   // Brzina: BPM (više = brže) ili npr. sekunde po noti (dir: -1 → manje = brže)
   const B = { start: 80, min: 40, max: 200, step: 5, dir: 1, fmt: (v) => String(v), unit: 'BPM', ...(gameObj.bpm || {}) };
   $('prUnit').textContent = B.unit;
@@ -189,7 +189,7 @@ async function renderGame(root, game, args, params) {
       <div class="pr-score"><b>${Math.round(r.score)}</b><small>/100</small></div>
       ${r.newBest ? `<p class="pr-best">${t('pr.newBest')}</p>` : ''}
       <div class="pr-res-row">
-        <span><small>${t(B.dir < 0 ? 'pr.speedReached' : 'pr.tempoReached')}</small><b>${B.fmt(r.tempo)} ${B.unit}</b></span>
+        <span><small>${B.label || t(B.dir < 0 ? 'pr.speedReached' : 'pr.tempoReached')}</small><b>${B.fmt(r.tempo)} ${B.unit}</b></span>
         <span><small>${t('pr.accuracy')}</small><b>${Math.round((r.accuracy || 0) * 100)}%</b></span>
         ${r.extra ? `<span><small>${esc(r.extra.label)}</small><b>${esc(String(r.extra.value))}</b></span>` : ''}
       </div>
