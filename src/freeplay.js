@@ -6,10 +6,13 @@
 // Performanse (kao u igrama): raspored se pravi jednom; tačke su elementi iz bazena (12, najstarija se ponovo
 // koristi), pomeraju se samo transform/opacity; jedna requestAnimationFrame petlja (talas + ponavljanje snimka);
 // jeftin sjaj (radijalni gradijent / dve linije, bez blura); slušanje 50×/s, a težak deo samo posle trzaja.
-import { t, LANGS, onLangChange } from './i18n.js';
+import { t, LANGS, onLangChange, getLang } from './i18n.js';
 import * as TEXTS from './freeplayText.js';
-import { esc, toast, dialog, confirmDialog } from './ui.js';
-import { settings } from './db.js';
+import { esc, toast } from './ui.js';
+import { settings, songs as songsDb } from './db.js';
+import { REC_FOLDER, ensureRecFolder } from './collections.js';
+import { textToSections } from './songformat.js';
+import { upgradeSong } from './songmodel.js';
 import { openMic, closeMic, MicError } from './audio.js';
 import { keepAwake, allowSleep } from './wakelock.js';
 import { getRoom, roomToSensitivity } from './tunerSettings.js';
@@ -17,6 +20,7 @@ import { midiName } from './music.js';
 import { dn } from './naming.js';
 import { getVoicings } from './chords.js';
 import { createFreeEngine } from './freeplayListen.js';
+import { debugLog } from './practiceListen.js';
 
 // Tekstovi i stilovi se učitavaju tek ovde
 function mergeTexts() { Object.assign(LANGS.sr, TEXTS.sr); if (LANGS.en) Object.assign(LANGS.en, TEXTS.en); }
@@ -81,8 +85,8 @@ export async function loadRecs() { const r = await settings.get(REC_KEY, null); 
 async function saveRecs(list) { await settings.set(REC_KEY, list); }
 
 /** Jednostavna tablatura: šest linija (gore tanka e), pragovi redom kako su odsvirani. */
-export function tabText(rec, width = 48) {
-  const lines = ['e', 'H', 'G', 'D', 'A', 'E'].map((x, i) => (i === 0 ? dn('E').toLowerCase() : i === 1 ? dn('B') : x));
+export function tabText(rec, width = 48, names = null) {
+  const lines = names || ['e', 'H', 'G', 'D', 'A', 'E'].map((x, i) => (i === 0 ? dn('E').toLowerCase() : i === 1 ? dn('B') : x));
   const cols = rec.events.map((e) => {
     const col = ['', '', '', '', '', ''];
     for (const n of e.notes || []) if (n.s >= 0 && n.s < 6) col[5 - n.s] = String(n.f);
@@ -97,24 +101,76 @@ export function tabText(rec, width = 48) {
   return out.join('\n\n');
 }
 
-// ---------------- Pozornica (položeno): vrat, tačke, talas, snimanje ----------------
+// ---------------- Snimak → pesma u Pesme → „Moji snimci“ ----------------
+/** Pesma od snimka: akordi redom (bez ponavljanja zaredom) + tablatura; snimak ostaje na pesmi za „Pusti na vratu“. */
+export function recToSong(rec) {
+  const chords = [];
+  for (const e of rec.events) if (e.chord && chords[chords.length - 1] !== e.chord) chords.push(e.chord);
+  const parts = [];
+  if (chords.length) {
+    const rows = [];
+    for (let i = 0; i < chords.length; i += 8) rows.push(chords.slice(i, i + 8).join('   '));
+    parts.push(`[${t('fp.chordsSec')}]`, ...rows, '');
+  }
+  const tabbed = { events: rec.events.filter((e) => (e.notes || []).length) };
+  if (tabbed.events.length) parts.push(`[${t('fp.tab')}]`, tabText(tabbed, 32, ['e', 'B', 'G', 'D', 'A', 'E']));
+  // akordi su u engleskom zapisu (B = H) → neutralni sloj; prikaz prati podešavanje imena nota
+  const song = upgradeSong({ title: rec.name, artist: '', key: '', sections: textToSections(parts.join('\n')), cv: 0 }, { naming: 'en' });
+  return { ...song, folders: [REC_FOLDER], recording: { v: REC_V, dur: rec.dur || 0, events: rec.events, recId: rec.id } };
+}
+/** Sačuvaj snimak kao pesmu (jednom: isti snimak se ne dodaje dvaput). */
+async function saveRecAsSong(rec) {
+  await ensureRecFolder();
+  const have = (await songsDb.all()).find((s) => s.recording && s.recording.recId === rec.id);
+  if (have) return have;
+  return songsDb.save({ ...recToSong(rec), createdAt: rec.created || Date.now() });
+}
+/** Stari snimci (v1.36, u podešavanjima) prelaze u pesme; posle toga lista je prazna. */
+async function migrateRecs() {
+  const old = await loadRecs();
+  if (!old.length) return;
+  for (const r of old.slice().reverse()) { try { await saveRecAsSong(r); } catch {} }
+  await saveRecs([]);
+}
+/** Pesme iz foldera „Moji snimci“ koje imaju snimak (najnovije prve). */
+async function recSongs() {
+  return (await songsDb.list()).filter((s) => (s.folders || []).includes(REC_FOLDER)).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+}
+/** Ekran pesme → „Pusti na vratu“. */
+export async function replaySong(song) {
+  await cssReady;
+  if (!song || !song.recording || replaying) return;
+  replaying = startReplay({ ...song.recording, name: song.title }, { onExit: () => (replaying = null) });
+}
+let replaying = null;
+
+// ---------------- Pozornica (položeno): ime gore u sredini, vrat centriran, ekvilajzer, talas, snimanje ----------------
+const FC = ['#dfe3e8', '#5aa9ff', '#ffd75e', '#ff7cc3', '#b48cff']; // boje prstiju (0 = prazna žica)
+const rgba = (hex, a) => `rgba(${parseInt(hex.slice(1, 3), 16)},${parseInt(hex.slice(3, 5), 16)},${parseInt(hex.slice(5, 7), 16)},${a})`;
+// slabiji telefoni: ekvilajzer 30×/s (talas, tačke i talasanje žice ostaju 60×/s)
+const WEAK = (navigator.hardwareConcurrency || 8) <= 4 || (navigator.deviceMemory || 8) <= 3;
+const EQ_BARS = 28;
+// pragovi kao na pravoj gitari, ali blago (55 % prava razdaljina, 45 % jednako) — da i 12. prag ostane dovoljno širok
+const REAL = (f) => (1 - Math.pow(2, -f / 12)) / (1 - Math.pow(2, -(FRETS + 0.6) / 12));
+const fretPos = (f) => 0.45 * (f / (FRETS + 0.6)) + 0.55 * REAL(f);
+
 function createStage({ mode = 'live', rec = null, onExit, onSaved }) {
   const el = document.createElement('div');
   el.className = 'fpv';
   el.innerHTML = `
     <div class="fpv-top">
       <button class="fpv-x" aria-label="${t('fp.exit')}">✕</button>
-      <div class="fpv-name" aria-live="polite"><b></b><small></small></div>
       <div class="fpv-tools">
         ${mode === 'live' ? `<button class="fpv-rec" aria-label="${t('fp.record')}"><i></i><span>${t('fp.record')}</span></button>
         <button class="fpv-set" aria-label="${t('fp.settings')}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.4 7.4 0 0 0-1.7-1L15 3.5h-4L10.6 6a7.4 7.4 0 0 0-1.7 1l-2.4-1-2 3.4L4.6 11a7.6 7.6 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7.4 7.4 0 0 0 1.7 1l.4 2.5h4l.4-2.5a7.4 7.4 0 0 0 1.7-1l2.4 1 2-3.4zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/></svg></button>` : `<span class="fpv-replay">${t('fp.replaying')}</span>`}
       </div>
     </div>
+    <div class="fpv-band" aria-live="polite"><b></b><small></small><span class="fpv-msg"></span></div>
     <div class="fpv-neck">
-      <canvas class="fpv-wave"></canvas>
+      <canvas class="fpv-eq"></canvas>
       <canvas class="fpv-bg"></canvas>
+      <canvas class="fpv-wave"></canvas>
       <div class="fpv-dots"></div>
-      <div class="fpv-msg"></div>
       <div class="fpv-panel" hidden>
         <label>${t('fp.sens')} <input type="range" min="1" max="5" step="1" class="fpv-sens"></label>
         <small>${t('fp.sensHint')}</small>
@@ -126,55 +182,58 @@ function createStage({ mode = 'live', rec = null, onExit, onSaved }) {
   document.body.appendChild(el);
   document.body.classList.add('fpv-open');
   const q = (s) => el.querySelector(s);
-  const neck = q('.fpv-neck'), bg = q('.fpv-bg'), wave = q('.fpv-wave'), dotsL = q('.fpv-dots'), msg = q('.fpv-msg');
-  const nameB = q('.fpv-name b'), nameS = q('.fpv-name small');
+  const neck = q('.fpv-neck'), bg = q('.fpv-bg'), wave = q('.fpv-wave'), eqC = q('.fpv-eq'), dotsL = q('.fpv-dots');
+  const band = q('.fpv-band'), nameB = q('.fpv-band b'), nameS = q('.fpv-band small'), msg = q('.fpv-msg');
   q('.fpv-x').addEventListener('click', () => onExit?.());
   q('.fpv-x2').addEventListener('click', () => onExit?.());
 
   // ---- Raspored (meri se jednom i kad se telefon okrene) ----
-  const G = { W: 0, H: 0, x0: 0, x1: 0, y0: 0, y1: 0, r: 12 };
-  const fretX = (f) => G.x0 + (f / (FRETS + 0.6)) * (G.x1 - G.x0); // linija praga f
-  const dotX = (f) => (f === 0 ? G.x0 - G.r * 1.25 : (fretX(f - 1) + fretX(f)) / 2);
+  // vrat je centriran i zauzima ~92 % širine: imena žica uz nulti prag, prazne žice (0) između njih i praga
+  const G = { W: 0, H: 0, bx: 0, x0: 0, x1: 0, y0: 0, y1: 0, r: 12 };
+  const fretX = (f) => G.x0 + fretPos(f) * (G.x1 - G.x0); // linija praga f
+  const dotX = (f) => (f === 0 ? G.x0 - G.r * 1.3 : (fretX(f - 1) + fretX(f)) / 2);
   const strY = (s) => G.y0 + (s / 5) * (G.y1 - G.y0);
   function layout() {
     const w = neck.clientWidth, h = neck.clientHeight;
     if (!w || !h) return;
     G.W = w; G.H = h;
-    G.r = Math.max(9, Math.min(h / 16, 22));
-    // levo: imena žica, pa prazne žice (0) ispred nultog praga, pa vrat
-    G.x0 = Math.max(70, G.r * 4.4); G.x1 = w - 14; G.y0 = h * 0.16; G.y1 = h * 0.86;
+    G.r = Math.max(9, Math.min(h / 15, 22));
+    G.bx = Math.round(w * 0.04);
+    G.x0 = G.bx + G.r * 4; G.x1 = w - G.bx; G.y0 = h * 0.1; G.y1 = h * 0.8;
     neck.style.setProperty('--r', G.r + 'px');
     drawBg();
-    sizeWave();
+    sizeFx();
   }
   function drawBg() {
     const dpr = Math.min(2, window.devicePixelRatio || 1), c = bg.getContext('2d');
     bg.width = Math.round(G.W * dpr); bg.height = Math.round(G.H * dpr);
     c.setTransform(dpr, 0, 0, dpr, 0, 0);
     c.clearRect(0, 0, G.W, G.H);
-    // drvo vrata (tamno, prozirno — talas se vidi iza)
+    // drvo vrata: tamno, ali providno — ekvilajzer iza se vidi
     const top = G.y0 - G.r * 1.3, bot = G.y1 + G.r * 1.3;
     const wood = c.createLinearGradient(0, top, 0, bot);
-    wood.addColorStop(0, 'rgba(26,18,12,.82)'); wood.addColorStop(0.5, 'rgba(18,12,8,.82)'); wood.addColorStop(1, 'rgba(26,18,12,.82)');
+    wood.addColorStop(0, 'rgba(30,20,13,.66)'); wood.addColorStop(0.5, 'rgba(18,12,8,.6)'); wood.addColorStop(1, 'rgba(30,20,13,.66)');
     c.fillStyle = wood; c.fillRect(G.x0, top, G.x1 - G.x0, bot - top);
-    // pragovi: metal (kao kod tunera)
+    // pragovi: metal (kao kod tunera); nulti prag deblji, kao koska
     for (let f = 0; f <= FRETS; f++) {
       const x = fretX(f), g = c.createLinearGradient(x - 2, 0, x + 2, 0);
       g.addColorStop(0, '#5d6168'); g.addColorStop(0.5, f === 0 ? '#f2eee4' : '#d9dce1'); g.addColorStop(1, '#5d6168');
       c.fillStyle = g; c.fillRect(x - (f === 0 ? 3 : 1.5), top, f === 0 ? 6 : 3, bot - top);
     }
-    c.fillStyle = 'rgba(232,226,214,.28)';
-    for (const f of [3, 5, 7, 9]) { c.beginPath(); c.arc(dotX(f), (strY(2) + strY(3)) / 2, G.r * 0.32, 0, Math.PI * 2); c.fill(); }
-    for (const yy of [(strY(1) + strY(2)) / 2, (strY(3) + strY(4)) / 2]) { c.beginPath(); c.arc(dotX(12), yy, G.r * 0.32, 0, Math.PI * 2); c.fill(); }
-    // žice: čelik, deblje gore
+    c.fillStyle = 'rgba(232,226,214,.3)';
+    const mr = Math.min(G.r * 0.32, (fretX(12) - fretX(11)) * 0.2);
+    for (const f of [3, 5, 7, 9]) { c.beginPath(); c.arc(dotX(f), (strY(2) + strY(3)) / 2, mr, 0, Math.PI * 2); c.fill(); }
+    for (const yy of [(strY(1) + strY(2)) / 2, (strY(3) + strY(4)) / 2]) { c.beginPath(); c.arc(dotX(12), yy, mr, 0, Math.PI * 2); c.fill(); }
+    // žice: čelik, deblje gore; imena žica odmah levo od praznih žica
     c.textAlign = 'center'; c.textBaseline = 'middle';
+    const lx = G.x0 - G.r * 3.1;
     for (let s = 0; s < 6; s++) {
       const th = 3.4 - s * 0.45, y = strY(s);
       const g = c.createLinearGradient(0, y - th, 0, y + th);
       g.addColorStop(0, '#8d9198'); g.addColorStop(0.5, '#eceef2'); g.addColorStop(1, '#6d7178');
-      c.fillStyle = g; c.fillRect(G.x0 - 4, y - th / 2, G.x1 - G.x0 + 4, th);
-      c.fillStyle = '#9aa1ad'; c.font = `700 ${Math.round(Math.min(15, G.r * 0.9))}px system-ui, sans-serif`;
-      c.fillText(sName(s), 12, y);
+      c.fillStyle = g; c.fillRect(G.x0 - G.r * 2.2, y - th / 2, G.x1 - G.x0 + G.r * 2.2, th);
+      c.fillStyle = '#aab1bc'; c.font = `700 ${Math.round(Math.min(15, G.r * 0.9))}px system-ui, sans-serif`;
+      c.fillText(sName(s), lx, y);
     }
     c.fillStyle = '#6b7280'; c.font = `600 ${Math.round(Math.min(11, G.r * 0.7))}px system-ui, sans-serif`;
     for (const f of [3, 5, 7, 9, 12]) c.fillText(String(f), dotX(f), bot + G.r * 0.75);
@@ -197,49 +256,133 @@ function createStage({ mode = 'live', rec = null, onExit, onSaved }) {
       { opacity: 0.85 * strong, transform: tr + ' scale(1)', offset: 0.3 },
       { opacity: 0, transform: tr + ' scale(.82)' },
     ], { duration: 1300, easing: 'ease-out', fill: 'forwards' });
+    // žica zatitra od prsta do kobilice; ekvilajzer preuzima boju prsta
+    ripples.push({ s, xa: f === 0 ? G.x0 - G.r * 2.2 : fretX(f), t0: d.at, col: FC[finger] || FC[0] });
+    if (ripples.length > 8) ripples.shift();
+    setEqColor(FC[finger] || FC[0]);
+    wake();
   }
-  function showName(main, sub = '') {
+  let msgOn = false;
+  function showName(main, sub = '', unsure = false) {
+    if (msgOn) { msgOn = false; band.classList.remove('msg'); }
     if (nameB.textContent !== main) nameB.textContent = main;
     if (nameS.textContent !== sub) nameS.textContent = sub;
+    band.classList.toggle('unsure', !!unsure);
     nameB.animate([{ transform: 'scale(1.15)', opacity: 0.6 }, { transform: 'scale(1)', opacity: 1 }], { duration: 220, easing: 'ease-out' });
   }
 
-  // ---- Talas (kao tunerov: svetla talasasta linija; ovde iza vrata, kao ekvilajzer: jačina = visina talasa, ton = gustina) ----
-  let wctx = null, wdpr = 1;
-  function sizeWave() {
-    wdpr = Math.min(1.5, window.devicePixelRatio || 1);
-    wave.width = Math.round(G.W * wdpr); wave.height = Math.round(G.H * wdpr);
-    wctx = wave.getContext('2d'); wctx.setTransform(wdpr, 0, 0, wdpr, 0, 0);
+  // ---- Efekti: ekvilajzer iza vrata (boja prsta + narandžasti sjaj), talas preko vrata, titranje žice ----
+  let ectx = null, wctx = null;
+  function sizeFx() {
+    const dpr = Math.min(1.5, window.devicePixelRatio || 1);
+    for (const cv of [wave, eqC]) { cv.width = Math.round(G.W * dpr); cv.height = Math.round(G.H * dpr); }
+    wctx = wave.getContext('2d'); wctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ectx = eqC.getContext('2d'); ectx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    eqGrad = null;
   }
+  // ekvilajzer: 28 traka (80 Hz – 4 kHz, logaritamski), visina iz mikrofona (ili iz odsviranih nota pri ponavljanju)
+  const EQ = { an: null, data: null, bins: [], v: new Float32Array(EQ_BARS), col: FC[1], dirty: false };
+  let eqGrad = null, glowGrad = null;
+  function setEqColor(c) { if (EQ.col !== c) { EQ.col = c; eqGrad = null; } }
+  function grads() {
+    const mid = (G.y0 + G.y1) / 2, c = ectx;
+    eqGrad = c.createLinearGradient(0, 0, 0, G.H);
+    eqGrad.addColorStop(0, rgba(EQ.col, 0)); eqGrad.addColorStop(0.3, rgba(EQ.col, 0.55)); eqGrad.addColorStop(mid / G.H, rgba(EQ.col, 0.95));
+    eqGrad.addColorStop(0.7, rgba(EQ.col, 0.55)); eqGrad.addColorStop(1, rgba(EQ.col, 0));
+    glowGrad = c.createLinearGradient(0, 0, 0, G.H);
+    glowGrad.addColorStop(0, 'rgba(245,165,36,0)'); glowGrad.addColorStop(mid / G.H, 'rgba(245,165,36,.42)'); glowGrad.addColorStop(1, 'rgba(245,165,36,0)');
+  }
+  function attachEq(an) {
+    EQ.an = an;
+    EQ.data = new Uint8Array(an.frequencyBinCount);
+    const binHz = an.context.sampleRate / an.fftSize;
+    EQ.bins = Array.from({ length: EQ_BARS + 1 }, (_, i) => Math.max(1, Math.round((80 * Math.pow(4000 / 80, i / EQ_BARS)) / binHz)));
+  }
+  function eqPulse(hz, amt = 0.9) { // ponavljanje snimka: traka note (i njeni alikvoti) skoče
+    for (const h of [1, 2, 3]) {
+      const k = Math.floor((Math.log(hz * h / 80) / Math.log(4000 / 80)) * EQ_BARS);
+      if (k >= 0 && k < EQ_BARS) EQ.v[k] = Math.max(EQ.v[k], amt / h);
+    }
+  }
+  let eqSkip = false;
+  function drawEq(dt) {
+    if (WEAK && (eqSkip = !eqSkip)) return; // 30×/s na slabijim telefonima
+    const v = EQ.v;
+    let any = false;
+    if (EQ.an) {
+      EQ.an.getByteFrequencyData(EQ.data);
+      for (let i = 0; i < EQ_BARS; i++) {
+        let m = 0;
+        for (let k = EQ.bins[i], e = Math.max(EQ.bins[i] + 1, EQ.bins[i + 1]); k < e; k++) if (EQ.data[k] > m) m = EQ.data[k];
+        const want = Math.max(0, (m / 255 - 0.3) / 0.7);
+        v[i] = want > v[i] ? v[i] + (want - v[i]) * 0.6 : v[i] * Math.exp(-dt * (WEAK ? 2 : 1) * 2.4);
+        if (v[i] > 0.01) any = true;
+      }
+    } else for (let i = 0; i < EQ_BARS; i++) { v[i] *= Math.exp(-dt * (WEAK ? 2 : 1) * 2.4); if (v[i] > 0.01) any = true; }
+    const c = ectx;
+    if (!any) { if (EQ.dirty) { c.clearRect(0, 0, G.W, G.H); EQ.dirty = false; } return; }
+    if (!eqGrad) grads();
+    c.clearRect(0, 0, G.W, G.H);
+    EQ.dirty = true;
+    const mid = (G.y0 + G.y1) / 2, ex = G.x0 - G.r * 2.2, step = (G.x1 - ex) / EQ_BARS, bw = step * 0.56; // od praznih žica do kraja (imena žica ostaju čitljiva)
+    c.fillStyle = glowGrad;
+    for (let i = 0; i < EQ_BARS; i++) if (v[i] > 0.01) { const h = G.H * Math.min(1, 0.12 + v[i]); c.fillRect(ex + i * step + (step - bw) / 2 - 4, mid - h / 2, bw + 8, h); }
+    c.fillStyle = eqGrad;
+    for (let i = 0; i < EQ_BARS; i++) if (v[i] > 0.01) { const h = G.H * Math.min(1, v[i] * 0.95); c.fillRect(ex + i * step + (step - bw) / 2, mid - h / 2, bw, h); }
+  }
+  // talas (kao tunerov), sad 2–3× svetliji i preko vrata: jačina = visina, ton = gustina
   const W8 = { amp: 0, want: 0, hz: 3, wantHz: 3, phase: 0 };
-  function drawWave(dt) {
+  const ripples = [];
+  let waveDirty = false;
+  function drawWave(dt, now) {
     W8.amp += (W8.want - W8.amp) * (1 - Math.exp(-dt / (W8.want > W8.amp ? 0.08 : 0.5)));
     W8.hz += (W8.wantHz - W8.hz) * (1 - Math.exp(-dt / 0.25));
     W8.phase += dt * (1.2 + W8.amp * 3);
     const c = wctx;
+    if (!waveDirty && W8.amp < 0.01 && !ripples.length) return;
     c.clearRect(0, 0, G.W, G.H);
-    if (W8.amp < 0.01) return;
-    const mid = (G.y0 + G.y1) / 2, a = (G.y1 - G.y0) * 0.45 * W8.amp;
-    c.beginPath();
-    for (let x = 0; x <= G.W; x += 4) {
-      const env = Math.sin((Math.PI * x) / G.W);
-      const y = mid + env * a * Math.sin((x / G.W) * Math.PI * 2 * W8.hz + W8.phase) * (0.8 + 0.2 * Math.sin(x * 0.013 + W8.phase * 0.7));
-      if (x) c.lineTo(x, y); else c.moveTo(x, y);
+    waveDirty = false;
+    if (W8.amp >= 0.01) {
+      waveDirty = true;
+      const mid = (G.y0 + G.y1) / 2, a = (G.y1 - G.y0) * 0.5 * W8.amp, x0 = G.x0 - G.r * 2.2, w = G.x1 - x0;
+      c.beginPath();
+      for (let x = 0; x <= w; x += 4) {
+        const env = Math.sin((Math.PI * x) / w);
+        const y = mid + env * a * Math.sin((x / w) * Math.PI * 2 * W8.hz + W8.phase) * (0.8 + 0.2 * Math.sin(x * 0.013 + W8.phase * 0.7));
+        if (x) c.lineTo(x0 + x, y); else c.moveTo(x0, y);
+      }
+      const k = Math.min(1, W8.amp * 1.6);
+      // jeftin sjaj: široka prozirna + srednja + tanka svetla linija (bez blura)
+      c.lineWidth = 14; c.strokeStyle = `rgba(245,165,36,${(0.16 * k).toFixed(3)})`; c.stroke();
+      c.lineWidth = 6; c.strokeStyle = `rgba(255,190,90,${(0.35 * k).toFixed(3)})`; c.stroke();
+      c.lineWidth = 2.2; c.strokeStyle = `rgba(255,236,200,${(0.95 * k).toFixed(3)})`; c.stroke();
     }
-    // jeftin sjaj: široka prozirna + tanka svetla linija (bez blura)
-    c.lineWidth = 9; c.strokeStyle = `rgba(245,165,36,${(0.12 * Math.min(1, W8.amp * 1.5)).toFixed(3)})`; c.stroke();
-    c.lineWidth = 2; c.strokeStyle = `rgba(255,214,140,${(0.55 * Math.min(1, W8.amp * 1.5)).toFixed(3)})`; c.stroke();
+    // titranje odsvirane žice (od prsta do kraja vrata), ~0,7 s
+    for (let i = ripples.length - 1; i >= 0; i--) {
+      const r = ripples[i], k = (now - r.t0) / 700;
+      if (k >= 1) { ripples.splice(i, 1); continue; }
+      waveDirty = true;
+      const y0 = strY(r.s), amp = G.r * 0.5 * (1 - k) * (1 - k), len = G.x1 - r.xa, ph = now * 0.05;
+      c.beginPath();
+      for (let j = 0; j <= 36; j++) {
+        const u = j / 36, y = y0 + amp * Math.sin(Math.PI * u) * Math.sin(u * Math.PI * 6 - ph);
+        if (j) c.lineTo(r.xa + u * len, y); else c.moveTo(r.xa, y);
+      }
+      c.lineWidth = 7; c.strokeStyle = rgba(r.col, (0.3 * (1 - k)).toFixed(3)); c.stroke();
+      c.lineWidth = 2; c.strokeStyle = rgba('#ffffff', (0.85 * (1 - k)).toFixed(3)); c.stroke();
+    }
   }
 
-  // ---- Jedna petlja: talas (+ ponavljanje snimka) ----
+  // ---- Jedna petlja: ekvilajzer, talas, žice (+ ponavljanje snimka) ----
   let raf = 0, last = 0, sleeping = false, alive = true, replay = null;
   function frame(ts) {
     raf = 0;
     if (!alive || sleeping) return;
     const dt = Math.min(0.05, last ? (ts - last) / 1000 : 0.016);
     last = ts;
-    if (G.W) drawWave(dt);
-    replay?.tick(performance.now());
+    const now = performance.now();
+    replay?.tick(now);
+    if (G.W) { drawEq(dt); drawWave(dt, now); }
     raf = requestAnimationFrame(frame);
   }
   const wake = () => { if (!raf && alive && !sleeping) { last = 0; raf = requestAnimationFrame(frame); } };
@@ -260,8 +403,14 @@ function createStage({ mode = 'live', rec = null, onExit, onSaved }) {
   onMq();
 
   const api = {
-    el, light, showName,
-    message(text) { if (msg.textContent !== (text || '')) msg.textContent = text || ''; msg.classList.toggle('on', !!text); },
+    el, light, showName, attachEq, eqPulse,
+    /** Poruka u traci sa imenom („Sviraj nešto…“, greška mikrofona); ime se vraća sa sledećom notom. */
+    message(text, err = false) {
+      msgOn = !!text;
+      if (msg.textContent !== (text || '')) msg.textContent = text || '';
+      band.classList.toggle('msg', msgOn);
+      band.classList.toggle('err', msgOn && err);
+    },
     level(lv, hz) {
       const db = lv ? 20 * Math.log10(lv) : -100;
       W8.want = Math.max(0, Math.min(1, (db + 62) / 44));
@@ -283,6 +432,7 @@ function createStage({ mode = 'live', rec = null, onExit, onSaved }) {
       clearTimeout(rotT);
       dots.forEach((d) => d.anim?.cancel());
       orientSubs.clear();
+      EQ.an = null;
       el.remove();
       document.body.classList.remove('fpv-open');
     },
@@ -295,6 +445,7 @@ function createStage({ mode = 'live', rec = null, onExit, onSaved }) {
 async function startLive({ onExit, onSaved }) {
   const stage = createStage({ mode: 'live', onExit: () => finish(), onSaved });
   const placer = createPlacer();
+  let eqAn = null;
   let mic = null, an = null, buf = null, timer = 0, engine = null, alive = true, lastEvent = performance.now(), quietShown = false;
   let recording = null; // { start, events: [], ids: Map }
   let sens = 3;
@@ -336,10 +487,7 @@ async function startLive({ onExit, onSaved }) {
     const created = Date.now(), dur = Math.round(performance.now() - r.start);
     const d = new Date(created);
     const rec = { v: REC_V, id: 'r' + created.toString(36), name: t('fp.recName', { d: `${d.getDate()}.${d.getMonth() + 1}. ${pad2(d.getHours())}:${pad2(d.getMinutes())}` }), created, dur, events: r.events.map(({ id, ...e }) => e) };
-    const list = await loadRecs();
-    list.unshift(rec);
-    await saveRecs(list);
-    toast(t('fp.saved'));
+    try { await saveRecAsSong(rec); toast(t('fp.saved')); } catch { toast(t('fp.saveFail'), 'error'); }
     onSaved?.();
   }
   function recordEvent(ev, notes, chord) {
@@ -358,7 +506,8 @@ async function startLive({ onExit, onSaved }) {
     if (ev.chord) {
       const v = placer.chord(ev.chord);
       if (v) for (let s = 0; s < 6; s++) if (v.frets[s] >= 0) notes.push({ m: OPEN[s] + v.frets[s], s, f: v.frets[s], finger: v.frets[s] === 0 ? 0 : (v.fingers[s] || 1) });
-      stage.showName(dn(ev.chord), notes.length ? '' : '');
+      // „Am?“ (blaža boja) = verovatno taj akord; potvrdi se pri drugom pogledu ili ako se ponovi
+      stage.showName(dn(ev.chord) + (ev.sure === false ? '?' : ''), '', ev.sure === false);
     } else {
       const used = [];
       for (const m of ev.midis) {
@@ -373,6 +522,7 @@ async function startLive({ onExit, onSaved }) {
     }
     notes.forEach((n) => stage.light(n.s, n.f, n.finger));
     recordEvent(ev, notes, ev.chord || null);
+    debugLog({ game: 'free', type: ev.type, heard: ev.chord || ev.midis.map((m) => midiName(m).name + midiName(m).octave).join('+'), sure: ev.sure ?? null, ms: Math.round(performance.now() - ev.at) });
   }
 
   // ---- Mikrofon (zajednički, kao igre; pri izlasku se potpuno pušta) ----
@@ -397,10 +547,8 @@ async function startLive({ onExit, onSaved }) {
     try {
       mic = await openMic();
     } catch (e) {
-      stage.message('');
-      stage.q('.fpv-msg').classList.add('err');
       // jasna poruka (za odbijen mikrofon i kako da se dozvoli — ista kao u tuneru)
-      stage.message(e instanceof MicError ? e.message : t('fp.micDenied'));
+      stage.message(e instanceof MicError ? e.message : t('fp.micDenied'), true);
       return;
     }
     if (!alive) { closeMic(); return; }
@@ -408,6 +556,11 @@ async function startLive({ onExit, onSaved }) {
     an.fftSize = 8192; an.smoothingTimeConstant = 0;
     mic.source.connect(an);
     buf = new Float32Array(an.fftSize);
+    // ekvilajzer: poseban mali analizator (2048), čita ga samo petlja crtanja
+    eqAn = mic.ctx.createAnalyser();
+    eqAn.fftSize = 2048; eqAn.smoothingTimeConstant = 0.5; eqAn.minDecibels = -92; eqAn.maxDecibels = -28;
+    mic.source.connect(eqAn);
+    stage.attachEq(eqAn);
     // osetljivost sobe iz tunera kao polazna (Auto), pa sopstveno merenje buke pri otvaranju
     const roomSens = roomToSensitivity(await getRoom());
     if (!localStorage.getItem('gitara-fp-sens')) { sens = roomSens === 'high' ? 4 : roomSens === 'low' ? 2 : 3; senseInput.value = String(sens); }
@@ -426,6 +579,8 @@ async function startLive({ onExit, onSaved }) {
     clearInterval(timer); clearTimeout(recT);
     offOrient(); document.removeEventListener('visibilitychange', onHide);
     try { if (mic && an) mic.source.disconnect(an); } catch {}
+    try { if (mic && eqAn) mic.source.disconnect(eqAn); } catch {}
+    eqAn = null;
     if (mic) closeMic();
     mic = null; an = null; buf = null; engine = null;
     allowSleep('freeplay');
@@ -450,6 +605,7 @@ function startReplay(rec, { onExit }) {
         const e = rec.events[i++];
         const notes = e.notes || [];
         notes.forEach((n) => stage.light(n.s, n.f, n.f === 0 ? 0 : fingerAt(n.f, placer.center)));
+        if (notes[0]) stage.eqPulse(440 * Math.pow(2, (notes[0].m - 69) / 12));
         if (e.chord) stage.showName(dn(e.chord));
         else if (notes.length) stage.showName(notes.map((n) => noteName(n.m)).join(' + '), notes.length === 1 ? t('fp.where', { s: sName(notes[0].s), f: notes[0].f }) : '');
         if (notes[0]) { placer.place(notes[0].m); stage.level(0.05, 440 * Math.pow(2, (notes[0].m - 69) / 12)); }
@@ -473,57 +629,32 @@ function startReplay(rec, { onExit }) {
   return { stop: finish };
 }
 
-// ---------------- Deo taba „Akordi“: uvod, „Sviraj“ i Moji snimci ----------------
+// ---------------- Deo taba „Akordi“: uvod, „Samo sviraj“ i prečica do Moji snimci (pesme) ----------------
 export async function createFreePane(host) {
   await cssReady;
   host.innerHTML = `
     <div class="fp-pane">
       <p class="muted">${t('fp.intro')}</p>
       <button class="btn primary big wide fp-go" id="fpGo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>${t('fp.start')}</button>
-      <h3 class="fp-h">${t('fp.myRecs')}</h3>
+      <div class="fp-h"><h3>${t('fp.myRecs')}</h3><a href="#/pesme" id="fpAll" class="small">${t('fp.allInSongs')}</a></div>
       <ul class="fp-recs" id="fpRecs"></ul>
-      <div class="card fp-view" id="fpView" hidden></div>
     </div>`;
   const $ = (id) => host.querySelector('#' + id);
   let active = null;
 
   async function drawList() {
-    const list = await loadRecs();
-    $('fpRecs').innerHTML = list.length ? list.map((r) => `<li data-id="${esc(r.id)}">
-        <button class="fp-open" data-act="open"><b>${esc(r.name)}</b><small>${clock(r.dur || 0)} · ${t('fp.nNotes', { n: (r.events || []).length })}</small></button>
-        <button class="icon-btn" data-act="ren" aria-label="${t('fp.rename')}" title="${t('fp.rename')}"><svg viewBox="0 0 24 24"><path d="M4 17.3V20h2.7l8-8-2.7-2.7-8 8zM18.7 8c.4-.4.4-1 0-1.4l-1.3-1.3a1 1 0 0 0-1.4 0l-1 1 2.7 2.7z"/></svg></button>
-        <button class="icon-btn" data-act="del" aria-label="${t('fp.delete')}" title="${t('fp.delete')}"><svg viewBox="0 0 24 24"><path d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6zM19 4h-3.5l-1-1h-5l-1 1H5v2h14z"/></svg></button>
+    await migrateRecs().catch(() => {});
+    const list = await recSongs();
+    $('fpRecs').innerHTML = list.length ? list.slice(0, 20).map((r) => `<li data-id="${esc(r.id)}">
+        <a class="fp-open" href="#/pesma/${encodeURIComponent(r.id)}"><b>${esc(r.title)}</b><small>${new Date(r.createdAt || 0).toLocaleDateString(getLang() === 'en' ? 'en' : 'sr-Latn')}${r.hasTabs ? ' · ' + t('fp.tab') : ''}</small></a>
+        <button class="icon-btn" data-act="play" aria-label="${t('fp.replay')}" title="${t('fp.replay')}"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
       </li>`).join('') : `<li class="muted fp-empty">${t('fp.noRecs')}</li>`;
   }
-  function openRec(rec) {
-    $('fpView').hidden = false;
-    $('fpView').innerHTML = `<div class="fp-view-head"><b>${esc(rec.name)}</b><small class="muted">${clock(rec.dur || 0)}</small></div>
-      <pre class="fp-tab" aria-label="${t('fp.tab')}">${esc(tabText(rec))}</pre>
-      <div class="row-btns"><button class="btn primary" id="fpReplay">${t('fp.replay')}</button><button class="btn" id="fpClose">${t('fp.close')}</button></div>`;
-    $('fpReplay').addEventListener('click', () => { if (!active) active = startReplay(rec, { onExit: () => (active = null) }); });
-    $('fpClose').addEventListener('click', () => { $('fpView').hidden = true; });
-    $('fpView').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  }
+  $('fpAll').addEventListener('click', () => { try { localStorage.setItem('gitara-folder', REC_FOLDER); } catch {} });
   $('fpRecs').addEventListener('click', async (e) => {
-    const b = e.target.closest('[data-act]'); if (!b) return;
-    const id = b.closest('li').dataset.id, list = await loadRecs(), rec = list.find((r) => r.id === id);
-    if (!rec) return;
-    if (b.dataset.act === 'open') openRec(rec);
-    if (b.dataset.act === 'ren') {
-      let val = rec.name;
-      const p = dialog({ title: t('fp.rename'), html: true, body: `<input id="fpName" maxlength="60" value="${esc(rec.name)}" autocomplete="off" aria-label="${esc(t('fp.rename'))}">`,
-        buttons: [{ label: t('common.cancel'), value: null }, { label: t('common.save'), value: 'ok', kind: 'primary' }] });
-      const inp = [...document.querySelectorAll('.modal-backdrop')].pop()?.querySelector('#fpName');
-      inp?.addEventListener('input', () => (val = inp.value));
-      setTimeout(() => inp?.focus(), 50);
-      if ((await p) === 'ok' && val.trim()) { rec.name = val.trim().slice(0, 60); await saveRecs(list); drawList(); if (!$('fpView').hidden) openRec(rec); }
-    }
-    if (b.dataset.act === 'del') {
-      if (!(await confirmDialog(t('fp.delete'), t('fp.deleteQ', { n: rec.name }), t('fp.delete'), 'danger'))) return;
-      await saveRecs(list.filter((r) => r.id !== id));
-      $('fpView').hidden = true;
-      drawList();
-    }
+    const b = e.target.closest('[data-act="play"]'); if (!b || active) return;
+    const song = await songsDb.get(b.closest('li').dataset.id);
+    if (song?.recording) active = startReplay({ ...song.recording, name: song.title }, { onExit: () => (active = null) });
   });
   $('fpGo').addEventListener('click', async () => {
     if (active) return;

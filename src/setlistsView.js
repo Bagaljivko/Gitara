@@ -4,7 +4,7 @@ import { setWakeZone } from './wakelock.js';
 import { esc, toast, dialog, confirmDialog } from './ui.js';
 import { t, songsCount } from './i18n.js';
 import {
-  getFolders, addFolder, renameFolder, deleteFolder, setSongFolders,
+  getFolders, addFolder, renameFolder, deleteFolder, setSongFolders, folderLabel, isSystemFolder,
   getSetlists, getSetlist, addSetlist, updateSetlist, deleteSetlist,
 } from './collections.js';
 
@@ -51,7 +51,7 @@ export async function editSongFolders(song) {
     if (!name) return false;
     folders = [await addFolder(name)];
   }
-  const r = await pickMany(t('folder.forSong', { title: song.title }), folders.map((f) => ({ value: f.id, label: f.name })), song.folders || []);
+  const r = await pickMany(t('folder.forSong', { title: song.title }), folders.map((f) => ({ value: f.id, label: folderLabel(f) })), song.folders || []);
   if (!r) return false;
   await setSongFolders(song.id, r);
   return true;
@@ -59,6 +59,7 @@ export async function editSongFolders(song) {
 
 /** Upravljanje folderima: preimenuj ili obriši. */
 export async function manageFolder(folder) {
+  if (isSystemFolder(folder.id)) { toast(t('folder.systemNote')); return null; }
   const action = await dialog({
     title: folder.name,
     body: t('folder.manageBody'),

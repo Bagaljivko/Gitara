@@ -145,7 +145,44 @@ export function createFreeEngine({ sr = 48000, a4 = 440, sensitivity = 3 } = {})
   const HN = 64, hAt = new Float64Array(HN), hE = new Float64Array(HN);
   let hN = 0, prevEnd = null, lastAt = -1e9, fl = -1, calib = [], t0 = null, id = 0;
   let pend = null;        // napad koji čeka proveru trajanja/tona
-  const waiting = [];     // { id, at, due, kind: 'steady'|'poly', midis }
+  const waiting = [];     // { id, at, due, kind: 'steady'|'poly'|'poly2', midis, strum }
+  const done = new Map(); // id → poslednji javljen akord (da drugi pogled ne ponavlja isto)
+  let lastChord = null;   // { name, at } — isti akord ponovo za par sekundi je „siguran“ (sviraju se ponavljanja)
+  /**
+   * Akord iz spektra novog zvuka (blaže pravilo nego za note):
+   *  udarac preko žica: dovoljna 1 zasebno čuta nota akorda + jasni tonovi u spektru (ukupno 3);
+   *  pojedinačni trzaj: 2 zasebno čute note + 3. jasan ton;
+   *  ton koji može biti alikvot (kvinta/v. terca iznad čute note) računa se ako je dovoljno jak (≥ 60 %);
+   *  septakordi/sus samo uz bar 3 zasebno čute note. „sure“ = sigurno; inače „možda“ (prikaz sa „?“).
+   */
+  function evalChord(found, strum, at) {
+    for (let i = 0; i < diff.length; i++) db[i] = 20 * Math.log10(diff[i] + 1e-9);
+    const cr = chromaFromSpectrum(db, sr, fft.N, a4);
+    if (!(cr.energy > 0) || (!strum && singleSourceRatio(cr.peaks) > 0.88)) return null;
+    const cmax = Math.max(...cr.chroma) || 1;
+    const sepAll = new Set(found.map((x) => x.midi % 12));
+    for (const cand of matchChord(cr.chroma, cr.bass).slice(0, 6)) {
+      if (cand.score < (strum ? 0.68 : 0.72)) break;
+      const tones = QUALITIES[cand.quality].intervals.map((iv) => (cand.root + iv) % 12);
+      if (!['', 'm'].includes(cand.quality) && sepAll.size < 3) continue;
+      const sep = new Set([...sepAll].filter((pc) => tones.includes(pc)));
+      // septima/sekunda/kvarta (7, maj7, sus …) mora da bude zasebno čuta nota — inače je to alikvot terce
+      const extra = QUALITIES[cand.quality].intervals.filter((iv) => ![0, 3, 4, 7].includes(iv)).map((iv) => (cand.root + iv) % 12);
+      // … i ne sme biti alikvot druge čute note (kvinta/terca iznad nje, npr. D# iznad G# u E-duru)
+      const ovOf = (pc) => [...sep].some((x) => x !== pc && ((x + 7) % 12 === pc || (x + 4) % 12 === pc));
+      if (extra.some((pc) => !sep.has(pc) || ovOf(pc))) continue;
+      const overtone = (pc) => [...sep].some((x) => (x + 7) % 12 === pc || (x + 4) % 12 === pc);
+      const strongAll = tones.filter((pc) => !sep.has(pc) && cr.chroma[pc] >= (overtone(pc) ? 0.6 : 0.4) * cmax);
+      const strongClean = strongAll.filter((pc) => !overtone(pc)).length;
+      // pojedinačan trzaj (ne udarac preko žica): akord samo uz 3 zasebno čute note
+      if (presentChordNotes(cr.chroma, cand.root, cand.quality) < 3 || sep.size < (strum ? 1 : 3) || sep.size + strongAll.length < 3) continue;
+      const name = pcName(cand.root, { flat: [3, 8, 10].includes(cand.root) }) + cand.quality;
+      // isti akord ponovo u roku od 4 s → siguran (sviraju se ponavljanja)
+      const remembered = !!(lastChord && lastChord.name === name && at - lastChord.at < 4000);
+      return { name, sure: (sep.size + strongClean >= 3 && cand.score >= 0.8) || remembered };
+    }
+    return null;
+  }
   const GATE = 60;        // ms — zvuk mora još da traje (i daje isečak za proveru tona)
   // niskopropusni filter za isečak (kao u Vežbama): bolja provera periode
   const a = 1 - Math.exp((-2 * Math.PI * 1200) / sr);
@@ -234,10 +271,12 @@ export function createFreeEngine({ sr = 48000, a4 = 440, sensitivity = 3 } = {})
       if (hN >= 8) { p = 0; for (let k = hN - 8; k < hN; k++) p += hE[k % HN]; p /= 8; }
       const at = now - ((buf.length - i) / sr) * 1000;
       hAt[hN % HN] = at; hE[hN % HN] = e; hN++;
-      if (now - t0 > 300 && e > p * sens[0] && Math.sqrt(e) > minAbs && at > lastAt + 60 && (!pend || at > pend.at + 25)) {
+      if (now - t0 > 300 && e > p * sens[0] && Math.sqrt(e) > minAbs && at > lastAt + 60) {
+        // udarac preko žica: više napada u ~80 ms = jedan „strum“ (vreme prvog; broji se koliko žica)
+        if (pend && at - pend.at < 80) { pend.n++; pend.rms = Math.max(pend.rms, Math.sqrt(e)); continue; }
         // spektar pre napada (staro zvono) — da se kasnije vidi šta je NOVO
         if (!pend) { const back = Math.round(((now - at) / 1000) * sr); fft.run(hist.subarray(0, Math.max(fft.N, HL - back)), pre); }
-        pend = { at, rms: Math.sqrt(e), preRms: Math.sqrt(p) };
+        pend = { at, rms: Math.sqrt(e), preRms: Math.sqrt(p), n: 1 };
       }
     }
     // provera ~60 ms posle napada: zvuk traje + jasan ton
@@ -253,7 +292,10 @@ export function createFreeEngine({ sr = 48000, a4 = 440, sensitivity = 3 } = {})
         const nid = ++id;
         if (m != null) events.push({ type: 'note', id: nid, at: c.at, midis: [m] });
         else waiting.push({ id: nid, at: c.at, due: c.at + 150, kind: 'steady', preSeg });
-        waiting.push({ id: nid, at: c.at, due: c.at + 180, kind: 'poly', midis: m != null ? [m] : [] });
+        const strum = c.n >= 3; // dve žice zajedno = dvozvuk, ne udarac
+        waiting.push({ id: nid, at: c.at, due: c.at + 180, kind: 'poly', midis: m != null ? [m] : [], strum });
+        // drugi pogled ~0,4 s posle udarca (žice akorda se „skupe“): za udarce i neodlučene zvuke
+        waiting.push({ id: nid, at: c.at, due: c.at + 400, kind: 'poly2', midis: m != null ? [m] : [], strum });
       }
     }
     for (let k = waiting.length - 1; k >= 0; k--) {
@@ -272,35 +314,22 @@ export function createFreeEngine({ sr = 48000, a4 = 440, sensitivity = 3 } = {})
       fft.run(buf, post);
       for (let i = 0; i < diff.length; i++) { const d = post[i] - 0.85 * pre[i]; diff[i] = d > 0 ? d : 0; }
       const found = notesFromSpectrum(diff, binHz, { a4, first: w.midis[0] ?? null });
+      // drugi pogled samo za udarce preko žica ili kad je prvi čuo bar dve note (pojedinačna nota ostaje nota)
+      if (w.kind === 'poly2' && !w.strum && !(done.get(w.id) || {}).multi) continue;
+      if (w.kind === 'poly') { done.set(w.id, { multi: found.length >= 2 }); if (done.size > 64) done.delete(done.keys().next().value); }
       if (!found.length) continue;
       const mono = w.midis[0];
-      // Akord: zajednički pomoćnici iz „Prepoznavanja“ (hromagram iz spektra) — ime samo uz bar 3 jasno čuta tona akorda
-      for (let i = 0; i < diff.length; i++) db[i] = 20 * Math.log10(diff[i] + 1e-9);
-      const cr = chromaFromSpectrum(db, sr, fft.N, a4);
-      let chordName = null, chordPcs = null;
-      if (cr.energy > 0 && singleSourceRatio(cr.peaks) <= 0.88) {
-        const cmax = Math.max(...cr.chroma) || 1;
-        const sepAll = new Set(found.map((x) => x.midi % 12));
-        // Bogatiji akordi (7, maj7, sus …) samo ako su bar 4 note čute zasebno; inače običan dur/mol trozvuk
-        // (alikvoti jedne note lako „dodaju“ septimu ili sekundu kojih nema).
-        for (const cand of matchChord(cr.chroma, cr.bass).slice(0, 6)) {
-          if (cand.score < 0.75) break;
-          const tones = QUALITIES[cand.quality].intervals.map((iv) => (cand.root + iv) % 12);
-          if (!['', 'm'].includes(cand.quality) && sepAll.size < 4) continue;
-          // i bar tri note akorda čute kao ZASEBNE note ili jaki tonovi (jedna svetla nota sama „pravi“ dur trozvuk)
-          const sep = new Set([...sepAll].filter((pc) => tones.includes(pc)));
-          // kvinta/velika terca iznad već čute note je verovatno njen alikvot
-          const overtone = (pc) => [...sep].some((x) => (x + 7) % 12 === pc || (x + 4) % 12 === pc);
-          // samo dve zasebno čute note: treći ton ne sme da bude njihov alikvot i mora da bude vrlo jak
-          const strong = tones.filter((pc) => !sep.has(pc) && (sep.size >= 3 ? cr.chroma[pc] >= 0.5 * cmax : !overtone(pc) && cr.chroma[pc] >= 0.9 * cmax)).length;
-          if (presentChordNotes(cr.chroma, cand.root, cand.quality) >= 3 && sep.size >= 2 && sep.size + strong >= 3) {
-            chordName = pcName(cand.root, { flat: [3, 8, 10].includes(cand.root) }) + cand.quality;
-            chordPcs = tones;
-            break;
-          }
-        }
+      // Akord: zajednički pomoćnici iz „Prepoznavanja“ (hromagram iz spektra)
+      const ch = evalChord(found, w.strum, w.at);
+      let chordName = ch && ch.name, chordSure = ch && ch.sure;
+      if (w.kind === 'poly2') {
+        // drugi pogled: javi samo ako donosi akord (ili ga potvrđuje) a prvi nije
+        const prev = done.get(w.id) || {};
+        if (!ch || (prev.name === ch.name && (prev.sure || !ch.sure))) continue;
       }
-      if (chordName) { events.push({ type: mono == null ? 'note' : 'update', id: w.id, at: w.at, midis: [], chord: chordName, pcs: chordPcs }); continue; }
+      if (chordName) { done.set(w.id, { ...(done.get(w.id) || {}), name: chordName, sure: chordSure }); if (chordSure) lastChord = { name: chordName, at: w.at }; }
+      if (w.kind === 'poly2' && !chordName) continue;
+      if (chordName) { events.push({ type: mono == null && w.kind === 'poly' ? 'note' : 'update', id: w.id, at: w.at, midis: [], chord: chordName, sure: chordSure }); continue; }
       let notes = found.map((x) => x.midi);
       // oktavu prve note uzmi iz provere periode (pouzdanija od spektra na mikrofonu telefona)
       if (mono != null) notes = notes.map((x) => (x % 12 === mono % 12 ? mono : x));

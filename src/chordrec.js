@@ -130,7 +130,7 @@ export function createChordRec(root) {
     </header>
     <div class="seg-tabs seg3 seg4" role="tablist">
       <button role="tab" class="active" data-pane="rec">${t('chords.tabRecognize')} <span class="badge">${t('chords.beta')}</span></button>
-      <button role="tab" data-pane="free">${t('chords.tabFree')}</button>
+      <button role="tab" data-pane="free">${t('chords.tabFree')} <span class="badge">${t('chords.beta')}</span></button>
       <button role="tab" data-pane="dict">${t('chords.tabDict')}</button>
       <button role="tab" data-pane="rhythm">${t('chords.tabRhythm')}</button>
     </div>

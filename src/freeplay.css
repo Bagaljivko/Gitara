@@ -2,10 +2,12 @@
 :root { --f0: #dfe3e8; --f1: #5aa9ff; --f2: #ffd75e; --f3: #ff7cc3; --f4: #b48cff; }
 .fp-pane { display: flex; flex-direction: column; gap: 10px; }
 .fp-go svg { width: 20px; height: 20px; fill: currentColor; }
-.fp-h { margin: 14px 0 2px; }
+.fp-h { margin: 14px 0 2px; display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.fp-h h3 { margin: 0; }
+.fp-h a { color: var(--accent); min-height: 44px; display: inline-flex; align-items: center; }
 .fp-recs { list-style: none; margin: 0; padding: 0; }
 .fp-recs li { display: flex; align-items: center; gap: 4px; border-bottom: 1px solid var(--line); }
-.fp-open { flex: 1; min-width: 0; appearance: none; background: none; border: 0; color: var(--text); text-align: left; padding: 12px 4px; display: flex; flex-direction: column; cursor: pointer; font: inherit; }
+.fp-open { flex: 1; min-width: 0; appearance: none; background: none; border: 0; color: var(--text); text-decoration: none; text-align: left; padding: 12px 4px; display: flex; flex-direction: column; cursor: pointer; font: inherit; }
 .fp-open b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .fp-open small { color: var(--muted); }
 .fp-empty { padding: 12px 4px; }
@@ -17,14 +19,22 @@
 body.fpv-open { overflow: hidden; }
 .fpv { position: fixed; inset: 0; z-index: 200; background: #000; color: var(--text); display: flex; flex-direction: column;
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); touch-action: none; user-select: none; }
-.fpv-top { flex: 0 0 auto; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; padding: 6px 10px; }
-.fpv-x, .fpv-set { appearance: none; border: 1px solid var(--line); background: #0d0e11; color: var(--text); width: 40px; height: 40px; border-radius: 12px; font-size: 1.05rem; cursor: pointer; display: grid; place-items: center; }
-.fpv-set svg { width: 20px; height: 20px; fill: #c9ccd2; }
-.fpv-name { text-align: center; display: flex; flex-direction: column; align-items: center; line-height: 1.05; height: 3.4em; justify-content: center; contain: layout paint; overflow: hidden; }
-.fpv-name b { font-size: clamp(1.6rem, 9vh, 2.6rem); font-weight: 800; color: #fff; text-shadow: 0 0 18px rgba(245,165,36,.55); }
-.fpv-name small { color: var(--muted); font-size: .8rem; min-height: 1.2em; }
+.fpv-top { position: absolute; z-index: 2; top: env(safe-area-inset-top); left: env(safe-area-inset-left); right: env(safe-area-inset-right); display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; pointer-events: none; }
+.fpv-top > * { pointer-events: auto; }
+.fpv-x, .fpv-set { appearance: none; border: 1px solid var(--line); background: #0d0e11; color: var(--text); width: 36px; height: 36px; border-radius: 11px; font-size: 1rem; cursor: pointer; display: grid; place-items: center; }
+.fpv-set svg { width: 19px; height: 19px; fill: #c9ccd2; }
 .fpv-tools { display: flex; align-items: center; gap: 8px; }
-.fpv-rec { contain: layout paint; min-width: 96px; justify-content: center; appearance: none; border: 1px solid var(--line); background: #0d0e11; color: var(--text); height: 40px; border-radius: 999px; padding: 0 14px 0 12px; display: inline-flex; align-items: center; gap: 8px; font: 700 .9rem var(--sans); cursor: pointer; font-variant-numeric: tabular-nums; }
+/* traka sa imenom: u sredini, iznad vrata (ime note/akorda, žica i prag, „Sviraj nešto…“) */
+.fpv-band { flex: 0 0 auto; height: clamp(64px, 22vh, 104px); padding: 4px 132px 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; line-height: 1.05; contain: strict; overflow: hidden; }
+.fpv-band b { font-size: clamp(1.7rem, 11vh, 3rem); font-weight: 800; color: #fff; text-shadow: 0 0 20px rgba(245,165,36,.6); white-space: nowrap; }
+.fpv-band small { color: #aab1bc; font-size: .82rem; min-height: 1.2em; margin-top: 2px; }
+.fpv-band.unsure b { color: #f3c98a; text-shadow: 0 0 12px rgba(245,165,36,.3); }
+.fpv-msg { display: none; font-weight: 600; color: var(--muted); font-size: 1.05rem; }
+.fpv-band.msg b, .fpv-band.msg small { display: none; }
+.fpv-band.msg .fpv-msg { display: block; animation: fpIn .4s ease-out; }
+.fpv-band.err .fpv-msg { color: #ffb4a8; font-size: .9rem; line-height: 1.3; }
+@keyframes fpIn { from { opacity: 0; } }
+.fpv-rec { contain: layout paint; min-width: 92px; justify-content: center; appearance: none; border: 1px solid var(--line); background: #0d0e11; color: var(--text); height: 36px; border-radius: 999px; padding: 0 14px 0 12px; display: inline-flex; align-items: center; gap: 8px; font: 700 .9rem var(--sans); cursor: pointer; font-variant-numeric: tabular-nums; }
 .fpv-rec i { width: 12px; height: 12px; border-radius: 50%; background: #ff5b5b; box-shadow: 0 0 8px rgba(255,91,91,.6); }
 .fpv.recording .fpv-rec { border-color: #ff5b5b; color: #ffd0d0; }
 .fpv.recording .fpv-rec i { animation: fpBlink 1s steps(2, start) infinite; }
@@ -39,9 +49,6 @@ body.fpv-open { overflow: hidden; }
 .fpd b { font: 800 calc(var(--r) * 1.05) / 1 system-ui, sans-serif; color: #0b0c10; }
 .fpd.fc1 { --c: #5aa9ff; --cg: rgba(90,169,255,.35); } .fpd.fc2 { --c: #ffd75e; --cg: rgba(255,215,94,.32); }
 .fpd.fc3 { --c: #ff7cc3; --cg: rgba(255,124,195,.35); } .fpd.fc4 { --c: #b48cff; --cg: rgba(180,140,255,.35); }
-.fpv-msg { position: absolute; left: 0; right: 0; top: 46%; text-align: center; font-weight: 600; color: var(--muted); opacity: 0; transition: opacity .4s; pointer-events: none; padding: 0 24px; }
-.fpv-msg.on { opacity: 1; }
-.fpv-msg.err { color: #ffb4a8; pointer-events: auto; }
 .fpv-panel { position: absolute; right: 10px; top: 6px; background: #0d0e11; border: 1px solid var(--line); border-radius: 14px; padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; max-width: 280px; z-index: 2; }
 .fpv-panel label { display: flex; align-items: center; gap: 10px; color: var(--text); font-weight: 600; }
 .fpv-panel input { accent-color: var(--accent); flex: 1; min-height: 0; padding: 0; }

@@ -1,12 +1,23 @@
 // Folderi i setliste. Folderi: lista {id, name}; pesma ima song.folders = [id…] (može biti u više foldera).
 // Setlista: {id, name, songIds:[…]} — uređen spisak pesama.
 import { settings, songs as db } from './db.js';
+import { t } from './i18n.js';
 
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
 const clean = (s, max = 60) => String(s || '').trim().replace(/\s+/g, ' ').slice(0, max);
 
 // ---------------- Folderi ----------------
 export const getFolders = async () => (await settings.get('folders', [])) || [];
+/** Stalni folder za snimke iz „Samo sviraj“ (ne može se preimenovati ni obrisati; ime prati jezik). */
+export const REC_FOLDER = 'moji-snimci';
+export const isSystemFolder = (id) => id === REC_FOLDER;
+export const folderLabel = (f) => (f && f.id === REC_FOLDER ? t('folder.myRecs') : f ? f.name : '');
+export async function ensureRecFolder() {
+  const list = await getFolders();
+  if (list.some((f) => f.id === REC_FOLDER)) return;
+  list.unshift({ id: REC_FOLDER, name: 'Moji snimci' });
+  await settings.set('folders', list);
+}
 
 export async function addFolder(name) {
   const list = await getFolders();
@@ -19,12 +30,13 @@ export async function addFolder(name) {
 
 export async function renameFolder(id, name) {
   const n = clean(name);
-  if (!n) return;
+  if (!n || isSystemFolder(id)) return;
   const list = (await getFolders()).map((f) => (f.id === id ? { ...f, name: n } : f));
   await settings.set('folders', list);
 }
 
 export async function deleteFolder(id) {
+  if (isSystemFolder(id)) return;
   await settings.set('folders', (await getFolders()).filter((f) => f.id !== id));
   // Ukloni folder iz pesama (pesme ostaju u biblioteci)
   for (const s of await db.all()) {

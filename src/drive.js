@@ -2,7 +2,7 @@
 // Koristi samo opseg drive.file: aplikacija vidi isključivo fajlove koje je sama napravila.
 // Nema client secret-a — token client radi samo sa javnim Client ID-jem.
 import { songs as db, settings, events } from './db.js';
-import { normalizeSong, SongFormatError, safeFileName, songExtras, songMeta } from './songformat.js';
+import { normalizeSong, SongFormatError, safeFileName, songExtras, songMeta, cleanRecording } from './songformat.js';
 import { cleanFolders, cleanSetlists, cleanSongFolders, mergeById } from './collections.js';
 import { toast, dialog } from './ui.js';
 import { t, songsCount, setLang } from './i18n.js';
@@ -237,21 +237,13 @@ function cleanPractice(p) {
 
 /** Spajanje rezultata (telefon + kopija): veći najbolji rezultat; niz i tempo sa skorije korišćenog. */
 /** Moji snimci (Samo sviraj) iz rezervne kopije: samo poznat oblik, razumne granice (do 10 min, pragovi 0–12). */
-function cleanFreeplayRecs(list) {
+function cleanFreeplayRecs(list) { // stari zapis (pre v1.37): pri otvaranju „Samo sviraj“ prelazi u pesme
   if (!Array.isArray(list)) return null;
   const out = [];
   for (const r of list.slice(0, 200)) {
-    if (!r || typeof r !== 'object' || typeof r.id !== 'string' || !Array.isArray(r.events)) continue;
-    const events = [];
-    for (const e of r.events.slice(0, 20000)) {
-      if (!e || typeof e !== 'object') continue;
-      const notes = (Array.isArray(e.notes) ? e.notes : []).slice(0, 6).map((n) => ({ m: Math.round(Number(n && n.m)), s: Math.round(Number(n && n.s)), f: Math.round(Number(n && n.f)) }))
-        .filter((n) => n.m >= 40 && n.m <= 88 && n.s >= 0 && n.s <= 5 && n.f >= 0 && n.f <= 12);
-      const ev = { t: Math.max(0, Math.min(600000, Math.round(Number(e.t) || 0))), notes };
-      if (typeof e.chord === 'string' && /^[A-G][#b]?[a-z0-9]{0,6}$/.test(e.chord)) ev.chord = e.chord;
-      if (notes.length || ev.chord) events.push(ev);
-    }
-    out.push({ v: 1, id: r.id.slice(0, 40), name: String(r.name || '').slice(0, 60) || r.id, created: Number(r.created) || 0, dur: Math.max(0, Math.min(600000, Math.round(Number(r.dur) || 0))), events });
+    if (!r || typeof r !== 'object' || typeof r.id !== 'string') continue;
+    const c = cleanRecording(r);
+    if (c) out.push({ v: 1, id: r.id.slice(0, 40), name: String(r.name || '').slice(0, 60) || r.id, created: Number(r.created) || 0, dur: c.dur, events: c.events });
   }
   return out;
 }

@@ -15,7 +15,7 @@ import { isStandalone, isIOS, canPromptInstall, promptInstall } from './install.
 import { settings } from './db.js';
 import { PATTERNS, patternHTML, patternName, Metronome } from './rhythm.js';
 import { keepAwake, allowSleep, setWakeZone } from './wakelock.js';
-import { getFolders, addFolder } from './collections.js';
+import { getFolders, addFolder, folderLabel, isSystemFolder } from './collections.js';
 import { renderSetlistsPane, editSongFolders, manageFolder, askName } from './setlistsView.js';
 import { seedDemoSong } from './demo.js';
 import { dn } from './naming.js';
@@ -107,7 +107,7 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
   // Folderi kao „čipovi“ za filtriranje
   const drawFolders = () => {
     $('lFolders').innerHTML = `<button class="chip ${folderFilter ? '' : 'active'}" data-f="">${t('folder.all')}</button>`
-      + folders.map((f) => `<button class="chip ${folderFilter === f.id ? 'active' : ''}" data-f="${esc(f.id)}">${esc(f.name)}${folderFilter === f.id ? ' <span class="chip-edit" aria-hidden="true">⋯</span>' : ''}</button>`).join('')
+      + folders.map((f) => `<button class="chip ${folderFilter === f.id ? 'active' : ''}" data-f="${esc(f.id)}">${esc(folderLabel(f))}${folderFilter === f.id && !isSystemFolder(f.id) ? ' <span class="chip-edit" aria-hidden="true">⋯</span>' : ''}</button>`).join('')
       + `<button class="chip add" data-f="__new">${t('folder.add')}</button>`;
   };
   $('lFolders').addEventListener('click', async (e) => {
@@ -662,9 +662,12 @@ export async function renderSong(root, id, nav = null) {
   const drawHead = () => {
     // Naslov i (desno, u istom redu) prečica za vežbanje delova ove pesme
     $('sHead').innerHTML = `<div class="song-title-row"><h1 class="song-h1">${esc(stored.title)}</h1><a class="icon-btn pr-shortcut" href="#/vezbe/pesma/${encodeURIComponent(stored.id)}" aria-label="${esc(t('pr.songShortcut'))}" title="${esc(t('pr.songShortcut'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" d="M12 2.2c-4.9 0-8.6 2-8.6 5.6 0 4.6 4.2 10.2 8.6 14 4.4-3.8 8.6-9.4 8.6-14 0-3.6-3.7-5.6-8.6-5.6zM10 7.6v6.2l5.2-3.1z"/></svg></a></div>
+      ${stored.recording ? `<button class="btn small fp-onneck" id="sFpReplay"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>${esc(t('song.playOnNeck'))}</button>` : ''}
       ${stored.artist || cleanTuning(stored.tuning) !== 'standard' ? `<p class="song-meta">${esc(stored.artist || '')}${cleanTuning(stored.tuning) !== 'standard'
         ? `${stored.artist ? ' · ' : ''}<button class="tuning-chip" id="sTune" title="${esc(t('tuning.tuneNow'))}">${esc(t('tuning.' + cleanTuning(stored.tuning)))} · ${esc(tuningNotes(stored.tuning))} ›</button>` : ''}</p>` : ''}`;
     drawPracticeMark();
+    // snimak iz „Samo sviraj“: ponovo na vratu (samo slika; modul se učitava tek na dodir)
+    $('sFpReplay')?.addEventListener('click', () => import('./freeplay.js').then((m) => m.replaySong(stored)));
   };
   // Mala oznaka napretka pored ikonice vežbe: koliko delova pesme je dobro uvežbano (najbolje ≥ 80)
   const drawPracticeMark = () => settings.get('practice', null).then((st) => {
