@@ -74,6 +74,8 @@ export class Metronome {
     this.chords = null;    // npr. ['G','C','D','G'] — jedan akord po taktu (inače Em)
     this.countIn = 0;      // broj taktova odbrojavanja (samo klik) pre ritma
     this.trainer = null;   // { step: 5, every: 4, target: 140 } — postepeno ubrzavanje
+    this.maxBars = 0;      // > 0: posle toliko taktova sam stane (npr. pregled ritma pesme), pa onEnd()
+    this.onEnd = null;
     this.timer = 0;
   }
 
@@ -83,6 +85,7 @@ export class Metronome {
     if (this.running) return;
     const c = audioCtx();
     this.running = true;
+    this.ending = false;
     this.slot = 0;
     this.next = c.currentTime + 0.08;
     this.timer = setInterval(() => this.schedule(), 25);
@@ -104,6 +107,15 @@ export class Metronome {
     while (this.next < c.currentTime + 0.12) {
       const i = this.slot % slotsPerBar;
       const barAll = Math.floor(this.slot / slotsPerBar);
+      if (this.maxBars && barAll - this.countIn >= this.maxBars) {
+        // kraj: ništa više se ne zakazuje; stane kad poslednji udarac odzvoni
+        if (!this.ending) {
+          this.ending = true;
+          const d = Math.max(0, (this.next - c.currentTime) * 1000) + 350;
+          this.pendingUi.push(setTimeout(() => { if (this.running) { this.stop(); this.onEnd?.(); } }, d));
+        }
+        break;
+      }
       const countIn = barAll < this.countIn;
       const bar = barAll - this.countIn; // 0 = prvi takt posle odbrojavanja
       // Trener brzine: na početku takta, posle svakih „every“ taktova, dodaj „step“ BPM do cilja

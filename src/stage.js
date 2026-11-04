@@ -24,7 +24,8 @@ export function enterStage(setlistId, index = 0) {
 export async function renderStage(root, setlistId, params) {
   const sl = await getSetlist(setlistId);
   if (!sl) { location.hash = '#/pesme?tab=sl'; return; }
-  const all = new Map((await db.all()).map((s) => [s.id, s]));
+  // samo pesme ove setliste (ne cela biblioteka)
+  const all = new Map((await Promise.all(sl.songIds.map((id) => db.get(id).catch(() => null)))).filter(Boolean).map((s) => [s.id, s]));
   const ids = sl.songIds.filter((x) => all.has(x));
   if (!ids.length) { location.hash = '#/setlista/' + encodeURIComponent(setlistId); return; }
   let i = Math.max(0, Math.min(ids.length - 1, Number(params.get('i')) || 0));

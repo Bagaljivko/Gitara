@@ -39,8 +39,11 @@ export async function deleteFolder(id) {
   if (isSystemFolder(id)) return;
   await settings.set('folders', (await getFolders()).filter((f) => f.id !== id));
   // Ukloni folder iz pesama (pesme ostaju u biblioteci)
-  for (const s of await db.all()) {
-    if (Array.isArray(s.folders) && s.folders.includes(id)) {
+  // nađi ih u brzom indeksu, pa učitaj i menjaj samo te pesme
+  for (const sum of await db.list()) {
+    if (!(sum.folders || []).includes(id)) continue;
+    const s = await db.get(sum.id);
+    if (s && Array.isArray(s.folders) && s.folders.includes(id)) {
       s.folders = s.folders.filter((x) => x !== id);
       await db.put(s);
     }

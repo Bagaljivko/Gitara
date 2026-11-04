@@ -322,19 +322,25 @@ export function songMeta(raw) {
 /** Snimak iz „Samo sviraj“ na pesmi (za „Pusti na vratu“): {v, dur, events:[{t, notes:[{m,s,f}], chord?}]}. */
 export function cleanRecording(r) {
   if (!r || typeof r !== 'object' || !Array.isArray(r.events)) return null;
+  const events = cleanRecEvents(r.events);
+  if (!events.length) return null;
+  const out = { v: 1, dur: Math.max(0, Math.min(600000, Math.round(Number(r.dur) || 0))), events };
+  if (typeof r.recId === 'string') out.recId = r.recId.slice(0, 40);
+  // neočišćen original (za „vrati“) — samo ako postoji i nije prevelik
+  if (Array.isArray(r.raw) && r.raw.length <= 5000) { const raw = cleanRecEvents(r.raw); if (raw.length) out.raw = raw; }
+  return out;
+}
+function cleanRecEvents(list) {
   const events = [];
-  for (const e of r.events.slice(0, 20000)) {
+  for (const e of list.slice(0, 20000)) {
     if (!e || typeof e !== 'object') continue;
     const notes = (Array.isArray(e.notes) ? e.notes : []).slice(0, 6).map((n) => ({ m: Math.round(Number(n && n.m)), s: Math.round(Number(n && n.s)), f: Math.round(Number(n && n.f)) }))
       .filter((n) => n.m >= 40 && n.m <= 88 && n.s >= 0 && n.s <= 5 && n.f >= 0 && n.f <= 12);
     const ev = { t: Math.max(0, Math.min(600000, Math.round(Number(e.t) || 0))), notes };
-    if (typeof e.chord === 'string' && /^[A-G][#b]?[a-z0-9]{0,6}$/.test(e.chord)) ev.chord = e.chord;
+    if (typeof e.chord === 'string' && /^[A-G][#b]?[a-z0-9]{0,6}$/.test(e.chord)) { ev.chord = e.chord; if (e.u) ev.u = 1; }
     if (notes.length || ev.chord) events.push(ev);
   }
-  if (!events.length) return null;
-  const out = { v: 1, dur: Math.max(0, Math.min(600000, Math.round(Number(r.dur) || 0))), events };
-  if (typeof r.recId === 'string') out.recId = r.recId.slice(0, 40);
-  return out;
+  return events;
 }
 
 /** Proverava listu nesigurnih mesta: {section, line, kind: 'chord'|'word', text, position, suggestion}. */

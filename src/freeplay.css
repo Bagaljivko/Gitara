@@ -40,6 +40,8 @@ body.fpv-open { overflow: hidden; }
 .fpv.recording .fpv-rec i { animation: fpBlink 1s steps(2, start) infinite; }
 @keyframes fpBlink { to { opacity: .25; } }
 .fpv-replay { color: var(--muted); font-weight: 700; padding-right: 6px; }
+.fpv-speed { appearance: none; border: 1px solid var(--line); background: #0d0e11; color: var(--text); height: 36px; min-width: 58px; border-radius: 999px; padding: 0 12px; font: 700 .9rem var(--sans); cursor: pointer; font-variant-numeric: tabular-nums; }
+.fpv-speed.slow { border-color: var(--accent); color: var(--accent); }
 .fpv-neck { position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden; contain: strict; }
 .fpv-neck canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .fpv-dots { position: absolute; inset: 0; pointer-events: none; }

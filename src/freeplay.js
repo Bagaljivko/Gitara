@@ -13,6 +13,7 @@ import { settings, songs as songsDb } from './db.js';
 import { REC_FOLDER, ensureRecFolder } from './collections.js';
 import { textToSections } from './songformat.js';
 import { upgradeSong } from './songmodel.js';
+import { cleanEvents, estimateTempo, beatTabs } from './recTools.js';
 import { openMic, closeMic, MicError } from './audio.js';
 import { keepAwake, allowSleep } from './wakelock.js';
 import { getRoom, roomToSensitivity } from './tunerSettings.js';
@@ -104,19 +105,26 @@ export function tabText(rec, width = 48, names = null) {
 // ---------------- Snimak → pesma u Pesme → „Moji snimci“ ----------------
 /** Pesma od snimka: akordi redom (bez ponavljanja zaredom) + tablatura; snimak ostaje na pesmi za „Pusti na vratu“. */
 export function recToSong(rec) {
+  // čišćenje (tišina na početku, „Am?“ bez potvrde, dvostruko očitan akord); original ostaje u `raw`
+  const c = cleanEvents(rec.events);
+  const events = c.events.length ? c.events : rec.events;
+  const tempo = estimateTempo(events);
   const chords = [];
-  for (const e of rec.events) if (e.chord && chords[chords.length - 1] !== e.chord) chords.push(e.chord);
-  const parts = [];
-  if (chords.length) {
-    const rows = [];
-    for (let i = 0; i < chords.length; i += 8) rows.push(chords.slice(i, i + 8).join('   '));
-    parts.push(`[${t('fp.chordsSec')}]`, ...rows, '');
+  for (const e of events) if (e.chord && chords[chords.length - 1] !== e.chord) chords.push(e.chord);
+  const rows = [];
+  for (let i = 0; i < chords.length; i += 8) rows.push(chords.slice(i, i + 8).join('   '));
+  const sections = rows.length ? textToSections([`[${t('fp.chordsSec')}]`, ...rows].join('\n')) : [];
+  const tabbed = events.filter((e) => (e.notes || []).length);
+  if (tabbed.length) {
+    // u ritmu (taktovi, osmine) kad se tempo čuje; inače note redom
+    const tabs = tempo ? beatTabs(tabbed, tempo) : textToSections(tabText({ events: tabbed }, 32, ['e', 'B', 'G', 'D', 'A', 'E'])).flatMap((x) => x.tabs || []);
+    if (tabs.length) sections.push({ name: t('fp.tab'), lines: [], tabs });
   }
-  const tabbed = { events: rec.events.filter((e) => (e.notes || []).length) };
-  if (tabbed.events.length) parts.push(`[${t('fp.tab')}]`, tabText(tabbed, 32, ['e', 'B', 'G', 'D', 'A', 'E']));
   // akordi su u engleskom zapisu (B = H) → neutralni sloj; prikaz prati podešavanje imena nota
-  const song = upgradeSong({ title: rec.name, artist: '', key: '', sections: textToSections(parts.join('\n')), cv: 0 }, { naming: 'en' });
-  return { ...song, folders: [REC_FOLDER], recording: { v: REC_V, dur: rec.dur || 0, events: rec.events, recId: rec.id } };
+  const song = upgradeSong({ title: rec.name, artist: '', key: '', sections, cv: 0 }, { naming: 'en' });
+  const recording = { v: REC_V, dur: c.changed ? c.dur : rec.dur || 0, events, recId: rec.id };
+  if (c.changed && rec.events.length <= 5000) recording.raw = rec.events;
+  return { ...song, ...(tempo && tempo.bpm >= 40 && tempo.bpm <= 220 ? { bpm: tempo.bpm } : {}), folders: [REC_FOLDER], recording };
 }
 /** Sačuvaj snimak kao pesmu (jednom: isti snimak se ne dodaje dvaput). */
 async function saveRecAsSong(rec) {
@@ -162,7 +170,7 @@ function createStage({ mode = 'live', rec = null, onExit, onSaved }) {
       <button class="fpv-x" aria-label="${t('fp.exit')}">✕</button>
       <div class="fpv-tools">
         ${mode === 'live' ? `<button class="fpv-rec" aria-label="${t('fp.record')}"><i></i><span>${t('fp.record')}</span></button>
-        <button class="fpv-set" aria-label="${t('fp.settings')}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.4 7.4 0 0 0-1.7-1L15 3.5h-4L10.6 6a7.4 7.4 0 0 0-1.7 1l-2.4-1-2 3.4L4.6 11a7.6 7.6 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7.4 7.4 0 0 0 1.7 1l.4 2.5h4l.4-2.5a7.4 7.4 0 0 0 1.7-1l2.4 1 2-3.4zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/></svg></button>` : `<span class="fpv-replay">${t('fp.replaying')}</span>`}
+        <button class="fpv-set" aria-label="${t('fp.settings')}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.4 7.4 0 0 0-1.7-1L15 3.5h-4L10.6 6a7.4 7.4 0 0 0-1.7 1l-2.4-1-2 3.4L4.6 11a7.6 7.6 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7.4 7.4 0 0 0 1.7 1l.4 2.5h4l.4-2.5a7.4 7.4 0 0 0 1.7-1l2.4 1 2-3.4zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/></svg></button>` : `<span class="fpv-replay">${t('fp.replaying')}</span><button class="fpv-speed" aria-label="${t('fp.speed')}">1×</button>`}
       </div>
     </div>
     <div class="fpv-band" aria-live="polite"><b></b><small></small><span class="fpv-msg"></span></div>
@@ -494,6 +502,7 @@ async function startLive({ onExit, onSaved }) {
     if (!recording) return;
     const e = { id: ev.id, t: Math.max(0, Math.round(ev.at - recording.start)), notes: notes.map((n) => ({ m: n.m, s: n.s, f: n.f })) };
     if (chord) e.chord = chord;
+    if (chord && ev.sure === false) e.u = 1; // „Am?“: pri čuvanju ostaje samo ako se potvrdi
     const k = recording.ids.get(ev.id);
     if (k != null) recording.events[k] = e; else { recording.ids.set(ev.id, recording.events.length); recording.events.push(e); }
   }
@@ -595,12 +604,22 @@ async function startLive({ onExit, onSaved }) {
 function startReplay(rec, { onExit }) {
   const stage = createStage({ mode: 'replay', rec, onExit: () => finish() });
   const placer = createPlacer();
-  let i = 0, t0 = performance.now() + 800, alive = true;
+  // virtuelno vreme snimka: brzina 1× / 0,75× / 0,5× (sporije, da se prati brz deo)
+  let i = 0, vt = -800, lastNow = performance.now(), speed = 1, alive = true;
+  const SPEEDS = [1, 0.75, 0.5];
+  const spBtn = stage.q('.fpv-speed');
+  spBtn.addEventListener('click', () => {
+    speed = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length];
+    spBtn.textContent = String(speed).replace('.', getLang() === 'en' ? '.' : ',') + '×';
+    spBtn.classList.toggle('slow', speed < 1);
+  });
   keepAwake('freeplay');
   stage.message('');
   stage.setReplay({
     tick(now) {
-      const tt = now - t0;
+      vt += Math.min(100, now - lastNow) * speed;
+      lastNow = now;
+      const tt = vt;
       while (i < rec.events.length && rec.events[i].t <= tt) {
         const e = rec.events[i++];
         const notes = e.notes || [];
@@ -615,7 +634,7 @@ function startReplay(rec, { onExit }) {
   });
   const onHide = () => { if (document.hidden) finish(); };
   document.addEventListener('visibilitychange', onHide);
-  const offOrient = stage.onOrientation((p) => { stage.sleep(p); if (!p) t0 = performance.now() - ((rec.events[i - 1]?.t) || 0); });
+  const offOrient = stage.onOrientation((p) => { stage.sleep(p); if (!p) lastNow = performance.now(); });
   if (stage.isPortrait()) stage.sleep(true);
   function finish() {
     if (!alive) return;

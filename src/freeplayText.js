@@ -31,6 +31,7 @@ export const sr = {
   'fp.replay': 'Pusti na vratu',
   'fp.close': 'Zatvori',
   'fp.replayDone': 'Kraj snimka',
+  'fp.speed': 'Brzina puštanja',
 };
 export const en = {
   'fp.intro': 'Play whatever you like — notes, two notes or chords. The app listens and shows on the neck what you play right away, and you can record it.',
@@ -64,4 +65,5 @@ export const en = {
   'fp.replay': 'Replay on the neck',
   'fp.close': 'Close',
   'fp.replayDone': 'End of recording',
+  'fp.speed': 'Playback speed',
 };

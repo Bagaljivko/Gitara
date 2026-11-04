@@ -163,7 +163,8 @@ export async function renderSetlist(root, id) {
     if (!drag) return;
     const items = [...$('slList').querySelectorAll('.sl-item:not(.dragging)')];
     const after = items.find((it) => { const r = it.getBoundingClientRect(); return e.clientY < r.top + r.height / 2; });
-    if (after) $('slList').insertBefore(drag.li, after); else $('slList').appendChild(drag.li);
+    // pomeri samo ako se mesto promenilo (inače bez nepotrebnog preračunavanja rasporeda)
+    if (after ? drag.li.nextElementSibling !== after : drag.li !== $('slList').lastElementChild) { if (after) $('slList').insertBefore(drag.li, after); else $('slList').appendChild(drag.li); }
   });
   const endDrag = async () => {
     if (!drag) return;

@@ -7,7 +7,9 @@ import { getVoicings } from './chords.js';
 import { stopGroup } from './synth.js';
 import { parseChord, canonicalName } from './music.js';
 import { songChords, progressionSummary, transposeSong, parseSharedFile, safeFileName, SongFormatError, layoutChordLine, songExtras, songMeta, cleanUncertain, cleanYoutubeUrl } from './songformat.js';
-import { driveState, savePdfToDrive, DriveError } from './drive.js';
+// Google Drive se učitava tek kad zatreba (ili odmah, ako je povezan — rezervna kopija kreće kao i ranije)
+const driveConnected = async () => !!((await settings.get('drive', null)) || {}).connected;
+driveConnected().then((c) => c && import('./drive.js')).catch(() => {});
 import { t, getLang } from './i18n.js';
 import { tabBlockHTML, layoutTabs, playTab, noteAt, STRING_NAMES } from './tabs.js';
 import { easiestCapo, localStrum, patternById } from './suggest.js';
@@ -21,7 +23,7 @@ import { seedDemoSong } from './demo.js';
 import { dn } from './naming.js';
 import { upgradeSong, CV, needsUpgrade } from './songmodel.js';
 import { keyName } from './chordnames.js';
-import { openKeyWheel } from './keyWheel.js';
+const openKeyWheel = (o) => import('./keyWheel.js').then((m) => m.openKeyWheel(o)); // samo kad se otvori točak tonaliteta
 import { cleanTuning, tuningNotes } from './tunings.js';
 
 let selectedId = null; // izabrana pesma u prikazu sa dva panela
@@ -41,6 +43,9 @@ function markOpened(id) {
   const keep = Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 300); // ograniči veličinu
   try { localStorage.setItem('gitara-opened', JSON.stringify(Object.fromEntries(keep))); } catch {}
 }
+// pretraga: naslov i izvođač se „presavijaju“ jednom po pesmi (sažeci iz db.list() se ne menjaju, pa WeakMap)
+const foldMemo = new WeakMap();
+const folded = (s) => { let f = foldMemo.get(s); if (!f) { f = { t: fold(s.title), a: fold(s.artist) }; foldMemo.set(s, f); } return f; };
 const libKey = (s) => (s.keyN ? keyName({ root: (s.keyN.root + (s.transpose || 0) + 120) % 12, minor: s.keyN.minor }, 'en') : s.key);
 function libBadges(s) {
   const b = [];
@@ -133,7 +138,8 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
 
   const draw = () => {
     const q = fold($('lSearch').value);
-    let list = all.filter((s) => !folderFilter || (s.folders || []).includes(folderFilter)).filter((s) => !q || fold(s.title).includes(q) || fold(s.artist).includes(q) ||
+    // snimci iz „Samo sviraj“ su samo u folderu „Moji snimci“ (ne u „Sve“)
+    let list = all.filter((s) => (folderFilter ? (s.folders || []).includes(folderFilter) : !(s.folders || []).some(isSystemFolder))).filter((s) => !q || folded(s).t.includes(q) || folded(s).a.includes(q) ||
       (s.find ?? '').includes(q));
     const sort = $('lSort').value;
     const cmp = (a, b) => String(a || '').localeCompare(String(b || ''), 'sr', { sensitivity: 'base' });
@@ -141,7 +147,7 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
     else if (sort === 'artist') list.sort((a, b) => cmp(a.artist, b.artist) || cmp(a.title, b.title));
     else if (sort === 'recent') { const op = openedMap(); list.sort((a, b) => (op[b.id] || 0) - (op[a.id] || 0) || (b.updatedAt || 0) - (a.updatedAt || 0)); }
     else list.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-    if (!all.length) {
+    if (!all.length || (!folderFilter && !q && all.every((s) => (s.folders || []).some(isSystemFolder)))) {
       $('lList').innerHTML = `<li class="empty">
         <p><b>${t('lib.empty')}</b></p>
         <p class="muted">${t('lib.emptyHint')}</p></li>`;
@@ -153,7 +159,7 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
       <li class="song-item${s.id === selectedId ? ' selected' : ''}" data-id="${esc(s.id)}">
         <a href="#/pesma/${encodeURIComponent(s.id)}" class="song-link">
           <span class="song-title">${esc(s.title)}</span>
-          <span class="song-sub">${esc(s.artist || t('lib.unknownArtist'))}${libKey(s) ? ` · <span class="key">${esc(dn(libKey(s)))}</span>` : ''}${libBadges(s)}</span>
+          <span class="song-sub">${esc(s.artist || t('lib.unknownArtist'))}${((k) => (k ? ` · <span class="key">${esc(dn(k))}</span>` : ''))(libKey(s))}${libBadges(s)}</span>
         </a>
         <button class="icon-btn" data-fold="${esc(s.id)}" aria-label="${esc(t('folder.forSong', { title: s.title }))}">
           <svg viewBox="0 0 24 24"><path d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8l-2-2z"/></svg>${(s.folders || []).length ? `<span class="fold-count">${s.folders.length}</span>` : ''}
@@ -164,7 +170,9 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
       </li>`).join('');
   };
 
-  $('lSearch').addEventListener('input', draw);
+  // kucanje: jedno crtanje po sličici ekrana (bez kašnjenja, samo se spoje pritisci u istom trenutku)
+  let searchQ = 0;
+  $('lSearch').addEventListener('input', () => { cancelAnimationFrame(searchQ); searchQ = requestAnimationFrame(draw); });
   $('lSort').addEventListener('change', () => { localStorageSet('gitara-sort', $('lSort').value); draw(); });
   $('lList').addEventListener('click', async (e) => {
     const fb = e.target.closest('[data-fold]');
@@ -195,7 +203,7 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
 // Podsetnik za rezervnu kopiju: posle 3+ pesama bez Google Drive-a; „Ne sada“ ga sakrije na 30 dana.
 const NUDGE_MIN = 3, NUDGE_SNOOZE = 30 * 864e5;
 async function backupNudge(box, count) {
-  if (count < NUDGE_MIN || driveState().connected) return;
+  if (count < NUDGE_MIN || (await driveConnected())) return;
   const st = (await settings.get('backupNudge', null)) || {};
   if (st.snoozedAt && Date.now() - st.snoozedAt < NUDGE_SNOOZE) return;
   if (st.exportedAt && Date.now() - st.exportedAt < NUDGE_SNOOZE) return;
@@ -231,7 +239,7 @@ async function importSongFile() {
     await dialog({ title: t('import.invalidTitle'), body: e instanceof SongFormatError ? e.message : t('import.cantRead') });
     return false;
   }
-  const existing = (await db.all()).find((s) => norm(s.title) === norm(song.title));
+  const existing = (await db.list()).find((s) => norm(s.title) === norm(song.title));
   if (existing) {
     const choice = await dialog({
       title: t('import.existsTitle'),
@@ -308,7 +316,7 @@ export async function renderSharedSong(root) {
   $('shCancel').addEventListener('click', () => leave('#/pesme'));
   $('shInstallBtn')?.addEventListener('click', async () => { await promptInstall(); $('shInstall')?.remove(); });
   $('shAdd').addEventListener('click', async () => {
-    const existing = (await db.all()).find((x) => norm(x.title) === norm(song.title));
+    const existing = (await db.list()).find((x) => norm(x.title) === norm(song.title));
     let rec;
     if (existing) {
       const choice = await dialog({
@@ -806,7 +814,7 @@ export async function renderSong(root, id, nav = null) {
         <p class="small">${esc(t('sug.easyText', { n: e.capo, shapes: e.shapes.map((x) => dn(x)).join(', ') }))}</p>
         <div class="sug-actions"><button class="btn small primary" data-sug="easy-apply" data-capo="${e.capo}">${t('sug.apply')}</button></div>` });
     }
-    if (!hasStrum() && !(stored.skipped && stored.skipped.strum)) {
+    if (!stored.recording && !hasStrum() && !(stored.skipped && stored.skipped.strum)) { // snimci iz „Samo sviraj“: bez predloga ritma
       const ss = stored.suggestStrum && patternById(stored.suggestStrum.id);
       if (ss) items.push({ x: 'strum-skip', html: `<div class="sug-title">${t('sug.strumTitle')}: ${esc(patternName(ss))} <span class="small muted">${ss.sig}</span>
           <button class="icon-btn pat-play" data-sug="strum-play" aria-label="${t('pat.play')}"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button></div>
@@ -824,7 +832,7 @@ export async function renderSong(root, id, nav = null) {
   const drawSuggest = () => { const el = $('sSuggest'); if (el) el.innerHTML = suggestHTML(); };
 
   async function loadStrumSuggestion() {
-    if (hasStrum() || stored.suggestStrum || (stored.skipped && stored.skipped.strum) || strumLoading) return;
+    if (stored.recording || hasStrum() || stored.suggestStrum || (stored.skipped && stored.skipped.strum) || strumLoading) return;
     strumLoading = true;
     drawSuggest();
     let res = null;
@@ -925,6 +933,10 @@ export async function renderSong(root, id, nav = null) {
     strumMet = new Metronome();
     strumMet.pattern = pattern;
     strumMet.sig = pattern.sig;
+    // pregled ritma: dva takta (8 udaraca u 4/4), pa sam stane
+    strumMet.maxBars = 2;
+    const me = strumMet;
+    strumMet.onEnd = () => { if (strumMet === me) stopStrum(); };
     keepAwake('strum');
     songBpm().then((b) => { if (!strumMet) return; strumMet.bpm = b; strumMet.start(); });
     $('sStrumPlay')?.classList.add('playing');
@@ -1126,7 +1138,7 @@ export async function renderSong(root, id, nav = null) {
   ro.observe(root.querySelector('.song-view'));
   // Ekran ostaje upaljen dok koristiš pesmu (Podešavanja → Ekran); ikonica u traci ga isključuje za ovu pesmu
   setWakeZone('song');
-  const onHash = () => { stopLoop(); stopScroll(); stopStrum(); endTab(); ro.disconnect(); window.removeEventListener('hashchange', onHash); };
+  const onHash = () => { stopLoop(); stopScroll(); stopStrum(); endTab(); ro.disconnect(); document.removeEventListener('pointerdown', outsideAa, true); window.removeEventListener('hashchange', onHash); };
   window.addEventListener('hashchange', onHash);
 
   function easyActive() { return !!stored.easyCapo && capo === stored.easyCapo; }
@@ -1205,9 +1217,9 @@ export async function renderSong(root, id, nav = null) {
     zoom = Math.min(1.8, Math.max(0.8, Math.round(z * 10) / 10));
     $('sLyrics').style.setProperty('--zoom', zoom);
     fitAndTabs();
-    if (zoom === 1) delete stored.zoom; else stored.zoom = zoom;
-    await save();
   };
+  // čuva se tek kad se klizač pusti (dok se vuče, samo prikaz)
+  const saveZoom = () => { if (zoom === 1) delete stored.zoom; else stored.zoom = zoom; return save(); };
   const aaPop = $('sAaPop');
   const closeAa = () => { aaPop.hidden = true; $('sAa').setAttribute('aria-expanded', 'false'); document.removeEventListener('pointerdown', outsideAa, true); };
   const outsideAa = (e) => { if (!aaPop.contains(e.target) && e.target !== $('sAa')) closeAa(); };
@@ -1219,6 +1231,7 @@ export async function renderSong(root, id, nav = null) {
     document.addEventListener('pointerdown', outsideAa, true);
   });
   $('sAaRange').addEventListener('input', (e) => setZoom(+e.target.value / 100));
+  $('sAaRange').addEventListener('change', () => saveZoom());
 
   $('sPdf').addEventListener('click', async () => {
     const btn = $('sPdf');
@@ -1235,10 +1248,12 @@ export async function renderSong(root, id, nav = null) {
       const r = await shareOrDownload(blob, safeFileName(song.title) + '.pdf', song.title);
       if (r === 'downloaded') toast(t('song.pdfDownloaded'));
       // Ako je Google Drive povezan, PDF se čuva i u folder „Gitara“ (isti fajl se zamenjuje).
-      if (driveState().connected) {
-        savePdfToDrive(blob, { ...song, id: stored.id })
+      if (await driveConnected()) {
+        const d = await import('./drive.js');
+        await d.initDrive();
+        if (d.driveState().connected) d.savePdfToDrive(blob, { ...song, id: stored.id })
           .then(() => toast(t('song.pdfDrive')))
-          .catch((e) => toast(e instanceof DriveError ? t('song.pdfDriveFailed', { msg: e.message }) : t('song.pdfDriveFailedGeneric'), 'error'));
+          .catch((e) => toast(e instanceof d.DriveError ? t('song.pdfDriveFailed', { msg: e.message }) : t('song.pdfDriveFailedGeneric'), 'error'));
       }
     } catch (e) {
       console.error(e);
