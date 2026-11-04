@@ -152,6 +152,7 @@ export default {
   'room.note_quiet': 'For a quiet room and quiet guitars: catches soft plucks too.',
   'room.note_noisy': 'For noisy places: reacts only to clear, louder notes.',
   'nav.practice': 'Practice',
+  'pr.songMark': 'Parts practised: {n} of {total}',
   'pr.songShortcut': 'Practice parts of this song',
   'chordModal.same': 'Same as',
   'chordModal.bass': 'Bass note: {bass} (the basic chord is shown)',

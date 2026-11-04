@@ -1,21 +1,53 @@
-// Vežbe → „Delovi pesme“: izaberi pesmu iz svoje biblioteke i njen deo. Akordi tog dela se vrte u petlji
-// uz metronom (jedan akord po taktu ili po 2 otkucaja), polako; aplikacija proverava akorde (blago:
-// većina tonova). Kad prolaz ide dobro, tempo raste — do tempa pesme. Rezultati se pamte po pesmi i delu.
-import { Metronome } from './rhythm.js';
-import { chordSVG } from './diagram.js';
+// Vežbe → „Delovi pesme“ na stazi: pesma iz tvoje pesmarice, podeljena na delove (Strofa 1, Refren, Most…).
+// Deo sa najtežim promenama akorda je označen „Najteže“; može i „Cela pesma“.
+// Blokovi akorda klize u redosledu pesme (tonalitet, kapodaster i transpozicija uračunati), iznad vrata je
+// red teksta. Normalno: počinje sporije od pesme, deo se vrti u petlji i posle svakog čistog prolaza malo ubrza —
+// do pravog tempa; tada se nudi „Sledeći deo“ ili „Cela pesma“. Početnik: staza čeka na svaku promenu akorda.
+// Najbolji rezultat i tempo se pamte po delu (i oznaka napretka pored ikonice vežbe na ekranu pesme).
+import { strum } from './synth.js';
+import { chordNotes } from './rhythm.js';
+import { getVoicings } from './chords.js';
 import { dn } from './naming.js';
 import { songs as db, settings } from './db.js';
 import { transposeSong } from './songformat.js';
+import { trackGame, chordItem, chordFingers } from './practiceTrack.js';
+import { checkChord } from './pChords.js';
 
-const PASSES = 4;
+const MAX_PASSES = 6;
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
-/** Akordi po delovima pesme (onako kako se sviraju: transpozicija i kapodaster uračunati). */
+/** Delovi pesme onako kako se sviraju (transpozicija i kapodaster uračunati): [{ i, name, chords:[{chord, lyric}] }] */
 export function songParts(song) {
   const shapes = transposeSong(song, (song.transpose || 0) - (song.capo || 0));
+  const seen = new Set();
   return (shapes.sections || []).map((sec, i) => ({
     i, name: sec.name || '',
-    chords: (sec.lines || []).flatMap((l) => [...(l.chords || [])].sort((a, b) => a.position - b.position).map((c) => c.chord)).filter(Boolean),
-  })).filter((p) => p.chords.length);
+    chords: (sec.lines || []).flatMap((l) => [...(l.chords || [])].sort((a, b) => a.position - b.position).map((c) => ({ chord: c.chord, lyric: (l.text || '').trim() }))).filter((c) => c.chord),
+  })).filter((p) => {
+    if (!p.chords.length) return false;
+    const sig = p.name + '|' + p.chords.map((c) => c.chord).join(',');
+    if (seen.has(sig)) return false; // isti refren ponovljen više puta = jedan deo
+    seen.add(sig);
+    return true;
+  });
+}
+
+/** Težina promene akorda: koliko žica menja prag + barre. */
+function changeCost(a, b) {
+  if (a === b) return 0;
+  const va = getVoicings(a)[0], vb = getVoicings(b)[0];
+  if (!va || !vb) return 2;
+  let moves = 0;
+  for (let s = 0; s < 6; s++) if (va.frets[s] !== vb.frets[s]) moves++;
+  return 1 + moves * 0.5 + (vb.barre ? 3 : 0) + (Math.max(...vb.frets) > 4 ? 1 : 0);
+}
+/** Prosečna težina promena u delu (uključujući povratak na početak, jer se deo vrti u petlji). */
+export function partDifficulty(p) {
+  const c = p.chords.map((x) => x.chord);
+  if (c.length < 2) return 0;
+  let sum = 0;
+  for (let k = 0; k < c.length; k++) sum += changeCost(c[k], c[(k + 1) % c.length]);
+  return sum / c.length;
 }
 
 export async function createGame(api) {
@@ -23,128 +55,124 @@ export async function createGame(api) {
   const songId = api.args[0] ? decodeURIComponent(api.args[0]) : '';
   if (!songId) return pickSong(api);
   const song = await db.get(songId);
-  if (!song) { api.stage.innerHTML = `<p class="muted center">${t('song.notFound')}</p>`; return { noTempo: true, beats: 0, start() { api.stopNow(); }, stop() {} }; }
+  const empty = (msg) => { api.stage.innerHTML = `<p class="muted center">${msg}</p>`; return { noTempo: true, noStart: true, beats: 0, start() { api.stopNow(); }, stop() {} }; };
+  if (!song) return empty(t('song.notFound'));
   const parts = songParts(song);
+  if (!parts.length) return empty(t('pr.pesma.noChords'));
   const songBpm = Number(song.bpm) || Number(await settings.get('metBpm', 90)) || 90;
-  const stats = (api.allStats.songs || {})[songId] || {};
+  const stats = () => (api.allStats.songs || {})[songId] || {};
+  const diffs = parts.map(partDifficulty);
+  const hardest = parts.length > 1 ? diffs.indexOf(Math.max(...diffs)) : -1;
+  const whole = { i: 'all', name: t('pr.pesma.whole'), chords: parts.flatMap((p) => p.chords) };
+  const all = [...parts, whole];
   const partKey = `gitara-pr-part-${songId}`;
-  let part = parts.find((p) => String(p.i) === localStorage.getItem(partKey)) || parts[0];
+  let part = all.find((p) => String(p.i) === localStorage.getItem(partKey)) || parts[hardest >= 0 ? hardest : 0];
   let per = Number(localStorage.getItem('gitara-pr-pesma-per')) === 2 ? 2 : 4;
-  const startTempo = (p) => (stats[String(p.i)] || {}).lastTempo || Math.max(40, Math.round(songBpm * 0.6 / 5) * 5);
-  const partLabel = (p, k) => p.name || t('pr.pesma.part', { n: k + 1 });
+  const startTempo = (p) => Math.min(songBpm, (stats()[String(p.i)] || {}).lastTempo || Math.max(40, Math.round((songBpm * 0.6) / 5) * 5));
+  const label = (p, k) => (p.i === 'all' ? t('pr.pesma.whole') : p.name || t('pr.pesma.part', { n: k + 1 }));
 
-  if (!parts.length) {
-    api.stage.innerHTML = `<p class="muted center">${t('pr.pesma.noChords')}</p>`;
-    return { noTempo: true, beats: 0, start() { api.stopNow(); }, stop() {} };
+  function drawOpts() {
+    const st = stats();
+    api.opts.innerHTML = `
+      <div class="pr-song-head"><b>${esc(song.title)}</b>${song.artist ? `<span class="small muted">${esc(song.artist)}</span>` : ''}
+        <span class="small muted">${t('pr.pesma.songTempo', { bpm: songBpm })}${song.capo ? ' · ' + t('capo.title') + ' ' + song.capo : ''}</span>
+        <a class="small" href="#/vezbe/pesma">${t('pr.pesma.other')}</a></div>
+      <div class="pr-optlabel">${t('pr.pesma.whichPart')}</div>
+      <div class="pr-chips">${all.map((p, k) => {
+        const rec = st[String(p.i)] || {};
+        return `<button class="chip${p === part ? ' active' : ''}" data-part="${p.i}">${esc(label(p, k))}${k === hardest ? ` <span class="pr-hard">${t('pr.pesma.hardest')}</span>` : ''}${rec.best ? ` <small>${Math.round(rec.best)} · ${rec.lastTempo} BPM</small>` : ''}</button>`;
+      }).join('')}</div>
+      <p class="small muted center">${part.chords.map((c) => esc(dn(c.chord))).join(' · ')}</p>
+      <div class="pr-optlabel">${t('pr.pesma.per')}</div>
+      <div class="seg-tabs" role="radiogroup">
+        <button role="radio" data-per="4" class="${per === 4 ? 'active' : ''}">${t('pr.pesma.perBar')}</button>
+        <button role="radio" data-per="2" class="${per === 2 ? 'active' : ''}">${t('pr.pesma.per2')}</button>
+      </div>`;
   }
-  api.opts.innerHTML = `
-    <div class="pr-song-head"><b>${esc(song.title)}</b>${song.artist ? `<span class="small muted">${esc(song.artist)}</span>` : ''}
-      <a class="small" href="#/vezbe/pesma">${t('pr.pesma.other')}</a></div>
-    <div class="pr-optlabel">${t('pr.pesma.whichPart')}</div>
-    <div class="pr-chips">${parts.map((p, k) => `<button class="chip${p === part ? ' active' : ''}" data-part="${p.i}">${esc(partLabel(p, k))}${(stats[String(p.i)] || {}).best ? ` <small>${Math.round(stats[String(p.i)].best)}</small>` : ''}</button>`).join('')}</div>
-    <div class="pr-optlabel">${t('pr.pesma.per')}</div>
-    <div class="seg-tabs" role="radiogroup">
-      <button role="radio" data-per="4" class="${per === 4 ? 'active' : ''}">${t('pr.pesma.perBar')}</button>
-      <button role="radio" data-per="2" class="${per === 2 ? 'active' : ''}">${t('pr.pesma.per2')}</button>
-    </div>`;
+  function choose(p) {
+    part = p;
+    try { localStorage.setItem(partKey, String(part.i)); } catch {}
+    api.setBpm(startTempo(part));
+    drawOpts();
+  }
+  drawOpts();
   api.opts.addEventListener('click', (e) => {
     const b = e.target.closest('[data-part]'), pb = e.target.closest('[data-per]');
-    if (b) {
-      part = parts.find((p) => String(p.i) === b.dataset.part) || part;
-      try { localStorage.setItem(partKey, String(part.i)); } catch {}
-      api.opts.querySelectorAll('[data-part]').forEach((x) => x.classList.toggle('active', x === b));
-      api.setBpm(startTempo(part));
-      draw(0);
-    }
+    if (b && !api.running) choose(all.find((p) => String(p.i) === b.dataset.part) || part);
     if (pb) {
       per = +pb.dataset.per;
       try { localStorage.setItem('gitara-pr-pesma-per', String(per)); } catch {}
-      api.opts.querySelectorAll('[data-per]').forEach((x) => x.classList.toggle('active', x === pb));
+      drawOpts();
     }
   });
+  api.stage.hidden = true;
 
-  api.stage.innerHTML = `<div class="ps-now"><div class="chord-big ps-cur" id="psCur"></div><div class="ps-next"><small>${t('pr.pesma.next')}</small><div class="chord-big" id="psNext"></div></div></div>
-    <div class="ps-strip" id="psStrip"></div><div class="small muted" id="psPass"></div>`;
-  const $ = (id) => api.stage.querySelector('#' + id);
-  function draw(k) {
-    const ch = part.chords;
-    $('psCur').innerHTML = chordSVG(ch[k % ch.length]);
-    $('psNext').innerHTML = chordSVG(ch[(k + 1) % ch.length], { showName: true });
-    $('psStrip').innerHTML = ch.map((c, j) => `<span class="ps-c${j === k % ch.length ? ' now' : ''}">${esc(dn(c))}</span>`).join('');
-  }
-  draw(0);
-  api.feedback('info', t('pr.pesma.ready', { bpm: songBpm }));
-
-  let met = null, units = [], onsets = [], listener = null, k = 0, beatInUnit = 0, pass = 0, passOk = 0, passN = 0, maxBpm = 0;
-
-  function judge(u) {
-    if (u.done) return;
-    u.done = true;
-    const beatMs = 60000 / met.bpm, win = beatMs * per * 0.5;
-    const cand = onsets.filter((o) => o.at >= u.at - beatMs * 0.45 && o.at <= u.at + win && o.heard);
-    const good = cand.find((o) => o.heard[u.chord] && o.heard[u.chord].ok);
-    if (!cand.length) { u.score = 0; api.feedback('miss', t('pr.missed')); }
-    else if (!good) { u.score = 0; api.feedback('miss', t('pr.promena.notClear', { c: dn(u.chord) })); }
-    else {
-      const onTime = Math.abs(good.at - u.at) <= Math.min(150, beatMs * 0.4);
-      u.score = onTime ? 1 : 0.7; u.ok = true;
-      api.feedback(onTime ? 'hit' : 'late', onTime ? t('pr.pesma.good', { c: dn(u.chord) }) : t('pr.pesma.late', { c: dn(u.chord) }));
-    }
-    passN++; if (u.ok) passOk++;
-  }
-
-  return {
-    initialTempo: startTempo(part),
-    bpm: { start: startTempo(part), min: 40, max: songBpm, step: 5 },
-    async start(bpm) {
-      units = []; onsets = []; k = 0; beatInUnit = 0; pass = 0; passOk = 0; passN = 0; maxBpm = bpm;
-      listener = await api.listen({
-        chords: true,
-        onOnset: (o) => {
-          const rec = { at: o.at, heard: null };
-          onsets.push(rec); if (onsets.length > 40) onsets.shift();
-          const want = [...new Set(part.chords)];
-          setTimeout(() => { if (listener) { rec.heard = {}; want.forEach((c) => (rec.heard[c] = listener.chordHeard(c))); } }, 350);
-        },
-      });
-      met = new Metronome();
-      met.bpm = bpm; met.sig = '4/4'; met.countIn = 1;
-      $('psPass').textContent = t('pr.pesma.pass', { n: 1, total: PASSES });
-      met.onStep = (slot, beat, accent, info) => {
-        if (beat == null) return;
-        api.pulse(beat, 4, beat === 0);
-        if (info.countIn) { api.feedback('', String(4 - info.countBeat)); draw(0); return; }
-        if (beatInUnit === 0) {
-          // novi akord: na kraju prolaza kroz deo — ako je išlo dobro, malo brže (najviše do tempa pesme)
-          if (k > 0 && k % part.chords.length === 0) {
-            pass++;
-            const okRate = passN ? passOk / passN : 0;
-            if (pass >= PASSES) { met.stop(); setTimeout(finish, 700); return; }
-            if (okRate >= 0.85 && met.bpm < songBpm) { met.bpm = Math.min(songBpm, met.bpm + 5); maxBpm = Math.max(maxBpm, met.bpm); api.setBpm(met.bpm); api.feedback('hit', t('pr.pesma.faster', { bpm: met.bpm })); }
-            passOk = 0; passN = 0;
-            $('psPass').textContent = t('pr.pesma.pass', { n: pass + 1, total: PASSES });
-          }
-          const u = { at: info.at, chord: part.chords[k % part.chords.length], done: false };
-          units.push(u);
-          draw(k);
-          setTimeout(() => api.running && judge(u), (60000 / met.bpm) * per * 0.5 + 450);
-          k++;
-        }
-        beatInUnit = (beatInUnit + 1) % per;
-      };
-      met.start();
-      api.onCleanup(() => met?.stop());
-    },
-    stop() { met?.stop(); met = null; listener = null; draw(0); },
+  let passes = 0;
+  const build = () => {
+    const chords = part.chords;
+    return {
+      items: chords.map((c, k) => chordItem(c.chord, k * per, per, { lyric: c.lyric })),
+      key: [songId, String(part.i)],
+      lagMs: 350 + 90 + 80,
+      fingersOf: chordFingers,
+      hintOf: (it) => t('pr.promena.hint', { c: it.label }),
+      extra: (st) => (st.clean && st.tempo >= songBpm
+        ? [...(part.i !== 'all' ? [{ id: 'nextPart', label: t('pr.pesma.nextPart'), primary: true }] : []), { id: 'whole', label: t('pr.pesma.whole'), primary: part.i === 'all' }]
+        : []),
+    };
   };
 
-  function finish() {
-    if (!api.running) return;
-    units.forEach(judge);
-    const n = units.length || 1, sum = units.reduce((a, u) => a + (u.score || 0), 0), ok = units.filter((u) => u.ok).length;
-    listener = null;
-    api.finish({ score: (sum / n) * 100, tempo: maxBpm, accuracy: ok / n }, [songId, String(part.i)]);
-  }
+  return trackGame(api, {
+    levels: [{ id: 'beg', label: t('pr.lvl.beg') }, { id: 'normal', label: t('pr.lvl.normal') }],
+    bpm: { start: startTempo(part), min: 40, max: songBpm, step: 5 },
+    initialTempo: startTempo(part),
+    firstBpm: startTempo(part),
+    round() { passes = 0; return build(); },
+    listen(round, input) {
+      const set = [...new Set(part.chords.map((c) => c.chord))];
+      return {
+        chords: true,
+        onOnset: (o) => setTimeout(() => input(o.at, (it) => {
+          // drugi akord iz dela koji bi „pristajao“ bolje (npr. susedni) — onda to nije bio traženi
+          const others = set.filter((c) => c !== it.chord);
+          const best = others.map((c) => ({ c, h: api.listener?.chordHeard(c) })).filter((x) => x.h && x.h.ok).sort((a, b) => b.h.share - a.h.share)[0];
+          const r = checkChord(api.listener, it.chord, best ? best.c : null);
+          return r.ok ? r : { ok: false, text: t('pr.promena.notClearShort', { c: it.label }) };
+        }), 350),
+      };
+    },
+    // Normalno: prolaz za prolazom; posle čistog prolaza malo brže (do tempa pesme)
+    async onRoundEnd(st, round, ctl) {
+      if (st.beginner) return false;
+      passes++;
+      if ((st.clean && st.tempo >= songBpm) || passes >= MAX_PASSES) return false; // rezultat (i čuvanje) na kraju
+      await api.save({ score: st.score, tempo: st.tempo, accuracy: st.accuracy }, round.key);
+      const nb = st.clean ? Math.min(songBpm, st.tempo + 5) : st.tempo;
+      api.setBpm(nb);
+      ctl.track.pop(st.clean ? t('pr.pesma.faster', { bpm: nb }) : t('pr.pesma.again', { n: passes + 1 }), st.clean ? 'hit' : 'late');
+      await wait(1500);
+      if (!api.running || !ctl.track) return true;
+      await ctl.next(build());
+      return true;
+    },
+    onChoice(choice, round, ctl) {
+      if (choice === 'nextPart') {
+        const k = parts.findIndex((p) => p.i === part.i);
+        choose(parts[(k + 1) % parts.length]);
+        api.restart();
+      } else if (choice === 'whole') { choose(whole); api.restart(); }
+      else ctl.close();
+    },
+    onLevel: () => drawOpts(),
+    demo: {
+      bpm: 72,
+      intro: t('pr.pesma.demo1'),
+      items: () => part.chords.slice(0, 6).map((c, k) => chordItem(c.chord, k * 2, 2, { lyric: c.lyric })),
+      fingersOf: chordFingers,
+      play: (it) => strum(0, 'D', { notes: chordNotes(it.chord), group: 'practice' }),
+      captions: { 0: t('pr.pesma.demo2'), 1: t('pr.pesma.demo3'), 3: t('pr.pesma.demo4'), 5: t('pr.pesma.demo5') },
+    },
+  });
 }
 
 // Bez izabrane pesme: lista pesama iz biblioteke (brzi indeks, bez učitavanja celih pesama)

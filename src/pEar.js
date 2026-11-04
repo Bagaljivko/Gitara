@@ -1,10 +1,12 @@
-// Vežbe → „Sluh“: aplikacija odsvira ton (ili akord) postojećim zvukom gitare; ti ga nađi i odsviraj.
-// Tri pokušaja po pitanju; posle se pokaže gde je. Preko 90 poena → manje vremena po pitanju.
+// Vežbe → „Sluh“ (uspravno, brz kviz): aplikacija odsvira ton (ili akord) postojećim zvukom gitare;
+// ti ga nađi i odsviraj. Normalno: tri pokušaja i vreme po pitanju. Početnik: bez vremena, pokušaja
+// koliko hoćeš; posle dva pogrešna pokaže se gde je (u bojama prstiju), a „Dalje“ preskače pitanje.
 import { audioCtx, pluck, strum, stopGroup } from './synth.js';
 import { chordNotes } from './rhythm.js';
 import { chordSVG } from './diagram.js';
-import { createBoard, OPEN_MIDI, noteLabel } from './practiceBoard.js';
-import { sameNote, createHitLog } from './practiceListen.js';
+import { createBoard, OPEN_MIDI, noteLabel, fingerOf } from './practiceBoard.js';
+import { createHitLog } from './practiceListen.js';
+import { hitSound } from './practiceTrack.js';
 import { getLang } from './i18n.js';
 import { dn } from './naming.js';
 
@@ -24,30 +26,41 @@ export function createGame(api) {
     </div>`;
   api.opts.addEventListener('click', (e) => {
     const b = e.target.closest('[data-m]');
-    if (!b) return;
+    if (!b || api.running) return;
     mode = b.dataset.m;
     try { localStorage.setItem('gitara-pr-sluh-mode', mode); } catch {}
     api.opts.querySelectorAll('[data-m]').forEach((x) => x.classList.toggle('active', x === b));
     reveal(null);
   });
   api.stage.innerHTML = `<div class="ear-q" id="eaQ">?</div>
+    <div class="pr-hint" id="eaHint"></div>
     <div class="ear-reveal" id="eaRev"></div>
-    <button class="btn small" id="eaAgain" hidden>${t('pr.sluh.again')}</button>
-    <div class="pr-timer" aria-hidden="true"><i id="eaBar"></i></div>
+    <div class="row-btns"><button class="btn small" id="eaAgain" hidden>${t('pr.sluh.again')}</button>
+      <button class="btn small" id="eaSkip" hidden>${t('pr.lovac.skip')}</button></div>
+    <div class="pr-timer" id="eaTimer" aria-hidden="true"><i id="eaBar"></i></div>
+    <div class="pr-quiz-streak" id="eaStreak"></div>
     <div class="small muted" id="eaCount"></div>`;
   const $ = (id) => api.stage.querySelector('#' + id);
-  api.feedback('info', t('pr.sluh.ready'));
+  const beg = () => api.level === 'beg';
+  const ready = () => { $('eaTimer').hidden = beg(); api.feedback('info', t(beg() ? 'pr.sluh.readyBeg' : 'pr.sluh.ready')); };
+  ready();
 
-  let n = 0, cur = null, tries = 0, results = [], quietUntil = 0, timer = 0, t0 = 0, listener = null, lastWrong = -1e9;
+  let n = 0, cur = null, prev = null, tries = 0, results = [], quietUntil = 0, timer = 0, t0 = 0, listener = null, lastWrong = -1e9, streak = 0;
   const log = createHitLog();
   const limitMs = () => api.bpm * 100; // desetinke sekunde po pitanju
   const secs = (ms) => (ms / 1000).toLocaleString(getLang() === 'en' ? 'en' : 'sr-Latn', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const flash = (k) => { const s = api.stage; s.classList.remove('flash-hit', 'flash-miss'); void s.offsetWidth; s.classList.add('flash-' + k); };
+  const nameOf = (q) => (q.chord ? dn(q.chord) : noteLabel(q.midi));
 
-  function reveal(q) {
-    if (!q) { $('eaRev').innerHTML = ''; $('eaQ').textContent = '?'; return; }
-    if (q.chord) $('eaRev').innerHTML = `<div class="chord-big ear-chord">${chordSVG(q.chord)}</div>`;
-    else { $('eaRev').innerHTML = '<div class="pr-board"></div>'; createBoard($('eaRev').querySelector('.pr-board'), { from: 0, to: 5 }).target(q.s, q.f, noteLabel(q.midi)); }
-    $('eaQ').textContent = q.chord ? dn(q.chord) : noteLabel(q.midi);
+  // Gde je: vrat (nota, u boji prsta) ili dijagram akorda (tačke u bojama prstiju)
+  function reveal(q, kind = 'show') {
+    if (!q) { $('eaRev').innerHTML = ''; $('eaQ').textContent = '?'; $('eaHint').textContent = ''; return; }
+    if (q.chord) $('eaRev').innerHTML = `<div class="chord-big ear-chord">${chordSVG(q.chord, { colorFingers: true })}</div>`;
+    else {
+      $('eaRev').innerHTML = '<div class="pr-board"></div>';
+      createBoard($('eaRev').querySelector('.pr-board'), { from: 0, to: 5 }).mark(q.s, q.f, kind, String(q.f), fingerOf(q.f), 0);
+    }
+    $('eaQ').textContent = nameOf(q);
   }
   // Odsviraj zadatak; mikrofon za to vreme ne sluša (inače bi „čuo“ sopstveni zvuk iz zvučnika)
   function play(q) {
@@ -63,69 +76,96 @@ export function createGame(api) {
     if (n >= ROUND) return finish();
     let q;
     do { q = mode === 'chord' ? { chord: CHORDS[Math.floor(Math.random() * CHORDS.length)] } : NOTE_POOL[Math.floor(Math.random() * NOTE_POOL.length)]; }
-    while (cur && (q.chord ? q.chord === cur.chord : q.midi === cur.midi));
-    cur = q; n++; tries = 0; lastWrong = -1e9;
+    while (prev && (q.chord ? q.chord === prev.chord : q.midi === prev.midi)); // isto pitanje nikad dva puta zaredom
+    cur = { ...q }; prev = cur; n++; tries = 0; lastWrong = -1e9;
     reveal(null);
     $('eaAgain').hidden = false;
+    $('eaSkip').hidden = !beg();
     $('eaCount').textContent = `${n} / ${ROUND}`;
-    play(q);
+    play(cur);
+    t0 = performance.now();
+    if (beg()) return; // Početnik: bez vremena
     const bar = $('eaBar');
     bar.style.transition = 'none'; bar.style.width = '100%'; void bar.offsetWidth;
     bar.style.transition = `width ${limitMs() + 1700}ms linear`; bar.style.width = '0%';
-    t0 = performance.now();
     timer = setTimeout(() => answer(false, true), limitMs() + 1700);
   }
-  function answer(ok, timeout = false) {
+  function answer(ok, timeout = false, heardName = '') {
     if (!cur) return;
     const q = cur;
     if (ok) {
       const took = performance.now() - t0;
-      results.push({ ok: true, score: [1, 0.7, 0.4][tries] ?? 0.4 });
+      results.push({ ok: true, score: [1, 0.7, 0.4][tries] ?? 0.4, hinted: tries >= 2 });
+      streak++;
+      $('eaStreak').textContent = streak >= 2 ? t('pr.lovac.streak', { n: streak }) : '';
+      $('eaStreak').classList.toggle('hot', streak >= 5);
+      flash('hit'); hitSound();
       api.feedback('hit', t('pr.sluh.right', { s: secs(took) }));
-    } else if (timeout || tries + 1 >= TRIES) {
+      reveal(q, 'hit');
+    } else if (timeout || (!beg() && tries + 1 >= TRIES)) {
       results.push({ ok: false, score: 0 });
-      api.feedback('miss', t('pr.sluh.was', { x: q.chord ? dn(q.chord) : noteLabel(q.midi) }));
+      streak = 0; $('eaStreak').textContent = '';
+      flash('miss');
+      api.feedback('miss', t('pr.sluh.was', { x: nameOf(q) }));
+      reveal(q, 'miss');
     } else {
       // jedan trzaj = najviše jedan pokušaj (zvuk jedne žice ponekad izgleda kao dva udarca)
       if (performance.now() - lastWrong < 700) return;
       lastWrong = performance.now();
       tries++;
-      api.feedback('miss', t('pr.sluh.tryAgain', { n: TRIES - tries }));
+      flash('miss'); streak = 0; $('eaStreak').textContent = '';
+      if (beg()) {
+        api.feedback('miss', heardName ? t('pr.trk.tryAgain', { x: heardName }) : t('pr.trk.notClear'));
+        // posle dva pogrešna: pokaži gde je (i šta je), pa sviraj dok ne pogodiš
+        if (tries === 2) { reveal(q, 'show'); $('eaHint').textContent = q.chord ? t('pr.lovac.hintChord', { c: dn(q.chord) }) : t('pr.hint.note', { s: q.s === 5 ? dn('E').toLowerCase() : noteLabel(OPEN_MIDI[q.s]), f: q.f }); }
+      } else api.feedback('miss', t('pr.sluh.tryAgain', { n: TRIES - tries }));
       return;
     }
     clearTimeout(timer);
     cur = null;
-    reveal(q);
+    $('eaSkip').hidden = true;
     setTimeout(() => api.running && next(), 1600);
   }
+  function onPluck(p) {
+    if (!cur || cur.chord || performance.now() < quietUntil) return;
+    log.onset({ at: p.at }); log.pluck(p);
+    const h = log.hits[log.hits.length - 1];
+    if (log.matches(h, cur.midi)) answer(true);
+    else { const m = log.midiOf(h); if (m != null) answer(false, false, t('pr.trk.wrong', { n: noteLabel(m) })); }
+  }
   function onOnset(o) {
-    if (!cur || performance.now() < quietUntil) return;
-    log.onset(o);
-    const h = log.hits[log.hits.length - 1], q = cur;
-    setTimeout(() => {
-      if (!api.running || cur !== q) return;
-      if (q.chord) answer(listener.chordHeard(q.chord).ok);
-      else { const m = log.midiOf(h); if (m != null) answer(sameNote(m, q.midi)); }
-    }, q.chord ? 380 : 320);
+    if (!cur || !cur.chord || performance.now() < quietUntil) return;
+    const q = cur;
+    setTimeout(() => { if (api.running && cur === q && listener) answer(listener.chordHeard(q.chord).ok, false, t('pr.promena.notClearShort', { c: dn(q.chord) })); }, 380);
   }
   $('eaAgain').addEventListener('click', () => { if (cur) play(cur); });
+  $('eaSkip').addEventListener('click', () => {
+    if (!cur) return;
+    const q = cur; cur = null;
+    results.push({ ok: false, score: 0 }); streak = 0;
+    reveal(q, 'show'); $('eaSkip').hidden = true;
+    setTimeout(() => api.running && next(), 1400);
+  });
 
   function finish() {
     clearTimeout(timer); cur = null;
-    $('eaAgain').hidden = true;
+    $('eaAgain').hidden = true; $('eaSkip').hidden = true;
     const sum = results.reduce((a, r) => a + r.score, 0), ok = results.filter((r) => r.ok).length;
-    api.finish({ score: (sum / ROUND) * 100, tempo: api.bpm, accuracy: ok / ROUND });
+    api.finish({ score: (sum / ROUND) * 100, tempo: api.bpm, accuracy: ok / ROUND, beginner: beg(), clean: results.every((r) => r.ok && !r.hinted), noTempoUp: beg() });
   }
 
   return {
     beats: 0,
+    levels: [{ id: 'beg', label: t('pr.lvl.beg') }, { id: 'normal', label: t('pr.lvl.normal') }],
+    onLevel: () => ready(),
     // „tempo“ = vreme za odgovor (desetinke sekunde); manje = brže
     bpm: { start: 150, min: 40, max: 200, step: 10, dir: -1, unit: 's', label: t('pr.sluh.timeLabel'), fmt: (v) => (v / 10).toLocaleString(getLang() === 'en' ? 'en' : 'sr-Latn', { minimumFractionDigits: 0, maximumFractionDigits: 1 }) },
     async start() {
-      n = 0; results = []; cur = null; log.clear();
-      listener = await api.listen({ chords: mode === 'chord', onOnset, onNote: (nt) => log.note(nt) });
+      n = 0; results = []; cur = null; streak = 0; log.clear();
+      ready();
+      listener = await api.listen({ chords: mode === 'chord', onPluck, onOnset });
       next();
     },
-    stop() { clearTimeout(timer); cur = null; listener = null; stopGroup('practice'); $('eaAgain').hidden = true; $('eaBar').style.transition = 'none'; },
+    stop() { clearTimeout(timer); cur = null; listener = null; stopGroup('practice'); $('eaAgain').hidden = true; $('eaSkip').hidden = true; $('eaBar').style.transition = 'none'; },
   };
 }

@@ -13,7 +13,7 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
 // Već nacrtani dijagrami (isti akord se ne crta ponovo pri svakom osvežavanju ekrana)
 const cache = new Map();
 export function chordSVG(name, opts = {}) {
-  const k = [name, opts.voicing || 0, opts.showName !== false, opts.showFingers !== false, dn(name), t('diagram.chord', { name: '' })].join('|');
+  const k = [name, opts.voicing || 0, opts.showName !== false, opts.showFingers !== false, !!opts.colorFingers, dn(name), t('diagram.chord', { name: '' })].join('|');
   let svg = cache.get(k);
   if (svg === undefined) {
     svg = drawChordSVG(name, opts);
@@ -23,13 +23,14 @@ export function chordSVG(name, opts = {}) {
   return svg;
 }
 
-function drawChordSVG(name, { voicing = 0, showName = true, showFingers = true } = {}) {
+// colorFingers: tačke u bojama prstiju (Vežbe): fc1 plavo, fc2 žuto, fc3 roze, fc4 ljubičasto
+function drawChordSVG(name, { voicing = 0, showName = true, showFingers = true, colorFingers = false } = {}) {
   const list = getVoicings(name);
   const v = list[voicing % Math.max(list.length, 1)];
   const W = 100, H = 124;
   const left = 18, top = showName ? 34 : 14, sw = 64 / 5, fh = 17, frets = 5;
   const label = dn(name); // prikaz u izabranom imenovanju (H, Fis, Es / B, F#, Eb)
-  let s = `<svg class="chord-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(t('diagram.chord', { name: label }))}" xmlns="http://www.w3.org/2000/svg">`;
+  let s = `<svg class="chord-svg${colorFingers ? ' fcolors' : ''}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(t('diagram.chord', { name: label }))}" xmlns="http://www.w3.org/2000/svg">`;
   if (showName) s += `<text x="${W / 2}" y="16" class="cd-name" text-anchor="middle">${esc(label)}</text>`;
   if (!v) {
     s += `<text x="${W / 2}" y="${top + 40}" class="cd-none" text-anchor="middle">${esc(t('diagram.none'))}</text></svg>`;
@@ -51,14 +52,14 @@ function drawChordSVG(name, { voicing = 0, showName = true, showFingers = true }
   if (v.barre) {
     const y = top + (v.barre.fret - base + 0.5) * fh;
     const x1 = left + v.barre.from * sw, x2 = left + v.barre.to * sw;
-    s += `<rect x="${x1 - 6}" y="${y - 6}" width="${x2 - x1 + 12}" height="12" rx="6" class="cd-dot"/>`;
+    s += `<rect x="${x1 - 6}" y="${y - 6}" width="${x2 - x1 + 12}" height="12" rx="6" class="cd-dot${colorFingers ? ' fc1' : ''}"/>`;
     if (showFingers) s += `<text x="${(x1 + x2) / 2}" y="${y + 3.6}" class="cd-finger" text-anchor="middle">1</text>`;
   }
   v.frets.forEach((f, i) => {
     if (f <= 0) return;
     if (v.barre && f === v.barre.fret && i >= v.barre.from && i <= v.barre.to) return;
     const x = left + i * sw, y = top + (f - base + 0.5) * fh;
-    s += `<circle cx="${x}" cy="${y}" r="6" class="cd-dot"/>`;
+    s += `<circle cx="${x}" cy="${y}" r="6" class="cd-dot${colorFingers && v.fingers[i] ? ' fc' + v.fingers[i] : ''}"/>`;
     if (showFingers && v.fingers[i]) s += `<text x="${x}" y="${y + 3.6}" class="cd-finger" text-anchor="middle">${v.fingers[i]}</text>`;
   });
   s += '</svg>';

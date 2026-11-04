@@ -664,7 +664,29 @@ export async function renderSong(root, id, nav = null) {
     $('sHead').innerHTML = `<div class="song-title-row"><h1 class="song-h1">${esc(stored.title)}</h1><a class="icon-btn pr-shortcut" href="#/vezbe/pesma/${encodeURIComponent(stored.id)}" aria-label="${esc(t('pr.songShortcut'))}" title="${esc(t('pr.songShortcut'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" d="M12 2.2c-4.9 0-8.6 2-8.6 5.6 0 4.6 4.2 10.2 8.6 14 4.4-3.8 8.6-9.4 8.6-14 0-3.6-3.7-5.6-8.6-5.6zM10 7.6v6.2l5.2-3.1z"/></svg></a></div>
       ${stored.artist || cleanTuning(stored.tuning) !== 'standard' ? `<p class="song-meta">${esc(stored.artist || '')}${cleanTuning(stored.tuning) !== 'standard'
         ? `${stored.artist ? ' · ' : ''}<button class="tuning-chip" id="sTune" title="${esc(t('tuning.tuneNow'))}">${esc(t('tuning.' + cleanTuning(stored.tuning)))} · ${esc(tuningNotes(stored.tuning))} ›</button>` : ''}</p>` : ''}`;
+    drawPracticeMark();
   };
+  // Mala oznaka napretka pored ikonice vežbe: koliko delova pesme je dobro uvežbano (najbolje ≥ 80)
+  const drawPracticeMark = () => settings.get('practice', null).then((st) => {
+    const rec = st && st.songs && st.songs[stored.id];
+    const a = $('sHead')?.querySelector('.pr-shortcut');
+    if (!rec || !a) return;
+    const seen = new Set();
+    const total = (stored.sections || []).filter((sec) => {
+      const ch = (sec.lines || []).flatMap((l) => (l.chords || []).map((c) => c.chord)).filter(Boolean);
+      const sig = (sec.name || '') + '|' + ch.join(',');
+      if (!ch.length || seen.has(sig)) return false;
+      seen.add(sig); return true;
+    }).length;
+    if (!total) return;
+    const good = Object.entries(rec).filter(([k, r]) => k !== 'all' && r && r.best >= 80).length;
+    const p = rec.all && rec.all.best >= 80 ? 1 : Math.min(1, good / total);
+    const played = Object.keys(rec).length;
+    if (!played) return;
+    a.querySelector('.pr-mark')?.remove();
+    a.insertAdjacentHTML('beforeend', `<span class="pr-mark${p >= 1 ? ' done' : ''}" style="--p:${Math.round(p * 100)}" title="${esc(t('pr.songMark', { n: Math.min(good, total), total }))}"></span>`);
+    a.setAttribute('aria-label', `${t('pr.songShortcut')} — ${t('pr.songMark', { n: Math.min(good, total), total })}`);
+  }).catch(() => {});
   const drawAsk = () => { $('sAsk').innerHTML = askHTML(); };
   const drawControls = () => {
     const key = soundingKey();

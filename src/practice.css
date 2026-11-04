@@ -126,12 +126,29 @@ body.trk-open { overflow: hidden; }
 .trk-meter { display: flex; align-items: center; gap: 8px; font-size: .8rem; color: var(--muted); }
 .trk-meter .pr-lvl { width: 64px; }
 .trk-heard { min-width: 8ch; }
-.trk-lane { position: relative; flex: 1 1 auto; min-height: 0; }
-.trk-lane canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.trk-lane { position: relative; flex: 1 1 auto; min-height: 0; display: flex; }
+.trk-cw { position: relative; flex: 1 1 auto; min-width: 0; }
+.trk-cw canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+/* Ruka: posebna kolona desno (nikad ne pokriva liniju ni note koje dolaze) */
+.trk-side { flex: 0 0 auto; width: clamp(58px, 20vh, 104px); display: flex; align-items: flex-end; justify-content: center; padding: 0 6px 6px 4px; }
+.trk-hand { width: 100%; }
+.trk-hand svg { width: 100%; height: auto; display: block; overflow: visible; }
+.trk-hand .h-skin { fill: #e8d5c4; opacity: .09; transition: opacity 1.4s ease; }
+.trk-hand .h-tip circle { opacity: .3; transition: opacity .35s, filter .35s; }
+.trk-hand .h-tip text { fill: #0b0c10; font: 800 9.5px system-ui, sans-serif; opacity: .45; transition: opacity .35s; }
+.trk-hand .h-tip.lit circle { opacity: .95; filter: drop-shadow(0 0 4px currentColor); }
+.trk-hand .h-tip.lit text { opacity: 1; }
+.trk-hand.pulse .h-skin { animation: handSkin .95s ease-in-out 3; }
+.trk-hand.pulse .h-tip circle, .trk-hand.pulse .h-tip text { animation: handTip .95s ease-in-out 3; }
+@keyframes handSkin { 0%, 100% { opacity: .12; } 50% { opacity: .42; } }
+@keyframes handTip { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
+.trk-lyric { flex: 0 0 auto; text-align: center; font-size: clamp(.9rem, 4.2vh, 1.15rem); font-weight: 600; color: var(--text); max-height: 0; overflow: hidden; padding: 0 16px; transition: max-height .2s, padding .2s; white-space: nowrap; text-overflow: ellipsis; }
+.trk-lyric.on { max-height: 2.2em; padding: 2px 16px 4px; }
+.trk-rot-hint { color: var(--accent) !important; margin-top: 4px; }
 .trk-big { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; font-size: min(26vh, 9rem); font-weight: 900; color: #fff; opacity: 0; text-shadow: 0 0 30px rgba(245,165,36,.8); }
 .trk-big.show { animation: trkBig .7s ease-out forwards; }
 @keyframes trkBig { 0% { opacity: 0; transform: scale(1.6); } 25% { opacity: 1; transform: scale(1); } 100% { opacity: .0; transform: scale(.9); } }
-.trk-pop { position: absolute; left: 12%; top: 8%; pointer-events: none; font-size: 1.6rem; font-weight: 900; opacity: 0; color: var(--ok); }
+.trk-pop { position: absolute; left: 13%; top: 6%; pointer-events: none; font-size: 1.6rem; font-weight: 900; opacity: 0; color: var(--ok); }
 .trk-pop.miss { color: var(--danger); }
 .trk-pop.early, .trk-pop.late { color: var(--accent); }
 .trk-pop.show { animation: trkPop .7s ease-out forwards; }
@@ -163,4 +180,38 @@ body.trk-open { overflow: hidden; }
 .trk-phone i { position: absolute; left: 50%; bottom: 6px; width: 14px; height: 3px; margin-left: -7px; border-radius: 2px; background: var(--accent); }
 @keyframes trkTurn { 0%, 20% { transform: rotate(0); } 55%, 100% { transform: rotate(-90deg); } }
 @media (orientation: portrait) { .trk-rotate { display: flex; } }
-@media (prefers-reduced-motion: reduce) { .trk-phone, .trk.fl-miss .trk-lane { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .trk-phone, .trk.fl-miss .trk-lane, .trk-hand.pulse .h-skin, .trk-hand.pulse .h-tip circle, .trk-hand.pulse .h-tip text { animation: none; } }
+/* Boje prstiju (iste u svim igrama) — blagi neonski sjaj */
+:root { --f0: #dfe3e8; --f1: #5aa9ff; --f2: #ffd75e; --f3: #ff7cc3; --f4: #b48cff; }
+.pb-dot.fc0 circle { fill: var(--f0); } .pb-dot.fc1 circle { fill: var(--f1); } .pb-dot.fc2 circle { fill: var(--f2); }
+.pb-dot.fc3 circle { fill: var(--f3); } .pb-dot.fc4 circle { fill: var(--f4); }
+.pb-dot.fc0 { color: var(--f0); } .pb-dot.fc1 { color: var(--f1); } .pb-dot.fc2 { color: var(--f2); } .pb-dot.fc3 { color: var(--f3); } .pb-dot.fc4 { color: var(--f4); }
+.pb-dot.target circle, .pb-dot.shown circle { stroke: none; filter: drop-shadow(0 0 3px currentColor); animation: none; }
+.pb-dot.target text, .pb-dot.shown text { fill: #0b0c10; }
+.pb-dot.target, .pb-dot.shown { opacity: 1; }
+.pb-dot.target { animation: pbBreath 1.6s ease-in-out infinite; }
+@keyframes pbBreath { 50% { opacity: .78; } }
+.pb-dot.hit circle { stroke: var(--ok); stroke-width: 3; }
+.pb-dot.miss circle { stroke: var(--danger); stroke-width: 3; }
+.pb-sname { fill: var(--muted); font: 700 9px var(--sans); }
+.chord-svg.fcolors .cd-dot.fc1 { fill: var(--f1); } .chord-svg.fcolors .cd-dot.fc2 { fill: var(--f2); }
+.chord-svg.fcolors .cd-dot.fc3 { fill: var(--f3); } .chord-svg.fcolors .cd-dot.fc4 { fill: var(--f4); }
+.chord-svg.fcolors .cd-dot { filter: drop-shadow(0 0 2px rgba(255,255,255,.25)); }
+.chord-svg.fcolors .cd-finger { fill: #0b0c10; }
+/* Nivo (Početnik / Normalno) */
+.pr-level .seg-tabs { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; margin: 6px 0 4px; }
+.pr-game.running .pr-level { opacity: .45; pointer-events: none; }
+/* Kvizovi (Lovac, Sluh): živahniji prikaz */
+.pr-quiz-big { font-size: 3.2rem; font-weight: 900; line-height: 1; display: inline-flex; align-items: baseline; gap: 8px; }
+.pr-quiz-big.pop { animation: quizPop .45s ease-out; }
+@keyframes quizPop { 0% { transform: scale(.6); opacity: 0; } 60% { transform: scale(1.12); opacity: 1; } 100% { transform: scale(1); } }
+.pr-quiz-sub { color: var(--muted); font-weight: 600; }
+.pr-quiz-streak { font-weight: 800; color: var(--accent); min-height: 1.3em; }
+.pr-quiz-streak.hot { color: var(--ok); text-shadow: 0 0 10px rgba(61,214,140,.6); }
+.pr-stage.flash-hit { animation: stageHit .45s ease-out; } .pr-stage.flash-miss { animation: stageMiss .45s ease-out; }
+@keyframes stageHit { from { box-shadow: inset 0 0 0 3px var(--ok), 0 0 24px rgba(61,214,140,.35); } to { box-shadow: none; } }
+@keyframes stageMiss { from { box-shadow: inset 0 0 0 3px var(--danger), 0 0 24px rgba(255,107,107,.3); } to { box-shadow: none; } }
+.pr-stage { border-radius: 18px; }
+.pr-hint { color: var(--accent); font-weight: 600; text-align: center; min-height: 1.3em; }
+.pr-result .trk-stars { margin-bottom: 4px; }
+.row-btns { display: flex; gap: 10px; justify-content: center; }

@@ -165,6 +165,7 @@ const sr = {
   'room.note_quiet': 'Za tihu sobu i tihe gitare: hvata i nežne trzaje.',
   'room.note_noisy': 'Za bučna mesta: reaguje samo na jasne, glasnije tonove.',
   'nav.practice': 'Vežbe',
+  'pr.songMark': 'Uvežbano delova: {n} od {total}',
   'pr.songShortcut': 'Vežbaj delove ove pesme',
   'chordModal.same': 'Isto što i',
   'chordModal.bass': 'Bas ton: {bass} (prikazan je osnovni akord)',

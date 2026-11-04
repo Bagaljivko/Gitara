@@ -9,6 +9,7 @@ import { settings } from './db.js';
 import { keepAwake, allowSleep, setWakeZone } from './wakelock.js';
 import { stopGroup } from './synth.js';
 import { noteLabel } from './practiceBoard.js';
+const starsOf = (score) => (score >= 92 ? 3 : score >= 75 ? 2 : score >= 50 ? 1 : 0);
 
 // Tekstovi i stilovi Vežbi se učitavaju tek ovde (ne pri pokretanju aplikacije)
 function mergeTexts() { Object.assign(LANGS.sr, TEXTS.sr); if (LANGS.en) Object.assign(LANGS.en, TEXTS.en); }
@@ -124,6 +125,7 @@ async function renderGame(root, game, args, params) {
     <div class="pr-meter" id="prMeter" aria-hidden="true"><span class="pr-lvl"><i></i></span><span class="pr-heard" id="prHeard">${t('pr.meter.idle')}</span></div>
     <div class="pr-stage" id="prStage"><p class="muted center">${t('common.loading')}</p></div>
     <div class="pr-fb" id="prFb" role="status" aria-live="polite">&nbsp;</div>
+    <div class="pr-level" id="prLevel" hidden></div>
     <div class="pr-opts" id="prOpts"></div>
     <div class="pr-tempo" id="prTempo">
       <button class="btn round small" id="prSlower" aria-label="${t('pr.slower')}">−</button>
@@ -140,6 +142,9 @@ async function renderGame(root, game, args, params) {
   const st = await loadStats();
   const rec = st.games[game.id] || {};
   let running = false, bpm = 90, gameObj = null, listener = null;
+  // Nivo: „Početnik“ (čeka na svaku notu, bez tempa) / „Normalno“ (+ viši nivoi igre). Prvi put: Početnik.
+  const LKEY = 'gitara-pr-level-' + game.id;
+  let level = (() => { try { return localStorage.getItem(LKEY) || 'beg'; } catch { return 'beg'; } })();
   const cleanups = new Set(), levelSubs = new Set();
   // Jačina ulaza + poslednja čuta nota: na svakom ekranu igre (da se odmah vidi da li mikrofon čuje gitaru)
   let lastHeard = null, meterAt = 0;
@@ -164,6 +169,17 @@ async function renderGame(root, game, args, params) {
     allStats: st,
     get running() { return running; },
     get bpm() { return bpm; },
+    get level() { return level; },
+    get listener() { return listener; },
+    setLevel(l) {
+      level = l;
+      try { localStorage.setItem(LKEY, l); } catch {}
+      $('prLevel').querySelectorAll('[data-lv]').forEach((x) => x.classList.toggle('active', x.dataset.lv === l));
+      $('prTempo').hidden = !!gameObj?.noTempo || (l === 'beg' && !gameObj?.tempoInBeg);
+      gameObj?.onLevel?.(l);
+    },
+    /** Sačuvaj rezultat bez zaustavljanja (npr. svaki prolaz u „Delovi pesme“). */
+    async save(res, key = null) { const fresh = await saveResult(game.id, { ...res, nextTempo: res.tempo }, key); Object.assign(rec, fresh.games[game.id]); Object.assign(st.songs, fresh.songs); },
     setBpm(v) { bpm = Math.round(Math.max(B.min, Math.min(B.max, v))); $('prBpm').textContent = B.fmt(bpm); },
     /** Puls metronoma na vrhu: beat = 0..beats-1 (null = osmina između) */
     pulse(beat, beats = 4, accent = false) {
@@ -202,7 +218,7 @@ async function renderGame(root, game, args, params) {
     /** Kraj runde: rezultat 0–100, tempo, tačnost (0–1). key = [songId, deo] za „Delovi pesme“. */
     async finish(res, key = null) {
       stopRun(false);
-      const nextTempo = res.score > 90 ? Math.max(B.min, Math.min(B.max, res.tempo + B.step * B.dir)) : res.tempo;
+      const nextTempo = res.score > 90 && !res.noTempoUp ? Math.max(B.min, Math.min(B.max, res.tempo + B.step * B.dir)) : res.tempo;
       const prevBest = key ? ((st.songs[key[0]] || {})[key[1]] || {}).best || 0 : rec.best || 0;
       const fresh = await saveResult(game.id, { ...res, nextTempo }, key);
       Object.assign(rec, fresh.games[game.id]); Object.assign(st.songs, fresh.songs);
@@ -224,12 +240,20 @@ async function renderGame(root, game, args, params) {
     $('prExplain').innerHTML = `${explain !== 'pr.x.' + game.id ? `<p>${explain}</p>` : ''}${gameObj.demo ? `<button class="btn small pr-demo" id="prDemo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>${t('pr.demo')}</button>` : ''}`;
     $('prDemo')?.addEventListener('click', () => { if (!running) startRun(() => gameObj.demo()); });
   }
-  if (gameObj.track) { $('prPulse').hidden = true; $('prFb').hidden = true; }
+  if (gameObj.track) $('prPulse').hidden = true;
+  const LV = gameObj.levels || [];
+  if (LV.length) {
+    if (!LV.some((l) => l.id === level)) level = LV[0].id;
+    $('prLevel').hidden = false;
+    $('prLevel').innerHTML = `<div class="pr-optlabel">${t('pr.lvl.label')}</div><div class="seg-tabs" role="radiogroup">${LV.map((l) => `<button role="radio" data-lv="${l.id}" class="${l.id === level ? 'active' : ''}">${esc(l.label)}</button>`).join('')}</div>`;
+    $('prLevel').addEventListener('click', (e) => { const b = e.target.closest('[data-lv]'); if (b && !running) api.setLevel(b.dataset.lv); });
+  }
   // Brzina: BPM (više = brže) ili npr. sekunde po noti (dir: -1 → manje = brže)
   const B = { start: 80, min: 40, max: 200, step: 5, dir: 1, fmt: (v) => String(v), unit: 'BPM', ...(gameObj.bpm || {}) };
   $('prUnit').textContent = B.unit;
   api.setBpm(gameObj.initialTempo || rec.lastTempo || B.start);
   if (gameObj.noTempo) $('prTempo').hidden = true;
+  if (LV.length) api.setLevel(level);
   if (gameObj.noStart) $('prGo').hidden = true; // npr. izbor pesme pre igre
   $('prSlower').addEventListener('click', () => api.setBpm(bpm - B.step * B.dir));
   $('prFaster').addEventListener('click', () => api.setBpm(bpm + B.step * B.dir));
@@ -238,17 +262,20 @@ async function renderGame(root, game, args, params) {
     const box = $('prRes');
     box.hidden = false;
     box.innerHTML = `
+      <div class="trk-stars" aria-label="${starsOf(r.score)}/3">${[0, 1, 2].map((i) => `<span class="${i < starsOf(r.score) ? 'on' : ''}" style="animation-delay:${0.15 + i * 0.22}s">★</span>`).join('')}</div>
       <div class="pr-score"><b>${Math.round(r.score)}</b><small>/100</small></div>
       ${r.newBest ? `<p class="pr-best">${t('pr.newBest')}</p>` : ''}
       <div class="pr-res-row">
-        <span><small>${B.label || t(B.dir < 0 ? 'pr.speedReached' : 'pr.tempoReached')}</small><b>${B.fmt(r.tempo)} ${B.unit}</b></span>
+        ${r.beginner ? '' : `<span><small>${B.label || t(B.dir < 0 ? 'pr.speedReached' : 'pr.tempoReached')}</small><b>${B.fmt(r.tempo)} ${B.unit}</b></span>`}
         <span><small>${t('pr.accuracy')}</small><b>${Math.round((r.accuracy || 0) * 100)}%</b></span>
         ${r.extra ? `<span><small>${esc(r.extra.label)}</small><b>${esc(String(r.extra.value))}</b></span>` : ''}
       </div>
       ${r.nextTempo !== r.tempo ? `<p class="small pr-up">${t('pr.tempoUp', { bpm: B.fmt(r.nextTempo) + ' ' + B.unit })}</p>` : ''}
-      <button class="btn primary big wide" id="prAgainFaster">${t('pr.againFaster')}</button>`;
+      ${r.beginner && r.clean ? `<p class="pr-up">${t('pr.lvl.cleanNote')}</p><button class="btn primary big wide" id="prTryNormal">${t('pr.lvl.tryNormal')}</button>` : ''}
+      <button class="btn ${r.beginner && r.clean ? '' : 'primary'} big wide" id="prAgainFaster">${t(r.beginner ? 'pr.trk.again' : 'pr.againFaster')}</button>`;
+    box.querySelector('#prTryNormal')?.addEventListener('click', () => { box.hidden = true; api.setLevel('normal'); startRun(); });
     box.querySelector('#prAgainFaster').addEventListener('click', () => {
-      if (r.nextTempo === r.tempo) api.setBpm(bpm + B.step * B.dir);
+      if (r.nextTempo === r.tempo && !r.beginner) api.setBpm(bpm + B.step * B.dir);
       box.hidden = true;
       startRun();
     });
