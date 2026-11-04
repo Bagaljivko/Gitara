@@ -177,8 +177,9 @@ async function renderGame(root, game, args, params) {
   // Brzina: BPM (više = brže) ili npr. sekunde po noti (dir: -1 → manje = brže)
   const B = { start: 80, min: 40, max: 200, step: 5, dir: 1, fmt: (v) => String(v), unit: 'BPM', ...(gameObj.bpm || {}) };
   $('prUnit').textContent = B.unit;
-  api.setBpm(rec.lastTempo || B.start);
+  api.setBpm(gameObj.initialTempo || rec.lastTempo || B.start);
   if (gameObj.noTempo) $('prTempo').hidden = true;
+  if (gameObj.noStart) $('prGo').hidden = true; // npr. izbor pesme pre igre
   $('prSlower').addEventListener('click', () => api.setBpm(bpm - B.step * B.dir));
   $('prFaster').addEventListener('click', () => api.setBpm(bpm + B.step * B.dir));
 

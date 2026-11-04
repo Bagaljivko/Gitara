@@ -969,3 +969,19 @@ mark.cc-unknown { background: rgba(255, 90, 90, .3); color: var(--text); border-
 .ear-q { width: 96px; height: 96px; border-radius: 50%; display: grid; place-items: center; font-size: 2.6rem; font-weight: 800; background: var(--surface); border: 1px solid var(--line); }
 .ear-reveal { width: 100%; display: flex; justify-content: center; }
 .ear-chord { width: 130px; }
+.pr-song-head { display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; }
+.pr-song-head a { color: var(--accent); margin-top: 4px; }
+.ps-now { display: flex; align-items: flex-end; justify-content: center; gap: 16px; }
+.ps-cur { width: 140px; }
+.ps-next { width: 78px; opacity: .55; display: flex; flex-direction: column; align-items: center; }
+.ps-next small { color: var(--muted); font-size: .7rem; }
+.ps-strip { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+.ps-c { padding: 4px 9px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); font: 700 .9rem var(--mono); }
+.ps-c.now { background: var(--ok); border-color: var(--ok); color: #06210f; }
+.ps-list { list-style: none; margin: 0; padding: 0; width: 100%; }
+.ps-list a { display: flex; flex-direction: column; padding: 12px 4px; border-bottom: 1px solid var(--line); color: var(--text); text-decoration: none; }
+.chip small { color: var(--muted); font-weight: 600; margin-left: 4px; }
+/* Prečica iz pesme u „Delovi pesme“: mala ikonica desno, odmah iznad Tonalitet / Kapodaster / Tempo */
+.pr-shortcut-row { display: flex; justify-content: flex-end; margin: 2px 0 -4px; }
+.pr-shortcut { width: 40px; height: 40px; border-radius: 12px; color: var(--accent); background: var(--accent-soft); }
+.pr-shortcut svg { width: 22px; height: 22px; fill: currentColor; }

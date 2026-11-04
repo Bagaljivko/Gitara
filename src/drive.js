@@ -16,7 +16,7 @@ const FOLDER_NAME = 'Gitara';
 const BACKUP_NAME = 'gitara-backup.json';
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
 const BACKUP_DELAY = 4000; // ms posle izmene
-const BACKUP_SETTINGS = ['a4', 'geminiModel', 'geminiModelSel', 'lang', 'metBpm', 'folders', 'setlists', 'tunerRoom', 'tuning', 'wakeMode', 'wakeMinutes', 'noteNames']; // Gemini ključ se NIKAD ne šalje na Drive
+const BACKUP_SETTINGS = ['a4', 'geminiModel', 'geminiModelSel', 'lang', 'metBpm', 'folders', 'setlists', 'tunerRoom', 'tuning', 'wakeMode', 'wakeMinutes', 'noteNames', 'practice']; // Gemini ključ se NIKAD ne šalje na Drive
 
 export class DriveError extends Error {
   constructor(message, code = '') { super(message); this.code = code; }
@@ -213,6 +213,46 @@ async function uploadFile({ id, name, mime, blob, parents, appProperties }) {
 }
 
 // ---------------- Rezervna kopija ----------------
+/** Rezultati iz Vežbi: samo brojevi i datumi u očekivanom obliku (ništa drugo se ne prepisuje). */
+function cleanPractice(p) {
+  if (!p || typeof p !== 'object') return null;
+  const rec = (r) => (r && typeof r === 'object' ? {
+    best: Math.max(0, Math.min(100, Number(r.best) || 0)),
+    streak: Math.max(0, Math.round(Number(r.streak) || 0)),
+    lastDay: typeof r.lastDay === 'string' && /^\d{4}-\d{1,2}-\d{1,2}$/.test(r.lastDay) ? r.lastDay : '',
+    lastTempo: Math.max(0, Math.min(400, Math.round(Number(r.lastTempo) || 0))) || undefined,
+    plays: Math.max(0, Math.round(Number(r.plays) || 0)),
+  } : null);
+  const games = {}, songs = {};
+  for (const [k, v] of Object.entries(p.games || {})) if (/^[a-z]{2,12}$/.test(k)) { const r = rec(v); if (r) games[k] = r; }
+  for (const [id, parts] of Object.entries(p.songs || {})) {
+    if (typeof id !== 'string' || id.length > 80 || !parts || typeof parts !== 'object') continue;
+    const o = {};
+    for (const [pk, v] of Object.entries(parts)) if (/^\d{1,3}$/.test(pk)) { const r = rec(v); if (r) o[pk] = r; }
+    if (Object.keys(o).length) songs[id] = o;
+  }
+  return { v: 1, games, songs };
+}
+
+/** Spajanje rezultata (telefon + kopija): veći najbolji rezultat; niz i tempo sa skorije korišćenog. */
+function mergePractice(a, b) {
+  if (!a) return b;
+  const day = (r) => { const [y, m, d] = String(r && r.lastDay || '').split('-').map(Number); return y ? y * 400 + m * 32 + d : 0; };
+  const one = (x, y) => {
+    if (!x) return y; if (!y) return x;
+    const newer = day(y) > day(x) ? y : x;
+    return { ...newer, best: Math.max(x.best || 0, y.best || 0), plays: Math.max(x.plays || 0, y.plays || 0) };
+  };
+  const out = { v: 1, games: { ...(a.games || {}) }, songs: { ...(a.songs || {}) } };
+  for (const [k, r] of Object.entries(b.games || {})) out.games[k] = one(out.games[k], r);
+  for (const [id, parts] of Object.entries(b.songs || {})) {
+    const o = { ...(out.songs[id] || {}) };
+    for (const [pk, r] of Object.entries(parts)) o[pk] = one(o[pk], r);
+    out.songs[id] = o;
+  }
+  return out;
+}
+
 async function buildBackup() {
   const all = await db.all();
   const s = {};
@@ -276,6 +316,8 @@ export async function readBackup() {
     // Stari „tunerSens“ se namerno ne vraća (svi su prebačeni na „Auto“); vraća se samo novi izbor sobe.
     if (['auto', 'quiet', 'noisy'].includes(data.settings.tunerRoom)) st.tunerRoom = data.settings.tunerRoom;
     if (typeof data.settings.tuning === 'string') st.tuning = data.settings.tuning;
+    const pr = cleanPractice(data.settings.practice);
+    if (pr) st.practice = pr; // Vežbe: najbolji rezultati, nizovi i poslednji tempo (po igri i po pesmi)
     if (['songs', 'active', 'never'].includes(data.settings.wakeMode)) st.wakeMode = data.settings.wakeMode;
     if (['auto', 'sr', 'en'].includes(data.settings.noteNames)) st.noteNames = data.settings.noteNames;
     if ([5, 10, 20].includes(Number(data.settings.wakeMinutes))) st.wakeMinutes = Number(data.settings.wakeMinutes);
@@ -314,6 +356,7 @@ export async function applyRestore(backup, mode) {
   for (const [k, v] of Object.entries(backup.settings || {})) {
     if (k === 'lang') await setLang(v); // jezik se primenjuje odmah
     else if (mode === 'merge' && (k === 'folders' || k === 'setlists')) await settings.set(k, mergeById((await settings.get(k, [])) || [], v));
+    else if (mode === 'merge' && k === 'practice') await settings.set(k, mergePractice(await settings.get(k, null), v));
     else await settings.set(k, v);
   }
   return added;

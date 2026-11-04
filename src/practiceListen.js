@@ -119,7 +119,7 @@ export function createListener() {
 
     /**
      * Blaga provera akorda: koliko tonova akorda se jasno čuje od poslednjeg trzaja.
-     * ok = većina tonova (2 od 3, 3 od 4) i ti tonovi nose bar ~polovinu zvuka.
+     * ok = većina tonova (2 od 3, 3 od 4), uključujući osnovni ton, i ti tonovi nose bar ~polovinu zvuka.
      */
     chordHeard(name) {
       const p = parseChord(name);
@@ -131,7 +131,9 @@ export function createListener() {
       acc.forEach((x, pc) => { total += x; if (tones.includes(pc)) { inChord += x; if (x >= 0.2 * max) present++; } });
       const need = Math.max(2, Math.ceil(tones.length * 0.6));
       const share = total ? inChord / total : 0;
-      return { ok: present >= need && share >= 0.45, present, need, share };
+      // i osnovni ton mora da se čuje (inače bi npr. Em — E, G, H — prošao kao C — C, E, G)
+      const rootHeard = acc[p.root] >= 0.2 * max;
+      return { ok: present >= need && share >= 0.45 && rootHeard, present, need, share, rootHeard };
     },
     resetChord() { acc.fill(0); accBass.fill(0); },
     get latency() { return getLatency() ?? DEFAULT_LATENCY; },
