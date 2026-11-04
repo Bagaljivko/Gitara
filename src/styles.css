@@ -959,3 +959,10 @@ mark.cc-unknown { background: rgba(255, 90, 90, .3); color: var(--text); border-
 .rt-chord .chord-big { width: 150px; }
 .rt-row { display: flex; justify-content: center; }
 .pr-calib { align-self: center; }
+.pc-pair { display: flex; align-items: center; justify-content: center; gap: 10px; }
+.pc-ch { width: 132px; padding: 6px; border-radius: 16px; border: 2px solid transparent; opacity: .55; transition: opacity .15s, border-color .15s, box-shadow .15s; }
+.pc-ch.target { opacity: 1; border-color: var(--ok); box-shadow: 0 0 16px rgba(61, 214, 140, .45); }
+.pc-arrow { color: var(--muted); font-size: 1.3rem; }
+.pr-own { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.pr-own[hidden] { display: none; }
+.pr-own select { font-size: 16px; min-height: 44px; padding: 0 10px; border-radius: 12px; background: var(--surface-2); color: var(--text); border: 1px solid var(--line); }
