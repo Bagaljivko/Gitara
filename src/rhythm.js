@@ -125,7 +125,9 @@ export class Metronome {
         else if (s === 'x') strum(this.next, 'D', { mute: true, notes });
       }
       const delay = Math.max(0, (this.next - c.currentTime) * 1000);
-      const info = { bar, countIn, chord, countBeat: countIn ? beat : null };
+      // at = trenutak kada se klik čuje (performance.now()), za proveru „u ritmu“ u Vežbama
+      const at = performance.now() + (this.next - c.currentTime + (c.outputLatency || c.baseLatency || 0)) * 1000;
+      const info = { bar, countIn, chord, countBeat: countIn ? beat : null, at };
       const id = setTimeout(() => this.running && this.onStep && this.onStep(i, beat, accent, info), delay);
       this.pendingUi.push(id);
       if (this.pendingUi.length > 64) this.pendingUi.splice(0, 32);

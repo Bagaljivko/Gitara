@@ -169,6 +169,7 @@ async function renderGame(root, game, args, params) {
   };
 
   gameObj = await mod.createGame(api);
+  api.pulse(null, gameObj.beats || 4); // tačke otkucaja odmah (ekran ne „skače“ na startu)
   const B = { start: 80, min: 40, max: 200, step: 5, ...(gameObj.bpm || {}) };
   api.setBpm(rec.lastTempo || B.start);
   if (gameObj.noTempo) $('prTempo').hidden = true;

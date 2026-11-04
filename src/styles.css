@@ -925,3 +925,29 @@ mark.cc-unknown { background: rgba(255, 90, 90, .3); color: var(--text); border-
 .pr-res-row b { font-size: 1.1rem; font-variant-numeric: tabular-nums; }
 .pr-up { color: var(--ok); }
 @media (max-width: 400px) { .nav a { font-size: .66rem; letter-spacing: -.01em; } }
+/* Vežbe: vrat gitare */
+.pboard { width: 100%; max-width: 560px; height: auto; display: block; background: linear-gradient(180deg, #1a120c, #120c08); border-radius: 12px; border: 1px solid var(--line); }
+.pb-fret { stroke: #8f949c; stroke-width: 1.6; opacity: .55; }
+.pb-fret.nut { stroke: #e9e2cf; stroke-width: 4; opacity: .95; }
+.pb-str { stroke: #c9ccd2; opacity: .8; }
+.pb-inlay { fill: #e8e2d6; opacity: .28; }
+.pb-num { fill: var(--muted); font: 600 9px var(--sans); }
+.pb-dot { opacity: 0; transition: opacity .15s; }
+.pb-dot circle { fill: var(--surface-2); stroke: var(--line); stroke-width: 1.5; }
+.pb-dot text { fill: #fff; font: 800 10px var(--sans); }
+.pb-dot.target { opacity: 1; }
+.pb-dot.target circle { fill: rgba(61, 214, 140, .9); stroke: #8ff0c0; filter: drop-shadow(0 0 6px rgba(61, 214, 140, .9)); animation: pbGlow 1s ease-in-out infinite alternate; }
+.pb-dot.target text { fill: #06210f; }
+.pb-dot.next { opacity: .6; }
+.pb-dot.next circle { fill: none; stroke: rgba(61, 214, 140, .8); stroke-dasharray: 3 3; }
+.pb-dot.hit { opacity: 1; } .pb-dot.hit circle { fill: var(--ok); stroke: #fff; }
+.pb-dot.miss { opacity: 1; } .pb-dot.miss circle { fill: var(--danger); stroke: #fff; }
+@keyframes pbGlow { from { filter: drop-shadow(0 0 3px rgba(61, 214, 140, .6)); } to { filter: drop-shadow(0 0 9px rgba(61, 214, 140, 1)); } }
+@media (prefers-reduced-motion: reduce) { .pb-dot.target circle { animation: none; } }
+.pr-now { font-size: 2.6rem; font-weight: 800; line-height: 1; }
+.pr-now small { font-size: 1rem; color: var(--muted); font-weight: 600; margin-left: 6px; }
+.pr-chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.pr-optlabel { font-size: .8rem; color: var(--muted); text-align: center; }
+.pr-fb.info { font-size: .92rem; font-weight: 500; color: var(--muted); line-height: 1.4; max-width: 34ch; margin-left: auto; margin-right: auto; }
+.pr-opts .seg-tabs { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; }
+.pr-board { width: 100%; display: flex; justify-content: center; }
