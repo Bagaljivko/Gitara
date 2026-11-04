@@ -9,6 +9,7 @@ import { keepAwake, allowSleep, setWakeZone } from './wakelock.js';
 import { createRhythmPane } from './rhythmView.js';
 import { createChordDict } from './chordDict.js';
 import { SENSITIVITY } from './pitchtrack.js';
+import { getRoom, roomToSensitivity } from './tunerSettings.js';
 import { settings } from './db.js';
 
 const MATCH_QUALITIES = ['', 'm', '7', 'maj7', 'm7', 'sus2', 'sus4'];
@@ -244,7 +245,8 @@ export function createChordRec(root) {
       fspec = new Float32Array(fast.frequencyBinCount);
       tbuf = new Float32Array(fast.fftSize);
       fprev = null; levels = []; lastOnset = -1e9;
-      sens = SENSITIVITY[await settings.get('tunerSens', 'medium')] || SENSITIVITY.medium;
+      // Soba iz podešavanja tunera (Auto = srednja; prepoznavanje akorda ima sopstveno merenje buke)
+      sens = SENSITIVITY[roomToSensitivity(await getRoom())] || SENSITIVITY.medium;
       floor = 0; calib = []; calibStart = performance.now();
       acc.fill(0); accBass.fill(0);
       running = true;

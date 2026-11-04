@@ -174,3 +174,61 @@ test('Drop D: low D2 is tracked on the 6th string after setTuning', () => {
   // Standardno štimovanje: isti ton je 2 polutona ispod E2 → izvan prozora, ne prikazuje se kao E
   assert.equal(run(sig).filter((x) => x.state === 'tracking' && x.sid === 0 && Math.abs(x.cents) < 20).length, 0);
 });
+
+// ---- „Auto“: osetljivost se bira sama prema buci u sobi ----
+test('auto, normal room: soft pluck is caught like on Srednja', () => {
+  const r = run(render(4, pluck(146.83, 0.006, 1.5)), 'auto');
+  console.log(`  auto soft D3: stable ${stable(r).length}, green ${longestGreen(r).toFixed(0)} ms`);
+  assert.ok(stable(r).length > 20);
+  assert.ok(longestGreen(r) >= 1000);
+});
+
+test('auto, quiet room: very soft pluck (only Visoka caught it before) is caught', () => {
+  const sig = render(4, pluck(196, 0.0035, 1.5), 0.0003);
+  const r = run(sig, 'auto');
+  console.log(`  auto very soft G3 in quiet room: stable ${stable(r).length}, green ${longestGreen(r).toFixed(0)} ms`);
+  assert.ok(stable(r).length > 20);
+  assert.ok(longestGreen(r) >= 1000);
+});
+
+test('auto, noisy room: noise alone never moves the needle, a normal pluck still works', () => {
+  assert.equal(tracking(run(render(3, () => 0, 0.012), 'auto')).length, 0);
+  const r = run(render(4, pluck(110, 0.08, 1.5), 0.012), 'auto');
+  assert.ok(stable(r).length > 20, 'pluck missed in noisy room');
+});
+
+test('auto: a pluck buried under loud noise gives no false green', () => {
+  const r = run(render(4, pluck(196, 0.0035, 1.5), 0.012), 'auto');
+  assert.ok(longestGreen(r) < 1000);
+});
+
+for (const [name, base] of [['male', 110], ['female', 210]]) {
+  test(`auto: speech (${name}) never turns a string green, in a quiet or a normal room`, () => {
+    for (const [noise, s0] of [[0.0003, 5], [0.0012, 13]]) {
+      const r = run(render(8, speech(8, base, s0), noise), 'auto');
+      console.log(`  auto speech ${name} noise ${noise}: ${tracking(r).length}/${r.length} frames, longest green ${longestGreen(r).toFixed(0)} ms`);
+      assert.ok(longestGreen(r) < 1000, 'speech would mark a string');
+      assert.ok(tracking(r).length < r.length * 0.2, 'needle reacts to speech too much');
+    }
+  });
+}
+
+test('auto: started while a string was still ringing — recovers within a few seconds', () => {
+  // Glasna žica zvoni od samog početka (merenje sobe je „čuje“ kao buku).
+  // Normalan trzaj druge žice posle 3 s mora da se uhvati, a i tih trzaj kada prva žica utihne.
+  const loud = pluck(110, 0.25, 0.02), normal = pluck(146.83, 0.06, 3), soft = pluck(196, 0.006, 7.5);
+  const r = run(render(11, (t) => loud(t) + normal(t) + soft(t)), 'auto');
+  const mid = r.filter((x) => x.now > 3000 && x.now < 7000), late = r.filter((x) => x.now > 7500);
+  console.log(`  auto after ringing start: normal D3 green ${longestGreen(mid).toFixed(0)} ms, later soft G3 green ${longestGreen(late).toFixed(0)} ms`);
+  assert.ok(longestGreen(mid) >= 1000, 'normal pluck missed after a ringing start');
+  assert.ok(longestGreen(late) >= 1000, 'soft pluck missed after the room settled');
+});
+
+test('autoConfig: quiet → sensitive, normal → Srednja, noisy → Niska', async () => {
+  const { autoConfig, SENSITIVITY } = await import('../src/pitchtrack.js');
+  const q = autoConfig(0.0001);
+  assert.equal(q.minLevel, SENSITIVITY.high.minLevel); // tihe žice kao „Visoka“
+  assert.equal(q.prob, SENSITIVITY.medium.prob);       // govor se filtrira kao „Srednja“
+  assert.ok(Math.abs(autoConfig(0.0007).onMult - SENSITIVITY.medium.onMult) < 1e-9);
+  assert.deepEqual(autoConfig(0.01), SENSITIVITY.low);
+});

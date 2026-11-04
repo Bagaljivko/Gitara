@@ -13,6 +13,22 @@ export const SENSITIVITY = {
   high: { onMult: 1.7, offMult: 1.2, minLevel: 0.0006, prob: 0.78, window: 180, tail: 0.006, lostMs: 600 },
 };
 
+// „Auto“: osetljivost se bira sama prema izmerenoj buci u sobi i stalno se prilagođava.
+// Tiha soba → kao „Visoka“, uobičajena → „Srednja“, bučna → „Niska“ (glatko između, po logaritmu buke).
+const AUTO_QUIET = 0.00025, AUTO_NORMAL = 0.0007, AUTO_NOISY = 0.0025; // RMS nivo buke
+// U tihoj sobi: pragovi jačine kao „Visoka“ (čuje i tihe žice), ali filtriranje govora kao „Srednja“
+const AUTO_QUIET_CFG = { ...SENSITIVITY.medium, onMult: SENSITIVITY.high.onMult, offMult: SENSITIVITY.high.offMult, minLevel: SENSITIVITY.high.minLevel, tail: SENSITIVITY.high.tail };
+export function autoConfig(floor) {
+  const l = Math.log(Math.max(floor, 1e-6));
+  const a = Math.log(AUTO_QUIET), m = Math.log(AUTO_NORMAL), z = Math.log(AUTO_NOISY);
+  const [from, to, k] = l <= m
+    ? [AUTO_QUIET_CFG, SENSITIVITY.medium, Math.max(0, Math.min(1, (l - a) / (m - a)))]
+    : [SENSITIVITY.medium, SENSITIVITY.low, Math.max(0, Math.min(1, (l - m) / (z - m)))];
+  const out = {};
+  for (const key of Object.keys(from)) out[key] = from[key] + (to[key] - from[key]) * k;
+  return out;
+}
+
 const CALIBRATE_MS = 1000;   // merenje buke u prostoriji na početku
 const ONSET_RATIO = 1.8;     // skok jačine koji se računa kao trzaj
 const ARM_MS = 300;          // posle trzaja ovoliko čekamo prvi jasan ton
@@ -24,7 +40,7 @@ const UNSTABLE_MS = 500;     // prozor za proveru „klizanja“ (govor, pevanje
 const UNSTABLE_BREAKS = 3;   // ovoliko prekida stabilnosti u prozoru = nije žica
 
 export class PitchTracker {
-  constructor({ a4 = 440, sensitivity = 'medium' } = {}) {
+  constructor({ a4 = 440, sensitivity = 'auto' } = {}) {
     this.a4 = a4;
     this.allowed = [0, 1, 2, 3, 4, 5];
     this.strings = GUITAR;
@@ -32,7 +48,11 @@ export class PitchTracker {
     this.reset();
   }
 
-  setSensitivity(level) { this.cfg = SENSITIVITY[level] || SENSITIVITY.medium; this.level = SENSITIVITY[level] ? level : 'medium'; }
+  setSensitivity(level) {
+    this.auto = !SENSITIVITY[level]; // 'auto' (i sve nepoznato) = sama bira
+    this.level = this.auto ? 'auto' : level;
+    this.cfg = this.auto ? SENSITIVITY.medium : SENSITIVITY[level];
+  }
 
   reset() {
     this.state = 'idle';
@@ -40,6 +60,7 @@ export class PitchTracker {
     this.calib = [];
     this.calibStart = 0;
     this.calibDone = false;
+    this.room = 0; this.roomCalib = []; this.autoFloor = -1; // „Auto“: buka sobe bez tonova sa visinom
     this.hist = [];
     this.release();
     this.muteUntil = 0;
@@ -88,6 +109,32 @@ export class PitchTracker {
   }
 
   /**
+   * „Auto“: koliko je soba bučna, mereno samo iz zvuka BEZ jasne visine (ventilator, saobraćaj, žamor).
+   * Žica koja zvoni ima jasnu visinu, pa se ne računa kao buka — inače bi tuner, pokrenut dok žica
+   * još zvoni, nekoliko sekundi bio prestrog.
+   */
+  updateRoom(buf, sampleRate, level, now) {
+    if (this.state !== 'idle') return;
+    // Lagano: svaki treći kadar, na 4× manjoj rezoluciji (dovoljno da se razlikuje „ton“ od „šuma“);
+    // na slabijim telefonima to je ~16 puta manje računanja nego puna provera.
+    if ((this.roomTick = (this.roomTick || 0) + 1) % 3 && this.calibDone) return;
+    const lp = this.lowpass(buf, sampleRate), D = 4;
+    const n = Math.floor(lp.length / D);
+    if (!this.dec || this.dec.length !== n) this.dec = new Float32Array(n);
+    for (let i = 0; i < n; i++) this.dec[i] = lp[i * D];
+    const y = yin(this.dec, sampleRate / D, { minFreq: 70, maxFreq: 420 });
+    if (y && y.prob >= 0.5) return; // ton sa visinom — nije buka sobe
+    if (!this.calibDone) {
+      this.roomCalib.push(level);
+      const s = [...this.roomCalib].sort((a, b) => a - b);
+      this.room = s[Math.floor(s.length * 0.6)];
+    } else {
+      this.room = level < this.room ? this.room * 0.9 + level * 0.1 : this.room * 0.997 + level * 0.003;
+    }
+    if (this.room !== this.autoFloor) { this.autoFloor = this.room; this.cfg = autoConfig(this.room); }
+  }
+
+  /**
    * Obradi jedan kadar zvuka.
    * @returns {{state:'idle'}|{state:'tracking', sid, freq, cents, stable:boolean}}
    */
@@ -95,6 +142,7 @@ export class PitchTracker {
     const level = rms(buf);
     if (now < this.muteUntil) return { state: 'idle' };
     this.updateFloor(level, now);
+    if (this.auto) this.updateRoom(buf, sampleRate, level, now);
     const cfg = this.cfg;
     const onLevel = Math.max(cfg.minLevel, this.floor * cfg.onMult);
     const offLevel = Math.max(cfg.minLevel * 0.7, this.floor * cfg.offMult);

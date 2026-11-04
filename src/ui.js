@@ -7,7 +7,8 @@ export function $(sel, root = document) { return root.querySelector(sel); }
 export function $$(sel, root = document) { return [...root.querySelectorAll(sel)]; }
 
 let toastTimer = null;
-export function toast(msg, type = '') {
+/** Kratka poruka na dnu. action = { label, onClick } dodaje dugme (npr. „Poništi“) i duže ostaje. */
+export function toast(msg, type = '', action = null) {
   let el = document.getElementById('toast');
   if (!el) {
     el = document.createElement('div');
@@ -17,9 +18,17 @@ export function toast(msg, type = '') {
     document.body.appendChild(el);
   }
   el.textContent = msg;
-  el.className = 'toast show ' + type;
+  el.className = 'toast show ' + type + (action ? ' has-action' : '');
+  if (action) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'toast-action';
+    b.textContent = action.label;
+    b.addEventListener('click', () => { clearTimeout(toastTimer); el.className = 'toast ' + type; action.onClick(); }, { once: true });
+    el.appendChild(b);
+  }
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => (el.className = 'toast ' + type), 3200);
+  toastTimer = setTimeout(() => (el.className = 'toast ' + type), action ? 5000 : 3200);
 }
 
 /** Dugme ✕ u gornjem desnom uglu prozora (isto u svim prozorima). */

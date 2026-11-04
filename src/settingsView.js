@@ -5,6 +5,7 @@ import { esc, toast, confirmDialog, pickFile, dialog } from './ui.js';
 import { exportAll } from './songs.js';
 import { parseBackup, SongFormatError } from './songformat.js';
 import { APP_VERSION } from './version.js';
+import { tunerSettingsHTML, bindTunerSettings, loadTunerSettings } from './tunerSettings.js';
 import { t, getLang, setLang } from './i18n.js';
 import { driveState, onDriveChange, connect as driveConnect, disconnect as driveDisconnect, reconnect as driveReconnect, backupNow, restoreFlow, formatDate, DriveError } from './drive.js';
 
@@ -18,8 +19,7 @@ export async function renderSettings(root) {
   const model = await getModelSetting();
   const lastModel = cleanModelName(await settings.get('geminiLastModel', ''));
   const cachedModels = ((await settings.get('geminiModels', null)) || {}).list || [];
-  const a4 = Number(await settings.get('a4', 440)) || 440;
-  const sens = await settings.get('tunerSens', 'medium');
+  const tset = await loadTunerSettings();
   const wakeMode = WAKE_MODES.includes(await settings.get('wakeMode', 'songs')) ? await settings.get('wakeMode', 'songs') : 'songs';
   const wakeMin = WAKE_MINUTES.includes(Number(await settings.get('wakeMinutes', 10))) ? Number(await settings.get('wakeMinutes', 10)) : 10;
   root.innerHTML = `
@@ -77,20 +77,7 @@ export async function renderSettings(root) {
 
     <div class="card">
       <h2>${t('set.tunerTitle')}</h2>
-      <div class="a4-row">
-        <span>${t('set.a4')}</span>
-        <div class="stepper">
-          <button class="btn round small" id="aDown" aria-label="${t('set.decrease')}">−</button>
-          <b id="aVal">${a4} Hz</b>
-          <button class="btn round small" id="aUp" aria-label="${t('set.increase')}">+</button>
-        </div>
-      </div>
-      <p class="muted small">${t('set.a4Note')}</p>
-      <h3 class="sens-title">${t('set.sens')}</h3>
-      <div class="seg-tabs sens-tabs" role="radiogroup" aria-label="${t('set.sens')}">
-        ${['low', 'medium', 'high'].map((v) => `<button role="radio" data-sens="${v}" class="${sens === v ? 'active' : ''}" aria-checked="${sens === v}">${t('set.sens_' + v)}</button>`).join('')}
-      </div>
-      <p class="muted small" id="sensNote">${t('set.sensNote_' + sens)}</p>
+      <div id="tsetBox">${tunerSettingsHTML(tset)}</div>
     </div>
 
     <div class="card">
@@ -342,16 +329,7 @@ export async function renderSettings(root) {
     status(t('set.keyMissing'));
   });
 
-  let a = a4;
-  const setA = async (v) => { a = Math.max(430, Math.min(450, v)); $('aVal').textContent = a + ' Hz'; await settings.set('a4', a); };
-  $('aDown').addEventListener('click', () => setA(a - 1));
-  $('aUp').addEventListener('click', () => setA(a + 1));
-  root.querySelectorAll('[data-sens]').forEach((b) => b.addEventListener('click', async () => {
-    const v = b.dataset.sens;
-    root.querySelectorAll('[data-sens]').forEach((x) => { x.classList.toggle('active', x === b); x.setAttribute('aria-checked', x === b); });
-    $('sensNote').textContent = t('set.sensNote_' + v);
-    await settings.set('tunerSens', v);
-  }));
+  bindTunerSettings($('tsetBox'), tset); // isto kao panel na tuneru
 
   $('bExport').addEventListener('click', async () => {
     const n = await db.count();

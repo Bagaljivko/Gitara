@@ -830,3 +830,40 @@ mark.cc-unknown { background: rgba(255, 90, 90, .3); color: var(--text); border-
 .diag-report { white-space: pre-wrap; word-break: break-word; font-family: var(--mono); font-size: .72rem; line-height: 1.45; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px; max-height: 40dvh; overflow: auto; -webkit-user-select: text; user-select: text; margin-top: 10px; }
 .route-err { text-align: center; padding-top: 18vh; }
 .route-err .btn { margin-top: 10px; }
+/* ---- Tuner: gornji red — naslov sa AUTO prekidačem ispod, desno napredak i podešavanja ---- */
+.tuner-view .view-head.tuner-head { align-items: flex-start; gap: 8px; }
+.tuner-title { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.tuner-title h1 { margin: 4px 0 0; }
+.auto-switch { position: relative; display: inline-flex; cursor: pointer; min-height: 32px; align-items: center; }
+.auto-switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.auto-track { position: relative; width: 70px; height: 26px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); display: flex; align-items: center; transition: background .2s, border-color .2s; }
+.auto-word { position: absolute; right: 9px; font: 800 10.5px var(--sans); letter-spacing: .1em; color: var(--muted); transition: right .2s, color .2s; }
+.auto-thumb { position: absolute; left: 3px; top: 3px; width: 18px; height: 18px; border-radius: 50%; background: var(--muted); transition: transform .2s, background .2s; }
+.auto-switch input:checked + .auto-track { background: var(--accent); border-color: var(--accent); }
+.auto-switch input:checked + .auto-track .auto-word { right: auto; left: 8px; color: #121316; }
+.auto-switch input:checked + .auto-track .auto-thumb { transform: translateX(44px); background: #fff; }
+.auto-switch input:focus-visible + .auto-track { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tuner-prog { appearance: none; height: 36px; margin-top: 4px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--text); display: inline-flex; align-items: center; gap: 6px; font: 800 .9rem var(--sans); font-variant-numeric: tabular-nums; cursor: pointer; }
+.tuner-prog span { color: var(--ok); }
+.tuner-prog.all { background: rgba(61, 214, 140, .14); border-color: var(--ok); color: var(--ok); }
+.tuner-set { margin-top: 0; color: var(--muted); border: 1px solid var(--line); border-radius: 12px; width: 44px; height: 44px; }
+.tuner-set svg { width: 22px; height: 22px; }
+/* Sve žice naštimovane: mirno „Gitara je spremna“ umesto oznake note */
+.nwrap.ready .nnote { color: var(--ok); font-size: 1.6rem; line-height: 1.2; margin-top: 6px; }
+.nwrap.ready .nm-needle { opacity: .2; }
+/* Panel podešavanja tunera (isti sadržaj i u Podešavanjima) */
+.tset-h { font-size: .9rem; margin: 14px 0 8px; color: var(--muted); font-weight: 700; }
+.tset-h:first-child { margin-top: 0; }
+.tset-tunings { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.tset-tuning { appearance: none; text-align: left; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); cursor: pointer; display: flex; flex-direction: column; gap: 2px; min-height: 52px; }
+.tset-tuning b { font-size: .95rem; }
+.tset-tuning span { font: 600 .78rem var(--mono); color: var(--muted); }
+.tset-tuning.active { border-color: var(--accent); background: var(--accent-soft); }
+.tset-room { margin-bottom: 6px; }
+.tset .a4-row { margin-top: 14px; }
+/* Poruka sa dugmetom (npr. „Poništi“) */
+.toast.has-action { display: flex; align-items: center; gap: 14px; pointer-events: auto; text-align: left; }
+.toast-action { appearance: none; border: 0; background: none; color: var(--accent); font: 800 .95rem var(--sans); padding: 6px 2px; cursor: pointer; white-space: nowrap; }
+.tset-room { display: grid; grid-template-columns: repeat(3, 1fr); }
+.tset-room button { white-space: nowrap; padding-left: 6px; padding-right: 6px; font-size: .88rem; }
+.tset-tuning span { font-size: .74rem; letter-spacing: -.01em; }

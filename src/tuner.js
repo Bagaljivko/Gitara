@@ -7,7 +7,8 @@ import { t } from './i18n.js';
 import { midiName } from './music.js';
 import { keepAwake, allowSleep } from './wakelock.js';
 import { pluck } from './synth.js';
-import { dialog } from './ui.js';
+import { dialog, toast, esc } from './ui.js';
+import { tunerSettingsHTML, bindTunerSettings, loadTunerSettings, roomToSensitivity } from './tunerSettings.js';
 import { KNOBS, ART_W, ART_H } from './headstockKnobs.js';
 import { TUNING_IDS, tuningOf, cleanTuning, tuningNotes } from './tunings.js';
 import { dn } from './naming.js';
@@ -82,20 +83,45 @@ function headstockArt() {
   </div>`;
 }
 
-const buzz = (p) => { try { navigator.vibrate && navigator.vibrate(p); } catch {} };
+// Vibracija: Android (navigator.vibrate). iPhone ne dozvoljava vibraciju sajtovima; na iOS 18+ dodir
+// skrivenog sistemskog prekidača daje lagani „tap“ — koristi se umesto toga (stariji iPhone: bez vibracije).
+let iosTap = null;
+function hapticTap() {
+  try {
+    if (!iosTap) {
+      iosTap = document.createElement('label');
+      iosTap.setAttribute('aria-hidden', 'true');
+      iosTap.style.cssText = 'position:fixed;left:-9999px;top:0;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none';
+      iosTap.innerHTML = '<input type="checkbox" switch tabindex="-1">';
+      document.body.appendChild(iosTap);
+    }
+    iosTap.click();
+  } catch {}
+}
+const buzz = (p) => {
+  try {
+    if (navigator.vibrate && navigator.vibrate(p)) return;
+  } catch {}
+  // bez navigator.vibrate (iPhone): onoliko „tapova“ koliko ima udara u šablonu
+  const taps = Array.isArray(p) ? Math.ceil(p.length / 2) : 1;
+  for (let i = 0; i < taps; i++) setTimeout(hapticTap, i * 140);
+};
+const BUZZ_STRING = [35, 70, 35];            // jedna žica: dva kratka udara
+const BUZZ_ALL = [60, 80, 60, 80, 220];        // sve žice: duži šablon
 
 export function createTuner(root) {
   root.innerHTML = `
   <section class="view tuner-view">
-    <header class="view-head">
-      <h1>${t('tuner.title')}</h1>
-      <button class="tuning-pill" id="tTuning" type="button" aria-haspopup="dialog"></button>
-      <button class="btn small ghost" id="tReset">${t('tuner.reset')}</button>
-      <label class="switch">
-        <input type="checkbox" id="tAuto" checked>
-        <span class="switch-track"><span class="switch-thumb"></span></span>
-        <span>${t('tuner.auto')}</span>
-      </label>
+    <header class="view-head tuner-head">
+      <div class="tuner-title">
+        <h1>${t('tuner.title')}</h1>
+        <label class="auto-switch" title="${esc(t('tuner.autoHint'))}">
+          <input type="checkbox" id="tAuto" checked aria-label="${esc(t('tuner.autoHint'))}">
+          <span class="auto-track"><span class="auto-word">AUTO</span><span class="auto-thumb"></span></span>
+        </label>
+      </div>
+      <button class="tuner-prog" id="tProg" type="button" hidden></button>
+      <button class="icon-btn tuner-set" id="tSet" type="button" aria-haspopup="dialog" aria-label="${esc(t('tuner.settings'))}" title="${esc(t('tuner.settings'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="16" cy="7" r="2.2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="10" cy="17" r="2.2" fill="none" stroke="currentColor" stroke-width="2"/></svg></button>
     </header>
     <div class="nwrap" id="tMeter" data-state="idle" aria-live="polite">
       ${needleSVG()}
@@ -132,12 +158,23 @@ export function createTuner(root) {
   let shownCal = false;   // prikazana poruka „merim buku“
   let okSince = 0, okSid = -1;
   let lastLocked = 0;
-  let popupOpen = false;
 
   settings.get('a4', 440).then((v) => { a4 = Number(v) || 440; tracker.a4 = a4; });
 
   const markActive = (id) => root.querySelectorAll('.knob').forEach((el) => el.classList.toggle('active', +el.dataset.s === id));
-  const applyDone = () => root.querySelectorAll('.knob').forEach((el) => el.classList.toggle('done', done.has(+el.dataset.s)));
+  const applyDone = () => { root.querySelectorAll('.knob').forEach((el) => el.classList.toggle('done', done.has(+el.dataset.s))); drawProgress(); };
+  // „✓ 3/6“: koliko je žica naštimovano; dodir = ispočetka (uz „Poništi“)
+  function drawProgress() {
+    const b = $('tProg');
+    if (!b) return;
+    const n = done.size;
+    b.hidden = n === 0;
+    b.classList.toggle('all', n === 6);
+    b.innerHTML = `<span aria-hidden="true">✓</span> ${n}/6`;
+    b.setAttribute('aria-label', t('tuner.progress', { n }));
+    root.querySelector('.tuner-view').classList.toggle('all-tuned', n === 6);
+    if (meter.dataset.state === 'idle') idle();
+  }
   applyDone();
 
   function resetAll() {
@@ -189,7 +226,11 @@ export function createTuner(root) {
     el.addEventListener('contextmenu', (e) => e.preventDefault());
     el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectString(id); } });
   });
-  $('tReset').addEventListener('click', resetAll);
+  $('tProg').addEventListener('click', () => {
+    const prev = new Set(done);
+    resetAll();
+    toast(t('tuner.restarted'), '', { label: t('common.undo'), onClick: () => { prev.forEach((x) => done.add(x)); applyDone(); } });
+  });
 
   function setNeedle(c) {
     const clamped = Math.max(-RANGE * 1.1, Math.min(RANGE * 1.1, c));
@@ -198,7 +239,9 @@ export function createTuner(root) {
 
   function idle() {
     meter.dataset.state = 'idle';
-    $('tNote').textContent = auto ? '–' : noteOf(selected);
+    const ready = done.size === 6;
+    meter.classList.toggle('ready', ready);
+    $('tNote').textContent = ready ? t('tuner.ready') : auto ? '–' : noteOf(selected);
     $('tCents').innerHTML = '&nbsp;';
     shownCents = 0;
     shownSid = -1;
@@ -208,15 +251,7 @@ export function createTuner(root) {
     if (auto) root.querySelectorAll('.knob').forEach((el) => el.classList.remove('active'));
   }
 
-  async function allTuned() {
-    popupOpen = true;
-    await dialog({ body: t('tuner.ready'), buttons: [{ label: t('tuner.readyOk'), value: true, kind: 'primary' }], dismissible: false, className: 'ready-modal' });
-    popupOpen = false;
-    // Spremno za sledeću gitaru
-    auto = true; autoEl.checked = true;
-    tracker.setAllowed([0, 1, 2, 3, 4, 5]);
-    resetAll();
-  }
+
 
   function frame() {
     analyser.getFloatTimeDomainData(buf);
@@ -249,8 +284,8 @@ export function createTuner(root) {
         if (now - okSince >= HOLD_MS && !done.has(sid)) {
           done.add(sid);
           applyDone();
-          buzz(done.size === 6 ? [60, 80, 60, 80, 160] : 70); // kratka vibracija (Android)
-          if (done.size === 6 && !popupOpen) allTuned();
+          buzz(done.size === 6 ? BUZZ_ALL : BUZZ_STRING);
+          drawProgress();
         }
       } else if (Math.abs(shownCents) > lim) okSince = 0;
     } else if (meter.dataset.state !== 'idle' && now - lastLocked > 350) {
@@ -277,7 +312,7 @@ export function createTuner(root) {
       $('tStartMsg').hidden = true;
       a4 = Number(await settings.get('a4', 440)) || 440;
       tracker.a4 = a4;
-      tracker.setSensitivity(await settings.get('tunerSens', 'medium'));
+      tracker.setSensitivity(roomToSensitivity((await loadTunerSettings()).room));
       tracker.reset();
       tracker.setAllowed(auto ? [0, 1, 2, 3, 4, 5] : [selected]);
       idle();
@@ -316,21 +351,20 @@ export function createTuner(root) {
       g.querySelector('.knob-label').textContent = dn(tu.names[i]);
       g.setAttribute('aria-label', t('tuner.string', { num: STRINGS[i].num, note: dn(tu.names[i]) + (Math.floor(tu.midi[i] / 12) - 1) }));
     });
-    $('tTuning').innerHTML = `${t('tuning.' + tuning)} <span aria-hidden="true">▾</span>`;
-    $('tTuning').setAttribute('aria-label', t('tuning.label') + ': ' + t('tuning.' + tuning));
     if (changed) { done.clear(); applyDone(); okSince = 0; }
     idle();
   }
-  $('tTuning').addEventListener('click', async () => {
-    const v = await dialog({
-      title: t('tuning.label'),
-      body: t('tuning.pick'),
-      className: 'tuning-modal',
-      buttons: TUNING_IDS.map((id) => ({ label: `${t('tuning.' + id)} · ${tuningNotes(id)}`, value: id, kind: id === tuning ? 'primary' : '' })),
+  // ---- Panel „Podešavanja tunera“ (ikonica klizača): štimovanje, soba, A4 — menja se odmah ----
+  $('tSet').addEventListener('click', async () => {
+    const st = await loadTunerSettings();
+    const p = dialog({ title: t('tuner.settings'), body: tunerSettingsHTML(st), html: true, className: 'tset-modal', buttons: [] });
+    const box = [...document.querySelectorAll('.tset-modal')].pop();
+    if (box) bindTunerSettings(box, st, (ch) => {
+      if (ch.tuning) applyTuning(ch.tuning);
+      if (ch.room) tracker.setSensitivity(roomToSensitivity(ch.room));
+      if (ch.a4) { a4 = ch.a4; tracker.a4 = a4; }
     });
-    if (!v) return;
-    await settings.set('tuning', v);
-    applyTuning(v);
+    await p;
   });
   const loadTuning = async () => applyTuning(await settings.get('tuning', 'standard'));
   applyTuning('standard');
