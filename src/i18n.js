@@ -155,7 +155,7 @@ const sr = {
   'tuner.settings': 'Podešavanja tunera',
   'tuner.autoHint': 'Auto: tuner sam prepoznaje koju žicu sviraš',
   'tuner.progress': 'Naštimovano žica: {n} od 6. Dodirni za početak ispočetka.',
-  'tuner.restarted': 'Štimovanje ispočetka',
+  'tuner.resetBtn': 'Počni ispočetka',
   'common.undo': 'Poništi',
   'room.title': 'Soba',
   'room.auto': 'Auto',

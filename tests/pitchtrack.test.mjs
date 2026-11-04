@@ -232,3 +232,58 @@ test('autoConfig: quiet → sensitive, normal → Srednja, noisy → Niska', asy
   assert.ok(Math.abs(autoConfig(0.0007).onMult - SENSITIVITY.medium.onMult) < 1e-9);
   assert.deepEqual(autoConfig(0.01), SENSITIVITY.low);
 });
+
+// ---- Druga žica dok prethodna još zvoni ----
+// Isto pravilo kao u tuner.js: 0,6 s u opsegu (±5, posle zelenog ±8) i prosek unutar ±3 centa → žica je gotova
+function markedAt(r, sid, after) {
+  let okSince = 0, wasOk = false, hist = [];
+  for (const x of r) {
+    if (x.now <= after || x.state !== 'tracking' || x.sid !== sid) continue;
+    const lim = wasOk ? 8 : 5, ok = x.stable && Math.abs(x.cents) <= lim;
+    wasOk = ok;
+    if (ok) {
+      if (!okSince) { okSince = x.now; hist = []; }
+      hist.push({ t: x.now, c: x.cents }); hist = hist.filter((h) => x.now - h.t <= 600);
+      const avg = hist.reduce((a, h) => a + h.c, 0) / hist.length;
+      if (x.now - okSince >= 600 && Math.abs(avg) <= 3) return x.now - after;
+    } else if (Math.abs(x.cents) > lim) okSince = 0;
+  }
+  return Infinity;
+}
+const firstAt = (r, sid, after) => { const x = r.find((y) => y.now > after && y.state === 'tracking' && y.sid === sid); return x ? x.now - after : Infinity; };
+
+test('next string while the previous still rings is followed within 0.25 s', () => {
+  const r = run(render(5, (t) => pluck(110, 0.1, 1)(t) + pluck(146.83, 0.1, 2)(t)), 'auto');
+  const ms = firstAt(r, 2, 2000);
+  console.log(`  A ringing → D: followed after ${ms.toFixed(0)} ms`);
+  assert.ok(ms <= 250, 'switch too slow: ' + ms);
+  const m = markedAt(r, 2, 2000);
+  console.log(`  A ringing → D: marked as tuned after ${m.toFixed(0)} ms`);
+  assert.ok(m <= 1500, 'D should be marked as tuned');
+});
+
+test('quick second pluck (0.5 s later) is followed, and never falsely green while both ring', () => {
+  const r = run(render(4, (t) => pluck(110, 0.1, 1)(t) + pluck(146.83 * Math.pow(2, 15 / 1200), 0.1, 1.5)(t)), 'auto');
+  const ms = firstAt(r, 2, 1500);
+  console.log(`  quick D: followed after ${ms.toFixed(0)} ms`);
+  assert.ok(ms <= 300, 'quick switch too slow: ' + ms);
+  // D is 15 cents sharp: it must not be shown as in tune
+  assert.equal(markedAt(r, 2, 1500), Infinity, 'a sharp D must never be marked as tuned');
+});
+
+test('back and forth (A → D → A) switches each time', () => {
+  const r = run(render(6, (t) => pluck(110, 0.1, 1)(t) + pluck(146.83, 0.1, 2.5)(t) + pluck(110, 0.1, 4)(t)), 'auto');
+  assert.ok(firstAt(r, 2, 2500) <= 250);
+  assert.ok(firstAt(r, 1, 4000) <= 250);
+});
+
+test('G plucked while the low E still rings (read an octave low) is still recognized', () => {
+  // široki „pilasti“ ton (kao žica), E zvoni glasno dok se trza G 22 centa nisko
+  const str = (f, amp, start) => (t) => { if (t < start) return 0; const tt = t - start; let v = 0; for (let n = 1; n * f < 1000; n++) v += Math.sin(2 * Math.PI * n * f * tt) / n; return amp * Math.exp(-tt / 1.8) * Math.min(1, tt * 400) * v; };
+  const r = run(render(5, (t) => str(82.41, 0.25, 0.5)(t) + str(196 * Math.pow(2, -22 / 1200), 0.25, 2.7)(t)), 'auto');
+  const ms = firstAt(r, 3, 2700);
+  const g = r.filter((x) => x.now > 2700 && x.state === 'tracking' && x.sid === 3);
+  console.log(`  E ringing → G: followed after ${ms.toFixed(0)} ms, reads ${g.length ? g[Math.floor(g.length / 2)].cents.toFixed(0) : '?'} cents`);
+  assert.ok(ms <= 300);
+  assert.ok(g.every((x) => x.cents < -10), 'a flat G must not look in tune');
+});

@@ -1,8 +1,9 @@
 :root {
-  --bg: #121316;
-  --surface: #1b1d22;
-  --surface-2: #24272e;
-  --line: #2f333b;
+  /* AMOLED: čista crna pozadina (na OLED ekranima pikseli su ugašeni), kartice su nekoliko nijansi svetlije */
+  --bg: #000;
+  --surface: #0f1013;
+  --surface-2: #181a1e;
+  --line: #262930;
   --text: #eceef2;
   --muted: #9aa1ad;
   --accent: #f5a524;
@@ -79,7 +80,7 @@ label > input { margin-top: 4px; color: var(--text); font-size: 1rem; }
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
   display: grid; grid-template-columns: repeat(4, 1fr);
   height: calc(var(--nav-h) + env(safe-area-inset-bottom)); padding-bottom: env(safe-area-inset-bottom);
-  background: rgba(18, 19, 22, 0.94); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  background: rgba(0, 0, 0, 0.94); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
   border-top: 1px solid var(--line);
 }
 .nav a { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: var(--muted); text-decoration: none; font-size: 0.72rem; font-weight: 600; }
@@ -106,8 +107,8 @@ label > input { margin-top: 4px; color: var(--text); font-size: 1rem; }
 .tuner-view .view-head h1 { flex: 1; margin: 4px 0; }
 .btn.ghost { background: transparent; border-color: var(--line); color: var(--muted); }
 /* Pozadina tunera = pozadina slike, da se glava gitare neprimetno uklopi */
-body.tuner-screen { --bg: #17181c; background: #17181c; }
-body.tuner-screen .nav { background: rgba(23, 24, 28, .97); }
+body.tuner-screen { --bg: #000; background: #000; }
+body.tuner-screen .nav { background: rgba(0, 0, 0, .97); }
 .nwrap { position: relative; margin: 0 auto; width: 100%; max-width: 300px; text-align: center; flex: none; }
 .nmeter { width: 100%; display: block; overflow: visible; }
 .nm-arc { fill: none; stroke: var(--line); stroke-width: 7; stroke-linecap: round; }
@@ -147,7 +148,7 @@ body.tuner-screen .nav { background: rgba(23, 24, 28, .97); }
 .ready-modal .modal-body { color: var(--text); font-size: 1.25rem; font-weight: 700; }
 .ready-modal .modal-actions { justify-content: center; }
 
-.mic-overlay { position: absolute; inset: 56px 0 0; display: flex; align-items: center; justify-content: center; background: rgba(18,19,22,.82); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); z-index: 5; }
+.mic-overlay { position: absolute; inset: 56px 0 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.8); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); z-index: 5; }
 .mic-card { text-align: center; max-width: 300px; }
 .mic-btn { appearance: none; border: 0; width: 104px; height: 104px; border-radius: 50%; background: var(--accent); display: grid; place-items: center; margin: 0 auto; cursor: pointer; box-shadow: 0 10px 30px rgba(245,165,36,.25); }
 .mic-btn:active { transform: scale(.96); }
@@ -831,23 +832,15 @@ mark.cc-unknown { background: rgba(255, 90, 90, .3); color: var(--text); border-
 .route-err { text-align: center; padding-top: 18vh; }
 .route-err .btn { margin-top: 10px; }
 /* ---- Tuner: gornji red — naslov sa AUTO prekidačem ispod, desno napredak i podešavanja ---- */
-.tuner-view .view-head.tuner-head { align-items: flex-start; gap: 8px; }
-.tuner-title { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
-.tuner-title h1 { margin: 4px 0 0; }
-.auto-switch { position: relative; display: inline-flex; cursor: pointer; min-height: 32px; align-items: center; }
+.auto-switch { position: relative; display: inline-flex; cursor: pointer; min-height: 36px; align-items: center; }
 .auto-switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
-.auto-track { position: relative; width: 70px; height: 26px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); display: flex; align-items: center; transition: background .2s, border-color .2s; }
+.auto-track { position: relative; width: 74px; height: 30px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); display: flex; align-items: center; transition: background .2s, border-color .2s; }
 .auto-word { position: absolute; right: 9px; font: 800 10.5px var(--sans); letter-spacing: .1em; color: var(--muted); transition: right .2s, color .2s; }
-.auto-thumb { position: absolute; left: 3px; top: 3px; width: 18px; height: 18px; border-radius: 50%; background: var(--muted); transition: transform .2s, background .2s; }
+.auto-thumb { position: absolute; left: 3px; top: 3px; width: 22px; height: 22px; border-radius: 50%; background: var(--muted); transition: transform .2s, background .2s; }
 .auto-switch input:checked + .auto-track { background: var(--accent); border-color: var(--accent); }
 .auto-switch input:checked + .auto-track .auto-word { right: auto; left: 8px; color: #121316; }
 .auto-switch input:checked + .auto-track .auto-thumb { transform: translateX(44px); background: #fff; }
 .auto-switch input:focus-visible + .auto-track { outline: 2px solid var(--accent); outline-offset: 2px; }
-.tuner-prog { appearance: none; height: 36px; margin-top: 4px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--text); display: inline-flex; align-items: center; gap: 6px; font: 800 .9rem var(--sans); font-variant-numeric: tabular-nums; cursor: pointer; }
-.tuner-prog span { color: var(--ok); }
-.tuner-prog.all { background: rgba(61, 214, 140, .14); border-color: var(--ok); color: var(--ok); }
-.tuner-set { margin-top: 0; color: var(--muted); border: 1px solid var(--line); border-radius: 12px; width: 44px; height: 44px; }
-.tuner-set svg { width: 22px; height: 22px; }
 /* Sve žice naštimovane: mirno „Gitara je spremna“ umesto oznake note */
 .nwrap.ready .nnote { color: var(--ok); font-size: 1.6rem; line-height: 1.2; margin-top: 6px; }
 .nwrap.ready .nm-needle { opacity: .2; }
@@ -867,3 +860,23 @@ mark.cc-unknown { background: rgba(255, 90, 90, .3); color: var(--text); border-
 .tset-room { display: grid; grid-template-columns: repeat(3, 1fr); }
 .tset-room button { white-space: nowrap; padding-left: 6px; padding-right: 6px; font-size: .88rem; }
 .tset-tuning span { font-size: .74rem; letter-spacing: -.01em; }
+/* Tuner — gornji deo: „Tuner“ i AUTO u istom redu; ispod ikonica podešavanja (levo) i napredak (desno) */
+.tuner-view .view-head.tuner-head { display: grid; grid-template-columns: 1fr auto; grid-template-rows: 36px 36px; row-gap: 4px; align-items: center; }
+.tuner-head h1 { grid-column: 1; grid-row: 1; margin: 0; line-height: 36px; }
+.tuner-head .auto-switch { grid-column: 2; grid-row: 1; justify-self: end; }
+.tuner-set { grid-column: 1; grid-row: 2; justify-self: start; margin-left: -8px; width: 44px; height: 44px; border-radius: 50%; color: var(--muted); }
+.tuner-set svg { width: 24px; height: 24px; }
+.tuner-prog { grid-column: 2; grid-row: 2; justify-self: end; height: 30px; padding: 0 1px 0 11px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); display: inline-flex; align-items: center; }
+.tuner-prog[hidden] { display: none; }
+.prog-dots { display: inline-flex; gap: 3.5px; }
+.prog-dots i { width: 6px; height: 6px; border-radius: 50%; background: #34383f; transition: background .25s, box-shadow .25s; }
+.prog-dots i.on { background: var(--ok); box-shadow: 0 0 5px rgba(61, 214, 140, .55); }
+.prog-div { width: 1px; height: 13px; background: var(--line); margin: 0 1px 0 9px; }
+.prog-x { appearance: none; border: 0; background: none; color: var(--muted); width: 36px; height: 30px; display: grid; place-items: center; font: 400 19px/1 var(--sans); cursor: pointer; border-radius: 999px; }
+.tuner-prog.all { border-color: rgba(61, 214, 140, .7); box-shadow: 0 0 12px rgba(61, 214, 140, .25); }
+.tuner-prog.all .prog-x { color: var(--ok); }
+/* Metalna kazaljka: ostaje srebrna; kad je naštimovano dobija zeleni sjaj, a zona na vrhu skale svetli */
+.nwrap[data-state="ok"] .nm-needle { filter: drop-shadow(0 0 6px rgba(61, 214, 140, .85)); }
+.nwrap[data-state="ok"] .nm-zone { opacity: 1; filter: drop-shadow(0 0 5px rgba(61, 214, 140, .8)); }
+.nwrap[data-state="idle"] .nm-needle { opacity: .55; }
+.nm-wave { position: absolute; pointer-events: none; z-index: 2; mix-blend-mode: screen; }

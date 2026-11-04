@@ -37,7 +37,13 @@ const STABLE_MS = 100;       // ovoliko dugo stabilan ton → sme da se označi 
 const STABLE_CENTS = 20;     // dozvoljeno kolebanje visine dok se proverava stabilnost
 const JUMP_CENTS = 60;       // veći skok = nova nota (npr. druga žica)
 const UNSTABLE_MS = 500;     // prozor za proveru „klizanja“ (govor, pevanje)
-const UNSTABLE_BREAKS = 3;   // ovoliko prekida stabilnosti u prozoru = nije žica
+const UNSTABLE_BREAKS = 3;
+const MIX_PROB = 0.62;        // donja granica „čistoće“ kada zvone dve žice (samo za postojane očitavanja)
+const ESTABLISHED_MS = 250;  // slabija očitavanja tek kada prava žica već ovoliko čisto zvoni (govor ne stigne dotle)
+const MIX_MS = 2000;          // posle prelaska na drugu žicu: koliko dugo još prihvatamo mešana očitavanja
+const OCT_FIX_CENTS = 60;    // ispravka oktave samo ako je rezultat blizu žice
+const MIX_RATIO = 0.03;       // filter samo dok se prethodna žica još jasno čuje (jača od ~-15 dB u odnosu na novu)
+const SWITCH_FRAMES = 4;     // nova žica koja se čuje postojano 4 kadra (~80 ms) — prihvati je i bez jasnog trzaja   // ovoliko prekida stabilnosti u prozoru = nije žica
 
 export class PitchTracker {
   constructor({ a4 = 440, sensitivity = 'auto' } = {}) {
@@ -66,7 +72,7 @@ export class PitchTracker {
     this.muteUntil = 0;
   }
 
-  release() { this.state = 'idle'; this.sid = -1; this.recent = []; this.run = []; this.peak = 0; this.lastGood = 0; this.breaks = []; this.shown = false; this.lastLevel = 0; }
+  release() { this.cand = null; this.cleanSince = 0; this.mixUntil = 0; this.mixed = false; this.prevSid = -1; this.state = 'idle'; this.sid = -1; this.recent = []; this.run = []; this.peak = 0; this.lastGood = 0; this.breaks = []; this.shown = false; this.lastLevel = 0; }
 
   /** Merenje buke je u toku (prva sekunda). */
   get calibrating() { return !this.calibDone; }
@@ -165,10 +171,38 @@ export class PitchTracker {
     // Ton se ugasio (ispod buke ili daleko ispod početne jačine)
     if (level < offLevel || level < this.peak * cfg.tail) { this.release(); return { state: 'idle' }; }
 
-    const r = yin(this.lowpass(buf, sampleRate), sampleRate, { minFreq: 70, maxFreq: 420 });
+    let sig = this.lowpass(buf, sampleRate);
+    // Prethodna žica još zvoni: slušaj kroz uzak filter oko žice koju pratimo, da je druga ne „povuče“
+    // (bez ovoga je npr. D uz A koja zvoni izgledao ~6 centi nisko iako je bio tačan).
+    let filtered = null;
+    if (this.sid >= 0 && this.mixed && this.prevSid >= 0 && this.prevSid !== this.sid) {
+      // samo dok je prethodna žica dovoljno glasna da smeta (inače filter više šteti nego koristi)
+      const pPrev = goertzel(sig, sampleRate, this.target(this.prevSid));
+      const pCur = goertzel(sig, sampleRate, this.target(this.sid));
+      if (pPrev > pCur * MIX_RATIO) filtered = this.bandpass(sig, sampleRate, this.target(this.sid));
+    }
+    let r = this.pitch(sig, sampleRate);
+    if (filtered) {
+      // Filter je usmeren na žicu koju pratimo — ali ako se jasno čuje NOVA žica (npr. vraćanje na prethodnu),
+      // to mora da se vidi u nefiltriranom zvuku; inače meri kroz filter.
+      const raw = r, cls = raw && raw.prob > this.cfg.prob ? this.classify(raw.freq) : null;
+      if (!(cls && cls.sid !== this.sid)) r = this.pitch(filtered, sampleRate);
+    }
     const prevLevel = this.lastLevel;
     this.lastLevel = level;
     let freq = r && r.prob > cfg.prob ? r.freq : 0;
+    // Dve žice zvone zajedno → očitavanje je manje „čisto“. Slabije očitavanje se prihvata samo ako je
+    // postojano: ista nota koju već pratimo, ili nova žica koja se čuje nekoliko kadrova zaredom (dole).
+    let loose = false;
+    // prava žica već čisto zvoni — ili smo upravo prešli sa nje na drugu, a ona još zvoni
+    const established = (this.cleanSince && now - this.cleanSince >= ESTABLISHED_MS) || now < this.mixUntil;
+    if (!freq && established && r && r.prob > MIX_PROB && this.sid >= 0 && this.recent.length) {
+      const ref = median(this.recent);
+      const sameNote = Math.abs(1200 * Math.log2(r.freq / ref)) < 35;
+      const cls = this.classify(r.freq);
+      const candNote = this.cand && cls && cls.sid === this.cand.sid && Math.abs(1200 * Math.log2(r.freq / this.cand.freq)) < 35;
+      if (sameNote || candNote || (cls && cls.sid !== this.sid)) { freq = r.freq; loose = true; }
+    }
     // Dok nota zvoni i slabi, YIN ponekad skoči oktavu dole/gore. Ako je očitavanje
     // tačno 1/2, 1/3, 2… od tona koji već pratimo, to je ista nota — ispravi ga.
     if (freq && this.sid >= 0 && this.recent.length) {
@@ -178,19 +212,38 @@ export class PitchTracker {
       }
     }
     let reading = freq ? this.classify(freq) : null;
+    // Kad dve žice zvone zajedno (npr. prethodna još zvoni), očitavanje ume da „padne“ oktavu ili
+    // dve (G3 196 Hz se čuje kao 98 Hz). Ako nijedna žica nije blizu, probaj oktavu/kvintu gore ili oktavu dole.
+    if (freq && !reading) {
+      for (const k of [2, 3, 0.5]) {
+        const c = this.classify(freq * k);
+        if (c && Math.abs(c.cents) < OCT_FIX_CENTS) { freq *= k; reading = c; break; }
+      }
+    }
     // Nova nota (druga žica ili velik skok) se prihvata samo uz novi trzaj (skok jačine);
     // bez toga je to šum u repu tona ili govor preko gitare — preskoči očitavanje.
+    // Druga žica dok prethodna još zvoni: novi trzaj samo malo podigne jačinu, pa se prepoznaje i
+    // (1) po porastu u odnosu na najtiši kadar u poslednjih ~120 ms, i (2) po tome što se nova nota
+    // čuje postojano nekoliko kadrova zaredom (~80 ms). Govor ne prolazi: visina mu stalno klizi.
     if (reading && this.sid >= 0 && this.recent.length) {
       const jump = reading.sid !== this.sid || Math.abs(1200 * Math.log2(freq / median(this.recent))) > JUMP_CENTS;
       if (jump) {
-        if (level > prevLevel * 1.5 || now - this.lastGood > cfg.lostMs) {
+        const c = this.cand;
+        if (c && c.sid === reading.sid && Math.abs(1200 * Math.log2(freq / c.freq)) < 35) c.n++;
+        else this.cand = { sid: reading.sid, freq, n: 1 };
+        const onset = !loose && (level > prevLevel * 1.5);
+        if (onset || this.cand.n >= SWITCH_FRAMES || (!loose && now - this.lastGood > cfg.lostMs)) {
+          if (this.cleanSince || now < this.mixUntil) { this.mixUntil = now + MIX_MS; this.mixed = true; this.prevSid = this.sid; } // prethodna žica još zvoni
+          this.cand = null;
+          this.cleanSince = 0;
           this.recent = [];
           this.run = [];
           this.shown = false;
+          this.breaks = [];
           this.onsetAt = now;
           this.peak = level;
         } else reading = null;
-      }
+      } else this.cand = null;
     }
     if (!reading) {
       if (this.sid >= 0 && now - this.lastGood <= cfg.lostMs) return this.shown ? this.output(now) : { state: 'idle' }; // kratak prekid — zadrži
@@ -206,7 +259,7 @@ export class PitchTracker {
       this.breaks.push(now);
     }
     this.breaks = this.breaks.filter((t) => now - t < UNSTABLE_MS);
-    this.run.push({ t: now, sid: reading.sid, freq: r.freq });
+    this.run.push({ t: now, sid: reading.sid, freq: r.freq, loose });
     this.sid = reading.sid;
     this.recent.push(r.freq);
     if (this.recent.length > 5) this.recent.shift();
@@ -214,6 +267,48 @@ export class PitchTracker {
     if (this.breaks.length >= UNSTABLE_BREAKS) { this.release(); return { state: 'idle' }; } // visina klizi → nije žica
     if (this.run.length < SHOW_FRAMES) return this.shown ? this.output(now) : { state: 'idle' };
     return this.output(now);
+  }
+
+  /**
+   * Visina tona, brže: grubo traženje na upola manjoj rezoluciji (4× manje računanja), pa precizno
+   * doterivanje na punoj rezoluciji samo oko pronađenog perioda. Tačnost je ista, a na slabijim
+   * telefonima ostaje vremena za glatko crtanje.
+   */
+  pitch(lp, sampleRate) {
+    const n = lp.length >> 1;
+    if (!this.half || this.half.length !== n) this.half = new Float32Array(n);
+    const h = this.half;
+    for (let i = 0; i < n; i++) h[i] = (lp[2 * i] + lp[2 * i + 1]) * 0.5;
+    const c = yin(h, sampleRate / 2, { minFreq: 70, maxFreq: 420 });
+    if (!c) return null;
+    const tauMax = Math.min(Math.ceil(sampleRate / 70), lp.length >> 1), W = lp.length - tauMax;
+    const t0 = sampleRate / c.freq;
+    const lo = Math.max(3, Math.floor(t0) - 2), hi = Math.min(tauMax - 2, Math.ceil(t0) + 2);
+    if (hi <= lo) return c;
+    const d = (tau) => { let sum = 0; for (let i = 0; i < W; i++) { const x = lp[i] - lp[i + tau]; sum += x * x; } return sum; };
+    let best = lo, bd = Infinity;
+    for (let tau = lo; tau <= hi; tau++) { const v = d(tau); if (v < bd) { bd = v; best = tau; } }
+    const s0 = d(best - 1), s2 = d(best + 1), den = 2 * (2 * bd - s2 - s0);
+    const tau = den ? best + (s2 - s0) / den : best;
+    return { freq: sampleRate / tau, prob: c.prob };
+  }
+
+  /** Uzak filter oko jednog tona (dva prolaza, Q≈3): prigušuje drugu žicu koja još zvoni. */
+  bandpass(src, sampleRate, f) {
+    if (!this.bp || this.bp.length !== src.length) this.bp = new Float32Array(src.length);
+    const w = 2 * Math.PI * f / sampleRate, q = 3, al = Math.sin(w) / (2 * q), c = Math.cos(w), a0 = 1 + al;
+    const b0 = al / a0, b2 = -al / a0, a1 = -2 * c / a0, a2 = (1 - al) / a0;
+    let x = src;
+    for (let pass = 0; pass < 2; pass++) {
+      let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+      const out = this.bp;
+      for (let i = 0; i < x.length; i++) {
+        const y = b0 * x[i] + b2 * x2 - a1 * y1 - a2 * y2;
+        x2 = x1; x1 = x[i]; y2 = y1; y1 = y; out[i] = y;
+      }
+      x = out;
+    }
+    return x;
   }
 
   /** Blagi niskopropusni filter (~1,2 kHz, dva prolaza): uklanja šištanje mikrofona, a osnovni ton i prvi prizvuci ostaju. */
@@ -228,10 +323,20 @@ export class PitchTracker {
 
   output(now) {
     const freq = median(this.recent);
-    const stable = this.run.length >= 3 && now - this.run[0].t >= STABLE_MS;
+    // „Stabilno“ (sme da pozeleni) samo uz čista očitavanja — slabija (dve žice zajedno) samo pomeraju kazaljku
+    const stable = this.run.length >= 3 && now - this.run[0].t >= STABLE_MS && !this.run.slice(-3).some((x) => x.loose);
+    if (stable && !this.cleanSince) this.cleanSince = now;
     this.shown = true;
     return { state: 'tracking', sid: this.sid, freq, cents: 1200 * Math.log2(freq / this.target(this.sid)), stable };
   }
+}
+
+/** Snaga signala na jednoj frekvenciji (Goertzel) — brzo, bez celog spektra. */
+function goertzel(x, sampleRate, f) {
+  const k = 2 * Math.cos(2 * Math.PI * f / sampleRate);
+  let s1 = 0, s2 = 0;
+  for (let i = 0; i < x.length; i++) { const s0 = x[i] + k * s1 - s2; s2 = s1; s1 = s0; }
+  return s1 * s1 + s2 * s2 - k * s1 * s2;
 }
 
 function median(a) {

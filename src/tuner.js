@@ -7,7 +7,8 @@ import { t } from './i18n.js';
 import { midiName } from './music.js';
 import { keepAwake, allowSleep } from './wakelock.js';
 import { pluck } from './synth.js';
-import { dialog, toast, esc } from './ui.js';
+import { dialog, esc } from './ui.js';
+import { createWave } from './tunerWave.js';
 import { tunerSettingsHTML, bindTunerSettings, loadTunerSettings, roomToSensitivity } from './tunerSettings.js';
 import { KNOBS, ART_W, ART_H } from './headstockKnobs.js';
 import { TUNING_IDS, tuningOf, cleanTuning, tuningNotes } from './tunings.js';
@@ -24,7 +25,8 @@ const STRINGS = [
 ];
 
 const IN_TUNE = 5;       // ±centi
-const HOLD_MS = 1000;    // koliko dugo mora biti naštimovano da postane zeleno
+const HOLD_MS = 600;     // koliko dugo mora biti naštimovano da se žica označi kao gotova
+const DONE_AVG = 3;      // …i prosek za to vreme mora biti unutar ±3 centi (brže, a preciznije nego ranije: 1 s, ±5)
 const RANGE = 50;        // skala ±50 centi
 const LONG_PRESS = 450;  // ms za referentni ton
 
@@ -53,7 +55,20 @@ function needleSVG() {
     ${ticks}
     <text x="${lx.toFixed(1)}" y="${(ly + 6).toFixed(1)}" class="nm-sym" text-anchor="middle">♭</text>
     <text x="${rx.toFixed(1)}" y="${(ry + 6).toFixed(1)}" class="nm-sym" text-anchor="middle">♯</text>
-    <g class="nm-needle" id="tNeedle"><path d="M ${cx - 3} ${cy} L ${cx} ${cy - R + 6} L ${cx + 3} ${cy} Z"/><circle cx="${cx}" cy="${cy}" r="9"/><circle class="nm-cap" cx="${cx}" cy="${cy}" r="3.5"/></g>
+    <defs>
+      <linearGradient id="nmSteel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#5f646c"/><stop offset=".35" stop-color="#e9edf2"/><stop offset=".5" stop-color="#fff"/><stop offset=".65" stop-color="#b9bfc7"/><stop offset="1" stop-color="#4c5158"/></linearGradient>
+      <linearGradient id="nmSteelLen" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".25"/></linearGradient>
+      <radialGradient id="nmChrome" cx=".35" cy=".3" r=".8"><stop offset="0" stop-color="#fff"/><stop offset=".25" stop-color="#dfe3e8"/><stop offset=".6" stop-color="#8d939b"/><stop offset=".85" stop-color="#4a4f56"/><stop offset="1" stop-color="#2a2d32"/></radialGradient>
+      <radialGradient id="nmChromeIn" cx=".6" cy=".7" r=".8"><stop offset="0" stop-color="#f4f6f8"/><stop offset=".5" stop-color="#9aa0a8"/><stop offset="1" stop-color="#3d4148"/></radialGradient>
+      <filter id="nmShadow" x="-50%" y="-20%" width="200%" height="140%"><feDropShadow dx="1.2" dy="2" stdDeviation="1.4" flood-color="#000" flood-opacity=".6"/></filter>
+    </defs>
+    <g class="nm-needle" id="tNeedle"><g filter="url(#nmShadow)">
+      <path class="nm-blade" d="M ${cx - 3.6} ${cy - 6} L ${cx - 0.9} ${cy - R + 8} L ${cx} ${cy - R + 5} L ${cx + 0.9} ${cy - R + 8} L ${cx + 3.6} ${cy - 6} Z" style="fill:url(#nmSteel)"/>
+      <path d="M ${cx - 3.6} ${cy - 6} L ${cx - 0.9} ${cy - R + 8} L ${cx} ${cy - R + 5} L ${cx + 0.9} ${cy - R + 8} L ${cx + 3.6} ${cy - 6} Z" style="fill:url(#nmSteelLen)"/>
+      <circle cx="${cx}" cy="${cy}" r="11" style="fill:url(#nmChrome)"/>
+      <circle cx="${cx}" cy="${cy}" r="7" style="fill:url(#nmChromeIn)" stroke="rgba(0,0,0,.35)" stroke-width=".8"/>
+      <circle cx="${cx}" cy="${cy}" r="2.2" style="fill:#2b2e33"/>
+    </g></g>
   </svg>`;
 }
 
@@ -113,15 +128,16 @@ export function createTuner(root) {
   root.innerHTML = `
   <section class="view tuner-view">
     <header class="view-head tuner-head">
-      <div class="tuner-title">
-        <h1>${t('tuner.title')}</h1>
-        <label class="auto-switch" title="${esc(t('tuner.autoHint'))}">
-          <input type="checkbox" id="tAuto" checked aria-label="${esc(t('tuner.autoHint'))}">
-          <span class="auto-track"><span class="auto-word">AUTO</span><span class="auto-thumb"></span></span>
-        </label>
+      <h1>${t('tuner.title')}</h1>
+      <label class="auto-switch" title="${esc(t('tuner.autoHint'))}">
+        <input type="checkbox" id="tAuto" checked aria-label="${esc(t('tuner.autoHint'))}">
+        <span class="auto-track"><span class="auto-word">AUTO</span><span class="auto-thumb"></span></span>
+      </label>
+      <button class="icon-btn tuner-set" id="tSet" type="button" aria-haspopup="dialog" aria-label="${esc(t('tuner.settings'))}" title="${esc(t('tuner.settings'))}"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M7.5 3.5c1.6-.9 3-1 4.5-.3 1.5-.7 2.9-.6 4.5.3l-.9 13.3-1.6 3.7h-4l-1.6-3.7z"/><path d="M7.4 7H4.6M7.6 11H4.6M7.8 15H4.6M16.6 7h2.8M16.4 11h2.8M16.2 15h2.8"/><circle cx="4" cy="7" r="1.3"/><circle cx="4" cy="11" r="1.3"/><circle cx="4" cy="15" r="1.3"/><circle cx="20" cy="7" r="1.3"/><circle cx="20" cy="11" r="1.3"/><circle cx="20" cy="15" r="1.3"/></svg></button>
+      <div class="tuner-prog" id="tProg" role="group" hidden>
+        <span class="prog-dots" id="tProgDots"></span><b class="prog-div" aria-hidden="true"></b>
+        <button class="prog-x" id="tProgX" type="button" aria-label="${esc(t('tuner.resetBtn'))}" title="${esc(t('tuner.resetBtn'))}">×</button>
       </div>
-      <button class="tuner-prog" id="tProg" type="button" hidden></button>
-      <button class="icon-btn tuner-set" id="tSet" type="button" aria-haspopup="dialog" aria-label="${esc(t('tuner.settings'))}" title="${esc(t('tuner.settings'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="16" cy="7" r="2.2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="10" cy="17" r="2.2" fill="none" stroke="currentColor" stroke-width="2"/></svg></button>
     </header>
     <div class="nwrap" id="tMeter" data-state="idle" aria-live="polite">
       ${needleSVG()}
@@ -142,6 +158,7 @@ export function createTuner(root) {
 
   const $ = (id) => root.querySelector('#' + id);
   const meter = $('tMeter');
+  const wave = createWave(meter); // talas preko skale
   const needle = $('tNeedle');
   const autoEl = $('tAuto');
 
@@ -156,7 +173,7 @@ export function createTuner(root) {
   let shownCents = 0;     // izglađen položaj kazaljke
   let shownSid = -1;
   let shownCal = false;   // prikazana poruka „merim buku“
-  let okSince = 0, okSid = -1;
+  let okSince = 0, okSid = -1, okHist = [];
   let lastLocked = 0;
 
   settings.get('a4', 440).then((v) => { a4 = Number(v) || 440; tracker.a4 = a4; });
@@ -170,7 +187,8 @@ export function createTuner(root) {
     const n = done.size;
     b.hidden = n === 0;
     b.classList.toggle('all', n === 6);
-    b.innerHTML = `<span aria-hidden="true">✓</span> ${n}/6`;
+    // jedna tačka po žici, redom E A D G H E — zelene su naštimovane
+    $('tProgDots').innerHTML = [0, 1, 2, 3, 4, 5].map((s) => `<i class="${done.has(s) ? 'on' : ''}"></i>`).join('');
     b.setAttribute('aria-label', t('tuner.progress', { n }));
     root.querySelector('.tuner-view').classList.toggle('all-tuned', n === 6);
     if (meter.dataset.state === 'idle') idle();
@@ -226,11 +244,7 @@ export function createTuner(root) {
     el.addEventListener('contextmenu', (e) => e.preventDefault());
     el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectString(id); } });
   });
-  $('tProg').addEventListener('click', () => {
-    const prev = new Set(done);
-    resetAll();
-    toast(t('tuner.restarted'), '', { label: t('common.undo'), onClick: () => { prev.forEach((x) => done.add(x)); applyDone(); } });
-  });
+  $('tProgX').addEventListener('click', resetAll); // samo ✕ počinje ispočetka
 
   function setNeedle(c) {
     const clamped = Math.max(-RANGE * 1.1, Math.min(RANGE * 1.1, c));
@@ -238,6 +252,7 @@ export function createTuner(root) {
   }
 
   function idle() {
+    wave.set({ active: false });
     meter.dataset.state = 'idle';
     const ready = done.size === 6;
     meter.classList.toggle('ready', ready);
@@ -279,9 +294,16 @@ export function createTuner(root) {
       const lim = meter.dataset.state === 'ok' ? IN_TUNE + 3 : IN_TUNE;
       const ok = r.stable && Math.abs(shownCents) <= lim;
       meter.dataset.state = ok ? 'ok' : 'off';
+      // talas: visina prati jačinu žice, klizanje prati koliko je žica daleko od tona
+      let e = 0; for (let i = 0; i < buf.length; i += 8) e += buf[i] * buf[i];
+      const lvl = Math.sqrt(e / (buf.length / 8));
+      wave.set({ active: true, cents: shownCents, ok, level: Math.max(0.35, Math.min(1, 0.35 + Math.log10(Math.max(lvl, 1e-5) / 0.003) * 0.5)) });
       if (ok) {
-        if (okSid !== sid || !okSince) { okSid = sid; okSince = now; }
-        if (now - okSince >= HOLD_MS && !done.has(sid)) {
+        if (okSid !== sid || !okSince) { okSid = sid; okSince = now; okHist = []; }
+        okHist.push({ t: now, c: r.cents });
+        while (okHist.length && now - okHist[0].t > HOLD_MS) okHist.shift();
+        const avg = okHist.reduce((a, x) => a + x.c, 0) / okHist.length;
+        if (now - okSince >= HOLD_MS && Math.abs(avg) <= DONE_AVG && !done.has(sid)) {
           done.add(sid);
           applyDone();
           buzz(done.size === 6 ? BUZZ_ALL : BUZZ_STRING);
@@ -331,6 +353,7 @@ export function createTuner(root) {
     if (!running) return;
     running = false;
     clearInterval(timer);
+    wave.stop();
     try { mic.source.disconnect(analyser); } catch {}
     closeMic();
     mic = null;

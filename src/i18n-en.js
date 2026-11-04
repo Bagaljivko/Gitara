@@ -142,7 +142,7 @@ export default {
   'tuner.settings': 'Tuner settings',
   'tuner.autoHint': 'Auto: the tuner recognizes which string you play',
   'tuner.progress': 'Strings tuned: {n} of 6. Tap to start over.',
-  'tuner.restarted': 'Tuning started over',
+  'tuner.resetBtn': 'Start over',
   'common.undo': 'Undo',
   'room.title': 'Room',
   'room.auto': 'Auto',
