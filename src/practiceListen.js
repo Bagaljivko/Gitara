@@ -14,28 +14,37 @@ const LAT_KEY = 'gitara-practice-latency';
 export function getLatency() { try { const v = Number(localStorage.getItem(LAT_KEY)); return Number.isFinite(v) && v > 0 ? v : null; } catch { return null; } }
 export function setLatency(ms) { try { localStorage.setItem(LAT_KEY, String(Math.round(ms))); } catch {} }
 const DEFAULT_LATENCY = 60; // dok se ne izmeri
+const SUSTAIN_MS = 90;      // udarac mora da zvoni bar ovoliko (klik metronoma ne zvoni)
 
 export function createListener() {
   let mic = null, an = null, buf = null, timer = 0, tracker = null, opts = {};
   let chordAn = null, spec = null, chordTimer = 0, chordMod = null;
   const acc = new Float32Array(12), accBass = new Float32Array(12);
-  let lastPoll = 0, blocks = [], lastOnset = -1e9, running = false, sr = 48000;
+  let lastPoll = 0, blocks = [], lastOnset = -1e9, running = false, sr = 48000, pending = [];
 
   // ---- Trzaj: energija u blokovima od 5 ms; nagli skok iznad buke = udarac ----
   function detectOnset(now) {
     const n = Math.min(buf.length, Math.max(240, Math.round(((now - lastPoll) / 1000) * sr)));
-    const B = Math.round(sr * 0.005), start = buf.length - n - (n % B);
+    const B = Math.round(sr * 0.005), start = Math.max(0, buf.length - n - (n % B));
     const floor = Math.max(tracker.floor || 0, 0.0004);
+    // blagi niskopropusni filter (~1 kHz) preko novih uzoraka: gitara ima energiju ispod ~1 kHz,
+    // klik metronoma (kvadratni ton 1,2–1,8 kHz) skoro nema
+    const a = 1 - Math.exp(-2 * Math.PI * 1000 / sr);
+    let y1 = buf[start] || 0, y2 = y1;
     let found = null;
-    for (let i = Math.max(0, start); i + B <= buf.length; i += B) {
-      let e = 0;
-      for (let k = i; k < i + B; k++) e += buf[k] * buf[k];
+    for (let i = start; i + B <= buf.length; i += B) {
+      let e = 0, el = 0;
+      for (let k = i; k < i + B; k++) { const x = buf[k]; e += x * x; y1 += a * (x - y1); y2 += a * (y1 - y2); el += y2 * y2; }
       const lvl = Math.sqrt(e / B);
       const prevMin = blocks.length ? Math.min(...blocks.slice(-6)) : lvl;
       const prev = blocks.length ? blocks[blocks.length - 1] : lvl;
       blocks.push(lvl); if (blocks.length > 12) blocks.shift();
       const at = now - ((buf.length - i) / sr) * 1000;
-      if (!found && lvl > floor * 3.2 && lvl > prevMin * 3 && lvl > prev * 1.5 && at - lastOnset > 90) found = { at, level: lvl };
+      const lowShare = e ? el / e : 0;
+      if (!found && lvl > floor * 3.2 && lvl > prevMin * 3 && lvl > prev * 1.5 && at - lastOnset > 90) {
+        if (lowShare < 0.3) continue; // klik/kucanje: visoki ton bez „tela“ — preskoči (i ne blokira pravi trzaj posle njega)
+        found = { at, level: lvl };
+      }
     }
     return found;
   }
@@ -48,10 +57,18 @@ export function createListener() {
     const r = tracker.process(buf, sr, now);
     if (opts.onOnset) {
       const o = detectOnset(now);
-      if (o) {
-        lastOnset = o.at;
-        if (chordAn) { acc.fill(0); accBass.fill(0); }
-        opts.onOnset({ at: o.at - lat, level: o.level });
+      if (o) { lastOnset = o.at; if (chordAn) { acc.fill(0); accBass.fill(0); } pending.push({ ...o, due: o.at + SUSTAIN_MS }); }
+      // Klik metronoma (iz zvučnika telefona) i kucanje nestanu za ~50 ms; žica zvoni dalje.
+      // Udarac se prihvata tek kad se 90 ms kasnije još čuje (vreme udarca ostaje tačno).
+      if (pending.length) {
+        let e = 0; const B = Math.round(sr * 0.02);
+        for (let k = buf.length - B; k < buf.length; k++) e += buf[k] * buf[k];
+        const lvlNow = Math.sqrt(e / B);
+        pending = pending.filter((pd) => {
+          if (now < pd.due) return true;
+          if (lvlNow >= pd.level * 0.22) opts.onOnset({ at: pd.at - lat, level: pd.level });
+          return false;
+        });
       }
     }
     lastPoll = now;
@@ -91,7 +108,7 @@ export function createListener() {
         spec = new Float32Array(chordAn.frequencyBinCount);
         chordTimer = setInterval(chordFrame, 90);
       }
-      blocks = []; lastOnset = -1e9; lastPoll = performance.now();
+      blocks = []; lastOnset = -1e9; lastPoll = performance.now(); pending = [];
       running = true;
       timer = setInterval(poll, 20);
     },
@@ -169,3 +186,9 @@ export function createHitLog() {
     clear() { hits.length = 0; },
   };
 }
+
+/**
+ * Ista nota? Dozvoljena je i oktava gore/dole: mikrofon telefona slabo hvata osnovni ton debelih žica,
+ * pa se nota ponekad očita oktavu više. Igra ionako kaže na kojoj žici se svira.
+ */
+export const sameNote = (a, b) => a != null && b != null && (a === b || Math.abs(a - b) === 12);

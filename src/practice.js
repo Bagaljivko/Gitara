@@ -108,7 +108,7 @@ async function renderGame(root, game, args, params) {
     <div class="pr-opts" id="prOpts"></div>
     <div class="pr-tempo" id="prTempo">
       <button class="btn round small" id="prSlower" aria-label="${t('pr.slower')}">−</button>
-      <span><b id="prBpm">90</b> <small>BPM</small></span>
+      <span><b id="prBpm">90</b> <small id="prUnit">BPM</small></span>
       <button class="btn round small" id="prFaster" aria-label="${t('pr.faster')}">+</button>
     </div>
     <button class="btn primary big wide" id="prGo">${t('pr.start')}</button>
@@ -131,7 +131,7 @@ async function renderGame(root, game, args, params) {
     allStats: st,
     get running() { return running; },
     get bpm() { return bpm; },
-    setBpm(v) { bpm = Math.round(Math.max(B.min, Math.min(B.max, v))); $('prBpm').textContent = bpm; },
+    setBpm(v) { bpm = Math.round(Math.max(B.min, Math.min(B.max, v))); $('prBpm').textContent = B.fmt(bpm); },
     /** Puls metronoma na vrhu: beat = 0..beats-1 (null = osmina između) */
     pulse(beat, beats = 4, accent = false) {
       const p = $('prPulse');
@@ -158,7 +158,7 @@ async function renderGame(root, game, args, params) {
     /** Kraj runde: rezultat 0–100, tempo, tačnost (0–1). key = [songId, deo] za „Delovi pesme“. */
     async finish(res, key = null) {
       stopRun(false);
-      const nextTempo = res.score > 90 ? Math.min(B.max, res.tempo + B.step) : res.tempo;
+      const nextTempo = res.score > 90 ? Math.max(B.min, Math.min(B.max, res.tempo + B.step * B.dir)) : res.tempo;
       await saveResult(game.id, { ...res, nextTempo }, key);
       const prevBest = key ? ((st.songs[key[0]] || {})[key[1]] || {}).best || 0 : rec.best || 0;
       showResult({ ...res, nextTempo, newBest: res.score > prevBest });
@@ -170,11 +170,13 @@ async function renderGame(root, game, args, params) {
 
   gameObj = await mod.createGame(api);
   api.pulse(null, gameObj.beats || 4); // tačke otkucaja odmah (ekran ne „skače“ na startu)
-  const B = { start: 80, min: 40, max: 200, step: 5, ...(gameObj.bpm || {}) };
+  // Brzina: BPM (više = brže) ili npr. sekunde po noti (dir: -1 → manje = brže)
+  const B = { start: 80, min: 40, max: 200, step: 5, dir: 1, fmt: (v) => String(v), unit: 'BPM', ...(gameObj.bpm || {}) };
+  $('prUnit').textContent = B.unit;
   api.setBpm(rec.lastTempo || B.start);
   if (gameObj.noTempo) $('prTempo').hidden = true;
-  $('prSlower').addEventListener('click', () => api.setBpm(bpm - B.step));
-  $('prFaster').addEventListener('click', () => api.setBpm(bpm + B.step));
+  $('prSlower').addEventListener('click', () => api.setBpm(bpm - B.step * B.dir));
+  $('prFaster').addEventListener('click', () => api.setBpm(bpm + B.step * B.dir));
 
   function showResult(r) {
     const box = $('prRes');
@@ -183,14 +185,14 @@ async function renderGame(root, game, args, params) {
       <div class="pr-score"><b>${Math.round(r.score)}</b><small>/100</small></div>
       ${r.newBest ? `<p class="pr-best">${t('pr.newBest')}</p>` : ''}
       <div class="pr-res-row">
-        <span><small>${t('pr.tempoReached')}</small><b>${r.tempo} BPM</b></span>
+        <span><small>${t(B.dir < 0 ? 'pr.speedReached' : 'pr.tempoReached')}</small><b>${B.fmt(r.tempo)} ${B.unit}</b></span>
         <span><small>${t('pr.accuracy')}</small><b>${Math.round((r.accuracy || 0) * 100)}%</b></span>
         ${r.extra ? `<span><small>${esc(r.extra.label)}</small><b>${esc(String(r.extra.value))}</b></span>` : ''}
       </div>
-      ${r.nextTempo !== r.tempo ? `<p class="small pr-up">${t('pr.tempoUp', { bpm: r.nextTempo })}</p>` : ''}
+      ${r.nextTempo !== r.tempo ? `<p class="small pr-up">${t('pr.tempoUp', { bpm: B.fmt(r.nextTempo) + ' ' + B.unit })}</p>` : ''}
       <button class="btn primary big wide" id="prAgainFaster">${t('pr.againFaster')}</button>`;
     box.querySelector('#prAgainFaster').addEventListener('click', () => {
-      if (r.nextTempo === r.tempo) api.setBpm(bpm + B.step);
+      if (r.nextTempo === r.tempo) api.setBpm(bpm + B.step * B.dir);
       box.hidden = true;
       startRun();
     });

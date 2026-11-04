@@ -2,7 +2,7 @@
 // pa jedan prag više i nazad (4-3-2-1). Jedna nota po udarcu; proverava se nota i ritam.
 import { Metronome } from './rhythm.js';
 import { createBoard, OPEN_MIDI, noteLabel } from './practiceBoard.js';
-import { judgeTiming, createHitLog } from './practiceListen.js';
+import { judgeTiming, createHitLog, sameNote } from './practiceListen.js';
 
 const STARTS = [1, 5, 7];
 
@@ -60,7 +60,7 @@ export function createGame(api) {
     if (!h) r = { score: 0, ok: false, kind: 'miss', text: t('pr.missed') };
     else {
       h.used = true;
-      const midi = log.midiOf(h), noteOk = midi === want;
+      const midi = log.midiOf(h), noteOk = sameNote(midi, want);
       const tm = judgeTiming(h.at - at, beatMs);
       r = noteOk
         ? { score: 0.6 + 0.4 * tm.score, ok: true, kind: tm.kind === 'hit' ? 'hit' : tm.kind === 'off' ? 'miss' : tm.kind, text: timingText(tm.kind, h.at - at) }
