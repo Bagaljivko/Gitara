@@ -66,7 +66,7 @@ export function createListener() {
         const lvlNow = Math.sqrt(e / B);
         pending = pending.filter((pd) => {
           if (now < pd.due) return true;
-          if (lvlNow >= pd.level * 0.22) opts.onOnset({ at: pd.at - lat, level: pd.level });
+          if (lvlNow >= pd.level * 0.1) opts.onOnset({ at: pd.at - lat, level: pd.level });
           return false;
         });
       }

@@ -155,6 +155,10 @@ async function renderGame(root, game, args, params) {
       return listener;
     },
     onCleanup(fn) { cleanups.add(fn); },
+    /** Zaustavi bez rezultata (npr. posle podešavanja kašnjenja). */
+    stopNow() { stopRun(false); },
+    /** Pokreni posebnu rundu (npr. podešavanje kašnjenja) sa istim gašenjem kao igra. */
+    startCustom(fn) { return startRun(fn); },
     /** Kraj runde: rezultat 0–100, tempo, tačnost (0–1). key = [songId, deo] za „Delovi pesme“. */
     async finish(res, key = null) {
       stopRun(false);
@@ -199,7 +203,7 @@ async function renderGame(root, game, args, params) {
     box.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
 
-  async function startRun() {
+  async function startRun(custom = null) {
     if (running) return;
     $('prRes').hidden = true;
     running = true;
@@ -207,7 +211,7 @@ async function renderGame(root, game, args, params) {
     $('prGo').textContent = t('pr.stop');
     $('prGo').classList.remove('primary');
     keepAwake('practice'); // ekran ostaje upaljen samo dok igra traje
-    try { await gameObj.start(bpm); }
+    try { await (typeof custom === 'function' ? custom() : gameObj.start(bpm)); }
     catch (e) { api.feedback('miss', e && e.message ? e.message : t('mic.failed')); stopRun(); }
   }
   // Sve se gasi: igra, metronom, tonovi, mikrofon, budnost ekrana
@@ -223,6 +227,7 @@ async function renderGame(root, game, args, params) {
     allowSleep('practice');
   }
   $('prGo').addEventListener('click', () => (running ? stopRun() : startRun()));
+  // „Ponovo, brže“ i slično pozivaju startRun() bez argumenata
 
   // Izlazak iz igre (druga stranica) ili aplikacija u pozadini → ugasi sve
   const onHide = () => { if (document.hidden) stopRun(); };

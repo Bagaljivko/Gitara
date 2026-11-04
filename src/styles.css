@@ -954,3 +954,8 @@ mark.cc-unknown { background: rgba(255, 90, 90, .3); color: var(--text); border-
 .pr-timer { width: min(320px, 90%); height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
 .pr-timer i { display: block; height: 100%; width: 100%; background: linear-gradient(90deg, var(--ok), var(--accent)); border-radius: 3px; }
 .pr-pulse:empty { display: none; }
+.rt-visual { width: 100%; display: flex; justify-content: center; }
+.rt-chord { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.rt-chord .chord-big { width: 150px; }
+.rt-row { display: flex; justify-content: center; }
+.pr-calib { align-self: center; }
