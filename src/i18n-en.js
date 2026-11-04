@@ -295,6 +295,7 @@ export default {
   'set.privacy': 'Privacy policy',
 
   'chords.tabRecognize': 'Recognize',
+  'chords.tabFree': 'Free play',
   'chords.tabRhythm': 'Rhythm',
   'chords.tabDict': 'Chord book',
   'met.slower': 'Slower',

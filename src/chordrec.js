@@ -128,8 +128,9 @@ export function createChordRec(root) {
     <header class="view-head">
       <h1>${t('chords.title')}</h1>
     </header>
-    <div class="seg-tabs seg3" role="tablist">
+    <div class="seg-tabs seg3 seg4" role="tablist">
       <button role="tab" class="active" data-pane="rec">${t('chords.tabRecognize')} <span class="badge">${t('chords.beta')}</span></button>
+      <button role="tab" data-pane="free">${t('chords.tabFree')}</button>
       <button role="tab" data-pane="dict">${t('chords.tabDict')}</button>
       <button role="tab" data-pane="rhythm">${t('chords.tabRhythm')}</button>
     </div>
@@ -148,6 +149,7 @@ export function createChordRec(root) {
     <p class="err" id="crErr" hidden></p>
     <p class="hint small">${t('chords.hint')}</p>
     </div>
+    <div id="frPane" hidden></div>
     <div id="rhPane" hidden></div>
     <div id="dictPane" hidden></div>
   </section>`;
@@ -282,14 +284,18 @@ export function createChordRec(root) {
   $('crBtn').addEventListener('click', () => (running ? stop() : start()));
 
   // Druga sekcija: metronom i ritmovi
-  let rhythm = null, dict = null;
+  let rhythm = null, dict = null, free = null;
   root.querySelectorAll('[data-pane]').forEach((b) => b.addEventListener('click', () => {
     root.querySelectorAll('[data-pane]').forEach((x) => x.classList.toggle('active', x === b));
     const pane = b.dataset.pane;
     $('crPane').hidden = pane !== 'rec';
     $('rhPane').hidden = pane !== 'rhythm';
     $('dictPane').hidden = pane !== 'dict';
+    $('frPane').hidden = pane !== 'free';
     if (pane !== 'rec') stop();
+    // „Samo sviraj“: učitava se tek kad se otvori (ništa pri pokretanju)
+    if (pane === 'free' && !free) free = import('./freeplay.js').then((m) => m.createFreePane($('frPane')));
+    if (pane !== 'free') free?.then((f) => f.stop());
     if (pane === 'rhythm' && !rhythm) rhythm = createRhythmPane($('rhPane'));
     if (pane !== 'rhythm') rhythm?.stop();
     if (pane === 'dict' && !dict) dict = createChordDict($('dictPane'));
@@ -297,6 +303,6 @@ export function createChordRec(root) {
   }));
   return {
     show() { if (!$('dictPane').hidden) setWakeZone('dict'); },
-    hide() { stop(); rhythm?.stop(); setWakeZone(null); },
+    hide() { stop(); rhythm?.stop(); free?.then((f) => f.stop()); setWakeZone(null); },
   };
 }

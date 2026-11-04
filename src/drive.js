@@ -16,7 +16,7 @@ const FOLDER_NAME = 'Gitara';
 const BACKUP_NAME = 'gitara-backup.json';
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
 const BACKUP_DELAY = 4000; // ms posle izmene
-const BACKUP_SETTINGS = ['a4', 'geminiModel', 'geminiModelSel', 'lang', 'metBpm', 'folders', 'setlists', 'tunerRoom', 'tuning', 'wakeMode', 'wakeMinutes', 'noteNames', 'practice']; // Gemini ključ se NIKAD ne šalje na Drive
+const BACKUP_SETTINGS = ['a4', 'geminiModel', 'geminiModelSel', 'lang', 'metBpm', 'folders', 'setlists', 'tunerRoom', 'tuning', 'wakeMode', 'wakeMinutes', 'noteNames', 'practice', 'freeplayRecs']; // Gemini ključ se NIKAD ne šalje na Drive
 
 export class DriveError extends Error {
   constructor(message, code = '') { super(message); this.code = code; }
@@ -236,6 +236,26 @@ function cleanPractice(p) {
 }
 
 /** Spajanje rezultata (telefon + kopija): veći najbolji rezultat; niz i tempo sa skorije korišćenog. */
+/** Moji snimci (Samo sviraj) iz rezervne kopije: samo poznat oblik, razumne granice (do 10 min, pragovi 0–12). */
+function cleanFreeplayRecs(list) {
+  if (!Array.isArray(list)) return null;
+  const out = [];
+  for (const r of list.slice(0, 200)) {
+    if (!r || typeof r !== 'object' || typeof r.id !== 'string' || !Array.isArray(r.events)) continue;
+    const events = [];
+    for (const e of r.events.slice(0, 20000)) {
+      if (!e || typeof e !== 'object') continue;
+      const notes = (Array.isArray(e.notes) ? e.notes : []).slice(0, 6).map((n) => ({ m: Math.round(Number(n && n.m)), s: Math.round(Number(n && n.s)), f: Math.round(Number(n && n.f)) }))
+        .filter((n) => n.m >= 40 && n.m <= 88 && n.s >= 0 && n.s <= 5 && n.f >= 0 && n.f <= 12);
+      const ev = { t: Math.max(0, Math.min(600000, Math.round(Number(e.t) || 0))), notes };
+      if (typeof e.chord === 'string' && /^[A-G][#b]?[a-z0-9]{0,6}$/.test(e.chord)) ev.chord = e.chord;
+      if (notes.length || ev.chord) events.push(ev);
+    }
+    out.push({ v: 1, id: r.id.slice(0, 40), name: String(r.name || '').slice(0, 60) || r.id, created: Number(r.created) || 0, dur: Math.max(0, Math.min(600000, Math.round(Number(r.dur) || 0))), events });
+  }
+  return out;
+}
+
 function mergePractice(a, b) {
   if (!a) return b;
   const day = (r) => { const [y, m, d] = String(r && r.lastDay || '').split('-').map(Number); return y ? y * 400 + m * 32 + d : 0; };
@@ -318,6 +338,8 @@ export async function readBackup() {
     // Stari „tunerSens“ se namerno ne vraća (svi su prebačeni na „Auto“); vraća se samo novi izbor sobe.
     if (['auto', 'quiet', 'noisy'].includes(data.settings.tunerRoom)) st.tunerRoom = data.settings.tunerRoom;
     if (typeof data.settings.tuning === 'string') st.tuning = data.settings.tuning;
+    const fr = cleanFreeplayRecs(data.settings.freeplayRecs);
+    if (fr) st.freeplayRecs = fr; // Akordi → Samo sviraj: Moji snimci
     const pr = cleanPractice(data.settings.practice);
     if (pr) st.practice = pr; // Vežbe: najbolji rezultati, nizovi i poslednji tempo (po igri i po pesmi)
     if (['songs', 'active', 'never'].includes(data.settings.wakeMode)) st.wakeMode = data.settings.wakeMode;
@@ -359,6 +381,7 @@ export async function applyRestore(backup, mode) {
     if (k === 'lang') await setLang(v); // jezik se primenjuje odmah
     else if (mode === 'merge' && (k === 'folders' || k === 'setlists')) await settings.set(k, mergeById((await settings.get(k, [])) || [], v));
     else if (mode === 'merge' && k === 'practice') await settings.set(k, mergePractice(await settings.get(k, null), v));
+    else if (mode === 'merge' && k === 'freeplayRecs') await settings.set(k, mergeById((await settings.get(k, [])) || [], v));
     else await settings.set(k, v);
   }
   return added;

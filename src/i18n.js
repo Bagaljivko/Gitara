@@ -314,6 +314,7 @@ const sr = {
 
   // Akordi — sekcije
   'chords.tabRecognize': 'Prepoznavanje',
+  'chords.tabFree': 'Samo sviraj',
   'chords.tabRhythm': 'Ritam',
   'chords.tabDict': 'Rečnik',
   // Metronom

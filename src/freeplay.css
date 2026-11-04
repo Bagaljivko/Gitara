@@ -1,0 +1,57 @@
+/* Akordi → „Samo sviraj“ (učitava se tek sa ovim delom). Isti stil kao tuner: AMOLED crno, metal i sjaj. */
+:root { --f0: #dfe3e8; --f1: #5aa9ff; --f2: #ffd75e; --f3: #ff7cc3; --f4: #b48cff; }
+.fp-pane { display: flex; flex-direction: column; gap: 10px; }
+.fp-go svg { width: 20px; height: 20px; fill: currentColor; }
+.fp-h { margin: 14px 0 2px; }
+.fp-recs { list-style: none; margin: 0; padding: 0; }
+.fp-recs li { display: flex; align-items: center; gap: 4px; border-bottom: 1px solid var(--line); }
+.fp-open { flex: 1; min-width: 0; appearance: none; background: none; border: 0; color: var(--text); text-align: left; padding: 12px 4px; display: flex; flex-direction: column; cursor: pointer; font: inherit; }
+.fp-open b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fp-open small { color: var(--muted); }
+.fp-empty { padding: 12px 4px; }
+.fp-view-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.fp-tab { font: 600 .82rem/1.35 var(--mono); background: #000; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; overflow-x: auto; color: #e9ecf1; margin: 10px 0; }
+.row-btns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+
+/* ---- Pozornica (položeno) ---- */
+body.fpv-open { overflow: hidden; }
+.fpv { position: fixed; inset: 0; z-index: 200; background: #000; color: var(--text); display: flex; flex-direction: column;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); touch-action: none; user-select: none; }
+.fpv-top { flex: 0 0 auto; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; padding: 6px 10px; }
+.fpv-x, .fpv-set { appearance: none; border: 1px solid var(--line); background: #0d0e11; color: var(--text); width: 40px; height: 40px; border-radius: 12px; font-size: 1.05rem; cursor: pointer; display: grid; place-items: center; }
+.fpv-set svg { width: 20px; height: 20px; fill: #c9ccd2; }
+.fpv-name { text-align: center; display: flex; flex-direction: column; align-items: center; line-height: 1.05; height: 3.4em; justify-content: center; contain: layout paint; overflow: hidden; }
+.fpv-name b { font-size: clamp(1.6rem, 9vh, 2.6rem); font-weight: 800; color: #fff; text-shadow: 0 0 18px rgba(245,165,36,.55); }
+.fpv-name small { color: var(--muted); font-size: .8rem; min-height: 1.2em; }
+.fpv-tools { display: flex; align-items: center; gap: 8px; }
+.fpv-rec { contain: layout paint; min-width: 96px; justify-content: center; appearance: none; border: 1px solid var(--line); background: #0d0e11; color: var(--text); height: 40px; border-radius: 999px; padding: 0 14px 0 12px; display: inline-flex; align-items: center; gap: 8px; font: 700 .9rem var(--sans); cursor: pointer; font-variant-numeric: tabular-nums; }
+.fpv-rec i { width: 12px; height: 12px; border-radius: 50%; background: #ff5b5b; box-shadow: 0 0 8px rgba(255,91,91,.6); }
+.fpv.recording .fpv-rec { border-color: #ff5b5b; color: #ffd0d0; }
+.fpv.recording .fpv-rec i { animation: fpBlink 1s steps(2, start) infinite; }
+@keyframes fpBlink { to { opacity: .25; } }
+.fpv-replay { color: var(--muted); font-weight: 700; padding-right: 6px; }
+.fpv-neck { position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden; contain: strict; }
+.fpv-neck canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.fpv-dots { position: absolute; inset: 0; pointer-events: none; }
+/* tačka: jezgro u boji prsta + unapred „nacrtan“ blagi sjaj (radijalni gradijent, ne blur) */
+.fpd { position: absolute; left: 0; top: 0; width: calc(var(--r) * 3); height: calc(var(--r) * 3); border-radius: 50%; display: grid; place-items: center; opacity: 0; will-change: transform, opacity; font-style: normal;
+  --c: #dfe3e8; --cg: rgba(223,227,232,.3); background: radial-gradient(closest-side, var(--c) 0 62%, var(--cg) 70%, transparent 100%); }
+.fpd b { font: 800 calc(var(--r) * 1.05) / 1 system-ui, sans-serif; color: #0b0c10; }
+.fpd.fc1 { --c: #5aa9ff; --cg: rgba(90,169,255,.35); } .fpd.fc2 { --c: #ffd75e; --cg: rgba(255,215,94,.32); }
+.fpd.fc3 { --c: #ff7cc3; --cg: rgba(255,124,195,.35); } .fpd.fc4 { --c: #b48cff; --cg: rgba(180,140,255,.35); }
+.fpv-msg { position: absolute; left: 0; right: 0; top: 46%; text-align: center; font-weight: 600; color: var(--muted); opacity: 0; transition: opacity .4s; pointer-events: none; padding: 0 24px; }
+.fpv-msg.on { opacity: 1; }
+.fpv-msg.err { color: #ffb4a8; pointer-events: auto; }
+.fpv-panel { position: absolute; right: 10px; top: 6px; background: #0d0e11; border: 1px solid var(--line); border-radius: 14px; padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; max-width: 280px; z-index: 2; }
+.fpv-panel label { display: flex; align-items: center; gap: 10px; color: var(--text); font-weight: 600; }
+.fpv-panel input { accent-color: var(--accent); flex: 1; min-height: 0; padding: 0; }
+.fpv-panel small { color: var(--muted); }
+.fpv-rotate { display: none; position: absolute; inset: 0; z-index: 3; background: #000; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; padding: 24px; }
+.fpv-rotate b { font-size: 1.4rem; }
+.fpv-rotate small { color: var(--muted); max-width: 30ch; }
+.fpv-rot-hint { color: var(--accent) !important; }
+.fpv-phone { width: 54px; height: 92px; border: 3px solid var(--accent); border-radius: 12px; position: relative; margin-bottom: 14px; animation: fpTurn 2s ease-in-out infinite; }
+.fpv-phone i { position: absolute; left: 50%; bottom: 6px; width: 14px; height: 3px; margin-left: -7px; border-radius: 2px; background: var(--accent); }
+@keyframes fpTurn { 0%, 20% { transform: rotate(0); } 55%, 100% { transform: rotate(-90deg); } }
+@media (orientation: portrait) { .fpv-rotate { display: flex; } }
+@media (prefers-reduced-motion: reduce) { .fpv-phone, .fpv.recording .fpv-rec i { animation: none; } }

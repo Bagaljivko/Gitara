@@ -582,6 +582,9 @@ body.two-pane-mode main { max-width: 1320px; }
 /* Rečnik akorda */
 .seg-tabs.seg3 { grid-template-columns: 1.35fr 1fr 1fr; }
 .seg-tabs.seg3 button { padding: 0 4px; }
+/* Akordi: četiri dela (Prepoznavanje, Samo sviraj, Rečnik, Ritam) */
+.seg-tabs.seg4 { grid-template-columns: 1.3fr 1.1fr .9fr .8fr; }
+.seg-tabs.seg4 button { padding: 0 2px; font-size: .86rem; }
 .dict-roots { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin: 12px 0 8px; }
 .dict-roots .chip { padding: 0; min-width: 0; }
 .dict-quals { flex-wrap: wrap; margin: 0 0 4px; padding: 4px 0 8px; overflow: visible; }
