@@ -38,7 +38,7 @@ export function createGame(api) {
   const $ = (id) => api.stage.querySelector('#' + id);
   api.feedback('info', t('pr.sluh.ready'));
 
-  let n = 0, cur = null, tries = 0, results = [], quietUntil = 0, timer = 0, t0 = 0, listener = null;
+  let n = 0, cur = null, tries = 0, results = [], quietUntil = 0, timer = 0, t0 = 0, listener = null, lastWrong = -1e9;
   const log = createHitLog();
   const limitMs = () => api.bpm * 100; // desetinke sekunde po pitanju
   const secs = (ms) => (ms / 1000).toLocaleString(getLang() === 'en' ? 'en' : 'sr-Latn', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
@@ -64,7 +64,7 @@ export function createGame(api) {
     let q;
     do { q = mode === 'chord' ? { chord: CHORDS[Math.floor(Math.random() * CHORDS.length)] } : NOTE_POOL[Math.floor(Math.random() * NOTE_POOL.length)]; }
     while (cur && (q.chord ? q.chord === cur.chord : q.midi === cur.midi));
-    cur = q; n++; tries = 0;
+    cur = q; n++; tries = 0; lastWrong = -1e9;
     reveal(null);
     $('eaAgain').hidden = false;
     $('eaCount').textContent = `${n} / ${ROUND}`;
@@ -86,6 +86,9 @@ export function createGame(api) {
       results.push({ ok: false, score: 0 });
       api.feedback('miss', t('pr.sluh.was', { x: q.chord ? dn(q.chord) : noteLabel(q.midi) }));
     } else {
+      // jedan trzaj = najviše jedan pokušaj (zvuk jedne žice ponekad izgleda kao dva udarca)
+      if (performance.now() - lastWrong < 700) return;
+      lastWrong = performance.now();
       tries++;
       api.feedback('miss', t('pr.sluh.tryAgain', { n: TRIES - tries }));
       return;
