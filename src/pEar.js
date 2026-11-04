@@ -6,7 +6,7 @@ import { chordNotes } from './rhythm.js';
 import { chordSVG } from './diagram.js';
 import { createBoard, OPEN_MIDI, noteLabel, fingerOf } from './practiceBoard.js';
 import { createHitLog } from './practiceListen.js';
-import { hitSound } from './practiceTrack.js';
+import { hitSound, quizPluck, placeOf } from './practiceCommon.js';
 import { getLang } from './i18n.js';
 import { dn } from './naming.js';
 
@@ -32,7 +32,7 @@ export function createGame(api) {
     api.opts.querySelectorAll('[data-m]').forEach((x) => x.classList.toggle('active', x === b));
     reveal(null);
   });
-  api.stage.innerHTML = `<div class="ear-q" id="eaQ">?</div>
+  api.stage.innerHTML = `<div class="pr-qwrap"><div class="ear-q" id="eaQ">?</div><i class="pr-qring" id="eaRing"></i></div>
     <div class="pr-hint" id="eaHint"></div>
     <div class="ear-reveal" id="eaRev"></div>
     <div class="row-btns"><button class="btn small" id="eaAgain" hidden>${t('pr.sluh.again')}</button>
@@ -49,16 +49,18 @@ export function createGame(api) {
   const log = createHitLog();
   const limitMs = () => api.bpm * 100; // desetinke sekunde po pitanju
   const secs = (ms) => (ms / 1000).toLocaleString(getLang() === 'en' ? 'en' : 'sr-Latn', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-  const flash = (k) => { const s = api.stage; s.classList.remove('flash-hit', 'flash-miss'); void s.offsetWidth; s.classList.add('flash-' + k); };
+  const flash = (k) => { const r = $('eaRing'); r.className = 'pr-qring' + (k === 'miss' ? ' bad' : ''); r.animate([{ opacity: 1, transform: 'scale(.92)' }, { opacity: 0, transform: 'scale(1.12)' }], { duration: 480, easing: 'ease-out' }); };
+  let revBoard = null; // vrat kad je prikazan (posle saveta) — tu se pokaže i pogrešna nota
   const nameOf = (q) => (q.chord ? dn(q.chord) : noteLabel(q.midi));
 
   // Gde je: vrat (nota, u boji prsta) ili dijagram akorda (tačke u bojama prstiju)
   function reveal(q, kind = 'show') {
-    if (!q) { $('eaRev').innerHTML = ''; $('eaQ').textContent = '?'; $('eaHint').textContent = ''; return; }
+    if (!q) { $('eaRev').innerHTML = ''; revBoard = null; $('eaQ').textContent = '?'; $('eaHint').textContent = ''; return; }
     if (q.chord) $('eaRev').innerHTML = `<div class="chord-big ear-chord">${chordSVG(q.chord, { colorFingers: true })}</div>`;
     else {
       $('eaRev').innerHTML = '<div class="pr-board"></div>';
-      createBoard($('eaRev').querySelector('.pr-board'), { from: 0, to: 5 }).mark(q.s, q.f, kind, String(q.f), fingerOf(q.f), 0);
+      revBoard = createBoard($('eaRev').querySelector('.pr-board'), { from: 0, to: 5 });
+      revBoard.mark(q.s, q.f, kind, String(q.f), fingerOf(q.f), 0);
     }
     $('eaQ').textContent = nameOf(q);
   }
@@ -95,7 +97,7 @@ export function createGame(api) {
     const q = cur;
     if (ok) {
       const took = performance.now() - t0;
-      results.push({ ok: true, score: [1, 0.7, 0.4][tries] ?? 0.4, hinted: tries >= 2 });
+      results.push({ ok: true, score: beg() ? Math.max(0.7, 1 - 0.1 * tries) : [1, 0.7, 0.4][tries] ?? 0.4, hinted: tries >= 2, wrong: tries });
       streak++;
       $('eaStreak').textContent = streak >= 2 ? t('pr.lovac.streak', { n: streak }) : '';
       $('eaStreak').classList.toggle('hot', streak >= 5);
@@ -103,7 +105,7 @@ export function createGame(api) {
       api.feedback('hit', t('pr.sluh.right', { s: secs(took) }));
       reveal(q, 'hit');
     } else if (timeout || (!beg() && tries + 1 >= TRIES)) {
-      results.push({ ok: false, score: 0 });
+      results.push({ ok: false, score: 0, wrong: tries + (timeout ? 0 : 1), timeout });
       streak = 0; $('eaStreak').textContent = '';
       flash('miss');
       api.feedback('miss', t('pr.sluh.was', { x: nameOf(q) }));
@@ -128,10 +130,13 @@ export function createGame(api) {
   }
   function onPluck(p) {
     if (!cur || cur.chord || performance.now() < quietUntil) return;
-    log.onset({ at: p.at }); log.pluck(p);
-    const h = log.hits[log.hits.length - 1];
-    if (log.matches(h, cur.midi)) answer(true);
-    else { const m = log.midiOf(h); if (m != null) answer(false, false, t('pr.trk.wrong', { n: noteLabel(m) })); }
+    const q = cur;
+    quizPluck(api, log, p, q.midi, 'sluh', () => cur === q && answer(true),
+      (m) => {
+        if (cur !== q || m == null) return;
+        if (revBoard) { const pos = placeOf(m, q.s); if (pos && pos.f <= 5) revBoard.ghost(pos.s, pos.f); }
+        answer(false, false, t('pr.trk.wrong', { n: noteLabel(m) }));
+      });
   }
   function onOnset(o) {
     if (!cur || !cur.chord || performance.now() < quietUntil) return;
@@ -142,7 +147,7 @@ export function createGame(api) {
   $('eaSkip').addEventListener('click', () => {
     if (!cur) return;
     const q = cur; cur = null;
-    results.push({ ok: false, score: 0 }); streak = 0;
+    results.push({ ok: false, score: 0, wrong: tries, skipped: true }); streak = 0;
     reveal(q, 'show'); $('eaSkip').hidden = true;
     setTimeout(() => api.running && next(), 1400);
   });
@@ -151,7 +156,11 @@ export function createGame(api) {
     clearTimeout(timer); cur = null;
     $('eaAgain').hidden = true; $('eaSkip').hidden = true;
     const sum = results.reduce((a, r) => a + r.score, 0), ok = results.filter((r) => r.ok).length;
-    api.finish({ score: (sum / ROUND) * 100, tempo: api.bpm, accuracy: ok / ROUND, beginner: beg(), clean: results.every((r) => r.ok && !r.hinted), noTempoUp: beg() });
+    const wrongs = results.reduce((a, r) => a + (r.wrong || 0), 0), timeouts = results.filter((r) => r.timeout).length, skipped = results.filter((r) => r.skipped).length;
+    const lines = [{ label: t('pr.why.hit'), value: `${ok}/${ROUND}` }, { label: t('pr.why.wrong'), value: String(wrongs) }];
+    if (timeouts) lines.push({ label: t('pr.why.timeUp'), value: String(timeouts) });
+    if (skipped) lines.push({ label: t('pr.why.skipped'), value: String(skipped) });
+    api.finish({ score: (sum / ROUND) * 100, tempo: api.bpm, accuracy: ok / ROUND, beginner: beg(), clean: results.every((r) => r.ok && !r.hinted), noTempoUp: beg(), lines });
   }
 
   return {

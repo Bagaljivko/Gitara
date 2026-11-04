@@ -3,7 +3,7 @@
 // tihi trzaji i klik metronoma iz zvučnika.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createDetector, createHitLog, sameNote } from '../src/practiceListen.js';
+import { createDetector, createHitLog, sameNote, matchNote } from '../src/practiceListen.js';
 import { SR, room, addPluck, addClick, phoneMic, frames } from './helpers/phoneMic.mjs';
 
 const STRINGS = [40, 45, 50, 55, 59, 64];
@@ -83,7 +83,11 @@ test('plucks on the beat with the speaker click on top: plucks still heard and o
 });
 
 test('the same string plucked again while it still rings (rhythm) counts every pluck', () => {
-  const { sig, plucks } = scene({ midis: Array(12).fill(40), gap: 0.3 }); // osmine na 100 BPM na praznoj E
+  // osmine na 100 BPM na praznoj E; svaki novi trzaj prvo zaustavi žicu koja još zvoni (kao trzalica na pravoj žici)
+  let sig = room(1.5 + 12 * 0.3 + 1, 0.0006);
+  const plucks = Array.from({ length: 12 }, (_, i) => ({ t: 1.5 + i * 0.3, midi: 40 }));
+  plucks.forEach((p, i) => addPluck(sig, p.t, p.midi, 0.06, { restrike: i > 0 }));
+  sig = phoneMic(sig);
   const r = score(listen(sig).hits, plucks);
   console.log(`  re-plucks of low E every 300 ms: ${r.found}/${plucks.length}`);
   assert.ok(r.found >= plucks.length - 1);
@@ -118,4 +122,30 @@ test('a pluck that comes 40–80 ms after the speaker click (a bit late) is stil
   console.log(`  late plucks after a click: ${r.found}/${plucks.length}, ${r.notes} right notes, max timing error ${r.maxErr.toFixed(0)} ms`);
   assert.equal(r.found, plucks.length);
   assert.ok(r.maxErr <= 25);
+});
+
+// Prijava sa telefona: „To je Fis“ / „To je H“ kad je ciljana nota bila jedan prag dalje.
+// Pritisnuti pragovi na G i H žici umeju da budu malo „visoki“ (i žica je odmah posle trzaja viša) — to mora da prođe,
+// a stvarno susedni prag (i blago raštimovan prema meti) mora i dalje da bude odbijen.
+function fretted(cents, shift = 0) {
+  const seq = []; for (const o of [55, 59]) for (let f = 1; f <= 4; f++) seq.push(o + f);
+  let sig = room(1.5 + seq.length * 0.6 + 1, 0.0008);
+  seq.forEach((m, i) => addPluck(sig, 1.5 + i * 0.6, m + shift + cents / 100, 0.05, { dur: 1.8 }));
+  const det = createDetector({}), plucks = [];
+  frames(phoneMic(sig), (buf, now) => { const ev = det.process(buf, SR, now); if (ev.pluck) plucks.push(ev.pluck); });
+  return { seq, plucks };
+}
+test('fretted notes on G and H strings up to ~35 cents sharp/flat are accepted (not read a semitone off)', () => {
+  for (const c of [0, 20, 35, -25]) {
+    const { seq, plucks } = fretted(c);
+    const ok = plucks.filter((p, i) => matchNote(p.seg, p.sr, seq[i]).ok).length;
+    assert.equal(ok, seq.length, `detune ${c} cents: ${ok}/${seq.length}`);
+  }
+});
+test('a note one or two frets away is still rejected (also when slightly detuned towards the target)', () => {
+  for (const [shift, c] of [[1, 0], [-1, 0], [1, -20], [-1, 20], [2, 0]]) {
+    const { seq, plucks } = fretted(c, shift);
+    const acc = plucks.filter((p, i) => matchNote(p.seg, p.sr, seq[i]).ok).length;
+    assert.equal(acc, 0, `played ${shift} fret(s) off (${c} c): ${acc} wrongly accepted`);
+  }
 });

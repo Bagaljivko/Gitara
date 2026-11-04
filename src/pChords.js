@@ -68,6 +68,9 @@ export function createGame(api) {
       const n = level === 'beg' ? 8 : Math.max(8, Math.floor(ROUND_MS / ((60000 / bpm) * every)));
       return { items: items(n), lagMs: 350 + 90 + 80, fingersOf: chordFingers, hintOf: (it) => t('pr.promena.hint', { c: it.label }) };
     },
+    // čistih promena u minuti (Normalno): u minuti ima bpm/every promena, od toga je deo bio čist
+    metric: (st) => (st.accuracy * st.tempo) / every,
+    metricLabel: t('pr.promena.perMin'),
     listen(round, input) {
       // akord se proverava ~0,35 s posle udarca (dok se tonovi „skupe“)
       return {

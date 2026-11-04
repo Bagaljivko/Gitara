@@ -1,22 +1,69 @@
 /* Vežbe: stilovi samo za igre — učitava ih practice.js kad se otvori tab „Vežbe“ (pokretanje aplikacije ih ne učitava). */
 /* ---------------- Vežbe ---------------- */
 .pr-intro { margin: 0 0 4px; }
-.pr-cards { display: grid; gap: 12px; margin-top: 12px; }
-@media (min-width: 700px) { .pr-cards { grid-template-columns: 1fr 1fr; } }
-.pr-card { display: grid; grid-template-columns: 52px 1fr auto; align-items: center; gap: 14px; margin: 0; padding: 18px 16px; color: var(--text); text-decoration: none; min-height: 92px; }
-.pr-card:active { background: var(--surface-2); }
-.pr-ico { width: 52px; height: 52px; border-radius: 16px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; }
 .pr-ico-svg { width: 28px; height: 28px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .pr-ico-svg .f { fill: currentColor; stroke: none; }
-.pr-txt { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.pr-txt b { font-size: 1.12rem; }
-.pr-stats { display: flex; flex-direction: column; gap: 6px; text-align: right; }
-.pr-stats span { display: flex; flex-direction: column; line-height: 1.1; }
-.pr-stats small { color: var(--muted); font-size: .7rem; }
-.pr-stats b { font-size: 1rem; font-variant-numeric: tabular-nums; }
+/* Meni igara: svaka igra ima svoju boju (--gc), ikonicu i mali animirani pregled; iste visine kartica */
+.pr-hub-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.pr-streak { font-weight: 800; font-size: .85rem; color: var(--accent); background: var(--accent-soft); padding: 5px 11px; border-radius: 999px; white-space: nowrap; }
+.pr-cards { display: grid; gap: 12px; margin-top: 14px; }
+@media (min-width: 640px) { .pr-cards { grid-template-columns: 1fr 1fr; } }
+.pr-card { --gc: var(--accent); position: relative; display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 14px; align-items: center;
+  height: 118px; padding: 14px 14px 14px 13px; border-radius: 20px; color: var(--text); text-decoration: none; overflow: hidden;
+  background: var(--surface); border: 1px solid var(--line); transition: transform .12s, border-color .2s; }
+@supports (background: color-mix(in srgb, red 10%, blue)) {
+  .pr-card { background: linear-gradient(120deg, color-mix(in srgb, var(--gc) 13%, var(--surface)), var(--surface) 62%); border-color: color-mix(in srgb, var(--gc) 32%, var(--line)); }
+  .pr-prev { border-color: color-mix(in srgb, var(--gc) 30%, transparent) !important; box-shadow: inset 0 0 18px color-mix(in srgb, var(--gc) 16%, transparent), 0 0 14px color-mix(in srgb, var(--gc) 10%, transparent); }
+  .pr-lvchip { background: color-mix(in srgb, var(--gc) 16%, transparent) !important; }
+  .pr-new { border-color: color-mix(in srgb, var(--gc) 55%, transparent) !important; box-shadow: 0 0 9px color-mix(in srgb, var(--gc) 28%, transparent); }
+}
+.pr-card:active { transform: scale(.98); }
+.pr-prev { width: 84px; height: 84px; border-radius: 16px; background: #050608; border: 1px solid var(--line); overflow: hidden; }
+.pr-prev svg { width: 100%; height: 100%; display: block; }
+.pr-body { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.pr-name { display: flex; align-items: center; gap: 7px; min-width: 0; white-space: nowrap; }
+.pr-name b { font-size: 1.08rem; overflow: hidden; text-overflow: ellipsis; }
+.pr-name .pr-ico-svg { width: 20px; height: 20px; flex: none; color: var(--gc); filter: drop-shadow(0 0 3px var(--gc)); }
+.pr-desc { font-size: .82rem; line-height: 1.3; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 2.6em; }
+.pr-meta { display: flex; align-items: center; gap: 8px; min-height: 22px; white-space: nowrap; overflow: hidden; }
+.pr-stars { display: inline-flex; gap: 1px; font-size: .95rem; line-height: 1; }
+.pr-stars i { font-style: normal; color: var(--surface-2); -webkit-text-stroke: 1px #3a3e47; }
+.pr-stars i.on { color: var(--accent); -webkit-text-stroke: 0; text-shadow: 0 0 6px rgba(245, 165, 36, .5); }
+.pr-num { font-size: .92rem; font-variant-numeric: tabular-nums; }
+.pr-lvchip { font-size: .7rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; color: var(--gc); background: var(--surface-2); overflow: hidden; text-overflow: ellipsis; }
+.pr-new { font-size: .7rem; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; padding: 3px 9px; border-radius: 999px; color: var(--gc); border: 1px solid var(--gc); }
+@media (max-width: 359px) { .pr-card { grid-template-columns: 70px minmax(0, 1fr); gap: 11px; padding: 12px; } .pr-prev { width: 70px; height: 70px; } }
+/* Pregledi (SVG): note klize do linije, blokovi akorda, meta, uho, tekst pesme — tiho i sporo */
+.pv-str { stroke: rgba(236, 238, 242, .2); stroke-width: 1.2; }
+.pv-hit { stroke: var(--accent); stroke-width: 2; opacity: .75; }
+.pv-f0 { fill: var(--f0); } .pv-f1 { fill: var(--f1); } .pv-f2 { fill: var(--f2); } .pv-f3 { fill: var(--f3); } .pv-f4 { fill: var(--f4); }
+.pv-slide { animation: pvSlide 4s linear infinite; }
+.pv-slow { animation-duration: 6s; }
+@keyframes pvSlide { to { transform: translateX(-56px); } }
+.pv-arrow { stroke: #e9ecf1; stroke-width: 3; fill: none; stroke-linecap: round; stroke-linejoin: round; opacity: .85; }
+.pv-beat { fill: none; stroke: var(--gc); stroke-width: 2; transform-box: fill-box; transform-origin: center; animation: pvBeat 1s ease-out infinite; }
+@keyframes pvBeat { from { transform: scale(.5); opacity: .9; } to { transform: scale(1.6); opacity: 0; } }
+.pv-block { fill: rgba(236, 238, 242, .07); stroke: rgba(236, 238, 242, .35); stroke-width: 1.2; }
+.pv-ring { fill: none; stroke: var(--gc); stroke-width: 1.5; opacity: .5; }
+.pv-dot { fill: var(--gc); }
+.pv-hunt { animation: pvHunt 4s steps(1) infinite; }
+@keyframes pvHunt { 0% { transform: translate(-13px, -10px); } 25% { transform: translate(12px, 7px); } 50% { transform: translate(-6px, 14px); } 75% { transform: translate(10px, -13px); } }
+.pv-ping { fill: none; stroke: var(--gc); stroke-width: 1.5; transform-box: fill-box; transform-origin: center; animation: pvPing 1s ease-out infinite; }
+@keyframes pvPing { from { transform: scale(.25); opacity: .8; } to { transform: scale(1.1); opacity: 0; } }
+.pv-ear { fill: none; stroke: var(--gc); stroke-width: 1.5; stroke-linecap: round; }
+.pv-wave { fill: none; stroke: var(--gc); stroke-width: 2.2; stroke-linecap: round; opacity: 0; animation: pvWave 1.8s ease-out infinite; }
+.pv-w2 { animation-delay: .3s; } .pv-w3 { animation-delay: .6s; }
+@keyframes pvWave { 0% { opacity: 0; } 25% { opacity: .9; } 100% { opacity: 0; } }
+.pv-lyr { fill: rgba(236, 238, 242, .18); }
+.pv-lyr-on { fill: var(--gc); opacity: .7; transform-box: fill-box; transform-origin: left center; animation: pvSweep 3s linear infinite; }
+@keyframes pvSweep { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.pv-chip { fill: rgba(236, 238, 242, .06); stroke: var(--gc); stroke-width: 1.4; animation: pvChip 3s linear infinite; }
+.pv-chords rect:nth-child(2) { animation-delay: 1s; } .pv-chords rect:nth-child(3) { animation-delay: 2s; }
+@keyframes pvChip { 0%, 30% { fill: var(--gc); fill-opacity: .8; } 34%, 100% { fill: rgba(236, 238, 242, .06); fill-opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .pr-prev * { animation: none !important; } }
 /* Ekran igre */
 .pr-gtitle { display: inline-flex; align-items: center; gap: 8px; color: var(--text); }
-.pr-gtitle .pr-ico-svg { width: 22px; height: 22px; color: var(--accent); }
+.pr-gtitle .pr-ico-svg { width: 22px; height: 22px; color: var(--gc, var(--accent)); filter: drop-shadow(0 0 3px var(--gc, transparent)); }
 .pr-pulse { display: flex; justify-content: center; gap: 14px; height: 22px; align-items: center; margin: 6px 0 10px; }
 .pr-pulse i { width: 12px; height: 12px; border-radius: 50%; background: var(--surface-2); border: 1px solid var(--line); }
 .pr-pulse i.on { animation: prPulse .28s ease-out; }
@@ -116,51 +163,16 @@ body.trk-open { overflow: hidden; }
 .trk-top { display: flex; align-items: center; gap: 12px; padding: 6px 10px; flex: 0 0 auto; }
 .trk-x { appearance: none; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); width: 40px; height: 40px; border-radius: 12px; font-size: 1.05rem; cursor: pointer; }
 .trk-prog { flex: 1; height: 8px; border-radius: 4px; background: var(--surface-2); overflow: hidden; }
-.trk-prog i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--accent), var(--ok)); transition: width .2s; }
 .trk-combo { display: flex; align-items: baseline; gap: 4px; min-width: 64px; justify-content: flex-end; }
 .trk-combo b { font-size: 1.5rem; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--accent); }
 .trk-combo small { color: var(--muted); font-size: .75rem; }
 .trk-combo.hot b { color: var(--ok); text-shadow: 0 0 12px rgba(61,214,140,.7); }
-.trk-combo.bump b { animation: trkBump .25s ease-out; }
-@keyframes trkBump { from { transform: scale(1.45); } to { transform: scale(1); } }
 .trk-meter { display: flex; align-items: center; gap: 8px; font-size: .8rem; color: var(--muted); }
 .trk-meter .pr-lvl { width: 64px; }
 .trk-heard { min-width: 8ch; }
-.trk-lane { position: relative; flex: 1 1 auto; min-height: 0; display: flex; }
-.trk-cw { position: relative; flex: 1 1 auto; min-width: 0; }
-.trk-cw canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-/* Ruka: posebna kolona desno (nikad ne pokriva liniju ni note koje dolaze) */
-.trk-side { flex: 0 0 auto; width: clamp(58px, 20vh, 104px); display: flex; align-items: flex-end; justify-content: center; padding: 0 6px 6px 4px; }
-.trk-hand { width: 100%; }
-.trk-hand svg { width: 100%; height: auto; display: block; overflow: visible; }
-.trk-hand .h-skin { fill: #e8d5c4; opacity: .09; transition: opacity 1.4s ease; }
-.trk-hand .h-tip circle { opacity: .3; transition: opacity .35s, filter .35s; }
-.trk-hand .h-tip text { fill: #0b0c10; font: 800 9.5px system-ui, sans-serif; opacity: .45; transition: opacity .35s; }
-.trk-hand .h-tip.lit circle { opacity: .95; filter: drop-shadow(0 0 4px currentColor); }
-.trk-hand .h-tip.lit text { opacity: 1; }
-.trk-hand.pulse .h-skin { animation: handSkin .95s ease-in-out 3; }
-.trk-hand.pulse .h-tip circle, .trk-hand.pulse .h-tip text { animation: handTip .95s ease-in-out 3; }
-@keyframes handSkin { 0%, 100% { opacity: .12; } 50% { opacity: .42; } }
-@keyframes handTip { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
-.trk-lyric { flex: 0 0 auto; text-align: center; font-size: clamp(.9rem, 4.2vh, 1.15rem); font-weight: 600; color: var(--text); max-height: 0; overflow: hidden; padding: 0 16px; transition: max-height .2s, padding .2s; white-space: nowrap; text-overflow: ellipsis; }
-.trk-lyric.on { max-height: 2.2em; padding: 2px 16px 4px; }
 .trk-rot-hint { color: var(--accent) !important; margin-top: 4px; }
-.trk-big { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; font-size: min(26vh, 9rem); font-weight: 900; color: #fff; opacity: 0; text-shadow: 0 0 30px rgba(245,165,36,.8); }
-.trk-big.show { animation: trkBig .7s ease-out forwards; }
-@keyframes trkBig { 0% { opacity: 0; transform: scale(1.6); } 25% { opacity: 1; transform: scale(1); } 100% { opacity: .0; transform: scale(.9); } }
-.trk-pop { position: absolute; left: 13%; top: 6%; pointer-events: none; font-size: 1.6rem; font-weight: 900; opacity: 0; color: var(--ok); }
 .trk-pop.miss { color: var(--danger); }
 .trk-pop.early, .trk-pop.late { color: var(--accent); }
-.trk-pop.show { animation: trkPop .7s ease-out forwards; }
-@keyframes trkPop { 0% { opacity: 0; transform: translateY(8px) scale(.8); } 20% { opacity: 1; transform: translateY(0) scale(1.15); } 100% { opacity: 0; transform: translateY(-14px) scale(1); } }
-.trk::after { content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0; }
-.trk.fl-hit::after { background: radial-gradient(circle at 18% 50%, rgba(61,214,140,.35), transparent 60%); animation: trkFlash .35s ease-out; }
-.trk.fl-miss::after { background: radial-gradient(circle at 18% 50%, rgba(255,107,107,.35), transparent 60%); animation: trkFlash .35s ease-out; }
-.trk.fl-miss .trk-lane { animation: trkShake .25s; }
-@keyframes trkFlash { from { opacity: 1; } to { opacity: 0; } }
-@keyframes trkShake { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
-.trk-cap { flex: 0 0 auto; min-height: 0; text-align: center; font-weight: 600; padding: 0 16px; max-height: 0; overflow: hidden; transition: max-height .2s, padding .2s; }
-.trk-cap.on { max-height: 4em; padding: 6px 16px 8px; background: rgba(245,165,36,.12); color: var(--text); }
 .trk-res { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(0,0,0,.72); z-index: 2; padding: 12px; }
 .trk-res-card { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 16px 22px; text-align: center; max-width: 560px; width: 100%; max-height: 100%; overflow: auto; animation: trkIn .3s ease-out; }
 .trk-res-card h2 { margin: 0 0 4px; font-size: 1.3rem; }
@@ -180,7 +192,6 @@ body.trk-open { overflow: hidden; }
 .trk-phone i { position: absolute; left: 50%; bottom: 6px; width: 14px; height: 3px; margin-left: -7px; border-radius: 2px; background: var(--accent); }
 @keyframes trkTurn { 0%, 20% { transform: rotate(0); } 55%, 100% { transform: rotate(-90deg); } }
 @media (orientation: portrait) { .trk-rotate { display: flex; } }
-@media (prefers-reduced-motion: reduce) { .trk-phone, .trk.fl-miss .trk-lane, .trk-hand.pulse .h-skin, .trk-hand.pulse .h-tip circle, .trk-hand.pulse .h-tip text { animation: none; } }
 /* Boje prstiju (iste u svim igrama) — blagi neonski sjaj */
 :root { --f0: #dfe3e8; --f1: #5aa9ff; --f2: #ffd75e; --f3: #ff7cc3; --f4: #b48cff; }
 .pb-dot.fc0 circle { fill: var(--f0); } .pb-dot.fc1 circle { fill: var(--f1); } .pb-dot.fc2 circle { fill: var(--f2); }
@@ -208,10 +219,81 @@ body.trk-open { overflow: hidden; }
 .pr-quiz-sub { color: var(--muted); font-weight: 600; }
 .pr-quiz-streak { font-weight: 800; color: var(--accent); min-height: 1.3em; }
 .pr-quiz-streak.hot { color: var(--ok); text-shadow: 0 0 10px rgba(61,214,140,.6); }
-.pr-stage.flash-hit { animation: stageHit .45s ease-out; } .pr-stage.flash-miss { animation: stageMiss .45s ease-out; }
-@keyframes stageHit { from { box-shadow: inset 0 0 0 3px var(--ok), 0 0 24px rgba(61,214,140,.35); } to { box-shadow: none; } }
-@keyframes stageMiss { from { box-shadow: inset 0 0 0 3px var(--danger), 0 0 24px rgba(255,107,107,.3); } to { box-shadow: none; } }
 .pr-stage { border-radius: 18px; }
 .pr-hint { color: var(--accent); font-weight: 600; text-align: center; min-height: 1.3em; }
 .pr-result .trk-stars { margin-bottom: 4px; }
 .row-btns { display: flex; gap: 10px; justify-content: center; }
+
+/* ---------------- Staza: stalan raspored, pomeranje samo preko transform/opacity ---------------- */
+.trk-prog i { display: block; height: 100%; width: 100%; transform-origin: left center; transform: scaleX(0); background: linear-gradient(90deg, var(--accent), var(--ok)); transition: transform .2s; }
+.pr-lvl i { width: 100% !important; transform-origin: left center; transform: scaleX(0); transition: none !important; }
+.trk-lyric { flex: 0 0 auto; height: 0; overflow: hidden; text-align: center; font-weight: 600; padding: 0 16px; white-space: nowrap; text-overflow: ellipsis; contain: strict; }
+.trk.with-lyric .trk-lyric { height: 1.9em; line-height: 1.9em; font-size: clamp(.9rem, 4.2vh, 1.15rem); }
+.trk-lane { position: relative; flex: 1 1 auto; min-height: 0; }
+.trk-cw { position: absolute; inset: 0; overflow: hidden; contain: strict; }
+.trk-bg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.trk-layer { position: absolute; inset: 0; pointer-events: none; }
+.trk-cap { position: relative; flex: 0 0 auto; height: 2.1em; line-height: 2.1em; text-align: center; font-weight: 600; padding: 0 16px; color: var(--text); background: #120f0a; contain: strict; }
+.trk-captxt { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* note: jezgro u boji prsta + unapred „nacrtan“ blagi sjaj (radijalni gradijent, ne senka/blur) */
+.tn, .tgh { position: absolute; left: 0; top: 0; width: calc(var(--r) * 3); height: calc(var(--r) * 3); border-radius: 50%; display: grid; place-items: center; will-change: transform; transform: translate3d(-9999px,0,0); }
+.tn { --c: #dfe3e8; --cg: rgba(223,227,232,.28); background: radial-gradient(closest-side, var(--c) 0 64%, var(--cg) 70%, transparent 100%); }
+.tn b, .tgh b { font: 800 calc(var(--r) * 1.05) / 1 system-ui, sans-serif; color: #0b0c10; }
+.tn.fc1 { --c: #5aa9ff; --cg: rgba(90,169,255,.3); } .tn.fc2 { --c: #ffd75e; --cg: rgba(255,215,94,.28); }
+.tn.fc3 { --c: #ff7cc3; --cg: rgba(255,124,195,.3); } .tn.fc4 { --c: #b48cff; --cg: rgba(180,140,255,.3); }
+.tn.cur::after { content: ''; position: absolute; inset: calc(var(--r) * .4); border-radius: 50%; border: 2.5px solid rgba(255,255,255,.8); }
+.tn.missed, .tc.missed, .ts.missed { opacity: .25; transition: opacity .6s; }
+.tgh { width: calc(var(--r) * 2); height: calc(var(--r) * 2); background: radial-gradient(closest-side, rgba(255,107,107,.75) 0 82%, rgba(255,107,107,0) 100%); opacity: 0; }
+.tc { position: absolute; left: 0; top: 0; height: calc(var(--lh) * 6); border-radius: 12px; background: rgba(236,238,242,.06); border: 1.5px solid rgba(236,238,242,.3); will-change: transform; transform: translate3d(-9999px,0,0); }
+.tc.cur { border-color: rgba(255,255,255,.85); border-width: 2.5px; }
+.tc.deco { opacity: .55; }
+.tc-l { position: absolute; left: calc(var(--r) * 2 + 10px); top: calc(var(--lh) * .5); transform: translateY(-50%); font: 800 calc(min(22px, var(--lh) * .62)) / 1 system-ui, sans-serif; color: #fff; white-space: nowrap; }
+.tc-d { position: absolute; left: calc(4px + var(--r) * .18); top: 0; width: calc(var(--r) * 1.64); height: calc(var(--r) * 1.64); border-radius: 50%; display: grid; place-items: center; font-style: normal;
+  --c: #dfe3e8; --cg: rgba(223,227,232,.28); background: radial-gradient(closest-side, var(--c) 0 84%, var(--cg) 92%, transparent 100%); }
+.tc-d b { font: 800 calc(var(--r) * .86) / 1 system-ui, sans-serif; color: #0b0c10; }
+.tc-d.fc1 { --c: #5aa9ff; --cg: rgba(90,169,255,.3); } .tc-d.fc2 { --c: #ffd75e; --cg: rgba(255,215,94,.28); }
+.tc-d.fc3 { --c: #ff7cc3; --cg: rgba(255,124,195,.3); } .tc-d.fc4 { --c: #b48cff; --cg: rgba(180,140,255,.3); }
+.tc-d.mute { background: none; } .tc-d.mute b { color: var(--muted); }
+.tc-d.off { display: none; }
+.ts { position: absolute; left: 0; top: 0; width: calc(var(--r) * 2.2); height: calc(var(--lh) * 5 + var(--r) * 1.4); will-change: transform; transform: translate3d(-9999px,0,0); }
+.ts svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.ts path { fill: none; stroke: #e9ecf1; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.ts.up svg { transform: scaleY(-1); }
+.ts.muted path { stroke: var(--muted); }
+.ts.cur { background: rgba(255,255,255,.06); border-radius: 12px; outline: 2px solid rgba(255,255,255,.6); }
+.tgl { position: absolute; left: 0; top: var(--py); bottom: var(--py); width: 1.5px; background: rgba(236,238,242,.07); transform: translate3d(-9999px,0,0); }
+.tgl.acc { width: 3px; background: rgba(236,238,242,.2); }
+/* prsten oko mete (zeleno = pogodak, crveno = promašaj/pogrešno) i mali prasak */
+.tr { position: absolute; left: 0; top: 0; border-radius: 50%; border: 3px solid var(--ok); opacity: 0; transform-origin: center; transform: translate3d(-9999px,0,0); }
+.tr.box { border-radius: 14px; }
+.tr.bad { border-color: var(--danger); }
+.tr.burst { border: 0; background: radial-gradient(closest-side, rgba(61,214,140,.7), rgba(61,214,140,0)); }
+/* ruka: preko desnog dela vrata (gde note ulaze), ~25 % vidljiva */
+.trk-hand { position: absolute; right: 8px; bottom: 0; width: 112px; pointer-events: none; }
+.trk-hand svg { width: 100%; height: auto; display: block; overflow: visible; }
+/* šaka: malo providna, da se note koje ulaze ispod nje i dalje vide */
+.trk-hand .h-skin { fill: #4f3a30; stroke: #7a543d; stroke-width: 1.3; stroke-linejoin: round; opacity: .55; }
+.trk-hand .h-tip { opacity: .62; }
+.trk-hand .h-tip .h-f { fill: var(--c); }
+.trk-hand .h-tip .h-sh { fill: rgba(0,0,0,.16); }
+.trk-hand .h-tip .h-glow { fill: none; stroke: none; }
+.trk-hand .h-tip text { fill: #1d1e23; font: 800 13px system-ui, sans-serif; }
+.trk-hand .h-tip.fc1 { --c: #4f86c6; } .trk-hand .h-tip.fc2 { --c: #c99a3a; } .trk-hand .h-tip.fc3 { --c: #c4457f; } .trk-hand .h-tip.fc4 { --c: #8a63c4; }
+.trk-hand .h-tip.lit { opacity: 1; }
+.trk-hand .h-tip.lit .h-f { stroke: #fff8e6; stroke-width: 1.1; }
+.trk-hand .h-tip.fc1.lit .h-f { fill: url(#hl1); } .trk-hand .h-tip.fc2.lit .h-f { fill: url(#hl2); }
+.trk-hand .h-tip.fc3.lit .h-f { fill: url(#hl3); } .trk-hand .h-tip.fc4.lit .h-f { fill: url(#hl4); }
+.trk-hand .h-tip.lit .h-glow { stroke-width: 5; }
+.trk-hand .h-tip.fc1.lit .h-glow { stroke: rgba(127,182,255,.35); } .trk-hand .h-tip.fc2.lit .h-glow { stroke: rgba(255,214,110,.35); }
+.trk-hand .h-tip.fc3.lit .h-glow { stroke: rgba(255,134,197,.35); } .trk-hand .h-tip.fc4.lit .h-glow { stroke: rgba(195,155,255,.35); }
+.trk-big { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; font-size: min(26vh, 9rem); font-weight: 900; color: #fff; opacity: 0; text-shadow: 0 0 30px rgba(245,165,36,.8); }
+.trk-pop { position: absolute; inset: 0; display: grid; place-items: center; background: #120f0a; pointer-events: none; font-size: 1.1em; font-weight: 900; opacity: 0; color: var(--ok); white-space: nowrap; overflow: hidden; }
+.trk-pop.miss { color: var(--danger); }
+.trk-pop.early, .trk-pop.late { color: var(--accent); }
+@media (prefers-reduced-motion: reduce) { .trk-phone { animation: none; } }
+
+.pb-dot.ghost { opacity: .7; transition: opacity .3s; } .pb-dot.ghost circle { fill: rgba(255,107,107,.55); stroke: none; filter: none; } .pb-dot.ghost text { fill: #fff; }
+/* Kvizovi: prsten samo oko mete (bez boje preko celog ekrana) */
+.pr-qwrap { position: relative; display: inline-grid; place-items: center; padding: 6px 18px; }
+.pr-qring { position: absolute; inset: 0; border-radius: 18px; border: 3px solid var(--ok); opacity: 0; pointer-events: none; }
+.pr-qring.bad { border-color: var(--danger); }

@@ -30,35 +30,51 @@ function rmsTail(buf, n) {
 // Igra zna koju notu očekuje. Umesto „koja je ovo nota“ (teško kad prethodna žica još zvoni), pita se
 // „da li se u novom zvuku čuje očekivana nota“: korelacija signala sa sobom pomerenim za 1–4 perioda te note.
 // Prava nota daje ~0,7–1; susedni pragovi (±1, ±2) daju ~0. Testirano na realističnim signalima telefona.
-export function noteScore(seg, sr, midi, a4 = 440) {
-  const P = sr / (a4 * Math.pow(2, (midi - 69) / 12));
+export function noteScore(seg, sr, midi, a4 = 440, minW = 400) {
+  const P = sr / (a4 * Math.pow(2, (midi - 69) / 12)); // midi sme da bude i necelo (npr. +0,3 = 30 centi)
   let tot = 0, n = 0;
   for (let k = 1; k <= 4; k++) {
     const L = P * k, Li = Math.floor(L), fr = L - Li, W = seg.length - Li - 2;
-    if (W < 400) break;
+    if (W < minW) break;
     let xy = 0, xx = 0, yy = 0;
     for (let i = 0; i < W; i++) { const a = seg[i], b = seg[i + Li] * (1 - fr) + seg[i + Li + 1] * fr; xy += a * b; xx += a * a; yy += b * b; }
     tot += xy / Math.sqrt(xx * yy + 1e-20); n++;
   }
   return n ? tot / n : 0;
 }
-/** Da li je trzaj (seg) očekivana nota (ili ista nota oktavu više/niže)? */
-export function matchNote(seg, sr, midi, a4 = 440) {
-  if (!seg) return { ok: false, score: 0 };
-  let best = 0;
+// Blago prema štimu: očekivana nota se traži u ±40 centi (pritisnut prag, žica malo „visoka“ odmah posle trzaja,
+// gitara malo raštimovana); susedni pragovi se proveravaju samo oko svoje visine (±15 centi) — prava susedna nota
+// je bar 60 centi daleko od svega što se prihvata kao očekivana.
+const TOL = [-0.4, -0.3, -0.2, -0.1, 0, 0.1, 0.2, 0.3, 0.4], NB_TOL = [-0.15, 0, 0.15];
+const bestOf = (seg, sr, m, a4, offs) => { let b = -1; for (const o of offs) b = Math.max(b, noteScore(seg, sr, m + o, a4, 200)); return b; };
+// Isečak je već propušten kroz niskopropusni filter (~1,2 kHz), pa svaki drugi uzorak nosi isti ton:
+// provera radi na upola manje uzoraka (upola manje računa po trzaju), a odluke ostaju iste.
+const halves = new WeakMap();
+function half(seg) {
+  let h = halves.get(seg);
+  if (!h) { h = new Float32Array(seg.length >> 1); for (let i = 0; i < h.length; i++) h[i] = (seg[2 * i] + seg[2 * i + 1]) * 0.5; halves.set(seg, h); }
+  return h;
+}
+/** Da li je trzaj (seg) očekivana nota (ili ista nota oktavu više/niže)? margin = koliko je jasno (za „sačekaj“). */
+export function matchNote(seg0, sr0, midi, a4 = 440) {
+  if (!seg0) return { ok: false, score: 0, margin: 0 };
+  const seg = half(seg0), sr = sr0 / 2;
+  let best = 0, bestNb = 0;
   for (const m of [midi, midi + 12, midi - 12]) {
-    const s = noteScore(seg, sr, m, a4);
-    const nb = Math.max(...[-2, -1, 1, 2].map((d) => noteScore(seg, sr, m + d, a4)));
-    if (s >= 0.45 && s >= nb + 0.02) return { ok: true, score: s };
-    best = Math.max(best, s);
+    const s = bestOf(seg, sr, m, a4, TOL);
+    let nb = -1;
+    for (const d of [-2, -1, 1, 2]) nb = Math.max(nb, bestOf(seg, sr, m + d, a4, NB_TOL));
+    if (s >= 0.45 && s >= nb + 0.02) return { ok: true, score: s, nb, margin: s - nb };
+    if (s > best) { best = s; bestNb = nb; }
   }
-  return { ok: false, score: best };
+  return { ok: false, score: best, nb: bestNb, margin: best - bestNb };
 }
 /** Koja nota je ovo verovatno bila (za poruku „To je G“) — najbolji pogodak u opsegu gitare. */
-export function guessNote(seg, sr, a4 = 440, lo = 40, hi = 88) {
-  if (!seg) return null;
+export function guessNote(seg0, sr0, a4 = 440, lo = 40, hi = 88) {
+  if (!seg0) return null;
+  const seg = half(seg0), sr = sr0 / 2;
   let best = null, bs = 0.45;
-  for (let m = lo; m <= hi; m++) { const s = noteScore(seg, sr, m, a4); if (s > bs + 0.03 || (best != null && m === best + 12 && s >= bs - 0.08)) { best = m; bs = Math.max(bs, s); } }
+  for (let m = lo; m <= hi; m++) { const s = noteScore(seg, sr, m, a4, 200); if (s > bs + 0.03 || (best != null && m === best + 12 && s >= bs - 0.08)) { best = m; bs = Math.max(bs, s); } }
   return best;
 }
 
@@ -75,10 +91,12 @@ export function createDetector({ sensitivity = 'auto', a4 = 440 } = {}) {
   tr.setAnyNote();
   let lastAt = -1e9, lastCand = -1e9, prevEnd = null;
   const pends = [];        // napadi koji čekaju proveru (~90 ms)
-  const blocks = [];       // energija blokova od 2,5 ms (poslednjih ~25 ms)
-  const hist = [];         // isto, sa vremenom (poslednjih ~200 ms) — da li je napad „umro“ pre sledećeg
+  // energija blokova od 2,5 ms u kružnom baferu (bez pravljenja nizova po bloku): poslednjih 8 za „pre napada“,
+  // i ~200 ms sa vremenom — da li je napad „umro“ pre sledećeg
+  const HN = 80, hAt = new Float64Array(HN), hE = new Float64Array(HN);
+  let hN = 0;
+  let quiet = 0, frameN = 0;
   let fl = -1;             // buka sobe: brzo pada, sporo raste (~10 s) — sviranje bez prestanka je ne podiže
-  let a = 0, y1 = 0, y2 = 0;
   function process(buf, sr, now) {
     const B = Math.max(32, Math.round(sr * 0.0025));
     // novi uzorci od prethodnog kadra (kadar je 4096, pomera se ~960)
@@ -93,10 +111,11 @@ export function createDetector({ sensitivity = 'auto', a4 = 440 } = {}) {
       let e = 0; for (let k = i; k < i + B; k++) e += buf[k] * buf[k];
       e /= B;
       // prosek prethodnih 20 ms (ne minimum: kod debelih žica blok od 2,5 ms ume da padne u „dolinu“ talasa)
-      const pre = blocks.length >= 8 ? blocks.slice(-8).reduce((x, y) => x + y, 0) / 8 : Infinity;
-      blocks.push(e); if (blocks.length > 12) blocks.shift();
+      // (zbir poslednjih 8 iz kružnog bafera — 8 sabiranja; tekući zbir bi se zaokruživanjem mogao spustiti ispod nule)
+      let pre = Infinity;
+      if (hN >= 8) { pre = 0; for (let k = hN - 8; k < hN; k++) pre += hE[k % HN]; pre /= 8; }
       const at = now - ((buf.length - i) / sr) * 1000;
-      hist.push({ at, e }); if (hist.length > 80) hist.shift();
+      hAt[hN % HN] = at; hE[hN % HN] = e; hN++;
       // novi napad; i kad prethodni još čeka proveru (klik metronoma pa trzaj odmah posle njega — oba čekaju)
       if (e > pre * 4 && Math.sqrt(e) > minAbs && at > lastAt + 70 && at > lastCand + 25) {
         lastCand = at;
@@ -110,8 +129,10 @@ export function createDetector({ sensitivity = 'auto', a4 = 440 } = {}) {
       if (c.at <= lastAt + 70) continue;
       // Sledeći napad ubrzo posle ovog: ako je ovaj zvuk utihnuo pre njega, bio je klik — računa se sledeći
       if (d && d.at - c.at >= 30 && d.at - c.at < 90) {
-        const mid = hist.filter((h) => h.at >= Math.max(c.at + 20, d.at - 12.5) && h.at <= d.at - 2.5);
-        const m = mid.length ? Math.sqrt(mid.reduce((x, h) => x + h.e, 0) / mid.length) : 0;
+        const lo = Math.max(c.at + 20, d.at - 12.5), hi = d.at - 2.5;
+        let ms = 0, mc = 0;
+        for (let k = Math.max(0, hN - HN); k < hN; k++) { const j = k % HN; if (hAt[j] >= lo && hAt[j] <= hi) { ms += hE[j]; mc++; } }
+        const m = mc ? Math.sqrt(ms / mc) : 0;
         // „utihnuo“ = vratio se na nivo od pre napada (tišina ili žica koja je već zvonila)
         if (m < Math.max(c.preRms * 1.35, minAbs)) continue;
       }
@@ -124,6 +145,11 @@ export function createDetector({ sensitivity = 'auto', a4 = 440 } = {}) {
         out.pluck = { at: c.at, seg, sr, level: out.level };
       }
     }
+    // oznaka „Čujem“ se osvežava ~15 puta u sekundi: visina tona se traži u svakom drugom kadru (~25/s)
+    frameN++;
+    if (frameN % 2 && !out.pluck) return out;
+    // tišina (ništa ne zvoni, ništa ne čeka) → bez traženja visine tona (štedi bateriju)
+    if (level < Math.max(0.0006, Math.max(fl, 0) * 1.8) && !pends.length) { quiet++; if (quiet > 3) return out; } else quiet = 0;
     const r = tr.process(buf, sr, now);
     if (r.state === 'tracking') out.note = { midi: tr.midiOf(r.sid), cents: r.cents, stable: r.stable, freq: r.freq };
     return out;
@@ -135,7 +161,8 @@ export function createListener() {
   let mic = null, an = null, buf = null, timer = 0, det = null, opts = {};
   let chordAn = null, spec = null, chordTimer = 0, chordMod = null;
   const acc = new Float32Array(12), accBass = new Float32Array(12);
-  let lastOnset = -1e9, running = false, sr = 48000, pending = [], lastNote = null;
+  let lastOnset = -1e9, running = false, sr = 48000, pending = [], lastNote = null, paused = false;
+  const steadyQ = [];
 
   function poll() {
     if (!running) return;
@@ -146,10 +173,20 @@ export function createListener() {
     opts.onLevel?.({ level: ev.level, floor: ev.floor, note: lastNote });
     if (ev.onset) {
       lastOnset = ev.onset.at;
-      if (chordAn) { acc.fill(0); accBass.fill(0); }
+      if (chordAn) {
+        acc.fill(0); accBass.fill(0);
+        // spektar se ne čita između udaraca; dva čitanja „osveže“ ugrađeno izglađivanje (stari zvuk ostane ~25 %)
+        chordAn.getFloatFrequencyData(spec); chordAn.getFloatFrequencyData(spec);
+      }
       opts.onOnset?.({ at: ev.onset.at - lat, level: ev.level });
     }
-    if (ev.pluck) opts.onPluck?.({ at: ev.pluck.at - lat, seg: ev.pluck.seg, sr: ev.pluck.sr, a4: det.tracker.a4 });
+    if (ev.pluck) opts.onPluck?.({ at: ev.pluck.at - lat, rawAt: ev.pluck.at, seg: ev.pluck.seg, sr: ev.pluck.sr, a4: det.tracker.a4 });
+    // „stabilno očitavanje“: isečak ustaljenog zvuka ~150–230 ms posle trzaja (kad nejasno prvo očitavanje)
+    if (steadyQ.length) for (let i = steadyQ.length - 1; i >= 0; i--) if (now >= steadyQ[i].due) {
+      const q = steadyQ.splice(i, 1)[0];
+      const n = Math.min(buf.length, Math.round(sr * 0.08));
+      q.cb({ seg: Float32Array.from(det.tracker.lowpass(buf.subarray(buf.length - n), sr)), sr, a4: det.tracker.a4 });
+    }
     if (ev.note) {
       lastNote = ev.note.midi;
       opts.onNote?.({ ...ev.note, at: now - lat });
@@ -159,8 +196,8 @@ export function createListener() {
   // ---- Akordi (samo kad igra traži): hromagram se sabira od poslednjeg trzaja ----
   function chordFrame() {
     if (!running || !chordAn) return;
+    if (performance.now() - lastOnset > 1600) return; // bez udarca nema analize (govor, buka) — ni čitanja spektra
     chordAn.getFloatFrequencyData(spec);
-    if (performance.now() - lastOnset > 1600) return; // bez udarca nema analize (govor, buka)
     const { chroma, bass } = chordMod.chromaFromSpectrum(spec, sr, chordAn.fftSize);
     for (let i = 0; i < 12; i++) { acc[i] = acc[i] * 0.82 + chroma[i]; accBass[i] = accBass[i] * 0.82 + bass[i]; }
   }
@@ -196,6 +233,15 @@ export function createListener() {
     },
     /** Promeni povratne pozive bez ponovnog otvaranja mikrofona. */
     setHandlers(o) { opts = { ...opts, ...o }; },
+    /** Telefon uspravno / pauza: ne obrađuj zvuk (mikrofon ostaje otvoren, brzo se nastavlja). */
+    pause(on) {
+      if (!running || paused === !!on) return;
+      paused = !!on;
+      clearInterval(timer); clearInterval(chordTimer); timer = 0; chordTimer = 0;
+      if (!paused) { timer = setInterval(poll, 20); if (chordAn) chordTimer = setInterval(chordFrame, 90); }
+    },
+    /** Posle trzaja (rawAt) sačekaj ustaljen zvuk i vrati njegov isečak (za proveru nejasne note). */
+    steady(rawAt, cb, after = 230) { steadyQ.push({ due: rawAt + after, cb }); if (steadyQ.length > 8) steadyQ.shift(); },
     /** Igra je odsvirala zvuk (npr. „Sluh“): ne slušaj sopstveni ton. */
     mute(ms) { det?.tracker.mute(ms, performance.now()); },
     get running() { return running; },
@@ -227,10 +273,12 @@ export function createListener() {
       clearInterval(timer); clearInterval(chordTimer);
       try { mic.source.disconnect(an); } catch {}
       try { if (chordAn) mic.source.disconnect(chordAn); } catch {}
-      chordAn = null;
+      chordAn = null; an = null; spec = null; det = null;
+      steadyQ.length = 0; paused = false;
       closeMic();
       mic = null;
       opts.onLevel?.(null);
+      opts = {}; // povratni pozivi prethodne runde se ne zadržavaju (bez curenja memorije)
     },
     close() { this.stop(); },
   };
@@ -261,6 +309,21 @@ export function createHitLog() {
     pluck(p) { const h = hits.find((x) => Math.abs(x.at - p.at) < 5); if (h) { h.seg = p.seg; h.sr = p.sr; h.a4 = p.a4 || 440; } },
     /** Da li je ovaj trzaj očekivana nota? */
     matches(h, midi) { return h.seg ? matchNote(h.seg, h.sr, midi, h.a4).ok : sameNote(this.midiOf(h), midi); },
+    /**
+     * Presuda za očekivanu notu: { ok } ili { ok:false, heard, unclear }. „unclear“ = blizu (susedni prag,
+     * mala razlika) i još nije proveren ustaljen zvuk → igra sačeka stabilno očitavanje umesto da sudi odmah.
+     */
+    verdict(h, midi, game = '') {
+      if (!h.seg) { const m = this.midiOf(h); return { ok: sameNote(m, midi), heard: m, unclear: false }; }
+      const r = matchNote(h.seg, h.sr, midi, h.a4);
+      const g = r.ok ? null : this.midiOf(h, midi);
+      const near = g == null || Math.abs(g - midi) <= 2 || Math.abs(Math.abs(g - midi) - 12) <= 2 || r.margin > -0.12;
+      const v = { ok: r.ok, heard: g, unclear: !r.ok && near && !h.steadied };
+      debugLog({ game, target: midi, heard: r.ok ? midi : g, score: +r.score.toFixed(2), nb: +(r.nb ?? 0).toFixed(2), verdict: r.ok ? 'ok' : v.unclear ? 'wait' : 'wrong', stage: h.steadied ? 'steady' : 'first' });
+      return v;
+    },
+    /** Zameni isečak ustaljenim zvukom (posle „sačekaj“). */
+    steadied(h, sg) { h.seg = sg.seg; h.sr = sg.sr; h.a4 = sg.a4 || h.a4; h.guess = undefined; h.steadied = true; },
     note(nt) {
       for (let i = hits.length - 1; i >= 0 && i >= hits.length - 3; i--) {
         const h = hits[i], d = nt.at - h.at;
@@ -268,8 +331,9 @@ export function createHitLog() {
       }
     },
     /** Najčešća nota posle udarca (ili null). */
-    midiOf(h) {
-      if (h.seg && h.guess === undefined) h.guess = guessNote(h.seg, h.sr, h.a4);
+    midiOf(h, around = null) {
+      // za poruku „To je F“: traži se oko očekivane note (oktava gore/dole), ne po celom vratu
+      if (h.seg && h.guess === undefined) h.guess = around == null ? guessNote(h.seg, h.sr, h.a4) : guessNote(h.seg, h.sr, h.a4, Math.max(40, around - 12), Math.min(88, around + 12));
       if (h.guess != null) return h.guess;
       if (!h.notes.length) return null;
       const c = new Map(); h.notes.forEach((m) => c.set(m, (c.get(m) || 0) + 1));
@@ -284,3 +348,19 @@ export function createHitLog() {
  * pa se nota ponekad očita oktavu više. Igra ionako kaže na kojoj žici se svira.
  */
 export const sameNote = (a, b) => a != null && b != null && (a === b || Math.abs(a - b) === 12);
+
+// ---- Skriveni dnevnik slušanja (Podešavanja → 5 dodira na verziju): šta igre čuju za svaku metu ----
+const DBG_KEY = 'gitara-pr-debug', LOG_KEY = 'gitara-pr-debuglog';
+let dbgOn = null, dbgBuf = null, dbgT = 0;
+export function debugEnabled() { if (dbgOn == null) { try { dbgOn = localStorage.getItem(DBG_KEY) === '1'; } catch { dbgOn = false; } } return dbgOn; }
+export function setDebug(on) { dbgOn = !!on; try { on ? localStorage.setItem(DBG_KEY, '1') : localStorage.removeItem(DBG_KEY); } catch {} }
+export function debugLog(e) {
+  if (!debugEnabled()) return;
+  const row = { t: new Date().toISOString().slice(11, 23), ...e };
+  try { console.debug('[vežbe]', row); } catch {}
+  if (!dbgBuf) { try { dbgBuf = JSON.parse(localStorage.getItem(LOG_KEY) || '[]'); } catch { dbgBuf = []; } }
+  dbgBuf.push(row); if (dbgBuf.length > 300) dbgBuf.splice(0, dbgBuf.length - 300);
+  clearTimeout(dbgT); dbgT = setTimeout(() => { try { localStorage.setItem(LOG_KEY, JSON.stringify(dbgBuf)); } catch {} }, 500); // upis van vremena kadra
+}
+export function readDebugLog() { try { return JSON.parse(localStorage.getItem(LOG_KEY) || '[]'); } catch { return []; } }
+export function clearDebugLog() { dbgBuf = []; try { localStorage.removeItem(LOG_KEY); } catch {} }

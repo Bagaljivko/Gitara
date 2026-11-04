@@ -11,10 +11,10 @@
 //   „Početnik“: staza stane na liniji kod svake note i čeka da je odsviraš (bez tempa i promašaja);
 //   telefon uspravno usred runde → pauza i „Okreni telefon“; položeno → novo odbrojavanje i nastavak;
 //   demo: igra sama „svira“ (zvuk + zelene note), bez mikrofona.
-import { audioCtx } from './synth.js';
-import { OPEN_MIDI, noteLabel, FINGER_COLORS } from './practiceBoard.js';
+import { hitSound, placeOf, quizPluck } from './practiceCommon.js';
+import { OPEN_MIDI, noteLabel } from './practiceBoard.js';
 import { Metronome } from './rhythm.js';
-import { judgeTiming, getLatency } from './practiceListen.js';
+import { judgeTiming, getLatency, debugLog } from './practiceListen.js';
 import { dn } from './naming.js';
 import { getVoicings } from './chords.js';
 
@@ -22,35 +22,17 @@ const C = { bg: '#07080a', wood: '#120d09', str: '#b9bdc4', accent: '#f5a524', o
 const INK = '#0b0c10';
 const portraitMq = () => window.matchMedia('(orientation: portrait)');
 
-// Kratak „cink“ za pogodak: kraći od 90 ms, pa ga mikrofon ne računa kao trzaj (vidi practiceListen.js)
-export function hitSound() {
-  try {
-    const c = audioCtx(), t0 = c.currentTime + 0.005;
-    for (const [f, g] of [[1568, 0.07], [2349, 0.035]]) {
-      const o = c.createOscillator(), a = c.createGain();
-      o.type = 'sine'; o.frequency.value = f;
-      a.gain.setValueAtTime(0.0001, t0);
-      a.gain.exponentialRampToValueAtTime(g, t0 + 0.004);
-      a.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.07);
-      o.connect(a).connect(c.destination);
-      o.start(t0); o.stop(t0 + 0.08);
-    }
-  } catch {}
-}
+// Leva ruka (po korisnikovom crtežu): smeđa šaka sa svetlijim obodom, ceo prst u svojoj boji (1 kažiprst plavo,
+// 2 srednji žuto, 3 domali roze, 4 mali ljubičasto) sa tamnijom ivicom i velikim brojem. Prst koji svira svetli
+// (svetliji prelaz, beli obod, blag oreol — nepomičan sloj, ne animirani blur); ostali su malo prigušeni.
+const HAND_SVG = `<svg viewBox="0 0 100 143" aria-hidden="true"><defs><linearGradient id="hl1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7fb6ff"/><stop offset="1" stop-color="#3f86e0"/></linearGradient><linearGradient id="hl2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd45a"/><stop offset="1" stop-color="#ffa000"/></linearGradient><linearGradient id="hl3" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff86c5"/><stop offset="1" stop-color="#e0458f"/></linearGradient><linearGradient id="hl4" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c39bff"/><stop offset="1" stop-color="#8c5be0"/></linearGradient></defs><g class="h-tip fc4" data-f="4"><g transform="translate(11.1 73.0) rotate(-7.0)"><path class="h-glow" d="M-8.9 2 L-7.5 -33.6 A7.5 7.5 0 0 1 7.5 -33.6 L8.9 2 Z"/><path class="h-f" d="M-8.9 2 L-7.5 -33.6 A7.5 7.5 0 0 1 7.5 -33.6 L8.9 2 Z"/><path class="h-sh" d="M4.3 2 L3.9 -29.1 Q7.5 -32.8 7.5 -29.1 L8.9 2 Z"/></g><text x="7.1" y="45.1" text-anchor="middle">4</text></g><g class="h-tip fc3" data-f="3"><g transform="translate(27.0 68.8) rotate(-1.4)"><path class="h-glow" d="M-8.4 2 L-7.8 -51.5 A7.8 7.8 0 0 1 7.8 -51.5 L8.4 2 Z"/><path class="h-f" d="M-8.4 2 L-7.8 -51.5 A7.8 7.8 0 0 1 7.8 -51.5 L8.4 2 Z"/><path class="h-sh" d="M4.0 2 L4.1 -46.8 Q7.8 -50.7 7.8 -46.8 L8.4 2 Z"/></g><text x="25.8" y="26.1" text-anchor="middle">3</text></g><g class="h-tip fc2" data-f="2"><g transform="translate(43.7 66.2) rotate(0.0)"><path class="h-glow" d="M-7.8 2 L-7.4 -58.4 A7.4 7.4 0 0 1 7.4 -58.4 L7.8 2 Z"/><path class="h-f" d="M-7.8 2 L-7.4 -58.4 A7.4 7.4 0 0 1 7.4 -58.4 L7.8 2 Z"/><path class="h-sh" d="M3.7 2 L3.8 -54.0 Q7.4 -57.7 7.4 -54.0 L7.8 2 Z"/></g><text x="43.7" y="18.3" text-anchor="middle">2</text></g><g class="h-tip fc1" data-f="1"><g transform="translate(60.7 70.2) rotate(4.1)"><path class="h-glow" d="M-8.9 2 L-7.8 -49.6 A7.8 7.8 0 0 1 7.8 -49.6 L8.9 2 Z"/><path class="h-f" d="M-8.9 2 L-7.8 -49.6 A7.8 7.8 0 0 1 7.8 -49.6 L8.9 2 Z"/><path class="h-sh" d="M4.3 2 L4.1 -45.0 Q7.8 -48.9 7.8 -45.0 L8.9 2 Z"/></g><text x="64.0" y="29.1" text-anchor="middle">1</text></g><path class="h-skin" d="M5.2 73.3 Q29.8 64.5 66.1 69.6 C66.4 77.3 65.8 85.1 68.4 88.4 C71.6 91.8 76.6 87.2 83.7 80.4 C89.4 74.8 94.3 71.6 98.6 74.8 C101.4 77.0 100.0 80.4 95.7 84.7 C87.9 92.9 79.4 102.8 70.2 115.6 C65.2 122.7 60.7 127.7 59.6 133.3 L58.9 142.6 L19.3 142.6 L18.7 132.6 C12.8 125.5 6.8 115.6 6.0 101.4 C5.4 90.1 5.0 81.6 5.2 73.3 Z"/></svg>`;
 
-// Leva ruka (šaka odozgo, prsti nagore; palac desno). Vrhovi prstiju u bojama, sa brojem 1–4.
-const TIPS = { 1: [76.5, 25], 2: [58.5, 17], 3: [40.5, 23], 4: [22.5, 39] };
-const HAND_SVG = `<svg viewBox="0 0 100 124" aria-hidden="true">
-  <g class="h-skin">
-    <rect x="14" y="62" width="72" height="56" rx="20"/>
-    <rect x="15" y="31" width="15" height="44" rx="7.5"/><rect x="33" y="15" width="15" height="60" rx="7.5"/>
-    <rect x="51" y="9" width="15" height="66" rx="7.5"/><rect x="69" y="17" width="15" height="58" rx="7.5"/>
-    <rect x="82" y="60" width="14" height="40" rx="7" transform="rotate(-38 89 80)"/>
-  </g>
-  ${Object.entries(TIPS).map(([f, [x, y]]) => `<g class="h-tip" data-f="${f}"><circle cx="${x}" cy="${y}" r="8.6" style="fill:${FINGER_COLORS[f]};color:${FINGER_COLORS[f]}"/><text x="${x}" y="${y + 3.4}" text-anchor="middle">${f}</text></g>`).join('')}
-</svg>`;
-
-/** Napravi stazu preko celog prozora (aplikacija ostaje u svom prozoru; bez celog ekrana). */
+/**
+ * Staza preko celog prozora (bez celog ekrana). Raspored se pravi JEDNOM na početku runde i ne menja se tokom
+ * runde: pozadina (drvo, žice, linija) se nacrta jednom; note, blokovi akorda, strelice i linije otkucaja su
+ * elementi iz „bazena“ koji se pomeraju samo preko CSS transform/opacity, iz jedne requestAnimationFrame petlje.
+ * Bez čitanja rasporeda tokom runde, bez pravljenja elemenata po kadru, bez animiranih senki/blura.
+ */
 export function createTrack({ t, onExit, lookBeats = 4.5 }) {
   const el = document.createElement('div');
   el.className = 'trk';
@@ -63,10 +45,14 @@ export function createTrack({ t, onExit, lookBeats = 4.5 }) {
     </div>
     <div class="trk-lyric" aria-live="polite"></div>
     <div class="trk-lane">
-      <div class="trk-cw"><canvas></canvas><div class="trk-big"></div><div class="trk-pop"></div></div>
-      <div class="trk-side"><div class="trk-hand">${HAND_SVG}</div></div>
+      <div class="trk-cw">
+        <canvas class="trk-bg"></canvas>
+        <div class="trk-layer trk-grid"></div><div class="trk-layer trk-items"></div><div class="trk-layer trk-fx"></div>
+        <div class="trk-hand">${HAND_SVG}</div>
+        <div class="trk-big"></div>
+      </div>
     </div>
-    <div class="trk-cap" aria-live="polite"></div>
+    <div class="trk-cap"><span class="trk-captxt" aria-live="polite"></span><span class="trk-pop" aria-live="assertive"></span></div>
     <div class="trk-res" hidden></div>
     <div class="trk-rotate"><div class="trk-phone" aria-hidden="true"><i></i></div><b>${t('pr.trk.rotate')}</b><small>${t('pr.trk.rotateWhy')}</small>
       <small class="trk-rot-hint" hidden>${t('pr.trk.autoRotate')}</small>
@@ -74,16 +60,20 @@ export function createTrack({ t, onExit, lookBeats = 4.5 }) {
   document.body.appendChild(el);
   document.body.classList.add('trk-open');
   const q = (s) => el.querySelector(s);
-  const cv = q('canvas'), ctx = cv.getContext('2d');
+  const cw = q('.trk-cw'), bg = q('.trk-bg'), gridL = q('.trk-grid'), itemsL = q('.trk-items'), fxL = q('.trk-fx'), hand = q('.trk-hand');
+  const progI = q('.trk-prog i'), lvlI = q('.pr-lvl i'), heardEl = q('.trk-heard'), comboB = q('.trk-combo b'), comboEl = q('.trk-combo');
+  const capEl = q('.trk-captxt'), lyrEl = q('.trk-lyric'), bigEl = q('.trk-big'), popEl = q('.trk-pop');
   const exit = () => onExit?.();
   q('.trk-x').addEventListener('click', exit);
   q('.trk-x2').addEventListener('click', exit);
 
-  let items = [], grid = null, beatMs = 1000, raf = 0, W = 0, H = 0, dpr = 1, combo = 0, maxCombo = 0, alive = true;
+  let items = [], grid = null, beatMs = 1000, raf = 0, combo = 0, maxCombo = 0, alive = true, sleeping = false, cur = null;
   let clock = () => performance.now();
-  const rings = []; // { it, at, kind } — prsten oko note (pogodak/promašaj)
+  // Geometrija (meri se samo na početku runde i kad se telefon okrene)
+  const G = { W: 0, H: 0, padY: 0, gutter: 28, laneH: 0, hitX: 0, ppb: 0, r: 12 };
+  const y = (s) => G.padY + (s + 0.5) * G.laneH;
 
-  // „Okreni telefon“: posle nekoliko sekundi uspravno — savet za automatsko rotiranje
+  // ---- „Okreni telefon“ (i savet za automatsko rotiranje posle nekoliko sekundi) ----
   const mq = portraitMq();
   let rotT = 0;
   const orientSubs = new Set();
@@ -95,214 +85,268 @@ export function createTrack({ t, onExit, lookBeats = 4.5 }) {
   }
   mq.addEventListener('change', onMq);
   onMq();
+  // promena veličine prozora (okretanje telefona) — tada (i samo tada) se raspored meri ponovo
+  let resizeQ = 0;
+  const onResize = () => { cancelAnimationFrame(resizeQ); resizeQ = requestAnimationFrame(() => alive && layout()); };
+  window.addEventListener('resize', onResize);
 
-  function resize() {
-    dpr = Math.min(2, window.devicePixelRatio || 1);
-    const r = cv.getBoundingClientRect();
-    W = r.width; H = r.height;
-    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+  function layout() {
+    const w = cw.clientWidth, h = cw.clientHeight;
+    if (!w || !h) return;
+    G.W = w; G.H = h;
+    G.padY = Math.max(8, h * 0.05); G.laneH = (h - 2 * G.padY) / 6;
+    G.hitX = G.gutter + Math.max(48, w * 0.12); G.ppb = (w - G.hitX) / lookBeats;
+    G.r = Math.max(9, Math.min(G.laneH * 0.42, 24));
+    cw.style.setProperty('--r', G.r + 'px');
+    cw.style.setProperty('--lh', G.laneH + 'px');
+    cw.style.setProperty('--py', G.padY + 'px');
+    cw.style.setProperty('--hx', G.hitX + 'px');
+    // ruka: desno dole, gde note ulaze — nikad preko linije ni preko sledeće dve note
+    const free = w - (G.hitX + 2 * G.ppb + G.r * 2) - 8;
+    // diskretno: oko 40 % visine vrata (podsetnik u uglu, ne lik na sceni)
+    const hw = Math.max(64, Math.min(130, free, (h * 0.56 * 100) / 143));
+    hand.style.width = hw + 'px';
+    drawBg();
+    // svi elementi se ponovo postave (nova veličina)
+    for (const it of items) if (it._el) release(it);
   }
-  const ro = new ResizeObserver(resize);
-  ro.observe(cv);
-
-  const current = () => items.find((it) => !it.state && !it.deco);
-  function glowFill(color, blur) { ctx.shadowColor = color; ctx.shadowBlur = blur; ctx.fillStyle = color; }
-  function roundRect(x, y, w, h, r) {
-    ctx.beginPath();
-    ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
-    ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
-  }
-
-  function draw() {
-    if (!alive) return;
-    raf = requestAnimationFrame(draw);
-    if (!W || !H) { resize(); if (!W) return; }
-    const now = clock(), real = performance.now();
+  function drawBg() {
+    const dpr = Math.min(2, window.devicePixelRatio || 1), ctx = bg.getContext('2d');
+    bg.width = Math.round(G.W * dpr); bg.height = Math.round(G.H * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
-    const padY = Math.max(8, H * 0.05), gutter = 28, laneH = (H - 2 * padY) / 6;
-    const hitX = gutter + Math.max(48, W * 0.12), ppb = (W - hitX) / lookBeats;
-    const y = (s) => padY + (s + 0.5) * laneH;
-    const xOf = (at) => hitX + ((at - now) / beatMs) * ppb;
-    const r = Math.max(9, Math.min(laneH * 0.42, 24));
-    ctx.fillStyle = C.wood; ctx.fillRect(gutter, padY, W - gutter, H - 2 * padY);
-    // otkucaji (takt jače) — klize zajedno sa notama
-    if (grid) {
-      const first = Math.floor((now - grid.t0) / beatMs) - 2, last = first + lookBeats + 4;
-      for (let b = first; b <= last; b++) {
-        const x = xOf(grid.t0 + b * beatMs);
-        if (x < gutter || x > W) continue;
-        const acc = ((b % 4) + 4) % 4 === 0;
-        ctx.fillStyle = acc ? 'rgba(236,238,242,.2)' : 'rgba(236,238,242,.07)';
-        ctx.fillRect(x - (acc ? 1.5 : 0.75), padY, acc ? 3 : 1.5, H - 2 * padY);
-      }
-    }
+    ctx.fillStyle = C.bg; ctx.fillRect(0, 0, G.W, G.H);
+    ctx.fillStyle = C.wood; ctx.fillRect(G.gutter, G.padY, G.W - G.gutter, G.H - 2 * G.padY);
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     for (let s = 0; s < 6; s++) {
       ctx.fillStyle = C.str; ctx.globalAlpha = 0.7;
       const th = 3.2 - s * 0.42;
-      ctx.fillRect(gutter, y(s) - th / 2, W - gutter, th);
+      ctx.fillRect(G.gutter, y(s) - th / 2, G.W - G.gutter, th);
       ctx.globalAlpha = 1;
-      ctx.fillStyle = C.muted; ctx.font = `700 ${Math.round(Math.min(15, laneH * 0.42))}px system-ui, sans-serif`;
-      ctx.fillText(s === 5 ? dn('E').toLowerCase() : noteLabel(OPEN_MIDI[s]), gutter / 2, y(s));
+      ctx.fillStyle = C.muted; ctx.font = `700 ${Math.round(Math.min(15, G.laneH * 0.42))}px system-ui, sans-serif`;
+      ctx.fillText(s === 5 ? dn('E').toLowerCase() : noteLabel(OPEN_MIDI[s]), G.gutter / 2, y(s));
     }
-    // linija pogotka
-    const g = ctx.createLinearGradient(hitX - 14, 0, hitX + 14, 0);
+    const g = ctx.createLinearGradient(G.hitX - 14, 0, G.hitX + 14, 0);
     g.addColorStop(0, 'rgba(245,165,36,0)'); g.addColorStop(0.5, 'rgba(245,165,36,.3)'); g.addColorStop(1, 'rgba(245,165,36,0)');
-    ctx.fillStyle = g; ctx.fillRect(hitX - 14, padY, 28, H - 2 * padY);
-    ctx.fillStyle = C.accent; ctx.fillRect(hitX - 1.5, padY, 3, H - 2 * padY);
+    ctx.fillStyle = g; ctx.fillRect(G.hitX - 14, G.padY, 28, G.H - 2 * G.padY);
+    ctx.fillStyle = C.accent; ctx.fillRect(G.hitX - 1.5, G.padY, 3, G.H - 2 * G.padY);
     for (let s = 0; s < 6; s++) {
-      ctx.beginPath(); ctx.arc(hitX, y(s), r, 0, Math.PI * 2);
+      ctx.beginPath(); ctx.arc(G.hitX, y(s), G.r, 0, Math.PI * 2);
       ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(236,238,242,.2)'; ctx.stroke();
     }
-    const cur = current();
-    const alphaOf = (it) => (it.state === 'miss' ? Math.max(0, 1 - (real - it.doneAt) / 700) : it.state === 'hit' ? Math.max(0, 1 - (real - it.doneAt) / 260) : 1);
+  }
 
-    // obojena nota (samo prag), blagi sjaj
-    function noteDot(x, yy, f, finger, a, big = 1) {
-      const col = FINGER_COLORS[finger] || FINGER_COLORS[0], rr = r * big;
-      ctx.globalAlpha = a;
-      ctx.beginPath(); ctx.arc(x, yy, rr, 0, Math.PI * 2);
-      glowFill(col, 9); ctx.fill(); ctx.shadowBlur = 0;
-      ctx.fillStyle = INK; ctx.font = `800 ${Math.round(rr * 1.05)}px system-ui, sans-serif`;
-      ctx.fillText(String(f), x, yy + 1);
-      ctx.globalAlpha = 1;
+  // ---- Bazeni elemenata (prave se jednom, posle se samo ponovo koriste) ----
+  const pools = { note: [], chord: [], strum: [], grid: [], ring: [], ghost: [] };
+  function make(kind) {
+    const e = document.createElement('div');
+    if (kind === 'note') { e.className = 'tn'; e.innerHTML = '<b></b>'; itemsL.appendChild(e); }
+    else if (kind === 'chord') {
+      e.className = 'tc'; e.innerHTML = `<span class="tc-l"></span>${'<i class="tc-d"><b></b></i>'.repeat(6)}`; itemsL.appendChild(e);
+    } else if (kind === 'strum') {
+      e.className = 'ts';
+      e.innerHTML = '<svg viewBox="0 0 20 100" preserveAspectRatio="none"><path d="M10 4V96"/><path class="ts-h" d="M3 86l7 10 7-10"/></svg>';
+      itemsL.appendChild(e);
+    } else if (kind === 'grid') { e.className = 'tgl'; gridL.appendChild(e); }
+    else if (kind === 'ring') { e.className = 'tr'; fxL.appendChild(e); }
+    else if (kind === 'ghost') { e.className = 'tgh'; e.innerHTML = '<b></b>'; fxL.appendChild(e); }
+    return e;
+  }
+  function take(kind) { const p = pools[kind]; const e = p.length ? p.pop() : make(kind); e.style.opacity = ''; return e; }
+  function give(kind, e) { e.style.transform = 'translate3d(-9999px,0,0)'; e._tx = null; pools[kind].push(e); }
+  function release(it) { if (!it._el) return; it._el.classList.remove('cur', 'missed'); give(it.kind, it._el); it._el = null; }
+  // nova nota/blok: sadržaj se upiše jednom (pri dodeli), ne po kadru
+  function assign(it) {
+    const e = take(it.kind);
+    if (it.kind === 'note') {
+      e.className = `tn fc${it.finger || 0}`;
+      e.firstChild.textContent = String(it.f);
+    } else if (it.kind === 'chord') {
+      e.className = 'tc' + (it.deco ? ' deco' : '');
+      const w = Math.max(G.r * 2 + 8, (it.dur || 1) * G.ppb - 6 + G.r * 2 + 8);
+      e.style.width = w + 'px';
+      e.firstChild.textContent = it.label || '';
+      const dots = e.querySelectorAll('.tc-d');
+      for (let s = 0; s < 6; s++) {
+        const d = dots[s], f = it.frets ? it.frets[s] : -2;
+        if (it.deco || f === -2 || f == null) { d.className = 'tc-d off'; continue; }
+        d.className = f < 0 ? 'tc-d mute' : `tc-d fc${f === 0 ? 0 : it.fingers?.[s] || 1}`;
+        d.firstChild.textContent = f < 0 ? '×' : String(f);
+        d.style.transform = `translate3d(0,${(y(s) - G.padY - G.r * 0.82).toFixed(1)}px,0)`;
+      }
+    } else if (it.kind === 'strum') {
+      e.className = `ts ${it.dir === 'U' ? 'up' : 'down'}${it.muted ? ' muted' : ''}`;
     }
+    if (it === cur) e.classList.add('cur');
+    if (it.state === 'miss') e.classList.add('missed');
+    it._el = e;
+    return e;
+  }
+  const setX = (e, tx) => { if (e._tx !== tx) { e._tx = tx; e.style.transform = tx; } };
 
-    for (const it of items) {
-      const a = it.deco ? 0.9 : alphaOf(it);
-      if (a <= 0) continue;
-      const x = xOf(it.at);
-      const x1 = it.dur ? xOf(it.at + it.dur * beatMs) : x;
-      if (x1 < -r || x > W + r) continue;
-      const isCur = it === cur;
-      if (it.kind === 'note') {
-        noteDot(x, y(it.s), it.f, it.finger, a);
-        if (isCur) { ctx.beginPath(); ctx.arc(x, y(it.s), r + 3, 0, Math.PI * 2); ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(255,255,255,.75)'; ctx.stroke(); }
-      } else if (it.kind === 'chord') {
-        // blok akorda: od početka do kraja trajanja, tačke u bojama prstiju na svakoj žici
-        const bx = x - r - 4, bw = Math.max(r * 2 + 8, x1 - x - 6 + r * 2 + 8);
-        ctx.globalAlpha = it.deco ? 0.55 : a;
-        roundRect(bx, padY + 1, bw, H - 2 * padY - 2, 12);
-        ctx.fillStyle = 'rgba(236,238,242,.07)'; ctx.fill();
-        ctx.lineWidth = isCur ? 2.5 : 1.5; ctx.strokeStyle = isCur ? 'rgba(255,255,255,.85)' : 'rgba(236,238,242,.3)'; ctx.stroke();
-        ctx.globalAlpha = 1;
-        if (!it.deco && it.frets) for (let s = 0; s < 6; s++) {
-          const f = it.frets[s];
-          if (f < 0) { ctx.globalAlpha = a * 0.7; ctx.fillStyle = C.muted; ctx.font = `700 ${Math.round(r * 0.9)}px system-ui, sans-serif`; ctx.fillText('×', x, y(s)); ctx.globalAlpha = 1; }
-          else noteDot(x, y(s), f, f === 0 ? 0 : it.fingers?.[s] || 1, a, 0.82);
-        }
-        // ime akorda iznad (u bloku, pored prvog reda)
-        const label = it.label || '';
-        if (label) {
-          ctx.globalAlpha = it.deco ? 0.7 : a;
-          ctx.font = `800 ${Math.round(Math.min(22, laneH * 0.62))}px system-ui, sans-serif`;
-          const lx = Math.max(x + r + 8 + ctx.measureText(label).width / 2, x + r + 18);
-          ctx.fillStyle = '#fff'; ctx.fillText(label, Math.min(lx, x1 + r - 6 > lx ? lx : lx), y(0));
-          ctx.globalAlpha = 1;
-        }
-      } else if (it.kind === 'strum') {
-        // udarac: strelica preko svih žica (dole = ka tankoj e)
-        ctx.globalAlpha = a;
-        const top = y(0) - r * 0.6, bot = y(5) + r * 0.6, down = it.dir !== 'U';
-        ctx.strokeStyle = it.muted ? C.muted : '#e9ecf1'; ctx.lineWidth = Math.max(4, r * 0.45); ctx.lineCap = 'round';
-        ctx.shadowColor = '#e9ecf1'; ctx.shadowBlur = it.muted ? 0 : 7;
-        ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, bot); ctx.stroke();
-        const hy = down ? bot : top, sgn = down ? -1 : 1;
-        ctx.beginPath(); ctx.moveTo(x - r * 0.8, hy + sgn * r * 0.9); ctx.lineTo(x, hy); ctx.lineTo(x + r * 0.8, hy + sgn * r * 0.9); ctx.stroke();
-        ctx.shadowBlur = 0; ctx.lineCap = 'butt';
-        if (isCur) { roundRect(x - r * 1.1, top - 6, r * 2.2, bot - top + 12, r); ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(255,255,255,.6)'; ctx.stroke(); }
-        ctx.globalAlpha = 1;
+  // ---- Jedna petlja: samo transform (i klase kad se nešto promeni) ----
+  const gridEls = [];
+  function frame() {
+    if (!alive || sleeping) { raf = 0; return; }
+    raf = requestAnimationFrame(frame);
+    if (!G.W) { layout(); if (!G.W) return; }
+    const now = clock(), r = G.r;
+    const xOf = (at) => G.hitX + ((at - now) / beatMs) * G.ppb;
+    // linije otkucaja
+    let gi = 0;
+    if (grid && Number.isFinite(grid.t0)) {
+      const first = Math.floor((now - grid.t0) / beatMs) - 1;
+      for (let b = first; b <= first + lookBeats + 2; b++) {
+        const x = xOf(grid.t0 + b * beatMs);
+        if (x < G.gutter || x > G.W) continue;
+        const e = gridEls[gi] || (gridEls[gi] = take('grid'));
+        e.className = ((b % 4) + 4) % 4 === 0 ? 'tgl acc' : 'tgl';
+        setX(e, `translate3d(${x.toFixed(1)}px,0,0)`);
+        gi++;
       }
     }
-    // prstenovi: zeleno = pogodak, crveno = promašaj / pogrešno (oko note, na liniji)
-    for (let i = rings.length - 1; i >= 0; i--) {
-      const b = rings[i], k = (real - b.at) / 450;
-      if (k >= 1) { rings.splice(i, 1); continue; }
-      const it = b.it, x = it.state === 'miss' || b.kind === 'wrong' ? Math.max(hitX, xOf(it.at)) : hitX;
-      const col = b.kind === 'hit' ? C.ok : C.danger;
-      ctx.globalAlpha = 1 - k;
-      ctx.lineWidth = 4 * (1 - k) + 1.5; ctx.strokeStyle = col; ctx.shadowColor = col; ctx.shadowBlur = 10;
-      if (it.kind === 'note') { ctx.beginPath(); ctx.arc(x, y(it.s), r * (1.12 + k * 0.9), 0, Math.PI * 2); ctx.stroke(); }
-      else { const grow = k * 10; roundRect(x - r - 6 - grow, padY - grow / 2, r * 2 + 12 + grow * 2, H - 2 * padY + grow, 14); ctx.stroke(); }
-      ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+    for (let k = gi; k < gridEls.length; k++) setX(gridEls[k], 'translate3d(-9999px,0,0)');
+    for (const it of items) {
+      if (it.state === 'hit' && !it.deco) { release(it); continue; }
+      if (it.state === 'miss' && it.doneAt && performance.now() - it.doneAt > 700) { release(it); continue; }
+      const x = xOf(it.at);
+      const x1 = it.dur ? xOf(it.at + it.dur * beatMs) : x;
+      if (!Number.isFinite(x) || x1 < -3 * r || x > G.W + 3 * r) { release(it); continue; }
+      const e = it._el || assign(it);
+      if (it.kind === 'note') setX(e, `translate3d(${(x - r * 1.5).toFixed(1)}px,${(y(it.s) - r * 1.5).toFixed(1)}px,0)`);
+      else if (it.kind === 'chord') setX(e, `translate3d(${(x - r - 4).toFixed(1)}px,${G.padY.toFixed(1)}px,0)`);
+      else setX(e, `translate3d(${(x - r * 1.1).toFixed(1)}px,${(y(0) - r * 0.7).toFixed(1)}px,0)`);
     }
   }
-  raf = requestAnimationFrame(draw);
+  function wake() { if (!raf && alive && !sleeping) raf = requestAnimationFrame(frame); }
+  wake();
 
-  let popTimer = 0;
-  function pop(text, kind) {
-    const p = q('.trk-pop');
-    p.className = 'trk-pop ' + (kind || '');
-    p.textContent = text;
-    void p.offsetWidth; p.classList.add('show');
-    clearTimeout(popTimer); popTimer = setTimeout(() => p.classList.remove('show'), 800);
+  // ---- Efekti: samo na meti (prsten / mali prasak), Web Animations (bez čitanja rasporeda) ----
+  function ringAt(it, kind, xAt) {
+    const e = take('ring'), r = G.r;
+    const col = kind === 'hit' ? 'ok' : 'bad';
+    let w, h, x, yy;
+    if (it.kind === 'note') { w = h = r * 2.5; x = xAt - w / 2; yy = y(it.s) - h / 2; e.className = `tr ${col}`; }
+    else if (it.kind === 'chord') { w = r * 2 + 12; h = G.H - 2 * G.padY; x = xAt - w / 2; yy = G.padY; e.className = `tr box ${col}`; }
+    else { w = r * 2.6; h = y(5) - y(0) + r * 1.6; x = xAt - w / 2; yy = y(0) - r * 0.8; e.className = `tr box ${col}`; }
+    e.style.width = w + 'px'; e.style.height = h + 'px';
+    const base = `translate3d(${x.toFixed(1)}px,${yy.toFixed(1)}px,0)`;
+    e.style.transform = base;
+    const a = e.animate([{ transform: base + ' scale(.85)', opacity: 1 }, { transform: base + ' scale(1.35)', opacity: 0 }], { duration: 450, easing: 'ease-out' });
+    a.onfinish = () => give('ring', e);
+    if (kind === 'hit') {
+      const bst = take('ring');
+      bst.className = 'tr burst';
+      const bw = it.kind === 'note' ? r * 2.2 : r * 3;
+      bst.style.width = bst.style.height = bw + 'px';
+      const bb = `translate3d(${(xAt - bw / 2).toFixed(1)}px,${((it.kind === 'note' ? y(it.s) : (y(2) + y(3)) / 2) - bw / 2).toFixed(1)}px,0)`;
+      bst.style.transform = bb;
+      bst.animate([{ transform: bb + ' scale(.5)', opacity: 0.85 }, { transform: bb + ' scale(1.7)', opacity: 0 }], { duration: 380, easing: 'ease-out' }).onfinish = () => give('ring', bst);
+    }
   }
-  function flash(kind) {
-    el.classList.remove('fl-hit', 'fl-miss'); void el.offsetWidth;
-    el.classList.add(kind === 'hit' ? 'fl-hit' : 'fl-miss');
+  // Pogrešna nota: bled crveni krug na žici gde je ta nota (sa brojem praga) — nestane posle ~1 s ili kad pogodiš
+  let ghostEl = null, ghostAnim = null;
+  function ghost(s, f, nextToTarget) {
+    clearGhost();
+    const e = take('ghost'), r = G.r;
+    e.firstChild.textContent = String(f);
+    const x = nextToTarget ? G.hitX - r * 2.6 : G.hitX;
+    const tr = `translate3d(${(x - r).toFixed(1)}px,${(y(s) - r).toFixed(1)}px,0)`;
+    e.style.transform = tr;
+    ghostEl = e;
+    ghostAnim = e.animate([{ opacity: 0 }, { opacity: 0.75, offset: 0.12 }, { opacity: 0.75, offset: 0.75 }, { opacity: 0 }], { duration: 1100 });
+    ghostAnim.onfinish = () => { if (ghostEl === e) { ghostEl = null; give('ghost', e); } };
+  }
+  function clearGhost() { if (!ghostEl) return; ghostAnim?.cancel(); give('ghost', ghostEl); ghostEl = null; }
+
+  function pop(text, kind) {
+    popEl.className = 'trk-pop ' + (kind || '');
+    popEl.textContent = text;
+    popEl.animate([{ opacity: 0, transform: 'translate3d(0,8px,0) scale(.85)' }, { opacity: 1, transform: 'translate3d(0,0,0) scale(1.1)', offset: 0.2 }, { opacity: 0, transform: 'translate3d(0,-14px,0) scale(1)' }], { duration: 750, easing: 'ease-out' });
   }
   function setCombo(n) {
     combo = n; maxCombo = Math.max(maxCombo, n);
-    const c = q('.trk-combo');
-    c.querySelector('b').textContent = String(n);
-    c.classList.toggle('hot', n >= 8);
-    if (n > 0) { c.classList.remove('bump'); void c.offsetWidth; c.classList.add('bump'); }
+    comboB.textContent = String(n);
+    comboEl.classList.toggle('hot', n >= 8);
+    if (n > 0) comboB.animate([{ transform: 'scale(1.4)' }, { transform: 'scale(1)' }], { duration: 220, easing: 'ease-out' });
   }
-  let handT = 0;
+  let handAnim = null, lvlT = 0, lastHeard = undefined;
 
   return {
     el,
     useClock(fn) { clock = fn; },
-    setItems(list, ms) { items = list; if (ms) beatMs = ms; },
+    setItems(list, ms) { for (const it of items) release(it); items = list; if (ms) beatMs = ms; cur = null; },
     setGrid(gr) { grid = gr; },
     set beatMs(v) { beatMs = v; },
     /** Ocena: kind 'hit' | 'early' | 'late' | 'miss'; text = poruka; sound = cink */
     judge(it, kind, text, { sound = true } = {}) {
+      const real = performance.now();
+      const x = Math.max(G.hitX, G.hitX + ((it.at - clock()) / beatMs) * G.ppb);
       it.state = kind === 'miss' ? 'miss' : 'hit';
-      it.doneAt = performance.now();
-      rings.push({ it, at: it.doneAt, kind: kind === 'miss' ? 'miss' : 'hit' });
-      flash(kind === 'miss' ? 'miss' : 'hit');
-      if (kind === 'miss') setCombo(0);
-      else { setCombo(combo + 1); if (sound) hitSound(); }
+      it.doneAt = real;
+      if (kind === 'miss') { it._el?.classList.add('missed'); ringAt(it, 'miss', x); setCombo(0); }
+      else { ringAt(it, 'hit', G.hitX); clearGhost(); setCombo(combo + 1); if (sound) hitSound(); }
       pop(text, kind);
     },
-    /** Pogrešno, ali nota i dalje čeka (može se popraviti). */
-    wrong(it, text) { rings.push({ it, at: performance.now(), kind: 'wrong' }); flash('miss'); pop(text, 'miss'); },
+    /** Pogrešno, ali nota i dalje čeka: crveni prsten oko mete (i bled crveni krug na odsviranoj noti). */
+    wrong(it, text, heard = null) {
+      ringAt(it, 'miss', Math.max(G.hitX, G.hitX + ((it.at - clock()) / beatMs) * G.ppb));
+      if (heard != null && it.kind === 'note') {
+        const pos = placeOf(heard, it.s);
+        if (pos) ghost(pos.s, pos.f, pos.s === it.s);
+      }
+      pop(text, 'miss');
+    },
     big(text) {
-      const b = q('.trk-big');
-      b.textContent = text || '';
-      b.classList.remove('show'); void b.offsetWidth; if (text) b.classList.add('show');
+      bigEl.textContent = text || '';
+      if (text) bigEl.animate([{ opacity: 0, transform: 'scale(1.6)' }, { opacity: 1, transform: 'scale(1)', offset: 0.25 }, { opacity: 0, transform: 'scale(.9)' }], { duration: 700, easing: 'ease-out', fill: 'forwards' });
     },
     pop,
-    caption(text) { q('.trk-cap').textContent = text || ''; q('.trk-cap').classList.toggle('on', !!text); },
-    lyric(text) { const l = q('.trk-lyric'); l.textContent = text || ''; l.classList.toggle('on', !!text); },
-    progress(frac) { q('.trk-prog i').style.width = `${Math.round(Math.max(0, Math.min(1, frac)) * 100)}%`; },
+    caption(text) { if (capEl.textContent !== (text || '')) capEl.textContent = text || ''; },
+    lyric(text) { if (lyrEl.textContent !== (text || '')) lyrEl.textContent = text || ''; },
+    /** Red teksta iznad vrata (Delovi pesme): odluči se na početku runde, visina je stalna. */
+    setLyricMode(on) { el.classList.toggle('with-lyric', !!on); },
+    progress(frac) { progI.style.transform = `scaleX(${Math.max(0, Math.min(1, frac)).toFixed(3)})`; },
     level(lv, note) {
+      const now = performance.now();
+      if (now - lvlT < 66) return; // ~15 puta u sekundi
+      lvlT = now;
       const db = lv ? 20 * Math.log10(lv) : -100;
-      q('.pr-lvl i').style.width = `${Math.round(Math.max(0, Math.min(1, (db + 60) / 50)) * 100)}%`;
-      q('.trk-heard').textContent = note != null ? `${t('pr.meter.heard')}: ${noteLabel(note)}` : '';
+      lvlI.style.transform = `scaleX(${Math.max(0, Math.min(1, (db + 60) / 50)).toFixed(2)})`;
+      if (note !== lastHeard) { lastHeard = note; heardEl.textContent = note != null ? `${t('pr.meter.heard')}: ${noteLabel(note)}` : ''; }
     },
-    /** Ruka: na početku runde nekoliko puta blago zasvetli (podsetnik za boje), pa polako izbledi. */
+    ghost(s, f) { ghost(s, f, false); },
+    clearGhost,
+    /** Ruka: na početku runde nekoliko puta blago zasvetli (podsetnik za boje), pa se vrati na ~25 %. */
     handPulse() {
-      const h = q('.trk-hand');
-      h.classList.remove('pulse', 'fade'); void h.offsetWidth;
-      h.classList.add('pulse');
-      clearTimeout(handT); handT = setTimeout(() => { h.classList.remove('pulse'); h.classList.add('fade'); }, 2900);
+      handAnim?.forEach((a) => a.cancel());
+      const pulse = (lo, hi) => [lo, hi, lo, hi, lo, hi * 0.9, lo].map((o) => ({ opacity: o }));
+      handAnim = [hand.querySelector('.h-skin').animate(pulse(0.55, 0.95), { duration: 3400, easing: 'ease-in-out' }),
+        ...[...hand.querySelectorAll('.h-tip')].map((tip) => tip.animate(pulse(0.62, 1), { duration: 3400, easing: 'ease-in-out' }))];
     },
-    /** Prsti koji sviraju sledeću notu/akord blago svetle na ruci. */
     handLight(fingers = []) {
-      el.querySelectorAll('.h-tip').forEach((tip) => tip.classList.toggle('lit', fingers.includes(+tip.dataset.f)));
+      hand.querySelectorAll('.h-tip').forEach((tip) => tip.classList.toggle('lit', fingers.includes(+tip.dataset.f)));
+    },
+    /** Trenutna meta (beli obod) — menja se samo klasa. */
+    setCurrent(it) {
+      if (cur === it) return;
+      cur?._el?.classList.remove('cur');
+      cur = it;
+      it?._el?.classList.add('cur');
     },
     get combo() { return combo; },
     get maxCombo() { return maxCombo; },
     reset() {
-      items = []; grid = null; combo = 0; maxCombo = 0; setCombo(0); q('.trk-combo b').textContent = '0';
-      this.progress(0); this.caption(''); this.lyric(''); this.big(''); this.handLight([]); q('.trk-res').hidden = true;
+      for (const it of items) release(it);
+      items = []; grid = null; combo = 0; maxCombo = 0; cur = null; comboB.textContent = '0'; comboEl.classList.remove('hot');
+      clearGhost();
+      this.progress(0); this.caption(''); this.lyric(''); bigEl.textContent = ''; this.handLight([]); q('.trk-res').hidden = true;
       clock = () => performance.now();
     },
+    /** Raspored za novu rundu (posle podešavanja reda za tekst). */
+    relayout() { layout(); },
+    /** Uspravno / pauza: petlja crtanja stane. */
+    sleep(on) { sleeping = !!on; if (!sleeping) wake(); },
     isPortrait: () => mq.matches,
-    /** Čekaj da telefon bude položen (dotle se vidi „Okreni telefon“). */
     whenLandscape() {
       if (!mq.matches) return Promise.resolve();
       return new Promise((res) => {
@@ -330,10 +374,12 @@ export function createTrack({ t, onExit, lookBeats = 4.5 }) {
     destroy() {
       if (!alive) return;
       alive = false;
-      cancelAnimationFrame(raf);
-      ro.disconnect();
+      cancelAnimationFrame(raf); cancelAnimationFrame(resizeQ);
+      window.removeEventListener('resize', onResize);
       mq.removeEventListener('change', onMq);
-      clearTimeout(popTimer); clearTimeout(rotT); clearTimeout(handT);
+      clearTimeout(rotT);
+      handAnim?.forEach((a) => a.cancel());
+      orientSubs.clear();
       el.remove();
       document.body.classList.remove('trk-open');
     },
@@ -422,6 +468,7 @@ export function runTrack({ api, track, t, items, bpm, mode = 'normal', lagMs = 1
     const c = cur();
     if (c !== lastCur) {
       lastCur = c;
+      track.setCurrent(c);
       track.handLight(c ? (fingersOf ? fingersOf(c) : c.finger ? [c.finger] : []) : []);
       if (!demo) track.caption('');
       if (c?.lyric !== undefined) track.lyric(c.lyric);
@@ -457,8 +504,9 @@ export function runTrack({ api, track, t, items, bpm, mode = 'normal', lagMs = 1
     const score = (judged.reduce((a, it) => a + (it.score || 0), 0) / n) * 100;
     const hits = judged.filter((it) => (it.score || 0) > 0).length;
     const wrongs = judged.reduce((a, it) => a + (it.wrong || 0), 0);
-    track.caption(''); track.handLight([]);
-    onEnd?.({ score, accuracy: hits / n, maxCombo: track.maxCombo, wrongs, clean: beg ? wrongs <= Math.max(1, Math.round(n * 0.1)) : hits / n >= 0.85, tempo: bpm, beginner: beg });
+    const onTime = judged.filter((it) => it.kindHit === 'hit').length, offTime = judged.filter((it) => it.kindHit === 'early' || it.kindHit === 'late').length;
+    track.caption(''); track.handLight([]); track.clearGhost();
+    onEnd?.({ score, accuracy: hits / n, maxCombo: track.maxCombo, wrongs, n, hits, onTime, offTime, misses: n - hits, clean: beg ? wrongs <= Math.max(1, Math.round(n * 0.1)) : hits / n >= 0.85, tempo: bpm, beginner: beg });
   }
   // Ulaz igre (trzaj / udarac): nota najbliža trenutku „at“ (Početnik: nota koja čeka)
   function input(at, check) {
@@ -467,18 +515,22 @@ export function runTrack({ api, track, t, items, bpm, mode = 'normal', lagMs = 1
       const c = cur();
       if (!c || vt < c.at - beatMs * 0.9) return;
       const r = check(c);
-      if (r.ok) { c.score = c.wrong ? 0.6 : 1; track.judge(c, 'hit', t('pr.trk.hit')); }
-      else { c.wrong = (c.wrong || 0) + 1; track.wrong(c, r.text ? t('pr.trk.tryAgain', { x: r.text }) : t('pr.trk.notClear')); }
+      if (r.pending) return; // nejasno — igra još sluša (stabilno očitavanje), pa javi ponovo
+      // Početnik: bez tempa i promašaja — svaki pogrešan pokušaj odnese malo (najviše do 70 %)
+      if (r.ok) { c.score = Math.max(0.7, 1 - 0.1 * (c.wrong || 0)); c.kindHit = 'hit'; track.judge(c, 'hit', t('pr.trk.hit')); }
+      else { c.wrong = (c.wrong || 0) + 1; track.wrong(c, r.text ? t('pr.trk.tryAgain', { x: r.text }) : t('pr.trk.notClear'), r.heard ?? null); }
       return;
     }
     let best = null;
     for (const it of judged) if (!it.state && Math.abs(at - it.at) <= win(it) && (!best || Math.abs(at - it.at) < Math.abs(at - best.at))) best = it;
     if (!best) return;
     const r = check(best);
-    if (!r.ok) { best.wrong = (best.wrong || 0) + 1; track.wrong(best, r.text || t('pr.trk.notClear')); return; }
+    if (r.pending) return;
+    if (!r.ok) { best.wrong = (best.wrong || 0) + 1; track.wrong(best, r.text || t('pr.trk.notClear'), r.heard ?? null); return; }
     const dt = at - best.at, tm = judgeTiming(dt, beatMs * Math.min(1, (best.winBeats || 0.5) * 2));
     best.score = (tm.kind === 'off' ? 0.6 : 0.6 + 0.4 * tm.score) * (best.wrong ? 0.7 : 1);
     const kind = tm.kind === 'hit' ? 'hit' : dt < 0 ? 'early' : 'late';
+    best.kindHit = kind;
     track.judge(best, kind, kind === 'hit' ? t('pr.trk.hit') : t(kind === 'early' ? 'pr.trk.early' : 'pr.trk.late'));
   }
 
@@ -490,11 +542,15 @@ export function runTrack({ api, track, t, items, bpm, mode = 'normal', lagMs = 1
     const c = cur();
     resumeBeat = c ? Math.max(0, Math.floor(c.beat)) : endBeat;
     track.big('');
+    track.sleep(true);
+    api.pauseHw?.(true); // mikrofon ne obrađuje, ekran sme da se ugasi
   }
   function resume() {
     if (ended || !paused) return;
     paused = false;
     counting = true;
+    track.sleep(false);
+    api.pauseHw?.(false);
     const f = firstStart; firstStart = false;
     if (beg) startBeginner(f); else startMetronome(f);
   }
@@ -502,7 +558,7 @@ export function runTrack({ api, track, t, items, bpm, mode = 'normal', lagMs = 1
   function off() { offOrient(); timers.forEach(clearTimeout); timers = []; }
 
   sweepT = setInterval(sweep, 30);
-  if (track.isPortrait()) { paused = true; resumeBeat = 0; firstStart = true; } // počinje tek kad se telefon okrene
+  if (track.isPortrait()) { paused = true; resumeBeat = 0; firstStart = true; track.sleep(true); api.pauseHw?.(true); } // počinje tek kad se telefon okrene
   else if (beg) startBeginner(true); else startMetronome(true);
 
   return {
@@ -517,7 +573,7 @@ export function runTrack({ api, track, t, items, bpm, mode = 'normal', lagMs = 1
  * extra: [{ id, label, primary }] (npr. „Sledeći deo“) — idu ispred ostalih.
  */
 export async function roundResults({ api, track, t, stats, key = null, extra = [], step = 5 }) {
-  const info = await api.finish({ score: stats.score, tempo: stats.tempo, accuracy: stats.accuracy, quiet: true, noTempoUp: stats.beginner }, key);
+  const info = await api.finish({ score: stats.score, tempo: stats.tempo, accuracy: stats.accuracy, metric: stats.metric ?? null, quiet: true, noTempoUp: stats.beginner }, key);
   if (!track) return { choice: 'back' };
   const stars = starsOf(stats.score);
   const next = stats.beginner ? stats.tempo : info.nextTempo > stats.tempo ? info.nextTempo : stats.tempo + step;
@@ -525,8 +581,17 @@ export async function roundResults({ api, track, t, stats, key = null, extra = [
     ? [...(stats.clean ? [{ id: 'tryNormal', label: t('pr.lvl.tryNormal'), primary: true }] : []), { id: 'again', label: t('pr.trk.again'), primary: !stats.clean }, { id: 'back', label: t('pr.trk.back') }]
     // uz „Sledeći deo“ / „Cela pesma“ (pravi tempo pesme je dostignut) nema „Brže“
     : [...extra, ...(extra.length ? [] : [{ id: 'faster', label: t('pr.trk.faster', { bpm: next }), primary: stars >= 2 }]), { id: 'again', label: t('pr.trk.again'), primary: !extra.length && stars < 2 }, { id: 'back', label: t('pr.trk.back') }];
-  const lines = [{ label: t('pr.accuracy'), value: `${Math.round(stats.accuracy * 100)}%` }, { label: t('pr.trk.maxCombo'), value: String(stats.maxCombo) }];
+  // Zašto je rezultat ovakav: pogođeno, u ritmu / rano-kasno, promašeno, pogrešni pokušaji
+  const lines = [{ label: t('pr.why.hit'), value: `${stats.hits}/${stats.n}` }];
+  if (!stats.beginner) {
+    lines.push({ label: t('pr.why.onTime'), value: String(stats.onTime) });
+    if (stats.offTime) lines.push({ label: t('pr.why.offTime'), value: String(stats.offTime) });
+    if (stats.misses) lines.push({ label: t('pr.why.missed'), value: String(stats.misses) });
+  }
+  lines.push({ label: t('pr.why.wrong'), value: String(stats.wrongs) });
+  lines.push({ label: t('pr.trk.maxCombo'), value: String(stats.maxCombo) });
   if (!stats.beginner) lines.push({ label: t('pr.tempoReached'), value: `${stats.tempo} BPM` });
+  if (stats.metric != null && stats.metricLabel) lines.push({ label: stats.metricLabel, value: t('pr.unit.perMin', { n: stats.metric }) });
   const choice = await track.results({
     title: stats.beginner ? t(stats.clean ? 'pr.lvl.cleanTitle' : 'pr.lvl.notCleanTitle') : t('pr.trk.res' + stars),
     stars, score: stats.score, lines,
@@ -577,6 +642,8 @@ export function trackGame(api, cfg) {
     const my = ++gen;
     runner?.stop();
     track.reset();
+    track.setLyricMode(round.items.some((it) => it.lyric !== undefined));
+    track.relayout(); // raspored se meri jednom, na početku runde
     runner = runTrack({
       api, track, t, items: round.items, bpm: round.bpm || bpm, mode: api.level === 'beg' ? 'beg' : 'normal',
       lagMs: round.lagMs ?? 180, hintOf: round.hintOf, fingersOf: round.fingersOf,
@@ -595,6 +662,7 @@ export function trackGame(api, cfg) {
     runner = null;
     if (!api.running || !track) return;
     if (cfg.onRoundEnd && (await cfg.onRoundEnd(stats, round, ctl))) return;
+    if (cfg.metric && !stats.beginner) { stats.metric = Math.round(cfg.metric(stats, round)); stats.metricLabel = cfg.metricLabel; }
     const { choice, next } = await roundResults({ api, track, t, stats, key: round.key || null, extra: round.extra ? round.extra(stats) : [] });
     if (handleChoice(api, choice, next, close)) return;
     cfg.onChoice?.(choice, round, ctl);
@@ -610,9 +678,11 @@ export function trackGame(api, cfg) {
     track.caption(cfg.demo.intro);
     await wait(2800);
     if (!track || my !== gen || !api.running) return;
-    const d = cfg.demo;
+    const d = cfg.demo, its = d.items();
+    track.setLyricMode(its.some((it) => it.lyric !== undefined));
+    track.relayout();
     runner = runTrack({
-      api, track, t, items: d.items(), bpm: d.bpm, demo: { play: d.play, early: d.early, captions: d.captions },
+      api, track, t, items: its, bpm: d.bpm, demo: { play: d.play, early: d.early, captions: d.captions },
       fingersOf: d.fingersOf,
       onEnd: async () => {
         runner = null;
@@ -654,3 +724,28 @@ export function chordItem(chord, beat, dur, extra = {}) {
 }
 /** Prsti koje akord koristi (za ruku). */
 export const chordFingers = (it) => [...new Set((it.fingers || []).filter((f, i) => f > 0 && it.frets[i] > 0))];
+
+/**
+ * Zajednička provera trzaja za igre sa notama (staza): prvo očitavanje; ako je nejasno (susedni prag, mala razlika),
+ * sačeka se ustaljen zvuk (~0,2 s) i tek onda presudi. Pogrešna nota → poruka „To je F“ + bled crveni krug.
+ */
+export function notePluck(api, log, input, t, game, midiOfItem) {
+  return (p) => {
+    debugLog({ game, pluck: Math.round(p.at) });
+    log.onset({ at: p.at }); log.pluck(p);
+    const h = log.hits[log.hits.length - 1];
+    const run = () => input(h.at, (it) => {
+      const v = log.verdict(h, midiOfItem(it), game);
+      if (v.ok) return { ok: true };
+      if (v.unclear && api.listener) {
+        api.listener.steady(p.rawAt ?? p.at, (sg) => { log.steadied(h, sg); run(); });
+        return { pending: true };
+      }
+      return { ok: false, text: v.heard != null ? t('pr.trk.wrong', { n: noteLabel(v.heard) }) : '', heard: v.heard };
+    });
+    run();
+  };
+}
+
+// zajednički sitni delovi (i za kvizove) — da Lovac i Sluh ne učitavaju celu stazu
+export { hitSound, placeOf, quizPluck };

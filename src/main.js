@@ -249,4 +249,5 @@ const UPG_KEY = 'gitara-upgraded';
 let upgDone = false; try { upgDone = localStorage.getItem(UPG_KEY) === String(CV); } catch {}
 if (!upgDone) idle(() => songsDb.all().then((list) => Promise.all(list.filter(needsUpgrade).map((x) => songsDb.put(x))))
   .then(() => { try { localStorage.setItem(UPG_KEY, String(CV)); } catch {} }).catch(() => {}));
-idle(() => import('./drive.js').then((m) => m.initDrive()).catch(() => {}));
+// Google Drive (~25 KB) se učitava samo ako je rezervna kopija uključena; inače tek kad se otvore Podešavanja
+idle(() => settings.get('drive', null).then((d) => { if (d && d.connected) return import('./drive.js').then((m) => m.initDrive()); }).catch(() => {}));

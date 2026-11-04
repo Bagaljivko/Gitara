@@ -6,7 +6,7 @@ import { chordSVG } from './diagram.js';
 import { dn } from './naming.js';
 import { getLang } from './i18n.js';
 import { createHitLog } from './practiceListen.js';
-import { hitSound } from './practiceTrack.js';
+import { hitSound, quizPluck, placeOf } from './practiceCommon.js';
 
 const ROUND = 12;
 const RANGES = { low: [0, 5], mid: [0, 9], all: [0, 12] };
@@ -41,7 +41,7 @@ export function createGame(api) {
     if (w || r || c) { drawOpts(); idle(); }
   });
 
-  api.stage.innerHTML = `<div class="pr-quiz-big" id="lvNow">?</div>
+  api.stage.innerHTML = `<div class="pr-qwrap"><div class="pr-quiz-big" id="lvNow">?</div><i class="pr-qring" id="lvRing"></i></div>
     <div class="pr-quiz-sub" id="lvSub"></div>
     <div class="pr-hint" id="lvHint"></div>
     <div class="pr-board" id="lvBoard"></div>
@@ -67,7 +67,8 @@ export function createGame(api) {
   const beg = () => api.level === 'beg';
   const secs = (ms) => (ms / 1000).toLocaleString(getLang() === 'en' ? 'en' : 'sr-Latn', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
   const limitMs = () => api.bpm * 100; // tempo ovde = desetinke sekunde po zadatku
-  const flash = (k) => { const s = api.stage; s.classList.remove('flash-hit', 'flash-miss'); void s.offsetWidth; s.classList.add('flash-' + k); };
+  // prsten samo oko mete (zeleno/crveno), bez boje preko ekrana
+  const flash = (k) => { const r = $('lvRing'); r.className = 'pr-qring' + (k === 'miss' ? ' bad' : ''); r.animate([{ opacity: 1, transform: 'scale(.92)' }, { opacity: 0, transform: 'scale(1.12)' }], { duration: 480, easing: 'ease-out' }); };
   const nameOf = (q) => (q.chord ? dn(q.chord) : noteLabel(q.midi));
   const sName = (s) => (s === 5 ? dn('E').toLowerCase() : noteLabel(OPEN_MIDI[s]));
 
@@ -106,7 +107,7 @@ export function createGame(api) {
     const q = cur;
     timer = setTimeout(() => {
       if (cur !== q) return;
-      results.push({ ok: false, score: 0 });
+      results.push({ ok: false, score: 0, wrong: q.wrong, timeout: true });
       reveal(q, 'miss'); flash('miss'); streak = 0; $('lvStreak').textContent = '';
       api.feedback('miss', t('pr.lovac.timeUp', { n: nameOf(q) }));
       cur = null;
@@ -115,18 +116,21 @@ export function createGame(api) {
   }
   function right(q, took) {
     clearTimeout(timer);
-    const score = beg() ? (q.wrong === 0 ? 1 : q.wrong <= 2 ? 0.7 : 0.4) : 0.55 + 0.45 * Math.max(0, 1 - took / limitMs());
-    results.push({ ok: true, score, hinted: q.wrong >= 2 });
+    // Početnik: bez vremena — svaki pogrešan pokušaj odnese malo (najviše do 70 %)
+    const score = beg() ? Math.max(0.7, 1 - 0.1 * q.wrong) : 0.55 + 0.45 * Math.max(0, 1 - took / limitMs());
+    results.push({ ok: true, score, hinted: q.wrong >= 2, wrong: q.wrong });
     streak++;
     $('lvStreak').textContent = streak >= 2 ? t('pr.lovac.streak', { n: streak }) : '';
     $('lvStreak').classList.toggle('hot', streak >= 5);
-    reveal(q, 'hit'); flash('hit'); hitSound();
+    board?.clearGhost(); reveal(q, 'hit'); flash('hit'); hitSound();
     api.feedback('hit', t('pr.lovac.found', { s: secs(took) }));
     cur = null;
     setTimeout(() => api.running && !cur && next(), 900);
   }
-  function wrong(q, text) {
+  function wrong(q, text, heard = null) {
     q.wrong++;
+    // pogrešna nota: bled crveni krug gde je ta nota (na žici mete, ili najbližoj gde može)
+    if (heard != null && !q.chord && board) { const pos = placeOf(heard, q.s); if (pos) board.ghost(pos.s, pos.f); }
     flash('miss'); streak = 0; $('lvStreak').textContent = '';
     api.feedback('miss', beg() ? t('pr.trk.tryAgain', { x: text }) : text);
     // Početnik: posle dva pogrešna pokušaja — savet i položaj
@@ -138,10 +142,9 @@ export function createGame(api) {
   const log = createHitLog();
   function onPluck(p) {
     if (!cur || cur.chord || !api.running || p.at < t0 - 20) return;
-    log.onset({ at: p.at }); log.pluck(p);
-    const h = log.hits[log.hits.length - 1], q = cur;
-    if (log.matches(h, q.midi)) right(q, Math.max(0, h.at - t0));
-    else { const m = log.midiOf(h); wrong(q, m != null ? t('pr.trk.wrong', { n: noteLabel(m) }) : t('pr.trk.notClear')); }
+    const q = cur;
+    quizPluck(api, log, p, q.midi, 'lovac', (h) => cur === q && right(q, Math.max(0, h.at - t0)),
+      (m) => cur === q && wrong(q, m != null ? t('pr.trk.wrong', { n: noteLabel(m) }) : t('pr.trk.notClear'), m));
   }
   let lastChordTry = 0;
   function onOnset(o) {
@@ -156,7 +159,7 @@ export function createGame(api) {
   $('lvSkip').addEventListener('click', () => {
     if (!cur) return;
     const q = cur; cur = null;
-    results.push({ ok: false, score: 0 });
+    results.push({ ok: false, score: 0, wrong: q.wrong, skipped: true });
     reveal(q, 'show'); streak = 0;
     setTimeout(() => api.running && next(), 1200);
   });
@@ -166,7 +169,12 @@ export function createGame(api) {
     $('lvSkip').hidden = true;
     const sum = results.reduce((a, r) => a + r.score, 0), ok = results.filter((r) => r.ok).length;
     const clean = results.every((r) => r.ok && !r.hinted);
-    api.finish({ score: (sum / ROUND) * 100, tempo: api.bpm, accuracy: ok / ROUND, beginner: beg(), clean, noTempoUp: beg() });
+    const wrongs = results.reduce((a, r) => a + (r.wrong || 0), 0), timeouts = results.filter((r) => r.timeout).length, skipped = results.filter((r) => r.skipped).length;
+    // zašto je rezultat ovakav
+    const lines = [{ label: t('pr.why.hit'), value: `${ok}/${ROUND}` }, { label: t('pr.why.wrong'), value: String(wrongs) }];
+    if (timeouts) lines.push({ label: t('pr.why.timeUp'), value: String(timeouts) });
+    if (skipped) lines.push({ label: t('pr.why.skipped'), value: String(skipped) });
+    api.finish({ score: (sum / ROUND) * 100, tempo: api.bpm, accuracy: ok / ROUND, beginner: beg(), clean, noTempoUp: beg(), lines });
   }
 
   return {

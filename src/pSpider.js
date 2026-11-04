@@ -2,9 +2,9 @@
 // pa jedan prag više i nazad (4-3-2-1). Jedna nota na svaki klik; igra se na položenoj „stazi“.
 // Boja note = prst (1 plavo, 2 žuto, 3 roze, 4 ljubičasto). Početnik: staza čeka na svaku notu.
 import { pluck } from './synth.js';
-import { OPEN_MIDI, noteLabel } from './practiceBoard.js';
+import { OPEN_MIDI } from './practiceBoard.js';
 import { createHitLog } from './practiceListen.js';
-import { trackGame, noteHint } from './practiceTrack.js';
+import { trackGame, noteHint, notePluck } from './practiceTrack.js';
 
 const STARTS = [1, 5, 7];
 
@@ -45,17 +45,7 @@ export function createGame(api) {
       return { items: toItems(level === 'beg' ? seq.slice(0, 24) : seq), lagMs: 180, hintOf: (it) => noteHint(t, it) };
     },
     listen(round, input) {
-      return {
-        onPluck(p) {
-          log.onset({ at: p.at }); log.pluck(p);
-          const h = log.hits[log.hits.length - 1];
-          input(h.at, (it) => {
-            if (log.matches(h, midiOf(it))) return { ok: true };
-            const m = log.midiOf(h);
-            return { ok: false, text: m != null ? t('pr.trk.wrong', { n: noteLabel(m) }) : '' };
-          });
-        },
-      };
+      return { onPluck: notePluck(api, log, input, t, 'pauk', midiOf) };
     },
     demo: {
       bpm: 72,

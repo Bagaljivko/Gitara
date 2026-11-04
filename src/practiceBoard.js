@@ -68,6 +68,16 @@ export function createBoard(el, { from = 0, to = 12 } = {}) {
       clearTimeout(d._t);
       if (ms) d._t = setTimeout(() => { if (d.getAttribute('class') === cls) d.setAttribute('class', 'pb-dot'); }, ms);
     },
+    /** Pogrešna nota: bled crveni krug sa brojem praga (nestane posle ~1 s, ili ranije na clearGhost). */
+    ghost(s, f) {
+      if (f < lo || f > hi) return;
+      const d = dot(s, f), cls = 'pb-dot ghost';
+      d.setAttribute('class', cls);
+      d.querySelector('text').textContent = String(f);
+      clearTimeout(d._t);
+      d._t = setTimeout(() => { if (d.getAttribute('class') === cls) d.setAttribute('class', 'pb-dot'); }, 1000);
+    },
+    clearGhost() { marks.querySelectorAll('.pb-dot.ghost').forEach((x) => x.setAttribute('class', 'pb-dot')); },
     /** Sve nevidljivo. */
     clear() { pool.forEach((d) => d.setAttribute('class', 'pb-dot')); },
   };

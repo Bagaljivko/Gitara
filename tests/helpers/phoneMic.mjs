@@ -19,8 +19,10 @@ export function room(sec, noise = 0.0006) {
 }
 
 /** Dodaj trzaj žice (midi) u trenutku t (s), jačine amp (vrh ~amp). */
-export function addPluck(sig, t, midi, amp = 0.06, { dur = 1.6, pick = 0.6 } = {}) {
-  const s = pluckedString(SR, midiFreq(midi), { duration: dur, brightness: 0.45, seed: (Math.random() * 1e9) | 0 });
+export function addPluck(sig, t, midi, amp = 0.06, { dur = 1.6, pick = 0.6, restrike = false } = {}) {
+  // ista žica ponovo: trzalica prvo zaustavi žicu koja još zvoni (kao na pravoj gitari) — prethodni zvuk se priguši za ~8 ms
+  if (restrike) { const i0 = Math.round(t * SR), n = Math.round(0.008 * SR); for (let i = i0 - n; i < sig.length; i++) if (i >= 0) sig[i] *= i < i0 ? 1 - 0.85 * ((i - (i0 - n)) / n) : 0.15; }
+  const s = pluckedString(SR, midiFreq(midi), { duration: dur, brightness: 0.45, seed: (Math.abs(rnd()) * 1e9) | 0 }); // ponovljivo (isti rezultat pri svakom pokretanju testova)
   let peak = 0; for (let i = 0; i < 2000; i++) peak = Math.max(peak, Math.abs(s[i]));
   const k = amp / (peak || 1), i0 = Math.round(t * SR);
   for (let i = 0; i < s.length && i0 + i < sig.length; i++) sig[i0 + i] += s[i] * k;

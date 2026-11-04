@@ -127,7 +127,13 @@ export async function renderSettings(root) {
     </div>
 
     <div class="about muted small">
-      <p>${t('set.about', { v: APP_VERSION })}</p>
+      <p id="aboutVer">${t('set.about', { v: APP_VERSION })}</p>
+      <div class="card pr-dbg" id="prDbg" hidden>
+        <label class="switch-row"><input type="checkbox" id="prDbgOn"> <span>${t('pr.debug.toggle')}</span></label>
+        <p class="small">${t('pr.debug.note')}</p>
+        <div class="row wrap"><button class="btn small" id="prDbgShow">${t('pr.debug.show')}</button><button class="btn small" id="prDbgCopy">${t('diag.copy')}</button><button class="btn small" id="prDbgClear">${t('diag.clear')}</button></div>
+        <pre class="diag-report" id="prDbgOut" hidden></pre>
+      </div>
       <button class="btn small" id="bUpdate">${t('update.check')}</button>
       <p><a href="privacy.html" target="_blank" rel="noopener">${t('set.privacy')}</a></p>
       <p class="credits">${t('set.credits')}</p>
@@ -135,6 +141,23 @@ export async function renderSettings(root) {
   </section>`;
 
   const $ = (id) => root.querySelector('#' + id);
+
+  // Skriveno: 5 dodira na verziju → dnevnik slušanja za Vežbe (šta igre čuju za svaku metu)
+  let verTaps = 0, verT = 0;
+  $('aboutVer').addEventListener('click', async () => {
+    verTaps++; clearTimeout(verT); verT = setTimeout(() => (verTaps = 0), 1500);
+    if (verTaps < 5) return;
+    verTaps = 0;
+    const L = await import('./practiceListen.js');
+    $('prDbg').hidden = false;
+    $('prDbgOn').checked = L.debugEnabled();
+    $('prDbgOn').onchange = () => L.setDebug($('prDbgOn').checked);
+    const text = () => L.readDebugLog().map((r) => `${r.t} ${r.game || ''} meta ${r.target} čuje ${r.heard ?? '?'} [${r.score}/${r.nb}] ${r.verdict} (${r.stage})`).join('\n') || t('pr.debug.empty');
+    $('prDbgShow').onclick = () => { $('prDbgOut').hidden = false; $('prDbgOut').textContent = text(); };
+    $('prDbgCopy').onclick = async () => { try { await navigator.clipboard.writeText(text()); toast(t('diag.copied')); } catch { $('prDbgOut').hidden = false; $('prDbgOut').textContent = text(); } };
+    $('prDbgClear').onclick = () => { L.clearDebugLog(); $('prDbgOut').textContent = ''; };
+    $('prDbg').scrollIntoView({ block: 'nearest' });
+  });
 
   // Svaka celina podešavanja se otvara/zatvara dodirom na naslov; pamti se šta je otvoreno
   const openSet = (() => { try { return new Set(JSON.parse(localStorage.getItem('gitara-set-open') || '["lang"]')); } catch { return new Set(['lang']); } })();

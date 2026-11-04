@@ -217,7 +217,8 @@ async function uploadFile({ id, name, mime, blob, parents, appProperties }) {
 function cleanPractice(p) {
   if (!p || typeof p !== 'object') return null;
   const rec = (r) => (r && typeof r === 'object' ? {
-    best: Math.max(0, Math.min(100, Number(r.best) || 0)),
+    best: Math.round(Math.max(0, Math.min(100, Number(r.best) || 0))),
+    bestMetric: Number.isFinite(Number(r.bestMetric)) && r.bestMetric != null ? Math.max(0, Math.min(1000, Math.round(Number(r.bestMetric)))) : undefined,
     streak: Math.max(0, Math.round(Number(r.streak) || 0)),
     lastDay: typeof r.lastDay === 'string' && /^\d{4}-\d{1,2}-\d{1,2}$/.test(r.lastDay) ? r.lastDay : '',
     lastTempo: Math.max(0, Math.min(400, Math.round(Number(r.lastTempo) || 0))) || undefined,
@@ -228,7 +229,7 @@ function cleanPractice(p) {
   for (const [id, parts] of Object.entries(p.songs || {})) {
     if (typeof id !== 'string' || id.length > 80 || !parts || typeof parts !== 'object') continue;
     const o = {};
-    for (const [pk, v] of Object.entries(parts)) if (/^\d{1,3}$/.test(pk)) { const r = rec(v); if (r) o[pk] = r; }
+    for (const [pk, v] of Object.entries(parts)) if (/^(\d{1,3}|all)$/.test(pk)) { const r = rec(v); if (r) o[pk] = r; }
     if (Object.keys(o).length) songs[id] = o;
   }
   return { v: 1, games, songs };
@@ -241,7 +242,8 @@ function mergePractice(a, b) {
   const one = (x, y) => {
     if (!x) return y; if (!y) return x;
     const newer = day(y) > day(x) ? y : x;
-    return { ...newer, best: Math.max(x.best || 0, y.best || 0), plays: Math.max(x.plays || 0, y.plays || 0) };
+    const bm = Math.max(x.bestMetric ?? -1, y.bestMetric ?? -1);
+    return { ...newer, best: Math.max(x.best || 0, y.best || 0), plays: Math.max(x.plays || 0, y.plays || 0), ...(bm >= 0 ? { bestMetric: bm } : {}) };
   };
   const out = { v: 1, games: { ...(a.games || {}) }, songs: { ...(a.songs || {}) } };
   for (const [k, r] of Object.entries(b.games || {})) out.games[k] = one(out.games[k], r);
@@ -538,7 +540,10 @@ function showReconnectBanner() {
 function hideReconnectBanner() { document.getElementById('driveBanner')?.remove(); }
 
 // ---------------- Pokretanje ----------------
-export async function initDrive() {
+// Priprema se jednom; svi pozivi čekaju istu pripremu (da niko ne vidi „nije povezan“ dok se stanje još čita)
+let initP = null;
+export function initDrive() { return initP || (initP = doInit()); }
+async function doInit() {
   const saved = await settings.get('drive', null);
   if (saved && saved.connected) {
     Object.assign(state, saved);
@@ -559,3 +564,5 @@ export async function initDrive() {
   }
 }
 
+// Modul se učitava tek kad zatreba (povezan Drive pri pokretanju, ili Podešavanja / PDF) — tada se odmah i pripremi
+initDrive().catch(() => {});

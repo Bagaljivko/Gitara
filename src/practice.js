@@ -26,13 +26,30 @@ const cssReady = new Promise((resolve) => {
 });
 
 // Igre: učitavaju se pojedinačno, tek kad se otvore
+// color = boja kartice (blagi sjaj, kao boje prstiju); prev = mali animirani pregled igre (SVG + CSS, bez zvuka)
+const LINES = '<path class="pv-str" d="M4 22h72M4 34h72M4 46h72M4 58h72"/>';
+const HIT = '<path class="pv-hit" d="M17 14v52"/>';
 export const GAMES = [
-  { id: 'pauk', load: () => import('./pSpider.js'), icon: '<path d="M4 18h16M4 14h16M4 10h16M4 6h16" stroke-width="1.4"/><circle cx="7" cy="16" r="1.7" class="f"/><circle cx="10" cy="12" r="1.7" class="f"/><circle cx="13" cy="8" r="1.7" class="f"/><circle cx="16" cy="4.4" r="1.7" class="f"/>' },
-  { id: 'lovac', load: () => import('./pHunter.js'), icon: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1.3" class="f"/><path d="M12 1.5v4M12 18.5v4M1.5 12h4M18.5 12h4"/>' },
-  { id: 'ritam', load: () => import('./pRhythm.js'), icon: '<path d="M7 4v13"/><path d="M17 4v11"/><path d="M7 4l10-1.5"/><circle cx="5.2" cy="17.5" r="2.4" class="f"/><circle cx="15.2" cy="15.5" r="2.4" class="f"/>' },
-  { id: 'promena', load: () => import('./pChords.js'), icon: '<rect x="3" y="4" width="7" height="10" rx="1.5"/><rect x="14" y="10" width="7" height="10" rx="1.5"/><path d="M10 17h3.5l-1.6-1.6M14 7h-3.5l1.6 1.6"/>' },
-  { id: 'sluh', load: () => import('./pEar.js'), icon: '<path d="M8 15c-1.6-1.4-2.5-3.4-2.5-5.5A6.5 6.5 0 0 1 18.5 9.5c0 2.4-1.3 3.7-2.5 4.7-1.1.9-1.6 1.8-1.8 3.2A2.9 2.9 0 0 1 11.3 20"/><path d="M9.5 9.5a2.5 2.5 0 0 1 5 0c0 1.2-.8 1.9-1.6 2.4"/>' },
-  { id: 'pesma', load: () => import('./pSong.js'), icon: '<path d="M9 18V6l11-2v12"/><circle cx="6.5" cy="18" r="2.5" class="f"/><circle cx="17.5" cy="16" r="2.5" class="f"/>' },
+  { id: 'pauk', color: '#b48cff', load: () => import('./pSpider.js'),
+    icon: '<path d="M4 18h16M4 14h16M4 10h16M4 6h16" stroke-width="1.4"/><circle cx="7" cy="16" r="1.7" class="f"/><circle cx="10" cy="12" r="1.7" class="f"/><circle cx="13" cy="8" r="1.7" class="f"/><circle cx="16" cy="4.4" r="1.7" class="f"/>',
+    prev: `${LINES}${HIT}<g class="pv-slide">${[0, 1].map((k) => [[22, 1], [34, 2], [46, 3], [58, 4]].map(([y, f], i) => `<circle cx="${30 + i * 14 + k * 56}" cy="${y}" r="5" class="pv-f${f}"/>`).join('')).join('')}</g>` },
+  { id: 'lovac', color: '#ff7cc3', load: () => import('./pHunter.js'),
+    icon: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1.3" class="f"/><path d="M12 1.5v4M12 18.5v4M1.5 12h4M18.5 12h4"/>',
+    prev: '<circle cx="40" cy="40" r="24" class="pv-ring"/><circle cx="40" cy="40" r="14" class="pv-ring"/><path class="pv-ring" d="M40 8v10M40 62v10M8 40h10M62 40h10"/><circle cx="40" cy="40" r="5" class="pv-dot pv-hunt"/><circle cx="40" cy="40" r="24" class="pv-ping"/>' },
+  { id: 'ritam', color: '#ffd75e', load: () => import('./pRhythm.js'),
+    // metronom
+    icon: '<path d="M7.5 21 10.3 3.5h3.4L16.5 21z"/><path d="M6.5 21h11"/><path d="M12 16.5 17.5 6.5"/><circle cx="17.6" cy="6.4" r="1.5" class="f"/>',
+    prev: `${HIT}<g class="pv-slide">${[0, 1].map((k) => [[30, 'n'], [44, 'd'], [58, 'u'], [72, 'n']].map(([x, w]) => { const X = x + k * 56; return w === 'n' ? `<circle cx="${X}" cy="40" r="5" class="pv-f0"/>` : w === 'd' ? `<path class="pv-arrow" d="M${X} 24v32M${X - 5} 50l5 6 5-6"/>` : `<path class="pv-arrow" d="M${X} 56V24M${X - 5} 30l5-6 5 6"/>`; }).join('')).join('')}</g><circle cx="17" cy="40" r="7" class="pv-beat"/>` },
+  { id: 'promena', color: '#5aa9ff', load: () => import('./pChords.js'),
+    icon: '<rect x="3" y="4" width="7" height="10" rx="1.5"/><rect x="14" y="10" width="7" height="10" rx="1.5"/><path d="M10 17h3.5l-1.6-1.6M14 7h-3.5l1.6 1.6"/>',
+    prev: `${LINES}${HIT}<g class="pv-slide pv-slow">${[0, 1].map((k) => [28, 56].map((x, i) => { const X = x + k * 56; return `<rect x="${X - 7}" y="15" width="22" height="50" rx="6" class="pv-block"/><circle cx="${X}" cy="${i ? 22 : 34}" r="4" class="pv-f1"/><circle cx="${X + 8}" cy="${i ? 46 : 46}" r="4" class="pv-f2"/><circle cx="${X}" cy="${i ? 58 : 58}" r="4" class="pv-f3"/>`; }).join('')).join('')}</g>` },
+  { id: 'sluh', color: '#4fd1c5', load: () => import('./pEar.js'),
+    icon: '<path d="M8 15c-1.6-1.4-2.5-3.4-2.5-5.5A6.5 6.5 0 0 1 18.5 9.5c0 2.4-1.3 3.7-2.5 4.7-1.1.9-1.6 1.8-1.8 3.2A2.9 2.9 0 0 1 11.3 20"/><path d="M9.5 9.5a2.5 2.5 0 0 1 5 0c0 1.2-.8 1.9-1.6 2.4"/>',
+    prev: '<g transform="translate(2 14) scale(2.1)"><path class="pv-ear" d="M8 15c-1.6-1.4-2.5-3.4-2.5-5.5A6.5 6.5 0 0 1 18.5 9.5c0 2.4-1.3 3.7-2.5 4.7-1.1.9-1.6 1.8-1.8 3.2A2.9 2.9 0 0 1 11.3 20"/></g><path class="pv-wave pv-w1" d="M60 30q6 10 0 20"/><path class="pv-wave pv-w2" d="M66 24q10 16 0 32"/><path class="pv-wave pv-w3" d="M72 18q14 22 0 44"/>' },
+  { id: 'pesma', color: '#f5a524', load: () => import('./pSong.js'),
+    // list sa tekstom i notom
+    icon: '<rect x="3.5" y="3" width="12.5" height="18" rx="2"/><path d="M6.5 8h6.5M6.5 11.5h6.5M6.5 15h3.5"/><path d="M20.5 8.5v9"/><circle cx="18.6" cy="17.6" r="2" class="f"/>',
+    prev: '<rect x="10" y="44" width="60" height="5" rx="2.5" class="pv-lyr"/><rect x="10" y="56" width="44" height="5" rx="2.5" class="pv-lyr"/><rect x="10" y="44" width="60" height="5" rx="2.5" class="pv-lyr-on"/><g class="pv-chords"><rect x="10" y="20" width="16" height="14" rx="4" class="pv-chip"/><rect x="32" y="20" width="16" height="14" rx="4" class="pv-chip"/><rect x="54" y="20" width="16" height="14" rx="4" class="pv-chip"/></g>' },
 ];
 
 // ---------------- Rezultati (čuvaju se lokalno i u rezervnoj kopiji na Google Drive-u) ----------------
@@ -42,7 +59,12 @@ const dayNum = (s) => { const [y, m, d] = String(s || '').split('-').map(Number)
 
 export async function loadStats() {
   const s = await settings.get(KEY, null);
-  return s && typeof s === 'object' ? { v: 1, games: s.games || {}, songs: s.songs || {} } : { v: 1, games: {}, songs: {} };
+  const st = s && typeof s === 'object' ? { v: 1, games: s.games || {}, songs: s.songs || {} } : { v: 1, games: {}, songs: {} };
+  // stari zapisi su ponekad imali decimale (npr. 23.33333) — uvek celi brojevi
+  const fix = (r) => { if (r && typeof r === 'object') { r.best = Math.round(Number(r.best) || 0); if (r.bestMetric != null) r.bestMetric = Math.round(Number(r.bestMetric) || 0); if (r.lastTempo) r.lastTempo = Math.round(r.lastTempo); } };
+  Object.values(st.games).forEach(fix);
+  Object.values(st.songs).forEach((parts) => parts && Object.values(parts).forEach(fix));
+  return st;
 }
 
 /** Niz dana: igrano danas ili juče → niz traje; ranije → prekinut (0). */
@@ -59,7 +81,10 @@ export async function saveResult(gameId, res, key = null) {
     const day = today(), last = rec.lastDay;
     const gap = last ? dayNum(day) - dayNum(last) : null;
     const streak = gap === 0 ? rec.streak || 1 : gap === 1 ? (rec.streak || 0) + 1 : 1;
-    return { best: Math.max(rec.best || 0, res.score), streak, lastDay: day, lastTempo: res.nextTempo || res.tempo, plays: (rec.plays || 0) + 1 };
+    const out = { best: Math.round(Math.max(rec.best || 0, Number(res.score) || 0)), streak, lastDay: day, lastTempo: Math.round(res.nextTempo || res.tempo || 0) || undefined, plays: (rec.plays || 0) + 1 };
+    const bm = Math.max(rec.bestMetric ?? -1, res.metric != null ? Math.round(res.metric) : -1);
+    if (bm >= 0) out.bestMetric = bm; // npr. Promena akorda: čistih promena u minuti
+    return out;
   };
   st.games[gameId] = upd(st.games[gameId]);
   if (key) {
@@ -85,23 +110,45 @@ export async function renderPractice(root, parts = [], params = new URLSearchPar
   return renderGame(root, game, parts.slice(1), params);
 }
 
+/** „1 dan“, „2 dana“, „5 dana“ (sr) / „1 day“, „2 days“ (en) */
+const daysText = (n) => t(n % 10 === 1 && n % 100 !== 11 ? 'pr.day1' : 'pr.dayN', { n });
+const starsHTML = (n) => `<span class="pr-stars" aria-label="${n}/3">${[0, 1, 2].map((i) => `<i class="${i < n ? 'on' : ''}">★</i>`).join('')}</span>`;
+function levelOf(id) {
+  let l = 'beg';
+  try { l = localStorage.getItem('gitara-pr-level-' + id) || 'beg'; } catch {}
+  return l === 'beg' ? t('pr.lvl.beg') : l === 'normal' ? t('pr.lvl.normal') : t('pr.lvl.n', { n: l });
+}
+/** Najbolji rezultat kao kratak broj sa jedinicom (bez decimala). */
+function bestText(g, rec, st) {
+  if (g.id === 'promena' && rec.bestMetric != null) return t('pr.unit.perMin', { n: rec.bestMetric });
+  if (g.id === 'pesma') {
+    let all = 0, good = 0;
+    for (const parts of Object.values(st.songs || {})) for (const [k, r] of Object.entries(parts || {})) if (k !== 'all' && r) { all++; if (r.best >= 80) good++; }
+    if (all) return t('pr.unit.parts', { n: good, total: all });
+  }
+  return t('pr.unit.points', { n: Math.round(rec.best || 0) });
+}
+
 async function renderHub(root) {
   setWakeZone(null);
   const st = await loadStats();
+  const streak = Math.max(0, ...GAMES.map((g) => currentStreak(st.games[g.id])));
   root.innerHTML = `
   <section class="view practice-view">
-    <header class="view-head"><h1>${t('pr.title')}</h1></header>
+    <header class="view-head pr-hub-head"><h1>${t('pr.title')}</h1>${streak ? `<span class="pr-streak" title="${esc(t('pr.streakTitle'))}">${t('pr.streak')}: ${daysText(streak)}</span>` : ''}</header>
     <p class="muted pr-intro">${t('pr.intro')}</p>
     <div class="pr-cards">
       ${GAMES.map((g) => {
         const rec = st.games[g.id] || {};
-        const streak = currentStreak(rec);
-        return `<a class="card pr-card" href="#/vezbe/${g.id}">
-          <span class="pr-ico">${ico(g)}</span>
-          <span class="pr-txt"><b>${t('pr.g.' + g.id)}</b><span class="small muted">${t('pr.d.' + g.id)}</span></span>
-          <span class="pr-stats">
-            <span><small>${t('pr.best')}</small><b>${rec.best ? rec.best : '–'}</b></span>
-            <span><small>${t('pr.streak')}</small><b>${streak ? t('pr.days', { n: streak }) : '–'}</b></span>
+        const played = (rec.plays || 0) > 0;
+        return `<a class="pr-card" href="#/vezbe/${g.id}" style="--gc:${g.color}">
+          <span class="pr-prev" aria-hidden="true"><svg viewBox="0 0 80 80">${g.prev}</svg></span>
+          <span class="pr-body">
+            <span class="pr-name">${ico(g)}<b>${t('pr.g.' + g.id)}</b></span>
+            <span class="pr-desc">${t('pr.d.' + g.id)}</span>
+            <span class="pr-meta">${played
+              ? `${starsHTML(starsOf(rec.best || 0))}<b class="pr-num">${bestText(g, rec, st)}</b><span class="pr-lvchip">${levelOf(g.id)}</span>`
+              : `<span class="pr-new">${t('pr.new')}</span>`}</span>
           </span>
         </a>`;
       }).join('')}
@@ -115,7 +162,7 @@ async function renderHub(root) {
  */
 async function renderGame(root, game, args, params) {
   root.innerHTML = `
-  <section class="view practice-view pr-game" data-game="${game.id}">
+  <section class="view practice-view pr-game" data-game="${game.id}" style="--gc:${game.color}">
     <header class="topbar">
       <a href="#/vezbe" class="back">‹ ${t('pr.title')}</a>
       <span class="pr-gtitle">${ico(game)}<b>${t('pr.g.' + game.id)}</b></span>
@@ -150,15 +197,17 @@ async function renderGame(root, game, args, params) {
   let lastHeard = null, meterAt = 0;
   function onLevel(ev) {
     const lvlI = root.querySelector('#prMeter .pr-lvl i');
-    if (!ev) { if (lvlI) lvlI.style.width = '0%'; return; }
+    if (!ev) { if (lvlI) lvlI.style.transform = 'scaleX(0)'; return; }
     if (ev.note != null) lastHeard = ev.note;
     levelSubs.forEach((fn) => fn(ev.level, lastHeard));
     const now = performance.now();
-    if (now - meterAt < 50 || !lvlI) return; // ~20 osvežavanja u sekundi je dovoljno
+    if (now - meterAt < 66 || !lvlI) return; // najviše ~15 osvežavanja u sekundi
     meterAt = now;
+    if (document.body.classList.contains('trk-open')) return; // staza je preko ekrana igre (ima svoj merač)
     const db = ev.level ? 20 * Math.log10(ev.level) : -100;
-    lvlI.style.width = `${Math.round(Math.max(0, Math.min(1, (db + 60) / 50)) * 100)}%`;
-    $('prHeard').textContent = lastHeard != null ? `${t('pr.meter.heard')}: ${noteLabel(lastHeard)}` : t('pr.meter.listening');
+    lvlI.style.transform = `scaleX(${Math.max(0, Math.min(1, (db + 60) / 50)).toFixed(2)})`;
+    const txt = lastHeard != null ? `${t('pr.meter.heard')}: ${noteLabel(lastHeard)}` : t('pr.meter.listening');
+    if ($('prHeard').textContent !== txt) $('prHeard').textContent = txt;
   }
 
   const api = {
@@ -206,6 +255,8 @@ async function renderGame(root, game, args, params) {
     },
     /** Pretplata na jačinu ulaza (lv, poslednja nota); vraća odjavu. */
     onLevel(fn) { levelSubs.add(fn); return () => levelSubs.delete(fn); },
+    /** Pauza (telefon uspravno): mikrofon ne obrađuje, ekran sme da se ugasi; false = nastavi. */
+    pauseHw(on) { listener?.pause?.(on); if (on) allowSleep('practice'); else if (running) keepAwake('practice'); },
     onCleanup(fn) { cleanups.add(fn); },
     /** Zaustavi bez rezultata (npr. posle podešavanja kašnjenja). */
     stopNow() { stopRun(false); },
@@ -220,7 +271,7 @@ async function renderGame(root, game, args, params) {
       stopRun(false);
       const nextTempo = res.score > 90 && !res.noTempoUp ? Math.max(B.min, Math.min(B.max, res.tempo + B.step * B.dir)) : res.tempo;
       const prevBest = key ? ((st.songs[key[0]] || {})[key[1]] || {}).best || 0 : rec.best || 0;
-      const fresh = await saveResult(game.id, { ...res, nextTempo }, key);
+      const fresh = await saveResult(game.id, { ...res, score: Math.round(res.score), nextTempo }, key);
       Object.assign(rec, fresh.games[game.id]); Object.assign(st.songs, fresh.songs);
       const info = { ...res, nextTempo, newBest: res.score > prevBest };
       if (!res.quiet) showResult(info); // „staza“ prikazuje rezultat sama
@@ -269,6 +320,7 @@ async function renderGame(root, game, args, params) {
         ${r.beginner ? '' : `<span><small>${B.label || t(B.dir < 0 ? 'pr.speedReached' : 'pr.tempoReached')}</small><b>${B.fmt(r.tempo)} ${B.unit}</b></span>`}
         <span><small>${t('pr.accuracy')}</small><b>${Math.round((r.accuracy || 0) * 100)}%</b></span>
         ${r.extra ? `<span><small>${esc(r.extra.label)}</small><b>${esc(String(r.extra.value))}</b></span>` : ''}
+        ${(r.lines || []).map((l) => `<span><small>${esc(l.label)}</small><b>${esc(String(l.value))}</b></span>`).join('')}
       </div>
       ${r.nextTempo !== r.tempo ? `<p class="small pr-up">${t('pr.tempoUp', { bpm: B.fmt(r.nextTempo) + ' ' + B.unit })}</p>` : ''}
       ${r.beginner && r.clean ? `<p class="pr-up">${t('pr.lvl.cleanNote')}</p><button class="btn primary big wide" id="prTryNormal">${t('pr.lvl.tryNormal')}</button>` : ''}
