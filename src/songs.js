@@ -46,7 +46,7 @@ function libBadges(s) {
   const b = [];
   if (s.capo) b.push(`<span class="badge-sm" title="${esc(t('capo.title'))}">${esc(t('lib.badgeCapo', { n: s.capo }))}</span>`);
   if (s.tuning && s.tuning !== 'standard') b.push(`<span class="badge-sm">${esc(t('tuning.' + s.tuning))}</span>`);
-  if ((s.sections || []).some((x) => (x.tabs || []).length)) b.push(`<span class="badge-sm">${esc(t('lib.badgeTab'))}</span>`);
+  if (s.hasTabs ?? (s.sections || []).some((x) => (x.tabs || []).length)) b.push(`<span class="badge-sm">${esc(t('lib.badgeTab'))}</span>`);
   return b.length ? ' ' + b.join(' ') : '';
 }
 export async function renderLibrary(root, params = new URLSearchParams()) {
@@ -88,7 +88,7 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
   const $ = (id) => root.querySelector('#' + id);
   $('lSort').value = sortPref;
   await seedDemoSong(getLang()).catch(() => {});
-  let all = await db.all();
+  let all = await db.list(); // brzi indeks (bez akorda) — dovoljan za listu
   let folders = await getFolders();
   let folderFilter = localStorageGet('gitara-folder') || '';
   if (folderFilter && !folders.some((f) => f.id === folderFilter)) folderFilter = '';
@@ -124,7 +124,7 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
       // Drugi dodir na izabrani folder: preimenuj / obriši
       const r = await manageFolder(folders.find((f) => f.id === id));
       folders = await getFolders();
-      if (r === 'deleted') { folderFilter = ''; all = await db.all(); }
+      if (r === 'deleted') { folderFilter = ''; all = await db.list(); }
     } else folderFilter = id;
     localStorageSet('gitara-folder', folderFilter);
     drawFolders();
@@ -134,7 +134,7 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
   const draw = () => {
     const q = fold($('lSearch').value);
     let list = all.filter((s) => !folderFilter || (s.folders || []).includes(folderFilter)).filter((s) => !q || fold(s.title).includes(q) || fold(s.artist).includes(q) ||
-      (s.sections || []).some((sec) => sec.lines.some((l) => fold(l.text).includes(q))));
+      (s.find ?? '').includes(q));
     const sort = $('lSort').value;
     const cmp = (a, b) => String(a || '').localeCompare(String(b || ''), 'sr', { sensitivity: 'base' });
     if (sort === 'title') list.sort((a, b) => cmp(a.title, b.title));
@@ -171,7 +171,7 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
     if (fb) {
       e.preventDefault();
       const song = all.find((x) => x.id === fb.dataset.fold);
-      if (await editSongFolders(song)) { all = await db.all(); folders = await getFolders(); drawFolders(); draw(); }
+      if (await editSongFolders(song)) { all = await db.list(); folders = await getFolders(); drawFolders(); draw(); }
       return;
     }
     const b = e.target.closest('[data-del]');
@@ -185,7 +185,7 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
     draw();
   });
   $('lScan').addEventListener('click', () => loadEditor().then((m) => m.startScan()));
-  $('lImport').addEventListener('click', async () => { if (await importSongFile()) { all = await db.all(); draw(); } });
+  $('lImport').addEventListener('click', async () => { if (await importSongFile()) { all = await db.list(); draw(); } });
   $('lNew').addEventListener('click', () => loadEditor().then((m) => m.newSongDraft()));
   drawFolders();
   draw();
@@ -405,21 +405,70 @@ export function renderLineHTML(line, marks = []) {
  * i smanji slova tako da stane — ali ne ispod ~13 px (tada se izuzetno dugi redovi ipak prelome).
  * Vraća true ako su slova smanjena zbog širine (tada A+ nema smisla).
  */
-export function fitLyrics(el, minPx = 13) {
+export function fitLyrics(el, minPx = 13, pre = null) {
   if (!el || !el.isConnected) return false;
+  // pre: mere uzete pre ubacivanja teksta (lyricsMetrics) — tada nema nijednog dodatnog preračunavanja
+  const m = pre || lyricsMetrics(el);
+  const want = m.want, avail = m.avail;
   el.style.fontSize = '';
-  const want = parseFloat(getComputedStyle(el).fontSize) || 16;
-  const avail = el.clientWidth;
   if (!avail) return false;
-  el.classList.add('measuring');
-  let widest = 0;
-  el.querySelectorAll('.ln').forEach((ln) => { widest = Math.max(widest, ln.scrollWidth); });
-  el.classList.remove('measuring');
+  // Tekst je u fiksnoj širini slova (monospace): širina reda = broj znakova × širina jednog znaka.
+  // Računa se iz sadržaja, bez dodatnog merenja ekrana (na sporom telefonu to je bilo 2–3 puna preračunavanja).
+  let widestCh = 0;
+  for (const ln of el.querySelectorAll('.ln')) widestCh = Math.max(widestCh, lineCh(ln));
+  const widest = widestCh * chWidth(m.family, want);
   if (widest <= avail) return false;
   const px = Math.max(minPx, Math.floor(want * (avail / widest) * 0.98 * 10) / 10);
   el.style.fontSize = px + 'px';
   return true;
 }
+
+// Širina reda u „ch“ jedinicama (kao kada se red ne bi prelamao)
+const ZW = /\u200b/g;
+function lineCh(ln) {
+  if (ln.classList.contains('blank')) return 0;
+  if (ln.classList.contains('chords-only')) {
+    const chs = ln.querySelectorAll('.ch');
+    let w = 0;
+    chs.forEach((c) => { w += c.textContent.length; });
+    return w + Math.max(0, chs.length * 2 - 2) * 1.5; // razmak 1.5ch između stavki (akordi i razmaci)
+  }
+  const segs = ln.querySelectorAll('.seg');
+  if (!segs.length) return (ln.textContent || '').length;
+  let w = 0;
+  segs.forEach((sg) => {
+    const ct = sg.firstElementChild.textContent.replace(ZW, '').length;
+    const tt = sg.lastElementChild.textContent.replace(ZW, '').length;
+    w += Math.max(tt, ct + 0.6); // akordi imaju .6ch razmaka desno
+  });
+  return w;
+}
+
+// Širina jednog znaka u odnosu na veličinu slova (meri se jednom, bez rasporeda stranice)
+const chCache = new Map();
+function chWidth(family, px) {
+  let r = chCache.get(family);
+  if (r === undefined) {
+    const c = document.createElement('canvas').getContext('2d');
+    c.font = `100px ${family}`;
+    r = c.measureText('0000000000').width / 1000;
+    if (!r) r = 0.6;
+    chCache.set(family, r);
+  }
+  return r * px;
+}
+
+/** Veličina slova, font i raspoloživa širina za tekst pesme (ne zavise od samog teksta). */
+export function lyricsMetrics(el, availW = 0) {
+  el.style.fontSize = '';
+  const cs = getComputedStyle(el);
+  return { want: parseFloat(cs.fontSize) || 16, family: cs.fontFamily, avail: availW || el.clientWidth };
+}
+
+// Širina teksta pesme po veličini ekrana (ne zavisi od pesme)
+const lyrW = new Map();
+// (screen.* ne traži preračunavanje rasporeda, za razliku od window.innerWidth)
+const lyrWKey = () => `${screen.width}x${screen.height}|${screen.orientation ? screen.orientation.type : ''}|${document.body.classList.contains('two-pane-mode') ? 2 : 1}`;
 
 /** Svi delovi pesme. uncertain = lista nesigurnih mesta (indeksi se odnose na ove sekcije). */
 export function renderSectionsHTML(sections, uncertain = []) {
@@ -673,10 +722,12 @@ export async function renderSong(root, id, nav = null) {
   };
   const drawLyrics = () => {
     const l = $('sLyrics');
+    // Širina teksta: zapamćena za ovu veličinu ekrana (bez merenja); ako se razlikuje, ResizeObserver ispravi
     l.style.setProperty('--zoom', zoom);
+    const pre = lyricsMetrics(l, lyrW.get(lyrWKey()));
     l.innerHTML = renderSectionsHTML(shapesSong().sections, unc());
     addLoopButtons();
-    fitAndTabs();
+    fitAndTabs(pre);
   };
   // Sve odjednom (otvaranje pesme, odgovor na pitanje, izmena ritma…)
   const draw = () => { drawHead(); drawAsk(); drawSuggest(); drawControls(); drawDetails(); drawLyrics(); };
@@ -692,15 +743,17 @@ export async function renderSong(root, id, nav = null) {
   });
   if (!stored.seen) { stored.seen = true; db.put(stored).catch(() => {}); }
   // Prilagodi veličinu slova širini ekrana (pa tek onda rasporedi tablature)
-  function fitAndTabs() {
+  function fitAndTabs(pre = null) {
     const l = root.querySelector('.lyrics');
     if (!l) return;
-    const shrunk = fitLyrics(l);
+    if (pre) roW = pre.avail;
+    const shrunk = fitLyrics(l, 13, pre);
     layoutTabs(l);
     fitShrunk = shrunk;
     syncAa();
   }
   let fitShrunk = false;
+  let roW = 0; // širina teksta pri poslednjem prilagođavanju (promena veličine ekrana → ponovo)
   function syncAa() {
     if (!$('sAaRange')) return;
     $('sAaRange').value = Math.round(zoom * 100);
@@ -1039,8 +1092,11 @@ export async function renderSong(root, id, nav = null) {
       onEnd: endTab,
     });
   }
-  let roW = 0;
-  const ro = new ResizeObserver(() => { const w = root.querySelector('.lyrics')?.clientWidth || 0; if (w !== roW) { roW = w; fitAndTabs(); } });
+  const ro = new ResizeObserver(() => {
+    const w = root.querySelector('.lyrics')?.clientWidth || 0;
+    if (w) lyrW.set(lyrWKey(), w);
+    if (w && w !== roW) { roW = w; fitAndTabs(lyricsMetrics(root.querySelector('.lyrics'), w)); }
+  });
   ro.observe(root.querySelector('.song-view'));
   // Ekran ostaje upaljen dok koristiš pesmu (Podešavanja → Ekran); ikonica u traci ga isključuje za ovu pesmu
   setWakeZone('song');

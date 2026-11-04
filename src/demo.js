@@ -96,7 +96,7 @@ export function demoSong(lang) {
 export async function seedDemoSong(lang) {
   if (await settings.get('demoSeeded', false)) return false;
   await settings.set('demoSeeded', true);
-  if ((await songs.all()).length) return false;
+  if (await songs.count()) return false;
   await songs.save(demoSong(lang));
   return true;
 }

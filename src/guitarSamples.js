@@ -18,6 +18,20 @@ const decode = (ctx, data) => new Promise((res, rej) => {
   try { const p = ctx.decodeAudioData(data, res, rej); if (p && p.then) p.then(res, rej); } catch (e) { rej(e); }
 });
 
+// Snimci su mono (levi i desni kanal su potpuno isti), a dekodirani su kao stereo: čuva se samo jedan kanal.
+// Zvuk je identičan (mono se pušta na oba zvučnika), a memorija je upola manja (~28 MB umesto ~57 MB za sve tonove)
+// — na telefonima sa malo memorije Android tada ređe gasi aplikaciju u pozadini.
+function toMono(ctx, buf) {
+  if (buf.numberOfChannels !== 2) return buf;
+  const l = buf.getChannelData(0), r = buf.getChannelData(1);
+  for (let i = 0; i < l.length; i += 97) if (l[i] !== r[i]) return buf; // pravi stereo — ostavi kako jeste
+  try {
+    const mono = ctx.createBuffer(1, buf.length, buf.sampleRate);
+    mono.copyToChannel ? mono.copyToChannel(l, 0) : mono.getChannelData(0).set(l);
+    return mono;
+  } catch { return buf; }
+}
+
 /** Najbliži snimljeni ton za frekvenciju (MIDI broj). */
 export function nearestNote(freq) {
   const m = Math.round(69 + 12 * Math.log2(freq / 440));
@@ -35,6 +49,7 @@ export function loadNote(ctx, m) {
     pending.set(m, fetch(url(m))
       .then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.arrayBuffer(); })
       .then((b) => decode(ctx, b))
+      .then((buf) => toMono(ctx, buf))
       .then((buf) => { ready.set(m, buf); return buf; })
       .catch((e) => { pending.delete(m); throw e; }));
   }

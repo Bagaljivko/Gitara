@@ -29,6 +29,8 @@ jobs:
         run: |
           mkdir -p _site
           cp -r index.html privacy.html manifest.webmanifest sw.js .nojekyll src icons screenshots assets vendor fonts _site/
+      - name: Broj verzije u adresama fajlova (bez mešanja starih i novih fajlova)
+        run: node scripts/version-urls.mjs _site
       - name: Smanji JavaScript i CSS (samo objavljena kopija; izvorni kod ostaje čitljiv)
         run: |
           npx --yes esbuild@0.24.2 _site/src/*.js --minify --target=es2022 --format=esm --outdir=_site/src --allow-overwrite --log-level=warning

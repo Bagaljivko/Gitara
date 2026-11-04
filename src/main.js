@@ -3,7 +3,7 @@ import { t, getLang, setLang, onLangChange, i18nReady } from './i18n.js';
 import { settings, songs as songsDb, events as dbEvents } from './db.js';
 import { setWakeZone } from './wakelock.js';
 import { onNamingChange, loadNoteNamesPref } from './naming.js';
-import { needsUpgrade } from './songmodel.js';
+import { needsUpgrade, CV } from './songmodel.js';
 
 await i18nReady; // engleski prevod (ako je izabran) mora biti učitan pre prvog prikaza
 
@@ -35,8 +35,52 @@ async function liveView(name) {
 const TWO_PANE = window.matchMedia('(min-width: 900px) and (min-height: 600px) and (orientation: landscape)');
 TWO_PANE.addEventListener('change', () => { app.querySelector(':scope > .page')?.remove(); route(); });
 
+// ---- Zaštita od praznog ekrana ----
+// index.html beleži greške pre pokretanja i prikazuje „Pokušaj ponovo / Popravi aplikaciju“ ako se aplikacija
+// uopšte ne pokrene. Ovde: kada se aplikacija pokrene, ukloni ekran za učitavanje; ako crtanje nekog ekrana
+// ne uspe, umesto praznine prikaži poruku sa istim dugmadima. Sve se beleži samo na uređaju (Dijagnostika).
+const boot = window.__gBoot || { add() {}, done: false, start: Date.now() };
+function bootDone() {
+  if (boot.done) return;
+  boot.done = true;
+  document.getElementById('boot')?.remove();
+  document.getElementById('bootFail')?.remove();
+  if (/[?&]r=\d/.test(location.search)) history.replaceState(history.state, '', location.pathname + location.hash); // posle „Popravi aplikaciju“
+  try {
+    const nav = performance.getEntriesByType('navigation')[0];
+    const k = 'gitara-boots';
+    const a = JSON.parse(localStorage.getItem(k) || '[]');
+    a.push({ t: Date.now(), ms: Math.round(performance.now()), sw: !!navigator.serviceWorker?.controller, nav: nav ? nav.type : '', disc: !!document.wasDiscarded });
+    localStorage.setItem(k, JSON.stringify(a.slice(-12)));
+  } catch {}
+}
+function showRouteError(e) {
+  boot.add({ k: 'screen', m: String((e && (e.stack || e.message)) || e).slice(0, 400), h: location.hash.slice(0, 60) });
+  app.querySelector(':scope > .page')?.remove();
+  app.querySelectorAll(':scope > .live').forEach((el) => (el.hidden = true));
+  const el = document.createElement('div');
+  el.className = 'page';
+  el.innerHTML = `<section class="view route-err">
+    <h1>${t('err.title')}</h1>
+    <p class="muted">${t('err.body')}</p>
+    <button class="btn primary big wide" data-a="retry">${t('err.retry')}</button>
+    <button class="btn wide" data-a="repair">${t('err.repair')}</button>
+  </section>`;
+  el.addEventListener('click', (ev) => {
+    const a = ev.target.closest('[data-a]')?.dataset.a;
+    if (a === 'retry') location.reload();
+    if (a === 'repair') (boot.repair ? boot.repair() : location.reload());
+  });
+  app.appendChild(el);
+}
+
 let routeId = 0;
 async function route() {
+  try { await routeInner(); }
+  catch (e) { console.error(e); showRouteError(e); }
+  finally { bootDone(); }
+}
+async function routeInner() {
   const myRoute = ++routeId;
   setWakeZone(null); // ekrani koji računaju aktivnost (pesma, setlista, rečnik) je ponovo uključe
   const shared = hasSharedSong();
@@ -152,7 +196,7 @@ if ('serviceWorker' in navigator) {
 async function persistStorage() {
   try {
     if (!navigator.storage?.persist || await navigator.storage.persisted()) return;
-    if ((await songsDb.all()).length) await navigator.storage.persist();
+    if (await songsDb.count()) await navigator.storage.persist();
   } catch {}
 }
 persistStorage();
@@ -188,5 +232,10 @@ route();
 // Drive (automatska rezervna kopija) se učitava malo kasnije, kad se prvi ekran već prikaže.
 const idle = window.requestIdleCallback || ((f) => setTimeout(f, 1200));
 // Jednokratna konverzija postojećih pesama u novi zapis akorda (original ostaje netaknut)
-idle(() => songsDb.all().then((list) => Promise.all(list.filter(needsUpgrade).map((x) => songsDb.put(x)))).catch(() => {}));
+// Radi se samo dok ima šta da se prebaci: posle uspešnog prolaza se pamti, da se pri svakom
+// pokretanju ne čita cela biblioteka (na sporom telefonu to je pola sekunde zauzetog ekrana).
+const UPG_KEY = 'gitara-upgraded';
+let upgDone = false; try { upgDone = localStorage.getItem(UPG_KEY) === String(CV); } catch {}
+if (!upgDone) idle(() => songsDb.all().then((list) => Promise.all(list.filter(needsUpgrade).map((x) => songsDb.put(x))))
+  .then(() => { try { localStorage.setItem(UPG_KEY, String(CV)); } catch {} }).catch(() => {}));
 idle(() => import('./drive.js').then((m) => m.initDrive()).catch(() => {}));

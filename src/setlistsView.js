@@ -99,7 +99,7 @@ export async function renderSetlist(root, id) {
   setWakeZone('setlist');
   const sl = await getSetlist(id);
   if (!sl) { location.hash = '#/pesme'; return; }
-  const all = await db.all();
+  const all = await db.list();
   const byId = new Map(all.map((s) => [s.id, s]));
   let ids = sl.songIds.filter((x) => byId.has(x)); // pesme koje su u međuvremenu obrisane se preskaču
 
@@ -207,7 +207,7 @@ export async function setlistNav(params) {
   if (!id) return null;
   const sl = await getSetlist(id);
   if (!sl) return null;
-  const all = new Set((await db.all()).map((s) => s.id));
+  const all = new Set((await db.list()).map((s) => s.id));
   const ids = sl.songIds.filter((x) => all.has(x));
   const i = Math.max(0, Math.min(ids.length - 1, Number(params.get('i')) || 0));
   const href = (k) => `#/pesma/${encodeURIComponent(ids[k])}?sl=${encodeURIComponent(id)}&i=${k}`;

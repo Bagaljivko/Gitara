@@ -406,7 +406,7 @@ const alreadyAsked = async () => !!(await settings.get(ASKED_KEY, false));
 
 async function offerRestore() {
   if (offering || (await alreadyAsked())) return;
-  if ((await db.all()).length) return; // biblioteka već ima pesme — ne pitaj
+  if (await db.count()) return; // biblioteka već ima pesme — ne pitaj
   offering = true;
   try {
     const ok = await dialog({
@@ -508,8 +508,7 @@ export async function initDrive() {
   if (state.pending) scheduleBackup(3000);
   // Prazna biblioteka (npr. podaci su obrisani) → ponudi vraćanje ako je token još važeći.
   if (state.token && navigator.onLine !== false) {
-    const local = await db.all();
-    if (!local.length) {
+    if (!(await db.count())) {
       try { if (!(await alreadyAsked()) && (await findBackup())) await offerRestore(); } catch {}
     }
   }

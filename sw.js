@@ -1,6 +1,6 @@
 // Rad bez interneta: cela aplikacija se čuva u kešu i služi iz njega (uvek ista, usklađena verzija).
 // Nova verzija = novi broj u CACHE (scripts/update-sw.mjs). Aplikacija tada prikaže „Osveži“.
-const CACHE = "gitara-v46";
+const CACHE = "gitara-v47";
 const SHELL = [
   "./",
   "index.html",
@@ -15,6 +15,7 @@ const SHELL = [
   "src/collections.js",
   "src/db.js",
   "src/demo.js",
+  "src/diag.js",
   "src/diagram.js",
   "src/drive.js",
   "src/gemini.js",
@@ -95,7 +96,8 @@ self.addEventListener("fetch", e => {
     const cache = await caches.open(CACHE);
     // Navigacija na samu aplikaciju → keširana početna strana; ostale stranice (npr. privacy.html) → svoj fajl
     const isPage = e.request.mode === "navigate" && !/\/privacy\.html$/.test(url.pathname);
-    const cached = await cache.match(isPage ? "./" : e.request, { ignoreSearch: isPage });
+    // ?v=… u adresi (dodaje se pri objavi) samo sprečava mešanje verzija u kešu pregledača — ovde je svejedno
+    const cached = await cache.match(isPage ? "./" : e.request, { ignoreSearch: true });
     if (cached) return cached;
     try {
       const res = await fetch(e.request);

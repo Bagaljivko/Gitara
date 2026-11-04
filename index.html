@@ -10,6 +10,91 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <style>
+    /* Od prvog trenutka taman ekran (bez belog bljeska dok se učitava stil) i mali ekran za učitavanje */
+    html, body { background: #121316; color: #eceef2; margin: 0; }
+    .boot { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; font: 600 1.1rem system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; color: #eceef2; z-index: 1; }
+    .boot img { width: 72px; height: 72px; border-radius: 18px; }
+    .boot i { width: 26px; height: 26px; border: 3px solid #2f333b; border-top-color: #f5a524; border-radius: 50%; animation: bootspin .8s linear infinite; }
+    @keyframes bootspin { to { transform: rotate(360deg); } }
+    .boot-fail { position: fixed; inset: 0; z-index: 100; background: #121316; color: #eceef2; display: flex; align-items: center; justify-content: center; padding: 24px; font: 1rem/1.45 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+    .boot-fail > div { max-width: 360px; text-align: center; }
+    .boot-fail h1 { font-size: 1.25rem; margin: 0 0 8px; }
+    .boot-fail p { color: #9aa1ad; margin: 0 0 18px; }
+    .boot-fail button { display: block; width: 100%; min-height: 48px; margin: 10px 0 0; border-radius: 14px; border: 1px solid #2f333b; background: #1b1d22; color: #eceef2; font: 600 1rem system-ui, sans-serif; }
+    .boot-fail button.p { background: #f5a524; border-color: #f5a524; color: #121316; }
+  </style>
+  <script>
+    // Rana zaštita: beleži greške (samo na ovom uređaju, „Podešavanja → Dijagnostika“) i, ako aplikacija
+    // ne uspe da se pokrene, umesto praznog ekrana prikaže „Pokušaj ponovo“ / „Popravi aplikaciju“.
+    (function () {
+      var KEY = 'gitara-diag', MAX = 40;
+      function add(e) {
+        try {
+          var a = JSON.parse(localStorage.getItem(KEY) || '[]');
+          e.t = Date.now(); a.push(e); if (a.length > MAX) a = a.slice(-MAX);
+          localStorage.setItem(KEY, JSON.stringify(a));
+        } catch (_) {}
+      }
+      var boot = window.__gBoot = { start: Date.now(), done: false, add: add, fail: fail };
+      if (document.wasDiscarded) add({ k: 'discarded' }); // telefon je ugasio aplikaciju u pozadini (Android)
+      window.addEventListener('error', function (ev) {
+        var tg = ev.target, isScript = tg && tg.tagName === 'SCRIPT';
+        if (!(ev instanceof ErrorEvent) && !isScript) return; // slike i slično nisu greške aplikacije
+        add({ k: 'error', m: String(ev.message || (isScript ? 'script: ' + tg.src : 'error')).slice(0, 300), s: String(ev.filename || '').split('/').pop().split('?')[0] + ':' + (ev.lineno || 0) });
+        if (!boot.done) fail();
+      }, true);
+      window.addEventListener('unhandledrejection', function (ev) {
+        var r = ev.reason; add({ k: 'reject', m: String(r && (r.stack || r.message) || r).slice(0, 300) });
+      });
+      setTimeout(function () { if (!boot.done) { add({ k: 'slowboot', ms: Date.now() - boot.start }); fail(); } }, 15000);
+      function fail() {
+        if (document.getElementById('bootFail') || !document.body) return;
+        var en = false; try { en = localStorage.getItem('gitara-lang') === 'en'; } catch (_) {}
+        var el = document.createElement('div');
+        el.id = 'bootFail'; el.className = 'boot-fail';
+        el.innerHTML = '<div><h1>' + (en ? 'Gitara did not start' : 'Gitara se nije pokrenula') + '</h1><p>' +
+          (en ? 'Your songs and settings are safe.' : 'Tvoje pesme i podešavanja su sačuvani.') + '</p>' +
+          '<button class="p" data-a="retry">' + (en ? 'Try again' : 'Pokušaj ponovo') + '</button>' +
+          '<button data-a="repair">' + (en ? 'Repair the app' : 'Popravi aplikaciju') + '</button></div>';
+        el.addEventListener('click', function (e) {
+          var a = e.target && e.target.getAttribute('data-a');
+          if (a === 'retry') location.reload();
+          if (a === 'repair') repair();
+        });
+        document.body.appendChild(el);
+      }
+      // Briše samo sačuvane fajlove aplikacije (ne pesme, podešavanja ni API ključ) i učitava sve iznova
+      function repair() {
+        add({ k: 'repair' });
+        var done = function () { location.replace(location.pathname + '?r=' + Date.now() + location.hash); };
+        var steps = [];
+        try { if (navigator.serviceWorker) steps.push(navigator.serviceWorker.getRegistrations().then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); })); } catch (_) {}
+        try { if (window.caches) steps.push(caches.keys().then(function (ks) { return Promise.all(ks.filter(function (k) { return k.indexOf('gitara-') === 0; }).map(function (k) { return caches.delete(k); })); })); } catch (_) {}
+        // I keš pregledača: svaki fajl aplikacije preuzmi ponovo sa servera (spisak je u sw.js)
+        // (posle brisanja keša, da service worker ne vrati iste stare fajlove)
+        Promise.all(steps).then(refresh, refresh).then(done, done);
+        setTimeout(done, 8000);
+      }
+      function refresh() {
+        try {
+          var get = function (u) { return fetch(u, { cache: 'reload' }); };
+          return get('./').then(function (r) { return r.text(); }).then(function (html) {
+            var m = /main\.js\?v=(\d+)/.exec(html), q = m ? '?v=' + m[1] : '';
+            return get('sw.js').then(function (r) { return r.text(); }).then(function (sw) {
+              var list = ((/const SHELL = \[([\s\S]*?)\]/.exec(sw) || [])[1] || '').match(/"[^"]+"/g) || [];
+              return Promise.all(list.map(function (f) {
+                f = f.slice(1, -1);
+                var u = /^src\/.*\.(js|css)$/.test(f) ? f + q : f;
+                return get(u).catch(function () {}).then(function () { return q ? get(f).catch(function () {}) : 0; });
+              }));
+            });
+          }).catch(function () {});
+        } catch (_) { return Promise.resolve(); }
+      }
+      boot.repair = repair;
+    })();
+  </script>
   <link rel="stylesheet" href="src/styles.css">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
@@ -33,7 +118,7 @@
     <span data-i18n="update.ready">Nova verzija je spremna.</span>
     <button class="btn small primary" type="button" data-i18n="update.reload">Osveži</button>
   </div>
-  <main id="app"></main>
+  <main id="app"><div class="boot" id="boot" aria-hidden="true"><img src="icons/icon-192.png" alt="">Gitara<i></i></div></main>
   <nav class="nav" aria-label="Glavna navigacija" data-i18n-aria="nav.label">
     <a href="#/tuner" data-tab="tuner">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4a9 9 0 0 0-9 9h2a7 7 0 0 1 14 0h2a9 9 0 0 0-9-9zm4.3 4.3-5.4 4.3a1.6 1.6 0 1 0 2.3 2.2l3.8-5.8-.7-.7z"/></svg>

@@ -128,6 +128,17 @@ export async function renderSettings(root) {
         : `<p class="small">${t('set.installAndroid')}</p><button class="btn primary" id="installBtn" hidden>${t('set.install')}</button>`}
     </div>
 
+    <div class="card" id="diagCard">
+      <h2>${t('diag.title')}</h2>
+      <p class="muted small">${t('diag.note')}</p>
+      <p class="small" id="diagSum"></p>
+      <div class="row wrap">
+        <button class="btn" id="diagCopy">${t('diag.copy')}</button>
+        <button class="btn" id="diagClear">${t('diag.clear')}</button>
+      </div>
+      <pre class="diag-report" id="diagOut" hidden></pre>
+    </div>
+
     <div class="about muted small">
       <p>${t('set.about', { v: APP_VERSION })}</p>
       <button class="btn small" id="bUpdate">${t('update.check')}</button>
@@ -141,7 +152,7 @@ export async function renderSettings(root) {
   // Svaka celina podešavanja se otvara/zatvara dodirom na naslov; pamti se šta je otvoreno
   const openSet = (() => { try { return new Set(JSON.parse(localStorage.getItem('gitara-set-open') || '["lang"]')); } catch { return new Set(['lang']); } })();
   const saveOpen = () => { try { localStorage.setItem('gitara-set-open', JSON.stringify([...openSet])); } catch {} };
-  const groups = [['lang', 0], ['scan', 1], ['tuner', 2], ['screen', 3], ['drive', 4], ['file', 5], ['install', 6]];
+  const groups = [['lang', 0], ['scan', 1], ['tuner', 2], ['screen', 3], ['drive', 4], ['file', 5], ['install', 6], ['diag', 7]];
   const cards = [...root.querySelectorAll('.settings-view > .card')];
   groups.forEach(([key, idx]) => {
     const card = cards[idx];
@@ -160,6 +171,28 @@ export async function renderSettings(root) {
     if (key === 'drive') { card.classList.remove('card'); det.appendChild(card); } // Drive karta se sama ponovo iscrtava
     else { const body = document.createElement('div'); body.className = 'set-body'; while (card.firstChild) body.appendChild(card.firstChild); det.appendChild(body); for (const a of card.attributes) if (a.name !== 'class' && a.name !== 'hidden') body.setAttribute(a.name, a.value); }
     det.addEventListener('toggle', () => { if (det.open) openSet.add(key); else openSet.delete(key); saveOpen(); });
+  });
+
+  // ---- Dijagnostika: greške i brzina pokretanja (samo na uređaju) ----
+  const diagSum = () => {
+    let log = [], boots = [];
+    try { log = JSON.parse(localStorage.getItem('gitara-diag') || '[]'); boots = JSON.parse(localStorage.getItem('gitara-boots') || '[]'); } catch {}
+    const errs = log.filter((e) => e.k !== 'discarded' && e.k !== 'repair').length;
+    const avg = boots.length ? Math.round(boots.reduce((a, b) => a + b.ms, 0) / boots.length) : 0;
+    $('diagSum').textContent = (errs ? t('diag.errors', { n: errs }) : t('diag.noErrors')) + (avg ? ' · ' + t('diag.boot', { ms: avg }) : '');
+  };
+  diagSum();
+  $('diagCopy').addEventListener('click', async () => {
+    const { buildReport } = await import('./diag.js');
+    const txt = await buildReport();
+    $('diagOut').textContent = txt;
+    $('diagOut').hidden = false;
+    try { await navigator.clipboard.writeText(txt); toast(t('diag.copied')); }
+    catch { toast(t('diag.copyManual')); }
+  });
+  $('diagClear').addEventListener('click', async () => {
+    const { clearDiag } = await import('./diag.js');
+    clearDiag(); $('diagOut').hidden = true; diagSum(); toast(t('diag.cleared'));
   });
 
   // ---- Podeli aplikaciju: QR kod koji drugi telefon skenira kamerom ----
@@ -321,7 +354,7 @@ export async function renderSettings(root) {
   }));
 
   $('bExport').addEventListener('click', async () => {
-    const n = (await db.all()).length;
+    const n = await db.count();
     if (!n) { toast(t('set.nothingToExport')); return; }
     const r = await exportAll();
     if (r === 'downloaded') toast(t('set.backupDownloaded'));
