@@ -34,7 +34,7 @@ jobs:
       - name: Smanji JavaScript i CSS (samo objavljena kopija; izvorni kod ostaje čitljiv)
         run: |
           npx --yes esbuild@0.24.2 _site/src/*.js --minify --target=es2022 --format=esm --outdir=_site/src --allow-overwrite --log-level=warning
-          npx --yes esbuild@0.24.2 _site/src/styles.css --minify --outfile=_site/src/styles.css --allow-overwrite --log-level=warning
+          npx --yes esbuild@0.24.2 _site/src/styles.css _site/src/practice.css --minify --outdir=_site/src --allow-overwrite --log-level=warning
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

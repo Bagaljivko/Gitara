@@ -608,7 +608,6 @@ export async function renderSong(root, id, nav = null) {
       <div id="sHead"></div>
       <div id="sAsk"></div>
       <div id="sSuggest"></div>
-      <div class="pr-shortcut-row"><a class="icon-btn pr-shortcut" href="#/vezbe/pesma/${encodeURIComponent(stored.id)}" aria-label="${esc(t('pr.songShortcut'))}" title="${esc(t('pr.songShortcut'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" d="M12 2.2c-4.9 0-8.6 2-8.6 5.6 0 4.6 4.2 10.2 8.6 14 4.4-3.8 8.6-9.4 8.6-14 0-3.6-3.7-5.6-8.6-5.6zM10 7.6v6.2l5.2-3.1z"/></svg></a></div>
       <div id="sControls"></div>
       <details class="song-details" id="sDet"><summary><span>${t('song.details')}</span><span class="small muted" id="sDetSub"></span></summary><div id="sDetBody"></div></details>
       <div class="lyrics" id="sLyrics" style="--zoom:${zoom}"></div>
@@ -661,7 +660,8 @@ export async function renderSong(root, id, nav = null) {
 
   // Ekran pesme je podeljen na delove; menja se samo deo čiji se podaci promenili (brže na dugim pesmama)
   const drawHead = () => {
-    $('sHead').innerHTML = `<h1 class="song-h1">${esc(stored.title)}</h1>
+    // Naslov i (desno, u istom redu) prečica za vežbanje delova ove pesme
+    $('sHead').innerHTML = `<div class="song-title-row"><h1 class="song-h1">${esc(stored.title)}</h1><a class="icon-btn pr-shortcut" href="#/vezbe/pesma/${encodeURIComponent(stored.id)}" aria-label="${esc(t('pr.songShortcut'))}" title="${esc(t('pr.songShortcut'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" d="M12 2.2c-4.9 0-8.6 2-8.6 5.6 0 4.6 4.2 10.2 8.6 14 4.4-3.8 8.6-9.4 8.6-14 0-3.6-3.7-5.6-8.6-5.6zM10 7.6v6.2l5.2-3.1z"/></svg></a></div>
       ${stored.artist || cleanTuning(stored.tuning) !== 'standard' ? `<p class="song-meta">${esc(stored.artist || '')}${cleanTuning(stored.tuning) !== 'standard'
         ? `${stored.artist ? ' · ' : ''}<button class="tuning-chip" id="sTune" title="${esc(t('tuning.tuneNow'))}">${esc(t('tuning.' + cleanTuning(stored.tuning)))} · ${esc(tuningNotes(stored.tuning))} ›</button>` : ''}</p>` : ''}`;
   };

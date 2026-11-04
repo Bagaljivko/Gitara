@@ -2,11 +2,26 @@
 // ili prečica iz pesme — pokretanje tunera i biblioteke se ne menja.
 // Ovde: kartice igara, zajednički ekran igre (puls metronoma, „scena“, povratna informacija, tempo,
 // start/stop, rezultat) i čuvanje rezultata (najbolji rezultat, niz dana, poslednji tempo).
-import { t } from './i18n.js';
+import { t, LANGS, onLangChange } from './i18n.js';
+import * as TEXTS from './practiceText.js';
 import { esc } from './ui.js';
 import { settings } from './db.js';
 import { keepAwake, allowSleep, setWakeZone } from './wakelock.js';
 import { stopGroup } from './synth.js';
+
+// Tekstovi i stilovi Vežbi se učitavaju tek ovde (ne pri pokretanju aplikacije)
+function mergeTexts() { Object.assign(LANGS.sr, TEXTS.sr); if (LANGS.en) Object.assign(LANGS.en, TEXTS.en); }
+mergeTexts();
+onLangChange(mergeTexts);
+const cssReady = new Promise((resolve) => {
+  if (document.getElementById('practiceCss')) return resolve();
+  const l = document.createElement('link');
+  l.id = 'practiceCss'; l.rel = 'stylesheet';
+  l.href = new URL('./practice.css' + new URL(import.meta.url).search, import.meta.url).href; // ista verzija kao ovaj fajl
+  l.onload = l.onerror = () => resolve();
+  document.head.appendChild(l);
+  setTimeout(resolve, 1500); // nikad ne čekaj večno (npr. bez interneta pre keširanja)
+});
 
 // Igre: učitavaju se pojedinačno, tek kad se otvore
 export const GAMES = [
@@ -61,6 +76,7 @@ let leave = null; // gašenje igre koja je otvorena
 
 export async function renderPractice(root, parts = [], params = new URLSearchParams()) {
   leave?.();
+  await cssReady;
   const id = parts[0] || '';
   const game = GAMES.find((g) => g.id === id);
   if (!game) return renderHub(root);
