@@ -86,7 +86,7 @@ export function createGame(api) {
 
   async function run(bpm, { calib = false } = {}) {
     calibMode = calib; expect = []; onsets = []; lastBar = -1;
-    await api.listen({ onOnset: (o) => onsets.push({ at: o.at }) });
+    await api.listen({ strums: true, onOnset: (o) => onsets.push({ at: o.at }) });
     met = new Metronome();
     met.bpm = calib ? 80 : bpm; met.sig = '4/4'; met.countIn = 1;
     const bars = calib ? 2 : 8;

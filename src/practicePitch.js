@@ -182,6 +182,11 @@ export class PracticePitch {
       this.state = 'listening';
       this.onsetAt = now;
       this.peak = level;
+    } else if (this.anyNote && level >= onLevel && level > before * ONSET_RATIO && now - this.onsetAt > 100) {
+      // Samo za Vežbe: ista žica trznuta ponovo dok još zvoni (npr. ritam na jednoj žici) — novi udarac.
+      // Isto pravilo kao početni trzaj u tuneru (nagao skok jačine), tuner ovo ne koristi.
+      this.onsetAt = now;
+      this.peak = level;
     }
     // Posle trzaja mora brzo da se pojavi jasan ton žice; inače (govor, kucanje) čekaj sledeći trzaj.
     if (!this.shown && now - this.onsetAt > ARM_MS) { this.release(); return { state: 'idle' }; }
