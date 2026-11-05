@@ -4,6 +4,7 @@
 // red teksta. Normalno: počinje sporije od pesme, deo se vrti u petlji i posle svakog čistog prolaza malo ubrza —
 // do pravog tempa; tada se nudi „Sledeći deo“ ili „Cela pesma“. Početnik: staza čeka na svaku promenu akorda.
 // Najbolji rezultat i tempo se pamte po delu (i oznaka napretka pored ikonice vežbe na ekranu pesme).
+import { sectionLabel } from './sectionLabel.js';
 import { strum } from './synth.js';
 import { chordNotes } from './rhythm.js';
 import { getVoicings } from './chords.js';
@@ -78,7 +79,7 @@ export async function createGame(api) {
   let part = all.find((p) => String(p.i) === localStorage.getItem(partKey)) || parts[hardest >= 0 ? hardest : 0];
   let per = Number(localStorage.getItem('gitara-pr-pesma-per')) === 2 ? 2 : 4;
   const startTempo = (p) => Math.min(songBpm, (stats()[String(p.i)] || {}).lastTempo || Math.max(40, Math.round((songBpm * 0.6) / 5) * 5));
-  const label = (p, k) => (p.i === 'all' ? t('pr.pesma.whole') : p.name || t('pr.pesma.part', { n: k + 1 }));
+  const label = (p, k) => (p.i === 'all' ? t('pr.pesma.whole') : (p.name ? sectionLabel(p.name) : t('pr.pesma.part', { n: k + 1 })));
 
   function drawOpts() {
     const st = stats();

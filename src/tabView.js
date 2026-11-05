@@ -4,7 +4,7 @@
 // Učitava se tek kad se otvori TAB pesma (ili njen pregled posle skeniranja).
 import { t, getLang } from './i18n.js';
 import { useTabTexts } from './tabText.js';
-import { esc, toast, dialog, shareOrDownload } from './ui.js';
+import { esc, toast, dialog } from './ui.js';
 import { songs as db, settings } from './db.js';
 import { dn } from './naming.js';
 import { parseKey } from './music.js';
@@ -349,7 +349,7 @@ export async function renderTabSong(root, stored, nav, { ytRowHTML, shareSong, d
     try {
       const { songToPdf } = await import('./pdf.js');
       const blob = await songToPdf(tabPdfSong(stored), { capoLabel: [t('tab.sig', { s: stored.tab.sig }), Number(stored.bpm) ? t('pdf.tempo', { n: stored.bpm }) : ''].filter(Boolean).join('  ·  ') });
-      const r = await shareOrDownload(blob, safeFileName(stored.title) + '.pdf', stored.title);
+      const r = await (await import('./shareService.js')).shareFile(blob, safeFileName(stored.title) + '.pdf', stored.title);
       if (r === 'downloaded') toast(t('song.pdfDownloaded'));
       if (await driveConnected()) {
         const d = await import('./drive.js');

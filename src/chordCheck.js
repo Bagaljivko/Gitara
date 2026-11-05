@@ -2,6 +2,7 @@
 // Za svaku pesmu pokazuje kako bi je pročitalo novo imenovanje akorda (srpsko H/B/Fis/Es ili englesko B/Bb/F#/Eb),
 // koji tonalitet je prepoznat i šta treba proveriti: dvosmisleno „B“, akorde koji su danas sačuvani kao tekst
 // (npr. „Fism Cis7“) i redove sa usamljenim malim slovom („e“, „a“) — da vidiš da li ih tvoji papiri koriste.
+import { sectionLabel } from './sectionLabel.js';
 import { songs as db } from './db.js';
 import { t } from './i18n.js';
 import { esc } from './ui.js';
@@ -79,7 +80,7 @@ function chordLineHTML(chords, naming, key) {
 }
 
 function songHTML(a, naming) {
-  return a.sections.map((s) => `${s.name ? `<div class="cc-sec">${esc(s.name)}</div>` : ''}${s.lines.map((l) => {
+  return a.sections.map((s) => `${s.name ? `<div class="cc-sec">${esc(sectionLabel(s.name))}</div>` : ''}${s.lines.map((l) => {
     const cls = l.lifted ? ' cc-lifted' : l.lower ? ' cc-lower' : '';
     const chords = l.chords.length ? `<div class="cc-chords">${chordLineHTML(l.chords, naming, a.key)}</div>` : '';
     return `<div class="cc-line${cls}">${chords}${l.text ? `<div class="cc-text">${esc(l.text)}</div>` : ''}</div>`;

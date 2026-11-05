@@ -1,8 +1,10 @@
-// „Sviraj set“: set lista preko celog ekrana — veliki tekst (A−/A+, pamti se), bez menija, ekran ostaje upaljen.
+// „Sviraj set“: set lista preko celog ekrana — veliki čitljiv tekst (A−/A+, pamti se), bez donjih tabova, ekran
+// ostaje upaljen (Screen Wake Lock, ponovo posle povratka u aplikaciju). Bez Fullscreen API-ja (Chrome bi poruku
+// „Za izlaz iz celog ekrana…“ prikazao preko dugmadi) i bez zvuka (Pusti ostaje na ekranu pojedinačne pesme).
 // Svaka pesma u svom tonalitetu i sa svojim kapodasterom; TAB pesme kao tablatura.
-// Dole: velika „‹ Prethodna“ / „Sledeća ›“ i „Sledeća: naslov · prvi akord“. Gore: naslov (dodir = spisak pesama
-// za skok), skrolovanje u tempu pesme, zvuk (Pusti). Kad pesma dođe do kraja (skrolovanje/zvuk): mirno odbrojavanje
-// 5 s do sledeće („Odmah“ / „Stani“). Dodir uz desnu/levu ivicu = strana dole/gore; prevlačenje = druga pesma;
+// Dole: velika „‹ Prethodna“ / „Sledeća ›“ i „Sledeća: naslov · prvi akord“. Gore: naslov i izvođač (dodir = spisak
+// pesama za skok), brojač, automatsko skrolovanje u tempu pesme. Kad pesma dođe do kraja: mirno odbrojavanje do
+// sledeće („Odmah“ / „Stani“). Dodir uz desnu/levu ivicu = strana dole/gore; prevlačenje = druga pesma;
 // Bluetooth pedala (PageDown/PageUp, strelice). Mesto u setu se pamti („Nastavi od pesme N“).
 import { songs as db, settings } from './db.js';
 import { getSetlist } from './collections.js';
@@ -25,9 +27,8 @@ const MODE_KEY = 'gitara-stage-mode';
 const getMode = () => { try { return JSON.parse(localStorage.getItem(MODE_KEY)) || {}; } catch { return {}; } };
 const setMode = (m) => { try { localStorage.setItem(MODE_KEY, JSON.stringify(m)); } catch {} };
 
-/** Uđi u „Sviraj set“ (poziva se iz dodira korisnika, da bi ceo ekran bio dozvoljen). */
+/** Uđi u „Sviraj set“. */
 export function enterStage(setlistId, index = 0) {
-  try { document.documentElement.requestFullscreen?.().catch(() => {}); } catch {}
   location.hash = `#/nastup/${encodeURIComponent(setlistId)}?i=${index}`;
 }
 
@@ -49,8 +50,8 @@ export async function renderStage(root, setlistId, params) {
   let i = Math.max(0, Math.min(ids.length - 1, Number(params.get('i')) || 0));
   let zoom = getZoom();
   // izbor pre početka (pamti se uz set listu); dugmad gore ga menjaju dok svira
-  const play = { pause: 5, scroll: false, sound: false, ...getMode(), ...(sl.play || {}) };
-  const mode = { scroll: play.scroll, sound: play.sound };
+  const play = { pause: 5, scroll: false, ...getMode(), ...(sl.play || {}) };
+  const mode = { scroll: !!play.scroll };
   const pause = Number(play.pause ?? 5); // sekunde; 0 = odmah; -1 = čekaj mene
   const metBpm = Number(await settings.get('metBpm', 90)) || 90;
 
@@ -60,11 +61,10 @@ export async function renderStage(root, setlistId, params) {
   <section class="stage" aria-label="${esc(t('stage.title'))}">
     <header class="stage-bar" id="stBar">
       <button class="icon-btn" id="stExit" aria-label="${t('stage.exit')}" title="${t('stage.exit')}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z"/></svg></button>
-      <button class="stage-info" id="stJump" aria-label="${t('stage.jump')}"><b id="stTitle"></b><span class="small muted" id="stMeta"></span></button>
-      <button class="btn small icon-only st-tog" id="stScroll" aria-pressed="false" aria-label="${t('stage.scroll')}" title="${t('stage.scroll')}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v13m0 0-5-5m5 5 5-5M5 20h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-      <button class="btn small icon-only st-tog" id="stSound" aria-pressed="false" aria-label="${t('stage.sound')}" title="${t('stage.sound')}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9zm12.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4z"/></svg></button>
-      <button class="btn small icon-only" id="stDown" aria-label="${t('song.fontDown')}">A−</button>
-      <button class="btn small icon-only" id="stUp" aria-label="${t('song.fontUp')}">A+</button>
+      <button class="stage-info" id="stJump" aria-label="${t('stage.jump')}"><b id="stTitle"></b><span><span class="st-counter" id="stCounter"></span><span id="stMeta"></span></span></button>
+      <button class="st-tool st-tog" id="stScroll" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="st-play" d="M7 4.5v9l7-4.5z"/><path d="M5 17.5l7 3.5 7-3.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <span class="st-zoom"><button class="st-tool" id="stAa" aria-haspopup="true" aria-expanded="false" aria-label="${t('song.textSize')}">Aa</button>
+        <span class="st-zoom-pop" id="stAaPop" role="group" aria-label="${t('song.textSize')}" hidden><button class="st-tool" id="stDown" aria-label="${t('song.fontDown')}">A−</button><button class="st-tool" id="stUp" aria-label="${t('song.fontUp')}">A+</button></span></span>
     </header>
     <div class="stage-body" id="stBody"></div>
     <footer class="stage-foot" id="stFoot">
@@ -84,13 +84,15 @@ export async function renderStage(root, setlistId, params) {
     const capo = s.capo || 0;
     const tuning = cleanTuning(s.tuning);
     const shapes = s.type === 'tab' ? s : transposeSong(s, (s.transpose || 0) - capo);
-    $('stTitle').textContent = `${i + 1}/${ids.length} · ${s.title}`;
+    $('stTitle').textContent = s.title;
     $('stMeta').textContent = [s.artist, capo ? t('pdf.capo', { n: capo }) : '', tuning !== 'standard' ? t('tuning.' + tuning) : ''].filter(Boolean).join(' · ');
+
+    $('stCounter').textContent = `${i + 1}/${ids.length}`;
+    $('stCounter').setAttribute('aria-label', t('stage.counter', { i: i + 1, n: ids.length }));
     const next = ids[i + 1] ? all.get(ids[i + 1]) : null;
     $('stNextUp').innerHTML = next ? `<small>${esc(t('stage.nextUp', { title: '' }).replace(/[:\s]+$/, ''))}</small><b>${esc(next.title)}</b>${firstChord(next) ? `<span class="st-ch">${esc(firstChord(next))}</span>` : ''}` : `<small>${esc(t('stage.lastSong'))}</small>`;
     $('stPrev').disabled = i === 0; $('stNext').disabled = !next;
     $('stBody').innerHTML = `
-      <h1 class="stage-h1">${esc(s.title)}</h1>
       <div class="lyrics stage-lyrics" style="--zoom:${zoom}">${s.type === 'tab' ? '' : renderSectionsHTML(shapes.sections)}</div>
       <div class="stage-end">${next ? '' : `<p class="muted center">${t('stage.end')}</p>`}</div>`;
     if (s.type === 'tab') {
@@ -104,11 +106,16 @@ export async function renderStage(root, setlistId, params) {
     window.scrollTo(0, 0);
     try { localStorage.setItem(POS_KEY(setlistId), String(i)); } catch {}
     history.replaceState(null, '', `#/nastup/${encodeURIComponent(setlistId)}?i=${i}`);
-    if (mode.scroll || mode.sound) startFlow(2000);
+    if (mode.scroll) startFlow(2000);
+    padFoot();
   }
+  // tekst nikad ne ostaje ispod donje trake: dno stranice = visina trake + bezbedna zona (meri se, menja se sa A−/A+)
+  const padFoot = () => { const h = $('stFoot')?.offsetHeight || 0; root.querySelector('.stage')?.style.setProperty('--st-foot', h + 'px'); };
   const go = (d) => { const k = i + d; if (k < 0 || k >= ids.length) return false; i = k; draw(); return true; };
   const barH = () => $('stBar').offsetHeight;
-  const atBottom = () => window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4;
+  // kraj pesme = poslednji red je vidljiv iznad donje trake (stranica ima dodatni prostor ispod, da se poslednji red vidi)
+  const endVisible = () => { const e = root.querySelector('.stage-end'); const f = $('stFoot'); return !e || e.getBoundingClientRect().top <= (f ? f.getBoundingClientRect().top : window.innerHeight) + 2; };
+  const atBottom = () => endVisible() || window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4;
   function pageDown() { if (atBottom()) go(1); else window.scrollBy({ top: window.innerHeight * 0.82 - barH(), behavior: 'smooth' }); }
   function pageUp() { if (window.scrollY <= 4) { if (go(-1)) requestAnimationFrame(() => window.scrollTo(0, document.documentElement.scrollHeight)); } else window.scrollBy({ top: -(window.innerHeight * 0.82 - barH()), behavior: 'smooth' }); }
   const setZoom = (d) => {
@@ -117,10 +124,11 @@ export async function renderStage(root, setlistId, params) {
     if (!l) return;
     if (s.type === 'tab') tabView?.drawStaff(l, s.tab, { zoom: Math.max(1, zoom) });
     else { l.style.setProperty('--zoom', zoom); fitLyrics(l); layoutTabs($('stBody')); }
+    padFoot();
   };
 
   // ---- Tok pesme: skrolovanje u tempu (trajanje iz pesme) i/ili zvuk; na kraju odbrojavanje do sledeće ----
-  let raf = 0, flowT = 0, player = null, total = 0, t0 = 0, dur = 0, countT = 0, carry = 0, lastTs = 0, gen = 0;
+  let t0Fits = false, raf = 0, flowT = 0, t0 = 0, dur = 0, countT = 0, carry = 0, lastTs = 0, gen = 0;
   async function startFlow(delay = 0) {
     stopFlow();
     const s = all.get(ids[i]), my = ++gen;
@@ -128,17 +136,10 @@ export async function renderStage(root, setlistId, params) {
     if (my !== gen) return;
     const tl = sp.timelineOf(s);
     const bpm = Number(s.bpm) || (s.type === 'tab' ? 66 : metBpm);
-    total = tl.total;
     dur = tl.total ? (tl.total / bpm) * 60 : 120; // koliko pesma traje u svom tempu (sekunde)
-    flowT = setTimeout(async () => {
+    flowT = setTimeout(() => {
       if (my !== gen) return;
-      if (mode.sound && tl.events.length) {
-        const { createPlayer } = await import('./songPlayer.js');
-        if (my !== gen) return;
-        player = createPlayer(tl, { bpm, onEnd: () => my === gen && songEnded() });
-        player.play(0);
-      }
-      t0 = performance.now(); lastTs = 0; carry = 0;
+      t0 = performance.now(); lastTs = 0; carry = 0; t0Fits = window.scrollY <= 4 && endVisible();
       raf = requestAnimationFrame(step);
     }, delay);
   }
@@ -146,15 +147,11 @@ export async function renderStage(root, setlistId, params) {
     raf = 0;
     const max = document.documentElement.scrollHeight - window.innerHeight;
     // kratka pesma (sve staje na ekran): nema šta da se skroluje — kraj je posle njenog trajanja (ili kraja zvuka)
-    if (max <= 4 && !player && performance.now() - t0 > dur * 1000) { songEnded(); return; }
-    if (max > 0) {
-      if (player && total) {
-        // sa zvukom: ekran prati mesto u pesmi
-        const want = Math.max(0, Math.min(max, (player.beat / total) * max * 1.08 - window.innerHeight * 0.1));
-        const d = want - window.scrollY;
-        if (Math.abs(d) > 1) window.scrollBy(0, d * 0.06);
-      } else if (mode.scroll) {
-        // bez zvuka: stalna brzina, tako da pesma „traje“ koliko i u svom tempu
+    const fits = t0Fits; // cela pesma je stala na ekran pri početku: nema šta da se skroluje — kraj posle njenog trajanja
+    if (fits && performance.now() - t0 > dur * 1000) { songEnded(); return; }
+    if (!fits && max > 0) {
+      if (mode.scroll) {
+        // stalna brzina, tako da pesma „traje“ koliko i u svom tempu
         const dt = lastTs ? Math.min(0.1, (ts - lastTs) / 1000) : 0;
         carry += (max / Math.max(20, dur)) * dt;
         if (carry >= 1) { const px = Math.floor(carry); carry -= px; window.scrollBy(0, px); }
@@ -167,17 +164,15 @@ export async function renderStage(root, setlistId, params) {
   function stopFlow() {
     gen++;
     clearTimeout(flowT); cancelAnimationFrame(raf); raf = 0; clearInterval(countT);
-    player?.stop(); player = null;
     if ($('stCount')) $('stCount').hidden = true;
   }
   function songEnded() {
     cancelAnimationFrame(raf); raf = 0;
-    player?.stop(); player = null;
     const next = ids[i + 1] ? all.get(ids[i + 1]) : null;
     if (!next) return;
     if (pause === 0) { go(1); return; }
     let n = pause;
-    const wait = pause < 0; // „Čekaj mene“: kartica ostaje dok ne dodirneš „Sledeća“
+    const wait = pause < 0; // „Čekaj me“: kartica ostaje dok ne dodirneš „Sledeća“
     $('stCountTitle').textContent = wait ? t('stage.songEnded') : t('stage.countdown', { n: '' }).trim();
     $('stCountN').textContent = wait ? '' : String(n);
     $('stCountN').hidden = wait;
@@ -189,14 +184,25 @@ export async function renderStage(root, setlistId, params) {
   }
   $('stNow').addEventListener('click', () => { clearInterval(countT); go(1); });
   $('stHold').addEventListener('click', () => { clearInterval(countT); $('stCount').hidden = true; });
-  const tog = (key, btn) => {
-    mode[key] = !mode[key]; setMode(mode);
-    import('./collections.js').then((c) => c.updateSetlist(setlistId, { play: { pause, scroll: mode.scroll, sound: mode.sound } })).catch(() => {});
-    btn.classList.toggle('on', mode[key]); btn.setAttribute('aria-pressed', String(mode[key]));
-    if (mode.scroll || mode.sound) startFlow(300); else stopFlow();
+  // Automatsko skrolovanje: narandžasto = uključeno, sivo = isključeno (i za čitač ekrana)
+  const showScroll = () => {
+    const b = $('stScroll'), on = mode.scroll;
+    b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on));
+    const label = t(on ? 'stage.scrollOn' : 'stage.scrollOff');
+    b.setAttribute('aria-label', label); b.title = label;
   };
-  for (const [k, b] of [['scroll', 'stScroll'], ['sound', 'stSound']]) { $(b).classList.toggle('on', mode[k]); $(b).setAttribute('aria-pressed', String(mode[k])); $(b).addEventListener('click', () => tog(k, $(b))); }
+  $('stScroll').addEventListener('click', () => {
+    mode.scroll = !mode.scroll; setMode(mode);
+    import('./collections.js').then((c) => c.updateSetlist(setlistId, { play: { pause, scroll: mode.scroll } })).catch(() => {});
+    showScroll();
+    if (mode.scroll) startFlow(300); else stopFlow();
+  });
+  showScroll();
 
+  // Aa: veličina teksta (A− / A+) u malom meniju — zaglavlje ostaje čisto, naslov ima mesta
+  const aaOpen = (on) => { $('stAaPop').hidden = !on; $('stAa').setAttribute('aria-expanded', String(on)); $('stAa').classList.toggle('on', on); };
+  $('stAa').addEventListener('click', (e) => { e.stopPropagation(); aaOpen($('stAaPop').hidden); });
+  document.addEventListener('pointerdown', (e) => { if (!e.target.closest('.st-zoom') && $('stAaPop')) aaOpen(false); }, { capture: true });
   $('stDown').addEventListener('click', () => setZoom(-0.1));
   $('stUp').addEventListener('click', () => setZoom(0.1));
   $('stExit').addEventListener('click', () => { location.hash = '#/setlista/' + encodeURIComponent(setlistId); });
@@ -244,8 +250,9 @@ export async function renderStage(root, setlistId, params) {
     window.removeEventListener('hashchange', onHash);
     document.body.classList.remove('stage-mode');
     allowSleep('stage');
-    try { if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); } catch {}
+    window.removeEventListener('resize', padFoot);
   };
+  window.addEventListener('resize', padFoot);
   window.addEventListener('hashchange', onHash);
   draw();
 }

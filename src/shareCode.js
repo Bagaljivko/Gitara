@@ -52,10 +52,6 @@ export function readPackage(o) {
   return { kind: o.k === 'set' ? 'set' : 'song', name: typeof o.n === 'string' ? o.n.slice(0, 80) : '', songs };
 }
 
-/** Link za deljenje (na adresi gde je aplikacija). */
-export async function shareLink(pkg, base = location.origin + location.pathname) {
-  return base + PREFIX + (await encode(pkg));
-}
 /** Sadržaj .gitara fajla (čitljiv JSON sa sažetim paketom — isti kao u linku). */
 export async function shareFileText(pkg) {
   return JSON.stringify({ app: 'gitara', share: 1, code: await encode(pkg) });
@@ -65,7 +61,43 @@ export async function packageFrom(text) {
   const s = String(text || '').trim();
   const i = s.indexOf(PREFIX);
   if (i >= 0) return readPackage(await decode(decodeURIComponent(s.slice(i + PREFIX.length).split(/[\s&]/)[0])));
-  const j = JSON.parse(s);
-  if (j && j.app === 'gitara' && j.code) return readPackage(await decode(j.code));
-  throw new Error('bad');
+  return parseShareFile(s); // .gitara fajl (stari i novi oblik, ista provera)
+}
+
+// ---------------- Deljeni fajl (kratki link #d/<fileId> i .gitara fajl) ----------------
+// { app: 'gitara', share: 2, v: verzija šeme, kind: 'song'|'set', name, n: broj pesama, hash: SHA-256(code), code }
+// Primalac ga tretira kao nepoznat ulaz: veličina, tačan oblik, verzija, hash, pa ista provera pesama kao uvoz.
+export const SHARE_SCHEMA = 1;
+export const SHARE_MAX_BYTES = 2 * 1024 * 1024;
+const SHARE_KEYS = ['app', 'share', 'v', 'kind', 'name', 'n', 'hash', 'code'];
+export class ShareFileError extends Error { constructor(code) { super(code); this.code = code; } } // CORRUPT | NEWER | TOO_BIG
+
+async function sha256hex(str) {
+  const d = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str)));
+  return [...d].map((x) => x.toString(16).padStart(2, '0')).join('');
+}
+/** Pesme (i ime set liste) → tekst deljenog fajla + hash sadržaja. */
+export async function buildShareFile({ kind, name = '', songs }) {
+  const code = await encode(makePackage(songs, kind === 'set' ? name : null));
+  const hash = await sha256hex(code);
+  const text = JSON.stringify({ app: 'gitara', share: 2, v: SHARE_SCHEMA, kind: kind === 'set' ? 'set' : 'song', name: String(name || '').slice(0, 120), n: songs.length, hash, code });
+  return { text, hash };
+}
+/** Tekst deljenog fajla → paket ({ kind, name, songs }) ili ShareFileError. */
+export async function parseShareFile(text) {
+  if (typeof text !== 'string' || text.length > SHARE_MAX_BYTES) throw new ShareFileError(typeof text === 'string' ? 'TOO_BIG' : 'CORRUPT');
+  let o;
+  try { o = JSON.parse(text); } catch { throw new ShareFileError('CORRUPT'); }
+  if (!o || typeof o !== 'object' || Array.isArray(o) || o.app !== 'gitara') throw new ShareFileError('CORRUPT');
+  if (o.share === 1 && typeof o.code === 'string' && Object.keys(o).every((k) => ['app', 'share', 'code'].includes(k))) return readPackage(await decode(o.code)); // stari .gitara fajl (v1.46)
+  if (o.share !== 2 || !Number.isInteger(o.v) || o.v < 1) throw new ShareFileError('CORRUPT');
+  if (o.v > SHARE_SCHEMA) throw new ShareFileError('NEWER');
+  if (Object.keys(o).some((k) => !SHARE_KEYS.includes(k))) throw new ShareFileError('CORRUPT');
+  if (!['song', 'set'].includes(o.kind) || typeof o.name !== 'string' || o.name.length > 120 || !Number.isInteger(o.n) || o.n < 1 || o.n > 300) throw new ShareFileError('CORRUPT');
+  if (typeof o.hash !== 'string' || !/^[0-9a-f]{64}$/.test(o.hash) || typeof o.code !== 'string' || !/^[dl][A-Za-z0-9_\-+$]+$/.test(o.code)) throw new ShareFileError('CORRUPT');
+  if ((await sha256hex(o.code)) !== o.hash) throw new ShareFileError('CORRUPT');
+  let pkg;
+  try { pkg = readPackage(await decode(o.code)); } catch { throw new ShareFileError('CORRUPT'); }
+  if (pkg.kind !== o.kind || pkg.songs.length !== o.n) throw new ShareFileError('CORRUPT');
+  return pkg;
 }

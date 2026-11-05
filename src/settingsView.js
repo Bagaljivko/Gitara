@@ -7,6 +7,7 @@ import { parseBackup, SongFormatError } from './songformat.js';
 import { APP_VERSION } from './version.js';
 import { tunerSettingsHTML, bindTunerSettings, loadTunerSettings } from './tunerSettings.js';
 import { t, getLang, setLang } from './i18n.js';
+import { canShareNative } from './shareService.js';
 import { syncState, onSyncChange, statusText, connectSync, reconnect as syncReconnect, disconnectSync, syncNow, initSync } from './sync.js';
 import { driveState, onDriveChange, connect as driveConnect, disconnect as driveDisconnect, reconnect as driveReconnect, backupNow, restoreFlow, formatDate, DriveError } from './drive.js';
 
@@ -98,6 +99,12 @@ export async function renderSettings(root) {
 
     <div class="card drive-card" id="driveCard"></div>
 
+    <div class="card" id="sharedCard">
+      <h2>${t('shared.title')}</h2>
+      <p class="small muted">${t('shared.intro')}</p>
+      <ul class="shared-list" id="sharedList"></ul>
+    </div>
+
     <div class="card">
       <h2>${t('set.fileBackupTitle')}</h2>
       <p class="muted small">${t('set.fileBackupNote')}</p>
@@ -163,7 +170,7 @@ export async function renderSettings(root) {
   // Svaka celina podešavanja se otvara/zatvara dodirom na naslov; pamti se šta je otvoreno
   const openSet = (() => { try { return new Set(JSON.parse(localStorage.getItem('gitara-set-open') || '["lang"]')); } catch { return new Set(['lang']); } })();
   const saveOpen = () => { try { localStorage.setItem('gitara-set-open', JSON.stringify([...openSet])); } catch {} };
-  const groups = [['lang', 0], ['scan', 1], ['tuner', 2], ['screen', 3], ['drive', 4], ['file', 5], ['install', 6], ['diag', 7]];
+  const groups = [['lang', 0], ['scan', 1], ['tuner', 2], ['screen', 3], ['drive', 4], ['shared', 5], ['file', 6], ['install', 7], ['diag', 8]];
   const cards = [...root.querySelectorAll('.settings-view > .card')];
   groups.forEach(([key, idx]) => {
     const card = cards[idx];
@@ -210,7 +217,7 @@ export async function renderSettings(root) {
   $('bShareApp').addEventListener('click', async () => {
     const url = appUrl();
     const { qrSVG } = await import('./qr.js');
-    const canShare = !!navigator.share;
+    const canShare = canShareNative();
     const v = await dialog({
       title: t('appShare.title'),
       html: true,
@@ -224,11 +231,9 @@ export async function renderSettings(root) {
         { label: t('common.close'), value: null, kind: 'primary' },
       ],
     });
-    if (v === 'share') { try { await navigator.share({ title: 'Gitara', text: t('appShare.shareText'), url }); } catch {} }
-    else if (v === 'copy') {
-      try { await navigator.clipboard.writeText(url); toast(t('appShare.copied')); }
-      catch { toast(url); }
-    }
+    const ss = v ? await import('./shareService.js') : null; // jedini put za deljenje
+    if (v === 'share') await ss.shareApp(url);
+    else if (v === 'copy') await ss.copyAppLink(url);
   });
 
   // ---- Imena nota ----
@@ -465,6 +470,39 @@ export async function renderSettings(root) {
       setDriveMsg(t('drive.disconnected'));
     }
   });
+
+  // ---- Deljeno: sve što je podeljeno kratkim linkom (Kopiraj link / Prestani da deliš) ----
+  const drawShared = async () => {
+    const box = $('sharedList');
+    if (!box) return;
+    const { getShares, copyShareLink, stopSharing } = await import('./shareService.js');
+    const list = (await getShares()).slice().sort((a, b) => b.at - a.at);
+    box.replaceChildren();
+    if (!list.length) { const li = document.createElement('li'); li.className = 'muted small'; li.textContent = t('shared.empty'); box.appendChild(li); return; }
+    for (const r of list) {
+      const li = document.createElement('li'); li.className = 'shared-item';
+      const info = document.createElement('div');
+      const b = document.createElement('b'); b.textContent = r.name || '—';
+      const sub = document.createElement('span'); sub.className = 'small muted';
+      const d = new Date(r.at), p2 = (x) => String(x).padStart(2, '0');
+      sub.textContent = `${t('shared.kind.' + (r.what || r.kind) )}${r.frozen ? ' · ' + t('shared.frozen') : ''} · ${p2(d.getDate())}.${p2(d.getMonth() + 1)}.${d.getFullYear()}.`;
+      info.append(b, sub);
+      const acts = document.createElement('div'); acts.className = 'row';
+      const copy = document.createElement('button'); copy.className = 'btn small'; copy.textContent = t('share.copyLink');
+      copy.addEventListener('click', () => copyShareLink(r.fileId));
+      const stop = document.createElement('button'); stop.className = 'btn small danger-text'; stop.textContent = t('shared.stop');
+      stop.addEventListener('click', async () => {
+        if (!(await confirmDialog(t('shared.stopTitle'), t('shared.stopBody', { name: r.name }), t('shared.stop'), 'danger'))) return;
+        stop.disabled = true;
+        try { await stopSharing(r.fileId); toast(t('shared.stopped')); drawShared(); }
+        catch (e) { stop.disabled = false; toast((e && e.message) || t('common.error'), 'error'); }
+      });
+      acts.append(copy, stop);
+      li.append(info, acts);
+      box.appendChild(li);
+    }
+  };
+  drawShared();
 
   // ---- Jezik ----
   root.querySelectorAll('[data-lang]').forEach((b) => b.addEventListener('click', () => setLang(b.dataset.lang)));

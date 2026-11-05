@@ -104,6 +104,13 @@ export async function renderSetlist(root, id) {
   const byId = new Map(all.map((s) => [s.id, s]));
   let ids = sl.songIds.filter((x) => byId.has(x)); // pesme koje su u međuvremenu obrisane se preskaču
 
+  const ICON = {
+    play: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>',
+    add: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></svg>',
+    share: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 16a3 3 0 0 0-2.4 1.2l-6.7-3.4a3 3 0 0 0 0-1.6l6.7-3.4A3 3 0 1 0 15 7l-6.7 3.4a3 3 0 1 0 0 3.2L15 17a3 3 0 1 0 3-1z"/></svg>',
+    grip: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="6" r="1.7"/><circle cx="15" cy="6" r="1.7"/><circle cx="9" cy="12" r="1.7"/><circle cx="15" cy="12" r="1.7"/><circle cx="9" cy="18" r="1.7"/><circle cx="15" cy="18" r="1.7"/></svg>',
+    x: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.3 7.1 16.9 5.7 12 10.6 7.1 5.7 5.7 7.1 10.6 12l-4.9 4.9 1.4 1.4 4.9-4.9 4.9 4.9 1.4-1.4-4.9-4.9z"/></svg>',
+  };
   root.innerHTML = `
   <section class="view setlist-view">
     <header class="topbar">
@@ -113,14 +120,16 @@ export async function renderSetlist(root, id) {
         <button class="btn small danger-text" id="slDelete">${t('common.delete')}</button>
       </div>
     </header>
-    <h1 id="slTitle">${esc(sl.name)}</h1>
-    <div class="row">
-      <button class="btn" id="slAdd">${t('sl.addSongs')}</button>
-      <button class="btn" id="slShare"><svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18"><path fill="currentColor" d="M18 16a3 3 0 0 0-2.4 1.2l-6.7-3.4a3 3 0 0 0 0-1.6l6.7-3.4A3 3 0 1 0 15 7l-6.7 3.4a3 3 0 1 0 0 3.2L15 17a3 3 0 1 0 3-1z"/></svg> ${t('share.btn')}</button>
+    <div class="sl-hero">
+      <h1 id="slTitle">${esc(sl.name)}</h1>
+      <p class="sl-sub" id="slSub"></p>
+      <button class="btn sl-play-btn" id="slStage">${ICON.play}<span>${t('stage.playSet')}</span></button>
+      <div class="sl-actions">
+        <button class="btn sl-sec" id="slAdd">${ICON.add}<span>${t('sl.addSongs')}</span></button>
+        <button class="btn sl-sec" id="slShare">${ICON.share}<span>${t('share.btn')}</span></button>
+      </div>
     </div>
-    <button class="btn primary wide stage-btn" id="slStage"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>${t('stage.playSet')}</button>
-    <button class="btn small ghost wide" id="slPlay">${t('sl.play')}</button>
-    <p class="hint small">${t('sl.dragHint')}</p>
+    <div class="sl-list-head"><h2>${t('sl.songsHead')}</h2><p class="sl-hint">${t('sl.rowHint')}</p></div>
     <ol class="sl-list" id="slList"></ol>
   </section>`;
   const $ = (q) => root.querySelector('#' + q);
@@ -128,26 +137,37 @@ export async function renderSetlist(root, id) {
 
   const resumeAt = () => { try { return Number(localStorage.getItem(`gitara-set-pos-${id}`)) || 0; } catch { return 0; } };
   const draw = () => {
-    $('slPlay').disabled = !ids.length;
     $('slStage').disabled = !ids.length;
+    $('slSub').textContent = songsCount(ids.length);
     $('slList').innerHTML = ids.length ? ids.map((sid, i) => {
       const s = byId.get(sid);
+      // dodir na pesmu = ta pesma sa „‹ Prethodna / Sledeća ›“ kroz set (umesto posebnog dugmeta „Pesma po pesma“)
       return `<li class="sl-item" data-id="${esc(sid)}">
-        <span class="drag" aria-hidden="true">⋮⋮</span>
-        <span class="sl-num">${i + 1}.</span>
-        <a class="sl-title" href="#/pesma/${encodeURIComponent(sid)}?sl=${encodeURIComponent(id)}&i=${i}">${esc(s.title)}<small>${esc(s.artist || '')}</small></a>
-        <button class="icon-btn" data-up="${i}" aria-label="${t('sl.moveUp')}">▲</button>
-        <button class="icon-btn" data-rm="${i}" aria-label="${t('sl.remove')}">✕</button>
+        <span class="sl-num" aria-hidden="true">${i + 1}</span>
+        <a class="sl-title" href="#/pesma/${encodeURIComponent(sid)}?sl=${encodeURIComponent(id)}&i=${i}"><b>${esc(s.title)}</b>${s.artist ? `<small>${esc(s.artist)}</small>` : ''}</a>
+        <button class="sl-handle drag" data-move="${i}" aria-label="${esc(t('sl.dragLabel', { title: s.title }))}">${ICON.grip}</button>
+        <button class="sl-rm" data-rm="${i}" aria-label="${esc(t('sl.removeLabel', { title: s.title }))}">${ICON.x}</button>
       </li>`;
-    }).join('') : `<li class="empty muted">${t('sl.noSongs')}</li>`;
+    }).join('') : `<li class="sl-empty"><p>${t('sl.noSongs')}</p><button class="btn sl-sec" data-add="1">${ICON.add}<span>${t('sl.addSongs')}</span></button></li>`;
   };
   draw();
 
   $('slList').addEventListener('click', async (e) => {
     const rm = e.target.closest('[data-rm]');
-    const up = e.target.closest('[data-up]');
-    if (rm) { ids.splice(+rm.dataset.rm, 1); draw(); await save(); }
-    else if (up && +up.dataset.up > 0) { const i = +up.dataset.up; [ids[i - 1], ids[i]] = [ids[i], ids[i - 1]]; draw(); await save(); }
+    if (rm) { ids.splice(+rm.dataset.rm, 1); draw(); await save(); return; }
+    if (e.target.closest('[data-add]')) $('slAdd').click();
+  });
+  // Tastatura (i čitač ekrana): strelice gore/dole na ručici pomeraju pesmu
+  $('slList').addEventListener('keydown', async (e) => {
+    const h = e.target.closest('[data-move]');
+    if (!h || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+    e.preventDefault();
+    const i = +h.dataset.move, k = e.key === 'ArrowUp' ? i - 1 : i + 1;
+    if (k < 0 || k >= ids.length) return;
+    [ids[i], ids[k]] = [ids[k], ids[i]];
+    draw();
+    $('slList').querySelector(`[data-move="${k}"]`)?.focus();
+    await save();
   });
 
   // Prevlačenje za promenu redosleda (dodir ili miš, za ručicu ⋮⋮)
@@ -188,41 +208,42 @@ export async function renderSetlist(root, id) {
     draw();
     await save();
   });
-  $('slPlay').addEventListener('click', () => { if (ids.length) location.hash = `#/pesma/${encodeURIComponent(ids[0])}?sl=${encodeURIComponent(id)}&i=0`; });
-  // „Sviraj set“: kratko pitanje pre početka (pauza, skrolovanje, zvuk, od koje pesme) — pamti se uz set listu
+  // „Sviraj set“: kratko pitanje pre početka (pauza, skrolovanje, od koje pesme) — pamti se uz set listu
   $('slStage').addEventListener('click', async () => {
     if (!ids.length) return;
     const cur = (await getSetlist(id)) || sl;
-    const play = { pause: 5, scroll: true, sound: false, ...(cur.play || {}) };
+    const play = { pause: 5, scroll: true, ...(cur.play || {}) };
     const r = resumeAt(), canResume = r > 0 && r < ids.length;
     let from = canResume ? r : 0;
-    const seg = (name, opts, val) => `<div class="seg-tabs pl-seg" role="radiogroup" data-name="${name}">${opts.map(([v, l]) => `<button type="button" role="radio" data-v="${v}" class="${String(v) === String(val) ? 'active' : ''}" aria-checked="${String(v) === String(val)}">${esc(l)}</button>`).join('')}</div>`;
+    const opt = (v, val, label, sub = '') => `<button type="button" role="radio" data-v="${v}" class="pl-opt${String(v) === String(val) ? ' active' : ''}" aria-checked="${String(v) === String(val)}"><span>${esc(label)}</span>${sub ? `<small>${esc(sub)}</small>` : ''}</button>`;
+    const group = (name, q, opts, val, cls = '') => `<fieldset class="pl-group"><legend class="pl-q">${esc(q)}</legend><div class="pl-seg ${cls}" role="radiogroup" aria-label="${esc(q)}" data-name="${name}">${opts.map(([v, l, sub]) => opt(v, val, l, sub)).join('')}</div></fieldset>`;
+    const [autoMain, autoSub] = splitParen(t('stage.scrollAuto'));
     const p = dialog({
       title: t('stage.sheetTitle'), html: true, className: 'play-sheet',
-      body: `<p class="pl-q">${t('stage.pauseQ')}</p>${seg('pause', [[0, t('stage.pauseNone')], [5, t('stage.secs', { n: 5 })], [10, t('stage.secs', { n: 10 })], [20, t('stage.secs', { n: 20 })], [-1, t('stage.pauseWait')]], play.pause)}
-        <p class="pl-q">${t('stage.scrollQ')}</p>${seg('scroll', [[1, t('stage.scrollAuto')], [0, t('stage.scrollHand')]], play.scroll ? 1 : 0)}
-        <p class="pl-q">${t('stage.soundQ')}</p>${seg('sound', [[0, t('stage.off')], [1, t('stage.on')]], play.sound ? 1 : 0)}
-        ${canResume ? `<p class="pl-q">${t('stage.startQ')}</p>${seg('from', [[0, t('stage.fromStart')], [r, t('stage.resume', { n: r + 1 })]], from)}` : ''}
-        <p class="small muted">${t('stage.sheetHint')}</p>`,
+      body: `${group('pause', t('stage.pauseQ'), [[0, t('stage.pauseNone')], [5, t('stage.secs', { n: 5 })], [10, t('stage.secs', { n: 10 })], [20, t('stage.secs', { n: 20 })], [-1, t('stage.pauseWait')]], play.pause, 'pl-5')}
+        ${group('scroll', t('stage.scrollQ'), [[1, autoMain, autoSub], [0, t('stage.scrollHand')]], play.scroll ? 1 : 0, 'pl-2')}
+        ${canResume ? group('from', t('stage.startQ'), [[0, t('stage.fromStart')], [r, t('stage.resume', { n: r + 1 })]], from, 'pl-2') : ''}
+        <p class="pl-hint">${t('stage.sheetHint')}</p>`,
       buttons: [{ label: t('common.cancel'), value: null }, { label: t('stage.go'), value: 'go', kind: 'primary' }],
     });
     const modal = [...document.querySelectorAll('.modal-backdrop')].pop();
+    modal.classList.add('sheet-backdrop'); // donji list preko cele širine — pokriva i donje tabove
     modal.addEventListener('click', (e) => {
       const b = e.target.closest('.pl-seg [data-v]');
       if (!b) return;
       const g = b.parentElement, v = Number(b.dataset.v);
       g.querySelectorAll('[data-v]').forEach((x) => { x.classList.toggle('active', x === b); x.setAttribute('aria-checked', String(x === b)); });
-      if (g.dataset.name === 'pause') play.pause = v; else if (g.dataset.name === 'scroll') play.scroll = !!v; else if (g.dataset.name === 'sound') play.sound = !!v; else from = v;
+      if (g.dataset.name === 'pause') play.pause = v; else if (g.dataset.name === 'scroll') play.scroll = !!v; else from = v;
     });
     if ((await p) !== 'go') return;
-    await updateSetlist(id, { play: { pause: play.pause, scroll: play.scroll, sound: play.sound } });
+    await updateSetlist(id, { play: { pause: play.pause, scroll: play.scroll } });
     (await import('./stage.js')).enterStage(id, Math.min(from, ids.length - 1));
   });
   // Podeli celu set listu (sve pesme, pun sadržaj) — link ili .gitara fajl kroz meni telefona
   $('slShare').addEventListener('click', async () => {
     if (!ids.length) { toast(t('sl.noSongs'), 'error'); return; }
     const b = $('slShare'); b.disabled = true;
-    try { await (await import('./setShare.js')).shareSetlist({ ...sl, songIds: ids }); } catch { toast(t('share.failed'), 'error'); } finally { b.disabled = false; }
+    try { await (await import('./shareService.js')).shareSetlist({ ...((await getSetlist(id)) || sl), name: sl.name }); /* obrisane pesme se preskaču i to se kaže */ } catch { toast(t('share.failed'), 'error'); } finally { b.disabled = false; }
   });
   $('slRename').addEventListener('click', async () => {
     const n = await askName(t('folder.rename'), sl.name);
@@ -238,6 +259,9 @@ export async function renderSetlist(root, id) {
     location.hash = '#/pesme?tab=sl';
   });
 }
+
+/** „Automatski (u tempu pesme)“ → glavni deo i sitniji dodatak u zagradi (isti tekst, čitljivije u dugmetu). */
+function splitParen(s) { const m = /^(.*?)\s*(\(.*\))$/.exec(s); return m ? [m[1], m[2]] : [s, '']; }
 
 /** Navigacija kroz setlistu za prikaz pesme (Prethodna / Sledeća). */
 export async function setlistNav(params) {

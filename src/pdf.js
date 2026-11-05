@@ -1,4 +1,5 @@
 // PDF izvoz (samo na zahtev korisnika). jsPDF + ugrađen Unicode font (DejaVu Sans Mono) za č, ć, š, ž, đ.
+import { sectionLabel } from './sectionLabel.js';
 import { t } from './i18n.js';
 import { patternText, patternName } from './rhythm.js';
 const monoUrl = new URL('../fonts/DejaVuSansMono.ttf', import.meta.url).href;
@@ -198,11 +199,12 @@ export async function songToPdf(song, { transposeLabel = '', capoLabel = '' } = 
       doc.setFont('Mono', 'bold');
       doc.setFontSize(fs);
       doc.setTextColor(...accent);
-      doc.text(sec.name, M, y);
+      const secName = sectionLabel(sec.name);
+      doc.text(secName, M, y);
       if (sec.strum) {
         doc.setFont('Mono', 'normal');
         doc.setTextColor(110);
-        doc.text(patternText(sec.strum).arrows, M + doc.getTextWidth(sec.name + '   '), y);
+        doc.text(patternText(sec.strum).arrows, M + doc.getTextWidth(secName + '   '), y);
       }
       y += lh + 0.5;
     }

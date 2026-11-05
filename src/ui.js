@@ -97,28 +97,7 @@ export function pickFile(accept, capture) {
   });
 }
 
-/** Deli fajl preko sistemskog menija; ako nije podržano, preuzima ga. */
-export async function shareOrDownload(blob, filename, title) {
-  const file = new File([blob], filename, { type: blob.type });
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
-    try {
-      await navigator.share({ files: [file], title });
-      return 'shared';
-    } catch (e) {
-      if (e && e.name === 'AbortError') return 'cancelled';
-      // u suprotnom padamo na preuzimanje
-    }
-  }
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 10000);
-  return 'downloaded';
-}
+// (Deljenje fajlova, linkova i aplikacije: samo shareService.js.)
 
 // ---- Dugme „nazad“ (Android, pokret nazad) zatvara otvoren prozor, umesto da menja stranu ----
 // Svaki prozor (.modal-backdrop) pri otvaranju dodaje korak u istoriju; „nazad“ ga zatvara preko wrap.__close.

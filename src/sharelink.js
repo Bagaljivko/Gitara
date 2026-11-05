@@ -1,6 +1,6 @@
 // Deljenje pesme kao linka: pesma se kompresuje (lz-string) u heš adrese, npr. …/Gitara/#pesma=...
 import LZString from './lzstring.js';
-import { normalizeSong, songExtras, SongFormatError } from './songformat.js';
+import { normalizeSong, songExtras, SongFormatError, cleanRecording } from './songformat.js';
 import { t } from './i18n.js';
 
 const PREFIX = '#pesma=';
@@ -33,6 +33,8 @@ function pack(song) {
   if (ex.tuning) o.u = ex.tuning;
   if (ex.bpm) o.b = ex.bpm;
   if (song.transpose) o.tr = song.transpose;
+  const rc = song.recording && cleanRecording(song.recording); // „Moji snimci“: samo note (nikad zvuk)
+  if (rc) o.rc = rc;
   if (song.cv >= 2) { o.cv = song.cv; if (song.keyN) o.kn = [song.keyN.root, song.keyN.minor ? 1 : 0]; } // akordi su u nedvosmislenom engleskom zapisu
   return o;
 }
@@ -40,7 +42,7 @@ function pack(song) {
 function unpack(o) {
   if (o && o.v === 1 && o.ty === 't') return normalizeSong({ type: 'tab', title: o.t, artist: o.a, key: o.k, yt: o.y, bpm: o.b, tab: unpackTab(o.tb) });
   if (!o || o.v !== 1 || !Array.isArray(o.s)) throw new SongFormatError(t('link.bad'));
-  return normalizeSong({
+  const song = normalizeSong({
     title: o.t, artist: o.a, key: o.k, capo: o.c, strum: o.p, yt: o.y, tuning: o.u, bpm: o.b, transpose: o.tr,
     sections: o.s.map((x) => ({
       name: x.n || '',
@@ -49,14 +51,12 @@ function unpack(o) {
       lines: (x.l || []).map((l) => ({ text: l[0] || '', chords: (l[1] || []).map(([chord, position]) => ({ chord, position })) })),
     })),
   });
+  const rc = cleanRecording(o.rc); // „Moji snimci“: samo note
+  if (rc) song.recording = rc;
+  return song;
 }
 
-/** Pun link za deljenje (radi na bilo kojoj adresi gde je aplikacija objavljena). */
-export function songLink(song) {
-  const base = location.origin + location.pathname;
-  return base + PREFIX + LZString.compressToEncodedURIComponent(JSON.stringify(pack(song)));
-}
-
+// (Pravljenje linka sa celom pesmom u adresi više ne postoji — deli se samo kroz shareService.js; stari linkovi se i dalje otvaraju.)
 export const hasSharedSong = (hash = location.hash) => hash.startsWith(PREFIX);
 
 /** Pesma iz linka (ili baca SongFormatError). */

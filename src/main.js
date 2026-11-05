@@ -16,7 +16,9 @@ const loadChordRec = lazy(() => import('./chordrec.js'));
 const loadStage = lazy(() => import('./stage.js'));
 const loadChordCheck = lazy(() => import('./chordCheck.js'));
 const loadPractice = lazy(() => import('./practice.js')); // Vežbe: učitava se tek kad se otvori
-const hasSharedSong = () => location.hash.startsWith('#pesma=') || location.hash.startsWith('#g='); // poslata pesma / set lista (sharelink.js, shareCode.js)
+// poslata pesma / set lista (shareImport.js): stari dugi linkovi, kratak link #d/<fileId> i ?d=<fileId> (Android intent iz
+// „Otvori u aplikaciji Gitara“ — tamo # zauzima intent)
+const hasSharedSong = () => location.hash.startsWith('#pesma=') || location.hash.startsWith('#g=') || location.hash.startsWith('#d/') || /[?&]d=/.test(location.search);
 
 // Osećaj prave aplikacije: dugi pritisak ne otvara meni pregledača („Kopiraj / Potraži / Sačuvaj sliku“), ništa se ne
 // označava i ne prevlači — osim u poljima za unos (gde se kuca i lepi tekst).
@@ -260,6 +262,8 @@ idle(() => import('./songSync.js').then((m) => m.cleanupDuplicates({ settings })
 }).catch(() => {}));
 // Google Drive (~25 KB) se učitava samo ako je rezervna kopija uključena; inače tek kad se otvore Podešavanja
 idle(() => settings.get('drive', null).then((d) => { if (d && d.connected) return import('./drive.js').then((m) => m.initDrive()); }).catch(() => {}));
+// Deljenje: fajlovi u „Gitara – deljeno“ bez zapisa (prekinuto deljenje) se tiho brišu — samo ako je nešto deljeno
+idle(() => settings.get('shareFolder', '').then((f) => f && import('./shareService.js').then((m) => m.cleanupOrphans())).catch(() => {}));
 // Sinhronizacija između uređaja: tek posle prvog ekrana (nikad ne usporava pokretanje), samo ako je uključena
 idle(() => settings.get('syncCfg', null).then(async (c) => {
   let ls = null; try { ls = JSON.parse(localStorage.getItem('gitara-sync') || 'null'); } catch {}

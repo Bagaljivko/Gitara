@@ -59,7 +59,9 @@ export async function setSongFolders(songId, folderIds) {
 }
 
 // ---------------- Setliste ----------------
-export const getSetlists = async () => (await settings.get('setlists', [])) || [];
+export const getSetlists = async () => ((await settings.get('setlists', [])) || []).map(dropSound);
+// stari izbor „Zvuk (Pusti)“ uz set listu se više ne koristi — ne prikazuje se i nestaje pri sledećem čuvanju
+function dropSound(x) { if (!x || !x.play || !('sound' in x.play)) return x; const { sound, ...play } = x.play; return { ...x, play }; }
 export const getSetlist = async (id) => (await getSetlists()).find((x) => x.id === id) || null;
 
 async function saveSetlists(list) { await settings.set('setlists', list); }
@@ -103,7 +105,7 @@ export function cleanSetlists(raw) {
 export function cleanPlay(p) {
   if (!p || typeof p !== 'object') return null;
   const pause = [-1, 0, 5, 10, 20].includes(Number(p.pause)) ? Number(p.pause) : 5;
-  return { pause, scroll: !!p.scroll, sound: !!p.sound };
+  return { pause, scroll: !!p.scroll }; // zvuk u „Sviraj set“ više ne postoji (stara podešavanja se ne čitaju)
 }
 export const cleanSongFolders = (raw) => (Array.isArray(raw) ? raw.filter((x) => typeof x === 'string').slice(0, 50).map((x) => x.slice(0, 80)) : []);
 

@@ -38,6 +38,7 @@ const state = {
   token: '',
   tokenExp: 0,
   tokenSync: false, // token važi i za sinhronizaciju (drive.appdata)
+  tokenFile: false, // token važi za fajlove koje aplikacija pravi (drive.file: rezervna kopija, deljenje)
   needsReconnect: false,
   busy: false,
   pending: false,
@@ -54,7 +55,7 @@ async function persist() {
     lastBackup: state.lastBackup, pending: state.pending,
   });
   // Token je kratkotrajan (oko 1 h); čuvamo ga da bi preživeo ponovno otvaranje aplikacije.
-  if (state.token) await settings.set('driveToken', { t: state.token, exp: state.tokenExp, s: state.tokenSync ? 2 : 1 });
+  if (state.token) await settings.set('driveToken', { t: state.token, exp: state.tokenExp, s: state.tokenSync ? 2 : 1, f: state.tokenFile ? 1 : 0 });
   else await settings.remove('driveToken');
 }
 
@@ -116,11 +117,15 @@ async function requestToken({ interactive, need = 'file', hint = '', pick = fals
     const who = hint || state.email;
     const opts = { prompt: interactive ? (who && !pick ? '' : 'select_account') : 'none' };
     if (who && !pick) opts.login_hint = who;
+    // samo opseg koji je sada potreban (rezervna kopija / deljenje: drive.file; sinhronizacija: oba) — ranije dozvole ostaju
+    opts.scope = need === 'sync' ? SCOPE : SCOPE_FILE;
+    opts.include_granted_scopes = true;
     try { client.requestAccessToken(opts); } catch (e) { pendingToken = null; reject(new DriveError(t('drive.e.auth'), 'auth')); }
   });
   state.token = resp.access_token;
   state.tokenExp = Date.now() + (Number(resp.expires_in) || 3600) * 1000 - 60000;
   state.tokenSync = !!resp.app;
+  state.tokenFile = !!resp.file;
   state.needsReconnect = false;
   await persist();
   emit();
@@ -151,6 +156,19 @@ export async function syncToken({ interactive = false, force = false, hint = '',
   await requestToken({ interactive, need: 'sync', hint, pick });
   return { token: state.token, exp: state.tokenExp };
 }
+// ---------------- Deljenje (shareService.js) ----------------
+/** Token za fajlove koje aplikacija pravi (drive.file) — traži se tek pri prvom deljenju. interactive: iz dodira. */
+export async function shareToken({ interactive = false } = {}) {
+  if (!interactive && state.token && state.tokenFile && Date.now() < state.tokenExp) return state.token;
+  if (!interactive && navigator.onLine === false) throw new DriveError(t('drive.e.offline'), 'offline');
+  await requestToken({ interactive, need: 'file' });
+  return state.token;
+}
+/** Važeći token za deljenje bez ikakvog prozora (za čišćenje pri pokretanju), ili ''. */
+export async function shareTokenQuiet() { await initDrive().catch(() => {}); return state.token && state.tokenFile && Date.now() < state.tokenExp ? state.token : ''; }
+/** Drive REST sa tokenom (greške kao DriveError: offline, denied, notfound, storage, rate, reconnect…). */
+export const driveApi = (url, opts) => api(url, opts);
+
 /** Odjava sinhronizacije: token se opoziva samo ako ga ni stara rezervna kopija ne koristi. */
 export async function syncSignOut() {
   if (state.connected) return;
@@ -186,7 +204,7 @@ async function api(url, opts = {}, retry = true) {
     if (res.status === 401) { state.needsReconnect = true; emit(); showReconnectBanner(); throw new DriveError(t('drive.e.expired'), 'reconnect'); }
     if (res.status === 403 && /rate|quota|limit/i.test(msg)) throw new DriveError(t('drive.e.rate'), 'rate');
     if (res.status === 403 && /storage|space/i.test(msg)) throw new DriveError(t('drive.e.storage'), 'storage');
-    if (res.status === 403) throw new DriveError(t('drive.e.forbidden'), 'denied');
+    if (res.status === 403) throw Object.assign(new DriveError(t('drive.e.forbidden'), 'denied'), { reason: msg });
     if (res.status === 404) throw new DriveError(t('drive.e.notFound'), 'notfound');
     if (res.status >= 500) throw new DriveError(t('drive.e.server'), 'server');
     throw new DriveError(msg.trim() ? t('drive.e.httpMsg', { msg: msg.trim().slice(0, 120) }) : t('drive.e.http'), 'http');
@@ -550,7 +568,7 @@ async function doInit() {
     Object.assign(state, saved);
   }
   const tok = await settings.get('driveToken', null);
-  if (tok && tok.exp > Date.now()) { state.token = tok.t; state.tokenExp = tok.exp; state.tokenSync = tok.s === 2; }
+  if (tok && tok.exp > Date.now()) { state.token = tok.t; state.tokenExp = tok.exp; state.tokenSync = tok.s === 2; state.tokenFile = tok.f === 1 || (tok.f === undefined && tok.s !== 2); }
   events.addEventListener('songs-changed', () => { if (!suppress) scheduleBackup(); });
   events.addEventListener('settings-changed', (e) => { if (!suppress && BACKUP_SETTINGS.includes(e.detail)) scheduleBackup(); });
   window.addEventListener('online', () => { if (state.pending) scheduleBackup(1500); });

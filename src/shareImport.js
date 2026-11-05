@@ -51,11 +51,12 @@ export async function importPackage(pkg, ask) {
 }
 
 /** Pitanje za postojeću pesmu (sa „Primeni na sve“ kad ima još pesama). */
-async function askDuplicate(existing, more) {
+async function askDuplicate(existing, more, single = false) {
+  // jedna pesma: „Ova pesma već postoji“ — Otkaži / Sačuvaj kao novu / Zameni; više pesama: Preskoči (+ „Primeni na sve“)
   const p = dialog({
     title: t('dup.title', { title: existing.title }), html: true,
     body: `<p class="small muted">${esc(t('share.dupBody'))}</p>${more ? `<label class="check-row"><input type="checkbox" id="dupAll"> ${esc(t('share.applyAll'))}</label>` : ''}`,
-    buttons: [{ label: t('share.skip'), value: 'skip' }, { label: t('dup.saveNew'), value: 'new' }, { label: t('dup.replace'), value: 'replace', kind: 'primary' }],
+    buttons: [single ? { label: t('common.cancel'), value: null } : { label: t('share.skip'), value: 'skip' }, { label: t('dup.saveNew'), value: 'new' }, { label: t('dup.replace'), value: 'replace', kind: 'primary' }],
   });
   const modal = [...document.querySelectorAll('.modal-backdrop')].pop();
   let all = false;
@@ -96,4 +97,101 @@ export async function renderSharedPackage(root, text) {
       leave(r.setId ? '#/setlista/' + encodeURIComponent(r.setId) : '#/pesma/' + encodeURIComponent(r.ids[0]));
     } finally { busy = false; }
   });
+}
+
+// ---------------- Kratak link #d/<fileId> (fajl na Drive-u pošiljaoca) ----------------
+// Primalac ne treba nalog: javni fajl se preuzima sa javnim API ključem. Sadržaj je nepoznat ulaz: veličina, oblik,
+// verzija i hash se proveravaju (parseShareFile), a tekst se prikazuje samo kao tekst. Posle uvoza ili otkazivanja
+// deo adrese posle # se briše (osvežavanje ne uvozi ponovo).
+const IN_APP = /(FBAN|FBAV|FB_IAB|Instagram|WhatsApp|Viber|Line\/|Telegram|Snapchat|TikTok|musical_ly|Twitter|LinkedInApp|GSA\/|; wv\))/i;
+const standalone = () => { try { return matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; } catch { return false; } };
+/** Da li je link otvoren u pregledaču unutar druge aplikacije (WhatsApp, Viber…) ili van instalirane Gitare. */
+export async function wrongContext(ua = navigator.userAgent) {
+  if (IN_APP.test(ua)) return 'inapp';
+  if (!standalone() && navigator.getInstalledRelatedApps) {
+    try { if ((await navigator.getInstalledRelatedApps()).length) return 'browser'; } catch {}
+  }
+  return '';
+}
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const btn = (label, cls, on) => { const b = el('button', 'btn ' + cls, label); b.addEventListener('click', on); return b; };
+const clearHash = (to = '#/pesme') => location.replace(location.pathname + to);
+
+export async function renderDriveShare(root, fileId) {
+  const { SHARE_API_KEY, SHARE_BASE } = await import('./shareConfig.js');
+  const { parseShareFile, SHARE_MAX_BYTES } = await import('./shareCode.js');
+  const view = el('section', 'view shared-view');
+  const card = el('div', 'card add-card');
+  view.appendChild(card);
+  root.replaceChildren(view);
+  const show = (title, text, buttons = []) => {
+    card.replaceChildren(el('h2', '', title));
+    if (text) card.appendChild(el('p', 'muted', text));
+    if (buttons.length) { const r = el('div', 'row wrap'); buttons.forEach((b) => r.appendChild(b)); card.appendChild(r); }
+  };
+  if (!/^[A-Za-z0-9_-]{10,100}$/.test(fileId)) { show(t('share.r.gone'), t('share.r.goneBody'), [btn(t('song.back'), 'primary', () => clearHash())]); history.replaceState(null, '', location.pathname + '#/pesme'); return; }
+  // pogrešno mesto (WhatsApp/Viber… ili drugi pregledač): ne uvozi tiho u to skladište
+  const ctx = await wrongContext();
+  if (ctx && !sessionStorage.getItem('gitara-here-' + fileId)) {
+    const { shareLinkOf, copyShareLinkText } = await import('./shareService.js');
+    const link = shareLinkOf(fileId);
+    const sync = (() => { try { return !!(JSON.parse(localStorage.getItem('gitara-sync') || 'null') || {}).on; } catch { return false; } })();
+    show(t('share.r.openTitle'), t(ctx === 'inapp' ? 'share.r.openInApp' : 'share.r.openBrowser'), [
+      btn(t('share.r.importHere'), '', () => { sessionStorage.setItem('gitara-here-' + fileId, '1'); renderDriveShare(root, fileId); }),
+      btn(t('share.r.openApp'), 'primary', async () => {
+        if (/Android/i.test(navigator.userAgent)) {
+          const u = new URL(SHARE_BASE);
+          location.href = `intent://${u.host}${u.pathname}?d=${encodeURIComponent(fileId)}#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(link)};end`;
+        } else copyShareLinkText(link);
+      }),
+    ]);
+    if (sync) card.appendChild(el('p', 'small muted', t('share.r.syncNote')));
+    return;
+  }
+  show(t('share.r.loading'), '');
+  if (!SHARE_API_KEY) { show(t('share.r.devTitle'), t('share.r.devBody')); console.error('Gitara: SHARE_API_KEY nije podešen u src/shareConfig.js'); return; }
+  let text;
+  try {
+    const res = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&key=${encodeURIComponent(SHARE_API_KEY)}`);
+    if (res.status === 404 || res.status === 403 || res.status === 410 || res.status === 401) throw Object.assign(new Error('gone'), { code: 'GONE' });
+    if (res.status === 400) throw Object.assign(new Error('key'), { code: (await res.text()).includes('API key') ? 'KEY' : 'GONE' });
+    if (!res.ok) throw Object.assign(new Error('net'), { code: 'OFFLINE' });
+    if (Number(res.headers.get('content-length') || 0) > SHARE_MAX_BYTES) throw Object.assign(new Error('big'), { code: 'CORRUPT' });
+    text = await res.text();
+  } catch (e) {
+    const code = (e && e.code) || 'OFFLINE';
+    if (code === 'OFFLINE') { show(t('share.r.offline'), '', [btn(t('common.retry'), 'primary', () => renderDriveShare(root, fileId)), btn(t('common.cancel'), '', () => clearHash())]); return; }
+    if (code === 'KEY') { show(t('share.r.devTitle'), t('share.r.devBody')); return; }
+    show(t('share.r.gone'), t('share.r.goneBody'), [btn(t('song.back'), 'primary', () => clearHash())]);
+    history.replaceState(null, '', location.pathname + '#/pesme');
+    return;
+  }
+  let pkg;
+  try { pkg = await parseShareFile(text); }
+  catch (e) {
+    const newer = e && e.code === 'NEWER';
+    show(newer ? t('share.r.newer') : t('share.r.corrupt'), '', [btn(t('song.back'), 'primary', () => clearHash())]);
+    history.replaceState(null, '', location.pathname + '#/pesme');
+    return;
+  }
+  // pregled (samo tekst) i pitanje „Uvezi …?“
+  const isSet = pkg.kind === 'set';
+  const q = isSet ? t('share.r.askSet', { name: pkg.name, n: songsCount(pkg.songs.length) }) : t('share.r.askSong', { title: pkg.songs[0].title });
+  const list = el('ol', 'share-list');
+  for (const s of pkg.songs.slice(0, 60)) { const li = el('li'); li.appendChild(el('b', '', s.title)); if (s.artist) li.appendChild(el('span', 'small muted', ' — ' + s.artist)); list.appendChild(li); }
+  show(q, '', [btn(t('common.cancel'), '', () => clearHash()), btn(t('share.r.import'), 'primary', go)]);
+  card.insertBefore(list, card.lastChild);
+  let busy = false;
+  async function go() {
+    if (busy) return;
+    busy = true;
+    try {
+      const single = pkg.songs.length === 1;
+      let left = 0;
+      const r = await importPackage(pkg, (existing) => askDuplicate(existing, !single && ++left < pkg.songs.length, single));
+      if (!r) return; // otkazano kod duplikata — ništa nije promenjeno
+      toast(t('share.imported', { a: r.added, r: r.replaced, s: r.skipped }));
+      clearHash(r.setId ? '#/setlista/' + encodeURIComponent(r.setId) : '#/pesma/' + encodeURIComponent(r.ids[0]));
+    } finally { busy = false; }
+  }
 }
