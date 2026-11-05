@@ -5,6 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createMonoEngine, pitchMPM, pitchYIN } from '../src/freeplayMono.js';
 import { SR, rng, pluck, voice, roomNoise, hum, fan, tap, squeak, click, lowCut, OPEN } from './helpers/guitarSynth.mjs';
+import { getVoicings } from '../src/chords.js';
 
 function run(y, params = {}) {
   const eng = createMonoEngine({ sr: SR, params }), ev = [];
@@ -73,4 +74,39 @@ test('soft (-40 dBFS) and very loud notes', () => {
     const s = score(run(y), notes);
     assert.ok(s.pct >= 90, `${db} dB: ${s.pct.toFixed(1)} %`);
   }
+});
+
+// ---- Akordi: udarac preko žica → ime akorda (ne pojedinačne niske note), pravi hvatovi iz chords.js ----
+function strums(seed, chords) {
+  const r = rng(seed), y = buf(chords.length * 3 * 0.8 + 2), truth = []; let t = 0.6;
+  const timbre = ['steel', 'nylon', 'electric'][seed % 3];
+  for (const c of chords) {
+    const v = getVoicings(c)[0], strings = [0, 1, 2, 3, 4, 5].filter((s) => v.frets[s] >= 0);
+    for (let k = 0; k < 3; k++) {
+      const down = k !== 1, spread = 0.008 + 0.012 * r(), lvl = -20 - 8 * r() - (down ? 0 : 4);
+      (down ? strings : strings.slice().reverse()).forEach((s, j) => { if (!down && j > 3) return; pluck(y, t + j * spread, OPEN[s] + v.frets[s], { timbre, peakDb: lvl + (r() * 2 - 1) * 2, dur: 0.9 }, r); });
+      truth.push({ t, c });
+      t += 0.5 + 0.3 * r();
+    }
+  }
+  lowCut(y, 120); roomNoise(y, -59, r);
+  return { y: y.subarray(0, Math.round((t + 1) * SR)), truth };
+}
+test('strummed beginner chords: chord names (not single bass notes), few wrong names', () => {
+  let n = 0, ok = 0, wrong = 0, singles = 0;
+  for (const [seed, prog] of [[201, ['G', 'Em', 'C', 'D', 'Am', 'E']], [202, ['A', 'D', 'E', 'Am', 'Dm', 'C']]]) {
+    const { y, truth } = strums(seed, prog);
+    const eng = createMonoEngine({ sr: SR }), ev = [];
+    for (let i = 0; i + 128 <= y.length; i += 128) for (const e of eng.push(y.subarray(i, i + 128))) ev.push({ t: e.t / 1000, at: e.at / 1000, chord: e.chord, m: e.midis[0] });
+    singles += ev.filter((e) => e.m != null).length;
+    truth.forEach((s, i) => {
+      const end = truth[i + 1] ? truth[i + 1].t : s.t + 0.9;
+      const shown = ev.filter((e) => e.chord && e.t <= end + 0.02).pop();
+      n++; if (shown && shown.chord === s.c) ok++;
+      wrong += ev.filter((e) => e.chord && e.at >= s.t - 0.03 && e.at < end - 0.03 && e.chord !== s.c).length;
+    });
+  }
+  assert.ok(ok / n >= 0.8, `right chord shown ${ok}/${n}`);
+  assert.ok(wrong <= 4, `${wrong} wrong chord names`);
+  assert.ok(singles <= 5, `${singles} single notes during strumming`);
 });

@@ -11,7 +11,12 @@
 //  5) stalni tonovi (frižider, ventilator, brujanje mreže 50/60 Hz) uče se kao pozadina i ne izazivaju napad.
 // Opseg gitare: E2 (82 Hz) … E6 (1319 Hz), uz ±50 centi (malo raštimovana gitara je u redu).
 
+import { chromaFromSpectrum, matchChord, presentChordNotes } from './chordrec.js';
+import { pcName, QUALITIES } from './music.js';
+import { getVoicings } from './chords.js';
+
 const TAU = Math.PI * 2;
+const OPEN_M = [40, 45, 50, 55, 59, 64];
 const MPM_K = 0.9;
 export const MONO_MIN = 40, MONO_MAX = 88; // E2 … E6
 const FMIN = 75, FMAX = 1400;
@@ -240,11 +245,11 @@ export const MONO_DEFAULTS = {
   newDb: -1.5,      // ili: nova energija (u opsezima koji su ojačali 2×) bar ovoliko u odnosu na staru
   aboveBgDb: 9,     // napad mora biti bar ovoliko iznad naučene pozadine
   stableCents: 10,  // dva prozora se slažu na ±10 centi (žica: ≤4; glas klizi: obično 15–300+)
-  maxGrowDb: 0.8,
-  histCents: 20,
+  maxGrowDb: 0.8,   // jačina u drugom prozoru sme da poraste najviše ovoliko (žica slabi, glas raste)
+  histCents: 20,    // ranija jasna merenja (posle napada) moraju biti u ±20 centi (ili oktavu/duodecimu dalje)
   strictCents: 5,  // dok neko priča: treći prozor mora biti ovoliko blizu
   speechTau: 1500,  // ms — koliko dugo se pamti da neko priča
-  speechOn: 0.18,   // udeo „klizećih“ okvira iznad kog važi strože pravilo    // ranija jasna merenja (posle napada) moraju biti u ±20 centi (ili oktavu dalje)   // jačina u drugom prozoru sme da poraste najviše ovoliko (žica slabi, glas raste)
+  speechOn: 0.18,   // udeo „klizećih“ okvira iznad kog važi strože pravilo
   minConf: { yin: 0.8, mpm: 0.8, hs: 0.6, fusion: 0.8 },
   isolate: true,
   newPitchCents: 80, // visina celog zvuka je „nova“ ako je bar ovoliko daleko od onoga što je zvučalo pre napada
@@ -252,6 +257,21 @@ export const MONO_DEFAULTS = {
   subRatio: 0.08,
   legato: true,
   legatoCents: 70,  // nova visina bar ovoliko daleko (≥ ~pola tona + rezerva)
+  polyHarm: 0,        // (merenjem: ne razdvaja akord od note — bas akorda „objašnjava“ skoro sve; isključeno)
+  holdConf: 0.95,    // sasvim jasna jedna nota (≥ ovoliko) se nikad ne zadržava
+  chordMs: 330,       // akord se imenuje ~0,33 s posle udarca (žice se „skupe“; duži prozor = jasniji tonovi)
+  chordMin: 0.74,    // najmanja sličnost sa akordom (apstraktni šabloni)
+  chordMinStrict: 0.86,
+  soloConf: 0.93,    // jasnoća jednog izvora iznad koje to nije akord (dok neko priča)
+  chordMinConf: 0.2, speechSoloConf: 0.9, speechMinConf: 0.35,  // ispod ovoga je šum (suglasnik, kucanje), ne akord
+  chordModel: 'voiced', // 'voiced' = šabloni po stvarnim hvatovima (izabrano merenjem), 'template' = apstraktni šabloni
+  voicedMin: 0.8, voicedMinStrict: 0.9, voicedTriadMargin: 0.1, voicedSure: 0.9,
+  chordStrongRel: 0.18, // ton „postoji“ u akordu ako ima bar ovoliko od najjačeg (osnovni ton akorda je često udvostručen)
+  strumRiseMs: 15,    // porast duži od ovoga + niska nota → možda akord (čeka se provera)
+  strumBassMidi: 56,  // ispod G#3
+  strumRiseOnlyMs: 24, // ovoliko dug porast → udarac i kod viših nota
+  dupMs: 120,        // ista nota dvaput u ovoliko ms = jedan trzaj
+  repeatMs: 700, repeatRiseDb: 1, // ponovljena ista nota dok zvoni: mora jačina da skoči bar ovoliko
   legatoWindowMs: 900, // posle poslednje note toliko se još prate hammer-on/pull-off
   maxCents: 50,
 };
@@ -280,6 +300,8 @@ export function createMonoEngine({ sr: srIn = 48000, a4 = 440, params = {} } = {
   const lvHist = new Float32Array(16); // jačina (dB) po okviru, za porast za ~25 ms
   let lastOn = -1e9, cand = null;
   const pending = []; // napadi koji čekaju visinu tona
+  const chordChecks = []; // napadi koji čekaju proveru akorda
+  let lastPolyAt = -1e9, lastChord = null, lastChordEmit = -1e9;
   let active = null;  // nota koja zvoni (za legato): { m, at, lastTrack, peakDb }
   let id = 0, bgDb = -120, noisy = false, floorDb = 0, hopE = 0, hopN = 0;
   const out = [];
@@ -342,7 +364,9 @@ export function createMonoEngine({ sr: srIn = 48000, a4 = 440, params = {} } = {
       cand.jump = Math.max(cand.jump || 0, lv - lvHist[(frames - 2) & 15]); // najveći skok za ~8 ms (oštrina napada)
       if (lv - cand.pre >= P.riseDb || newDb >= P.newDb) {
         lastOn = cand.t;
-        pending.push({ at: cand.t - (HOP / sr) * 500, preLv: cand.pre, rise: lv - cand.pre, jump: cand.jump, newDb });
+        const chk = { at: cand.t - (HOP / sr) * 500, due: cand.t + P.chordMs };
+        chordChecks.push(chk);
+        pending.push({ at: chk.at, preLv: cand.pre, rise: lv - cand.pre, jump: cand.jump, newDb, chk });
         P.debug?.push({ t: cand.t, why: 'onset', flux: Math.round(cand.flux), med: Math.round(med), rise: +(lv - cand.pre).toFixed(1) });
         cand = null;
       } else if (t - cand.t > 28) cand = null;
@@ -379,9 +403,128 @@ export function createMonoEngine({ sr: srIn = 48000, a4 = 440, params = {} } = {
     return { m: midiOf(r.f), conf: r.conf, lv: levelDb(x), x, f: r.f };
   }
 
+  /** Udeo snage (80–2500 Hz) na harmonicima note f (uz malu neharmoničnost žice): jedna žica ~0,8+, akord manje. */
+  function harmonicity(x, f) {
+    if (!x || x.length < 64) return 1;
+    const N = pow2(Math.max(2048, x.length)), M = spectrum(x, N), bin = sr / N;
+    let tot = 0, on = 0;
+    const lo = Math.ceil(75 / bin), hi = Math.min(M.length - 1, Math.floor(2500 / bin));
+    for (let k = lo; k <= hi; k++) tot += M[k] * M[k];
+    const used = new Set();
+    for (let h = 1; h * f < 2500; h++) {
+      const c = (f * h * Math.sqrt(1 + 1e-4 * h * h)) / bin, w = Math.max(2, c * 0.01);
+      for (let k = Math.max(lo, Math.floor(c - w)); k <= Math.min(hi, Math.ceil(c + w)); k++) if (!used.has(k)) { used.add(k); on += M[k] * M[k]; }
+    }
+    return tot > 0 ? on / tot : 1;
+  }
+  /** Oznake udarca preko žica: koliko traje porast (pojedinačan trzaj ~ par ms, udarac 15–60 ms) i kako se menja
+   *  udeo visokih tonova (nadole: prvo debele žice). */
+  function strumFeatures(at) {
+    const avail = tNow() - at + 10, x = seg(at - 10, Math.min(80, avail)); if (!x || avail < 40) return null;
+    const blk = Math.round(sr * 0.002), env = [];
+    for (let i = 0; i + blk <= x.length; i += blk) { let e = 0; for (let k = 0; k < blk; k++) e += x[i + k] * x[i + k]; env.push(e / blk); }
+    const base = Math.min(...env.slice(0, 4)), mx = Math.max(...env.slice(4));
+    let t10 = -1, t90 = -1; for (let i = 4; i < env.length; i++) { const v = env[i] - base; if (t10 < 0 && v >= 0.1 * (mx - base)) t10 = i; if (t90 < 0 && v >= 0.8 * (mx - base)) { t90 = i; break; } }
+    const hiRatio = (y) => { if (!y) return 0; const N = 1024, M = spectrum(y, N), bin = sr / N; let lo = 0, hi = 0; for (let k = Math.ceil(70 / bin); k < M.length; k++) { const p2 = M[k] * M[k]; if (k * bin < 700) lo += p2; else hi += p2; } return hi / (lo + hi + 1e-14); };
+    const h1 = hiRatio(seg(at, 15)), h2 = hiRatio(seg(at + 25, 20));
+    return { riseMs: t10 >= 0 && t90 >= 0 ? (t90 - t10) * 2 : -1, hiEarly: +h1.toFixed(2), hiLate: +h2.toFixed(2) };
+  }
+  // Šabloni po stvarnim hvatovima na gitari (prva 3 hvata svakog uobičajenog akorda): očekivana hroma = svaka žica
+  // sa svojim harmonicima (1/h, viši tonovi slabije — isto kao u merenju). Udvostručen osnovni ton i alikvoti su uračunati.
+  const VOICED = (() => {
+    const out = [], ROOTS = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
+    for (const rn of ROOTS) for (const q of ['', 'm', '7', 'm7', 'maj7']) {
+      const name = rn + q;
+      for (const v of getVoicings(name).slice(0, 3)) {
+        const ch = new Float64Array(12);
+        v.frets.forEach((f, si) => { if (f < 0) return; const m = OPEN_M[si] + f;
+          for (let h = 1; h <= 6; h++) { const fr = 440 * Math.pow(2, (m - 69) / 12) * h; if (fr > 2000) break; ch[(m + Math.round(12 * Math.log2(h)) + 120) % 12] += (1 / h) * (fr < 400 ? 1 : 400 / fr); } });
+        const nrm = Math.hypot(...ch); out.push({ name, q, root: ROOTS.indexOf(rn), v: ch.map((x) => x / nrm) });
+      }
+    }
+    return out;
+  })();
+  function voicedMatch(chroma, allowed) {
+    const nrm = Math.hypot(...chroma) || 1, best = new Map();
+    for (const t of VOICED) {
+      if (!allowed.includes(t.q)) continue;
+      let d = 0; for (let k = 0; k < 12; k++) d += t.v[k] * chroma[k];
+      d /= nrm;
+      if (!best.has(t.name) || best.get(t.name).score < d) best.set(t.name, { name: t.name, root: t.root, quality: t.q, score: d });
+    }
+    return [...best.values()].sort((a, b) => b.score - a.score);
+  }
+  // Akord ~0,33 s posle udarca: spektar novog zvuka (posle minus ono što je zvonilo pre), hroma, šabloni akorda.
+  // Prikazuju se samo uobičajeni akordi (dur, mol, 7, m7, maj7); proširen akord samo ako je jasno bolji od trozvuka.
+  const CHORD_Q = ['', 'm', '7']; // m7 / maj7 se mešaju sa trozvukom (npr. Em ↔ Cmaj7) — prikazuju se kao osnovni akord
+  function evalChord(chk, strict = null) {
+    const len = P.chordMs - 40, post = seg(chk.at + 30, len), pre = seg(chk.at - len - 5, len);
+    if (!post) return null;
+    const N = pow2(post.length), Mp = spectrum(post, N), Mq = pre ? spectrum(pre, N) : null;
+    const db = new Float32Array(Mp.length);
+    // novi zvuk = posle − pre; ali isti akord udaren ponovo skoro ništa „novo“ ne donosi → tada ceo zvuk
+    let eP = 0, eD = 0;
+    for (let k = 0; k < Mp.length; k++) { const a = Mp[k] * Mp[k], d = Math.max(0, a - (Mq ? 0.85 * Mq[k] * Mq[k] : 0)); eP += a; eD += d; db[k] = d; }
+    const useAll = eD < 0.35 * eP && chordCtx(chk.at); // samo kad se upravo udaraju akordi (ponovljen udarac)
+    for (let k = 0; k < Mp.length; k++) db[k] = 10 * Math.log10((useAll ? Mp[k] * Mp[k] : db[k]) + 1e-14);
+    const cr = chromaFromSpectrum(db, sr, N, a4);
+    if (!(cr.energy > 0)) return null;
+    const mx = Math.max(...cr.chroma);
+    const strong = cr.chroma.filter((v) => v >= (strict && !strict.triad ? 0.3 : P.chordStrongRel) * mx).length;
+    if (strong < (strict ? strict.strong : 3)) { if (P.debug) chk.why = 'strong' + strong; return null; } // jedna ili dve note — nije akord
+    const allowed = strict?.triad ? ['', 'm'] : CHORD_Q, voiced = P.chordModel === 'voiced';
+    const cands = voiced ? voicedMatch(cr.chroma, allowed) : matchChord(cr.chroma, cr.bass).filter((c) => allowed.includes(c.quality));
+    let top = cands[0];
+    const minS = voiced ? (strict && !strict.triad ? P.voicedMinStrict : P.voicedMin) : strict ? strict.min : P.chordMin;
+    if (!top || top.score < minS) { if (P.debug) chk.why = 'score' + (top ? top.score.toFixed(2) + (top.root) + top.quality : ''); return null; }
+    if (!['', 'm'].includes(top.quality)) { const tri = cands.find((c) => c.root === top.root && ['', 'm'].includes(c.quality)); if (tri && tri.score >= top.score - (voiced ? P.voicedTriadMargin : 0.06)) top = tri; }
+    if (presentChordNotes(cr.chroma, top.root, top.quality) < 3) { if (P.debug) chk.why = 'present'; return null; }
+    const name = pcName(top.root, { flat: [3, 8, 10].includes(top.root) }) + top.quality;
+    const second = cands.find((c) => c.root !== top.root);
+    const remembered = !!(lastChord && lastChord.name === name && chk.at - lastChord.at < 4000);
+    const sure = remembered || (top.score >= (voiced ? P.voicedSure : 0.84) && (!second || top.score - second.score >= 0.03));
+    return { name, sure, score: top.score, pcs: QUALITIES[top.quality].intervals.map((iv) => (top.root + iv) % 12) };
+  }
+  const chordCtx = (at) => !!(lastChord && at - lastChord.at < 1500);
+  function checkChords() {
+    const t = tNow();
+    for (let i = chordChecks.length - 1; i >= 0; i--) {
+      const c = chordChecks[i];
+      if (t < c.due) continue;
+      chordChecks.splice(i, 1);
+      // jasna pojedinačna nota (jedna žica) — nije akord; dok neko priča — ne nagađaj
+      if (c.single && !c.poly) continue;
+      // akord samo posle udarca preko žica (više žica / sporiji porast / zadržana niska nota) — ne od melodije koja zvoni
+      const sf = c.poly || c.held ? null : strumFeatures(c.at);
+      const strummy = c.poly || c.held || (sf && sf.riseMs >= P.strumRiseOnlyMs);
+      // bez jasnih znakova udarca (nota nije prepoznata): akord samo ako je vrlo jasan (≥ 4 tona, visoka sličnost)
+      // dok neko priča: akord samo uz jasan udarac (glas ne pravi akord od 3 tona sa naglim početkom)
+      const onlySlow = strummy && !c.poly && !c.held;
+      // jedan jasan periodičan izvor (glas ili jedna žica) — nije akord; akord je mešavina više perioda
+      const solo = estimate(c.at + 40);
+      const periodic = !!(solo && solo.conf >= P.soloConf);
+      if (P.debug) c.periodic = solo ? +solo.conf.toFixed(2) : null; // samo sporiji porast (bez drugih znakova) → samo dur/mol
+      // šum (suglasnik, kucanje) nema tonove → nije akord; jedan jasan izvor dok neko priča → glas
+      const noisy = !c.poly && !c.held && (!solo || solo.conf < P.chordMinConf); // zadržana/višežična nota već je dokaz tonova
+      // dok neko priča: glas je jedan jasan izvor (≥ 0,9) ili šum (< 0,35) — udarac preko žica je između
+      const talky = speech > P.speechOn && (!strummy || periodic || (solo && (solo.conf >= P.speechSoloConf || solo.conf < P.speechMinConf)));
+      const r = noisy || talky || c.at - lastChordEmit < 250 ? null : evalChord(c, strummy ? (onlySlow && !chordCtx(c.at) ? { min: P.chordMin, strong: 3, triad: true } : null) : chordCtx(c.at) ? null : { min: P.chordMinStrict, strong: 4 });
+      P.debug?.push({ t: c.at, why: 'chord', r, periodic: c.periodic, poly: !!c.poly, held: c.held, rej: c.why || (c.at - lastChordEmit < 250 ? 'recent' : speech > P.speechOn ? 'speech' : ''), strummy });
+      if (!r) { if (c.held && !chordCtx(c.at)) emit(c.held.m, c.at, 'attack', { lv: c.held.lv, late: true }); continue; }
+      lastChordEmit = c.at; lastChord = { name: r.name, at: c.at, pcs: r.pcs }; active = null;
+      out.push({ type: 'chord', id: ++id, at: c.at, t, chord: r.name, sure: r.sure, midis: [] });
+    }
+  }
+
+  let lastEmit = null;
   function emit(m, at, kind, extra = {}) {
     const mi = Math.round(m);
     if (mi < MONO_MIN || mi > MONO_MAX || Math.abs(m - mi) * 100 > P.maxCents) return false;
+    // isti trzaj uhvaćen dvaput (dva bliska napada) — jednom
+    if (lastEmit && lastEmit.m === mi && at - lastEmit.at < P.dupMs) return false;
+    // ista nota dok još zvoni: samo uz pravi novi trzaj (jačina skoči), inače je to ista žica koja zvoni
+    if (kind === 'attack' && lastEmit && lastEmit.m === mi && at - lastEmit.at < P.repeatMs && (extra.rise ?? 99) < P.repeatRiseDb) return false;
+    lastEmit = { m: mi, at };
     const ev = { type: 'note', id: ++id, at, t: tNow(), midis: [mi], cents: Math.round((m - mi) * 100), kind, ...extra };
     out.push(ev);
     active = { m: mi, f: m, at, last: tNow(), peakLv: kind === 'attack' ? extra.lv ?? -60 : active ? active.peakLv : -60, cand: null };
@@ -422,8 +565,19 @@ export function createMonoEngine({ sr: srIn = 48000, a4 = 440, params = {} } = {
         if (Math.abs(B.m - p.ok1.m) * 100 > P.strictCents) { p.ok1 = null; if (late) { pending.splice(i, 1); P.debug?.push({ t: p.at, why: 'speech' }); } continue; }
       }
       pending.splice(i, 1);
-      P.debug?.push({ t: p.at, why: 'accept', A, B, rise: p.rise, jump: p.jump, newDb: p.newDb, wait: end - p.at, grow, diff });
-      emit((A.m + B.m) / 2, p.at, 'attack', { lv: B.lv });
+      // jedna žica ili udarac preko više žica? Koliko zvuka objašnjavaju harmonici ove note
+      const harm = harmonicity(seg(p.at + 8, end - p.at - 8), fAvg);
+      const sf = strumFeatures(p.at);
+      P.debug?.push({ t: p.at, why: 'accept', A, B, rise: p.rise, jump: p.jump, newDb: p.newDb, wait: end - p.at, grow, diff, harm, ...(sf || {}) });
+      // dok se udaraju akordi: nota iz tog akorda je deo udarca, ne melodija
+      const inChord = chordCtx(p.at) && lastChord.pcs.includes(Math.round((A.m + B.m) / 2) % 12);
+      if (harm < P.polyHarm || p.at - lastPolyAt < 250 || inChord) { lastPolyAt = p.at; if (p.chk) p.chk.poly = true; active = null; continue; }
+      // sporiji porast (udarac preko žica traje 15–60 ms) + niska nota (bas akorda) → sačekaj proveru akorda;
+      // ako nije akord, nota se ipak prikaže (malo kasnije)
+      const slow = sf && sf.riseMs >= 0 && Math.min(A.conf, B.conf) < P.holdConf && ((sf.riseMs >= P.strumRiseMs && B.m < P.strumBassMidi) || sf.riseMs >= P.strumRiseOnlyMs);
+      if (slow && p.chk) { p.chk.held = { m: (A.m + B.m) / 2, lv: B.lv }; lastPolyAt = p.at; active = null; continue; }
+      if (p.chk) p.chk.single = true;
+      emit((A.m + B.m) / 2, p.at, 'attack', { lv: B.lv, rise: p.rise });
     }
   }
 
@@ -454,7 +608,7 @@ export function createMonoEngine({ sr: srIn = 48000, a4 = 440, params = {} } = {
   let trackT = 0;
   function trackLegato() {
     // dok neko priča/peva legato se ne prati (glas bi „vodio“ notu dalje)
-    if (!P.legato || !active || pending.length || cand || speech > P.speechOn) { if (active) active.cand = null; return; }
+    if (!P.legato || !active || pending.length || cand || speech > P.speechOn || chordCtx(tNow())) { if (active) active.cand = null; return; }
     const t = tNow();
     if (t - active.last > P.legatoWindowMs) { active = null; return; }
     if (t - trackT < 12) return;
@@ -462,7 +616,7 @@ export function createMonoEngine({ sr: srIn = 48000, a4 = 440, params = {} } = {
     const e = lastEst && Math.abs(ctxT - t) < 1 ? lastEst : estimate(t - P.winMs);
     if (!e || e.conf < minConf || e.lv < bgDb + 12 || e.lv > active.peakLv + 3) { active.cand = null; return; }
     const d = (e.m - active.f) * 100;
-    if (Math.abs(d) < P.legatoCents || Math.abs(Math.abs(d) - 1200) < 60 || Math.abs(Math.abs(d) - 1902) < 60) { active.cand = null; return; }
+    if (Math.abs(d) < P.legatoCents || [1200, 1902, 2400].some((r) => Math.abs(Math.abs(d) - r) < 60)) { active.cand = null; return; } // oktava/duodecima/dve oktave iste note = ista nota
     const c = active.cand;
     if (c && Math.abs((e.m - c.m0) * 100) <= P.stableCents && Math.abs((e.m - c.mLast) * 100) <= P.stableCents && e.lv <= c.lvLast + P.maxGrowDb) {
       c.n++; c.sum += e.m; c.mLast = e.m; c.lvLast = e.lv;
@@ -488,7 +642,7 @@ export function createMonoEngine({ sr: srIn = 48000, a4 = 440, params = {} } = {
           // buka sobe u dBFS (najtiši nivo: brzo nadole, ~0,5 dB/s nagore) — za „previše buke“
           const d = 10 * Math.log10(hopE / Math.max(1, hopN) + 1e-14); hopE = 0; hopN = 0;
           floorDb = d < floorDb ? floorDb + (d - floorDb) * 0.3 : floorDb + Math.min(0.002, d - floorDb);
-          sinceHop = 0; analyseFrame(); trackContext(); checkPending(); trackLegato(); }
+          sinceHop = 0; analyseFrame(); trackContext(); checkPending(); checkChords(); trackLegato(); }
       }
       return out.slice();
     },

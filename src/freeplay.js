@@ -18,8 +18,7 @@ import { openMic, closeMic, MicError } from './audio.js';
 import { keepAwake, allowSleep } from './wakelock.js';
 import { midiName } from './music.js';
 import { dn } from './naming.js';
-import { getVoicings } from './chords.js';
-import { createFreeEngine } from './freeplayListen.js';
+import { createPlacer, fingerAt } from './freeplayPlace.js';
 import { createMonoEngine } from './freeplayMono.js';
 import { debugLog } from './practiceListen.js';
 
@@ -44,42 +43,8 @@ const sName = (s) => (s === 5 ? dn('E').toLowerCase() : noteName(OPEN[s]));
 const pad2 = (n) => String(n).padStart(2, '0');
 const clock = (ms) => `${Math.floor(ms / 60000)}:${pad2(Math.floor(ms / 1000) % 60)}`;
 
-// ---------------- Položaj na vratu (nagađanje žice; nota je uvek tačna) ----------------
-/** Pragovi 0–12; počinje kod prve pozicije; svaka nova nota u okviru ~4 praga od prethodnih (prati ruku). */
-export function createPlacer() {
-  let center = 2, lastS = 2;
-  function cands(m, avoid = []) {
-    const out = [];
-    for (let s = 0; s < 6; s++) { const f = m - OPEN[s]; if (f >= 0 && f <= FRETS && !avoid.includes(s)) out.push({ s, f }); }
-    return out;
-  }
-  function cost(c) {
-    const d = c.f === 0 ? (center <= 4 ? center * 0.5 : 6) : Math.abs(c.f - center);
-    return d + (d > 4 ? 10 : 0) + 0.3 * Math.abs(c.s - lastS);
-  }
-  return {
-    place(m, avoid = []) {
-      const cs = cands(m, avoid);
-      if (!cs.length) return null;
-      const best = cs.reduce((a, b) => (cost(b) < cost(a) ? b : a));
-      if (best.f > 0) center = Math.max(1, Math.min(11, center * 0.5 + best.f * 0.5));
-      lastS = best.s;
-      return best;
-    },
-    /** Hvat akorda najbliži ruci (pragovi ≤ 12). */
-    chord(name) {
-      const vs = getVoicings(name).filter((v) => v.frets.every((f) => f <= FRETS));
-      if (!vs.length) return null;
-      const v = vs.reduce((a, b) => (Math.abs(b.baseFret - center) < Math.abs(a.baseFret - center) ? b : a));
-      if (v.baseFret > 1) center = Math.max(1, Math.min(11, v.baseFret + 1));
-      return v;
-    },
-    get center() { return center; },
-    reset() { center = 2; lastS = 2; },
-  };
-}
-/** Prst (boja) za prag u odnosu na položaj ruke: 0 = prazna žica, 1–4. */
-const fingerAt = (f, center) => (f <= 0 ? 0 : Math.max(1, Math.min(4, f - Math.max(1, Math.round(center) - 1) + 1)));
+let handLock = null; // zaključana ruka (prag), dok je aplikacija otvorena
+// Položaj na vratu: freeplayPlace.js (ruka na jednom mestu; dodir na vrat = zaključaj ruku na tom pragu)
 
 // ---------------- Snimci (Moji snimci) ----------------
 export async function loadRecs() { const r = await settings.get(REC_KEY, null); return Array.isArray(r) ? r : []; }
@@ -178,10 +143,12 @@ function createStage({ mode = 'live', rec = null, onExit, onSaved }) {
       <canvas class="fpv-eq"></canvas>
       <canvas class="fpv-bg"></canvas>
       <canvas class="fpv-wave"></canvas>
+      <div class="fpv-hand" hidden><span></span></div>
       <div class="fpv-dots"></div>
       <div class="fpv-panel" hidden>
         <label>${t('fp.sens')} <input type="range" min="1" max="5" step="1" class="fpv-sens"></label>
         <small>${t('fp.sensHint')}</small>
+        <small>${t('fp.handHint')}</small>
         <small class="fpv-mic"></small>
       </div>
     </div>
@@ -211,6 +178,7 @@ function createStage({ mode = 'live', rec = null, onExit, onSaved }) {
     G.x0 = G.bx + G.r * 4; G.x1 = w - G.bx; G.y0 = h * 0.1; G.y1 = h * 0.8;
     neck.style.setProperty('--r', G.r + 'px');
     drawBg();
+    placeHand();
     sizeFx();
   }
   function drawBg() {
@@ -246,6 +214,25 @@ function createStage({ mode = 'live', rec = null, onExit, onSaved }) {
     }
     c.fillStyle = '#6b7280'; c.font = `600 ${Math.round(Math.min(11, G.r * 0.7))}px system-ui, sans-serif`;
     for (const f of [3, 5, 7, 9, 12]) c.fillText(String(f), dotX(f), bot + G.r * 0.75);
+  }
+
+  // ---- Zaključana ruka: providna traka preko pragova lo … lo+3 (dodir na vrat zaključava / otključava) ----
+  const handEl = q('.fpv-hand');
+  let handLo = null;
+  function placeHand() {
+    if (handLo == null || !G.W) { handEl.hidden = true; return; }
+    const xa = handLo <= 1 ? G.x0 - G.r * 2.2 : fretX(handLo - 1), xb = fretX(Math.min(FRETS, handLo + 3));
+    handEl.style.transform = `translate3d(${xa.toFixed(1)}px,${(G.y0 - G.r * 1.3).toFixed(1)}px,0)`;
+    handEl.style.width = (xb - xa).toFixed(1) + 'px';
+    handEl.style.height = (G.y1 - G.y0 + G.r * 2.6).toFixed(1) + 'px';
+    handEl.firstChild.textContent = handLo <= 1 ? t('fp.handOpen') : t('fp.handAt', { f: handLo });
+    handEl.hidden = false;
+  }
+  /** Prag ispod tačke x (0 = prazne žice / glava vrata). */
+  function fretAtX(x) {
+    if (x < G.x0) return 0;
+    for (let f = 1; f <= FRETS; f++) if (x <= fretX(f)) return f;
+    return FRETS;
   }
 
   // ---- Tačke (bazen od 12; najstarija se ponovo koristi) ----
@@ -426,6 +413,10 @@ function createStage({ mode = 'live', rec = null, onExit, onSaved }) {
 
   const api = {
     el, light, showName, attachEq, eqPulse,
+    /** Traka zaključane ruke (null = sakrij). */
+    hand(lo) { handLo = lo; placeHand(); },
+    /** Dodir na vrat → fn(prag). */
+    onNeckTap(fn) { neck.addEventListener('click', (e) => { if (e.target.closest('.fpv-panel')) return; const r = neck.getBoundingClientRect(); fn(fretAtX(e.clientX - r.left)); }); },
     /** Poruka u traci sa imenom („Sviraj nešto…“, greška mikrofona); ime se vraća sa sledećom notom. */
     message(text, err = false) {
       msgOn = !!text;
@@ -510,9 +501,21 @@ async function tapMic(mic, onBlock) {
 // ---------------- Živo sviranje ----------------
 async function startLive({ onExit, onSaved }) {
   const stage = createStage({ mode: 'live', onExit: () => finish(), onSaved });
-  const placer = createPlacer();
+  const placer = createPlacer({ frets: FRETS });
   let eqAn = null, tap = null, mono = null, noisy = false;
-  let mic = null, an = null, buf = null, timer = 0, engine = null, alive = true, lastEvent = performance.now(), quietShown = false;
+  let mic = null, timer = 0, alive = true, lastEvent = performance.now(), quietShown = false;
+  // ruka: dodir na vrat zaključa položaj (prst 1 na taj prag), dodir u traku vraća automatski; pamti se dok je aplikacija otvorena
+  function setLock(L) {
+    placer.lock(L); handLock = placer.locked;
+    stage.hand(handLock == null ? null : Math.max(1, handLock));
+  }
+  setLock(handLock);
+  stage.onNeckTap((f) => {
+    const L = placer.locked;
+    const inBand = L != null && f >= (L <= 1 ? 0 : L) && f <= L + 3;
+    setLock(inBand ? null : Math.max(1, f));
+    toast(t(inBand ? 'fp.handAuto' : 'fp.handLocked'));
+  });
   let recording = null; // { start, events: [], ids: Map }
   // osetljivost: sredina (3) uz automatsko merenje sobe; pamti se samo ako je korisnik pomeri (novi ključ za v2 motor)
   let sens = 3;
@@ -521,7 +524,6 @@ async function startLive({ onExit, onSaved }) {
   senseInput.value = String(sens);
   senseInput.addEventListener('input', () => {
     sens = +senseInput.value;
-    engine?.setSensitivity(sens);
     mono?.setParams(SENS_MONO[sens]);
     try { localStorage.setItem('gitara-fp-sens2', String(sens)); } catch {}
   });
@@ -531,6 +533,8 @@ async function startLive({ onExit, onSaved }) {
   let tipShown = false;
   try { tipShown = localStorage.getItem('gitara-fp-tip') === '1'; localStorage.setItem('gitara-fp-tip', '1'); } catch {}
   stage.message(tipShown ? t('fp.quiet') : t('fp.quiet') + '\n' + t('fp.tipQuiet'));
+  // jednom: savet o zaključavanju ruke
+  try { if (localStorage.getItem('gitara-fp-handtip') !== '1') { localStorage.setItem('gitara-fp-handtip', '1'); setTimeout(() => alive && toast(t('fp.handHint')), 2500); } } catch {}
   quietShown = true;
 
   // ---- Snimanje ----
@@ -583,7 +587,7 @@ async function startLive({ onExit, onSaved }) {
     } else {
       const used = [];
       for (const m of ev.midis) {
-        const p = placer.place(m, used);
+        const p = placer.place(m, used, ev.at);
         if (!p) continue;
         used.push(p.s);
         notes.push({ m, s: p.s, f: p.f, finger: fingerAt(p.f, placer.center) });
@@ -598,22 +602,11 @@ async function startLive({ onExit, onSaved }) {
   }
 
   // ---- Mikrofon (zajednički, kao igre; pri izlasku se potpuno pušta) ----
+  // Sve (note, akordi, jačina za talas) dolazi iz jednog motora (freeplayMono) — blok po blok iz AudioWorklet-a.
   let lastLevel = 0, paused = false;
-  // Stari motor (FFT 8192, svakih 20 ms) ostaje samo za dve note i akorde (i jačinu za talas). Prikazuje se samo kad je
-  // novi motor upravo čuo pravi napad (±150 ms) i niko ne priča — pojedinačne note daje samo novi motor (freeplayMono).
-  const monoOnsetPerf = () => (mono && mono.lastOnset > -1e8 ? performance.now() - (mono.now() - mono.lastOnset) : -1e9);
-  function poll() {
+  function status() {
     if (!alive || paused) return;
-    an.getFloatTimeDomainData(buf);
-    const r = engine.process(buf, performance.now());
-    lastLevel = r.level;
-    stage.level(r.level);
-    for (const ev of r.events) {
-      const multi = ev.chord || (ev.midis && ev.midis.length >= 2);
-      if (!multi || noisy || !mono || mono.speech > mono.params.speechOn) continue;
-      if (Math.abs(monoOnsetPerf() - ev.at) > 150) continue;
-      show(ev);
-    }
+    stage.level(lastLevel);
     // buka: previše buke u sobi → poruka umesto nagađanja
     const nowNoisy = mono ? (noisy ? mono.floorDb > -44 : mono.floorDb > -40 && mono.now() > 2000) : false;
     if (nowNoisy !== noisy) { noisy = nowNoisy; stage.message(noisy ? t('fp.noisy') : t('fp.quiet')); quietShown = !noisy; if (noisy) quietShown = false; }
@@ -621,13 +614,18 @@ async function startLive({ onExit, onSaved }) {
   }
   function onBlock(block) {
     if (!alive || paused || !mono) return;
+    // jačina (RMS bloka, sporo opada) za talas
+    let e = 0;
+    for (let i = 0; i < block.length; i++) e += block[i] * block[i];
+    const rms = Math.sqrt(e / (block.length || 1));
+    lastLevel = rms > lastLevel ? rms : lastLevel * 0.97 + rms * 0.03;
     const evs = mono.push(block);
     if (noisy) return;
     for (const ev of evs) {
-      // vreme napada u performance.now() skali (za snimak i stari motor)
+      // vreme napada u performance.now() skali (za snimak i položaj ruke)
       const at = performance.now() - (mono.now() - ev.at);
       show({ ...ev, at });
-      debugLog({ game: 'free', type: 'mono', heard: midiName(ev.midis[0]).name + midiName(ev.midis[0]).octave, cents: ev.cents, kind: ev.kind, ms: Math.round(ev.t - ev.at) });
+      if (ev.type !== 'chord') debugLog({ game: 'free', type: 'mono', heard: midiName(ev.midis[0]).name + midiName(ev.midis[0]).octave, cents: ev.cents, kind: ev.kind, ms: Math.round(ev.t - ev.at) });
     }
   }
   function pause(on) {
@@ -635,7 +633,7 @@ async function startLive({ onExit, onSaved }) {
     paused = on;
     clearInterval(timer); timer = 0;
     stage.sleep(on);
-    if (on) allowSleep('freeplay'); else { keepAwake('freeplay'); timer = setInterval(poll, 20); }
+    if (on) allowSleep('freeplay'); else { keepAwake('freeplay'); timer = setInterval(status, 50); }
   }
   async function begin() {
     try {
@@ -646,17 +644,12 @@ async function startLive({ onExit, onSaved }) {
       return;
     }
     if (!alive) { closeMic(); return; }
-    an = mic.ctx.createAnalyser();
-    an.fftSize = 8192; an.smoothingTimeConstant = 0;
-    mic.source.connect(an);
-    buf = new Float32Array(an.fftSize);
     // ekvilajzer: poseban mali analizator (2048), čita ga samo petlja crtanja
     eqAn = mic.ctx.createAnalyser();
     eqAn.fftSize = 2048; eqAn.smoothingTimeConstant = 0.5; eqAn.minDecibels = -92; eqAn.maxDecibels = -28;
     mic.source.connect(eqAn);
     stage.attachEq(eqAn);
     const a4 = Number(await settings.get('a4', 440)) || 440;
-    engine = createFreeEngine({ sr: mic.ctx.sampleRate, a4, sensitivity: sens });
     mono = createMonoEngine({ sr: mic.ctx.sampleRate, a4, params: SENS_MONO[sens] });
     tap = await tapMic(mic, onBlock);
     if (!alive) { tap.stop(); return; }
@@ -681,12 +674,11 @@ async function startLive({ onExit, onSaved }) {
     if (recording) await stopRec(true);
     clearInterval(timer); clearTimeout(recT);
     offOrient(); document.removeEventListener('visibilitychange', onHide);
-    try { if (mic && an) mic.source.disconnect(an); } catch {}
     try { if (mic && eqAn) mic.source.disconnect(eqAn); } catch {}
     tap?.stop(); tap = null; mono = null;
     eqAn = null;
     if (mic) closeMic();
-    mic = null; an = null; buf = null; engine = null;
+    mic = null;
     allowSleep('freeplay');
     stage.destroy();
     onExit?.();
@@ -698,7 +690,7 @@ async function startLive({ onExit, onSaved }) {
 // ---------------- Ponovno puštanje snimka (samo slika, bez zvuka) ----------------
 function startReplay(rec, { onExit }) {
   const stage = createStage({ mode: 'replay', rec, onExit: () => finish() });
-  const placer = createPlacer();
+  const placer = createPlacer({ frets: FRETS });
   // virtuelno vreme snimka: brzina 1× / 0,75× / 0,5× (sporije, da se prati brz deo)
   let i = 0, vt = -800, lastNow = performance.now(), speed = 1, alive = true;
   const SPEEDS = [1, 0.75, 0.5];

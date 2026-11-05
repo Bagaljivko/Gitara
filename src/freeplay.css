@@ -45,6 +45,10 @@ body.fpv-open { overflow: hidden; }
 .fpv-neck { position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden; contain: strict; }
 .fpv-neck canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .fpv-dots { position: absolute; inset: 0; pointer-events: none; }
+/* zaključana ruka: providna traka preko 4 praga */
+.fpv-hand { position: absolute; left: 0; top: 0; border-radius: 10px; background: rgba(90,169,255,.09); border: 1px solid rgba(90,169,255,.35); pointer-events: none; }
+.fpv-hand span { position: absolute; left: 6px; bottom: 2px; font: 600 .7rem system-ui, sans-serif; color: #8fb9ea; white-space: nowrap; }
+.fpv-neck { cursor: pointer; }
 /* tačka: jezgro u boji prsta + unapred „nacrtan“ blagi sjaj (radijalni gradijent, ne blur) */
 .fpd { position: absolute; left: 0; top: 0; width: calc(var(--r) * 3); height: calc(var(--r) * 3); border-radius: 50%; display: grid; place-items: center; opacity: 0; will-change: transform, opacity; font-style: normal;
   --c: #dfe3e8; --cg: rgba(223,227,232,.3); background: radial-gradient(closest-side, var(--c) 0 62%, var(--cg) 70%, transparent 100%); }
