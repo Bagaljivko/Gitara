@@ -63,3 +63,23 @@ export function romanceScan() {
     unsure: [{ bar: 26, why: 'Prag na G žici je mutan (6 ili 8).' }],
   };
 }
+
+/** Isti odgovor u kratkom tekstu (kolone žica/prag) — kako Gemini odgovara na TAB_TEXT_PROMPT. */
+export function scanToText(j) {
+  const L = [`NASLOV: ${j.title || ''}`, `KOMPOZITOR: ${j.composer || ''}`, `TAKT: ${j.sig || ''}`, `TONALITET: ${j.key || ''}`, `TEMPO: ${j.bpm || 0}`];
+  if (j.firstBar) L.push(`PRVI: ${j.firstBar}`);
+  if (j.pageBars) L.push(`BROJ: ${j.pageBars}`);
+  const unsure = new Set((j.unsure || []).map((u) => u.bar));
+  for (const b of j.bars || []) {
+    const by = new Map();
+    for (const n of b.notes) { const k = n.start.toFixed(3); if (!by.has(k)) by.set(k, []); by.get(k).push(n); }
+    const cols = [...by.entries()].sort((a, c) => a[0] - c[0]).map(([, ns]) => ns.sort((a, c) => c.s - a.s).map((n) => `${n.s}/${n.f}${n.finger ? '^' + n.finger : ''}`).join('+'));
+    // takt koji ne popunjava ceo takt (npr. fali poslednja doba): trajanja kolona eksplicitno, da se vidi u proveri
+    const sum = Math.max(...b.notes.map((n) => n.start + n.len));
+    const uneven = sum < 2.99;
+    const colsTxt = uneven ? [...by.entries()].sort((a, c) => a[0] - c[0]).map(([st], i, arr) => cols[i] + '*' + (+((i + 1 < arr.length ? +arr[i + 1][0] : sum) - +st).toFixed(3))) : cols;
+    const marks = [b.repeatStart && '|:', b.repeatEnd && ':|', b.ending && 'V' + b.ending, ...(b.barre || []).map((x) => x.label), b.key && `TON=${b.key}`, unsure.has(b.n) && '?'].filter(Boolean);
+    L.push(`T${b.n}: ${colsTxt.join(' ')}${marks.length ? ` [${marks.join(' ')}]` : ''}`);
+  }
+  return L.join('\n');
+}

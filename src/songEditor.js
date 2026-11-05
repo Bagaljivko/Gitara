@@ -221,7 +221,7 @@ function formatScanDiag(d, e) {
   L.push(`${t('diag.time')}: ${d.at}  ·  ${t('diag.total')}: ${secs(d.totalMs)}  ·  ${t('diag.code')}: ${(e && e.code) || (e && e.name) || '?'}`);
   L.push(`${t('diag.model')}: ${d.selection === 'auto' ? t('set.modelAuto') : d.selection || '?'}`);
   L.push(`${t('diag.images')} (${d.images.length}):`);
-  d.images.forEach((i, k) => L.push(`  ${k + 1}) ${t('diag.original')} ${i.ow}×${i.oh}, ${kb(i.origBytes)} → ${t('diag.sent')} ${i.w}×${i.h}, ${kb(i.bytes)} (JPEG ${i.quality})`));
+  d.images.forEach((i, k) => L.push(`  ${k + 1}) ${t('diag.original')} ${i.ow}×${i.oh}, ${kb(i.origBytes)} → ${t('diag.sent')} ${i.w}×${i.h}, ${kb(i.bytes)} (JPEG ${i.quality}${i.crop ? ', papir ' + i.crop : ''}${i.clean ? ', sivo + kontrast' : ''})`));
   if (d.images.length) L.push(`  ${t('diag.sentTotal')}: ${kb(d.images.reduce((a, i) => a + i.bytes, 0))}`);
   L.push(`${t('diag.attempts')} (${d.attempts.length}):`);
   if (!d.attempts.length) L.push(`  ${t('diag.noAttempts')}`);
@@ -307,6 +307,8 @@ async function readTab(imgs, signal, setText, diag) {
     else if (kind === 'switch') setText(t('scan.switchModel', { model }));
     else if (kind === 'busy' || kind === 'retry') setText(t('scan.busy'));
     else if (kind === 'wait') setText(t('scan.wait', { s: model }));
+    else if (kind === 'progress') setText(model > 0 ? `${cur} ${t('tab.progress', { n: model })}` : cur);
+    else if (kind === 'recheck') setText((cur = t('tab.recheck', { list: model })));
     else setText(cur);
   }, diag);
   const { fromScan } = await import('./tabSong.js');

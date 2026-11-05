@@ -2,6 +2,8 @@
 import { t } from './i18n.js';
 // Ključ se nikad ne nalazi u kodu; čuva se samo u IndexedDB na uređaju.
 import { settings } from './db.js';
+import { readSSE, looksStuck } from './streamRead.js';
+import { TAB_TEXT_PROMPT, TAB_TEXT_PAGE, TAB_TEXT_RANGE, TAB_TEXT_BARS, parseTabText } from './tabScanText.js';
 import { normalizeSong } from './songformat.js';
 import { parseAsciiTab } from './tabs.js';
 
@@ -301,20 +303,21 @@ function httpError(res, data, model) {
 }
 
 const ATTEMPT_MS = () => globalThis.__gitaraAttemptMs || 75000; // jedan pokušaj kod jednog modela: duže = zaglavljen → sledeći model
-async function callOnce(apiKey, body, signal, model, { diag, onStatus, thinking } = {}) {
+async function callOnce(apiKey, body, signal, model, { diag, onStatus, thinking, stream } = {}) {
   if (navigator.onLine === false) throw new GeminiError(t('gem.offline'));
   const own = new AbortController();
   let stuck = false;
   const onParent = () => own.abort();
   if (signal) { if (signal.aborted) own.abort(); else signal.addEventListener('abort', onParent, { once: true }); }
   const stuckT = setTimeout(() => { stuck = true; own.abort(); }, ATTEMPT_MS());
-  try { return await callOnceInner(apiKey, body, own.signal, model, { diag, onStatus, thinking }); }
+  try { return await callOnceInner(apiKey, body, own.signal, model, { diag, onStatus, thinking, stream }); }
   catch (e) {
     if (stuck && e && e.name === 'AbortError') { const last = diag && diag.attempts[diag.attempts.length - 1]; if (last) last.status = 'zaglavljen (75 s)'; throw Object.assign(new GeminiError(t('gem.busy'), { code: 'BUSY', model }), { retryMs: 60000, stuck: true }); }
     throw e;
   } finally { clearTimeout(stuckT); if (signal) signal.removeEventListener('abort', onParent); }
 }
-async function callOnceInner(apiKey, body, signal, model, { diag, onStatus, thinking } = {}) {
+const IDLE_MS = () => globalThis.__gitaraIdleMs || 30000; // odgovor „u delovima“: toliko bez novog dela = stao
+async function callOnceInner(apiKey, body, signal, model, { diag, onStatus, thinking, stream } = {}) {
   const payload = JSON.stringify(body);
   const att = { model, thinking: describeThinking(thinking), sentBytes: payload.length, ms: 0, status: '…', message: '' };
   if (diag) diag.attempts.push(att);
@@ -324,7 +327,7 @@ async function callOnceInner(apiKey, body, signal, model, { diag, onStatus, thin
   const readTimer = onStatus ? setTimeout(() => onStatus('reading', model), Math.min(8000, Math.max(700, payload.length / 250))) : 0;
   let res;
   try {
-    res = await fetch(`${API_BASE}${encodeURIComponent(model)}:generateContent`, {
+    res = await fetch(`${API_BASE}${encodeURIComponent(model)}:${stream ? 'streamGenerateContent?alt=sse' : 'generateContent'}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
       body: payload,
@@ -337,6 +340,24 @@ async function callOnceInner(apiKey, body, signal, model, { diag, onStatus, thin
     att.status = 'mreža';
     att.message = String((e && e.message) || e);
     throw new GeminiError(t('gem.network'));
+  }
+  if (stream && res.ok && res.body) {
+    // odgovor stiže deo po deo: napredak se vidi, „zaglavljen“ odgovor (ponavljanje) se prekida odmah,
+    // a i kad stane na pola (prestane da šalje, istekne rok) zadržava se sve što je stiglo
+    const r = await readSSE(res.body, { onText: stream.onText, idleMs: IDLE_MS(), signal });
+    clearTimeout(readTimer);
+    att.ms = performance.now() - t0;
+    att.status = 'HTTP 200';
+    att.recvChars = r.text.length;
+    const why = r.stopped ? 'LOOP' : r.idle ? 'IDLE' : r.aborted ? 'CUT' : r.finishReason || (r.error ? 'ERROR' : '?');
+    att.message = `OK u delovima (${r.chunks}, finishReason ${why})` + (r.error ? ' ' + String(r.error.message || '').slice(0, 200) : '');
+    if (!r.text.trim() && !r.chunks && !r.idle && !r.aborted && !r.error) return {}; // prazan odgovor (kao bez kandidata)
+    if (!r.text.trim()) {
+      if (r.aborted) { att.status = 'prekinuto'; throw new DOMException('Aborted', 'AbortError'); }
+      if (r.idle) { att.status = 'zaglavljen (bez odgovora)'; throw Object.assign(new GeminiError(t('gem.busy'), { code: 'BUSY', model }), { retryMs: 60000, stuck: true }); }
+      if (r.error) throw httpError({ status: Number(r.error.code) || 500, statusText: '' }, { error: r.error }, model);
+    }
+    return { candidates: [{ content: { parts: [{ text: r.text }] }, finishReason: ['LOOP', 'IDLE', 'CUT', 'ERROR'].includes(why) ? 'PARTIAL' : why, partial: why }] };
   }
   let data = null;
   try { data = await res.json(); } catch {}
@@ -363,17 +384,27 @@ const THINK_KEY = 'gitara-think';
 const thinkStart = (m) => { try { return Number((JSON.parse(localStorage.getItem(THINK_KEY) || '{}'))[m]) || 0; } catch { return 0; } };
 const thinkSave = (m, v) => { try { const o = JSON.parse(localStorage.getItem(THINK_KEY) || '{}'); o[m] = v; localStorage.setItem(THINK_KEY, JSON.stringify(o)); } catch {} };
 
+// Modeli koji odbiju mediaResolution (stariji / drugačiji API) — pamti se da se ne troši zahtev svaki put
+const MEDIA_KEY = 'gitara-nomedia';
+const noMediaRes = new Set((() => { try { return JSON.parse(localStorage.getItem(MEDIA_KEY) || '[]'); } catch { return []; } })());
+const saveNoMediaRes = () => { try { localStorage.setItem(MEDIA_KEY, JSON.stringify([...noMediaRes])); } catch {} };
+function withoutMediaRes(body) { const gc = { ...(body.generationConfig || {}) }; delete gc.mediaResolution; return { ...body, generationConfig: gc }; }
+
 /** Jedan model. auto: zauzet → hlađenje i greška (pita se drugi model); izabran model: čeka koliko Google kaže. */
-async function callWithRetry(apiKey, body, signal, model, onStatus, delays, diag, { auto = false, until = Infinity } = {}) {
+async function callWithRetry(apiKey, body, signal, model, onStatus, delays, diag, { auto = false, until = Infinity, stream = null } = {}) {
   const variants = thinkingVariants(model);
   for (let v = Math.min(thinkStart(model), variants.length - 1); v < variants.length; v++) {
-    const b = withThinking(body, variants[v]);
+    let b = withThinking(noMediaRes.has(model) ? withoutMediaRes(body) : body, variants[v]);
     for (let attempt = 0; ; attempt++) {
       try {
-        const data = await callOnce(apiKey, b, signal, model, { diag, onStatus, thinking: variants[v] });
+        const data = await callOnce(apiKey, b, signal, model, { diag, onStatus, thinking: variants[v], stream });
         if (v !== thinkStart(model)) thinkSave(model, v);
         return data;
       } catch (e) {
+        // model ne prihvata „visoku rezoluciju slike“: zapamti i pošalji isti zahtev bez nje
+        if (e instanceof GeminiError && /^HTTP_400$/.test(e.code) && b.generationConfig && b.generationConfig.mediaResolution && /media_?resolution/i.test(e.message)) {
+          noMediaRes.add(model); saveNoMediaRes(); b = withoutMediaRes(b); attempt--; continue;
+        }
         if (e instanceof GeminiError && e.code === 'THINKING' && v < variants.length - 1) { thinkSave(model, v + 1); break; } // sledeća varijanta, zapamćeno
         if (e instanceof GeminiError && e.code === 'THINKING') throw new GeminiError(t('gem.errorMsg', { msg: e.message }), { code: 'HTTP_400', model });
         if (!(e instanceof GeminiError) || e.code !== 'BUSY') throw e;
@@ -393,7 +424,7 @@ async function callWithRetry(apiKey, body, signal, model, onStatus, delays, diag
  * Flash-Lite, ostali) dok jedan ne uspe. Ukupno najviše ~60 s; „Otkaži“ (signal) prekida odmah.
  * Vraća { data, model }.
  */
-async function generate(apiKey, body, { signal, onStatus, selection, models, diag, deadline = 0 } = {}) {
+async function generate(apiKey, body, { signal, onStatus, selection, models, diag, deadline = 0, stream = null } = {}) {
   if (!apiKey) throw new GeminiError(t('gem.noKey'));
   if (navigator.onLine === false) throw new GeminiError(t('gem.offline'));
   const ctrl = new AbortController();
@@ -415,7 +446,7 @@ async function generate(apiKey, body, { signal, onStatus, selection, models, dia
         if (prev && model !== prev && onStatus) onStatus('switch', model);
         prev = model;
         try {
-          const data = await callWithRetry(apiKey, body, ctrl.signal, model, onStatus, auto ? FALLBACK_RETRY : RETRY_DELAYS, diag, { auto, until });
+          const data = await callWithRetry(apiKey, body, ctrl.signal, model, onStatus, auto ? FALLBACK_RETRY : RETRY_DELAYS, diag, { auto, until, stream });
           if (auto) await settings.set('geminiLastModel', model);
           return { data, model };
         } catch (e) {
@@ -470,7 +501,60 @@ export async function testKey(apiKey, selection, onStatus) {
 }
 
 /** Smanjuje sliku (max 2000px) i vraća { mime, base64 }. */
-export async function prepareImage(file, { max = 1600, quality = 0.8, maxBytes = 500 * 1024 } = {}) {
+// ---------------- Priprema slike: samo papir, sivo, jasan kontrast ----------------
+// Fotografija lista na stolu: drvo, senke i margine zauzimaju deo slike, pa su sitni brojevi tablature mali i
+// bledi. Pre slanja: (1) isecanje na papir (najveći svetli pravougaonik), (2) sivo, (3) razvlačenje kontrasta
+// (crni brojevi tamni, papir beo). Tamni snimci ekrana (bela slova na crnom) se ne diraju.
+function lumOf(d, i) { return 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]; }
+function otsu(hist, total) {
+  let sum = 0; for (let i = 0; i < 256; i++) sum += i * hist[i];
+  let sB = 0, wB = 0, best = 0, th = 128;
+  for (let i = 0; i < 256; i++) {
+    wB += hist[i]; if (!wB) continue;
+    const wF = total - wB; if (!wF) break;
+    sB += i * hist[i];
+    const mB = sB / wB, mF = (sum - sB) / wF, v = wB * wF * (mB - mF) * (mB - mF);
+    if (v > best) { best = v; th = i; }
+  }
+  return th;
+}
+/** Gde je papir na slici: { x, y, w, h } u delovima (0–1) ili null (cela slika / ne može se pouzdano odrediti). */
+export function findPaper(lum, W, H) {
+  const hist = new Array(256).fill(0);
+  let mean = 0;
+  for (const v of lum) { hist[v | 0]++; mean += v; }
+  mean /= lum.length;
+  if (mean < 90) return { dark: true };
+  const th = Math.max(otsu(hist, lum.length), 110);
+  // najduži niz redova / kolona u kojima je većina piksela „papir“
+  const run = (n, frac) => { let best = [0, -1], s = -1; for (let i = 0; i <= n; i++) { const ok = i < n && frac(i) > 0.5; if (ok && s < 0) s = i; if (!ok && s >= 0) { if (i - 1 - s > best[1] - best[0]) best = [s, i - 1]; s = -1; } } return best; };
+  const rowFrac = (y) => { let c = 0; for (let x = 0; x < W; x++) if (lum[y * W + x] > th) c++; return c / W; };
+  const [y0, y1] = run(H, rowFrac);
+  const colFrac = (x) => { let c = 0; for (let y = y0; y <= y1; y++) if (lum[y * W + x] > th) c++; return c / Math.max(1, y1 - y0 + 1); };
+  const [x0, x1] = run(W, colFrac);
+  if (y1 < y0 || x1 < x0) return null;
+  const pad = 0.015;
+  const box = { x: Math.max(0, x0 / W - pad), y: Math.max(0, y0 / H - pad), w: 0, h: 0 };
+  box.w = Math.min(1, (x1 + 1) / W + pad) - box.x; box.h = Math.min(1, (y1 + 1) / H + pad) - box.y;
+  const area = box.w * box.h;
+  return area < 0.25 || area > 0.95 ? null : box;
+}
+/** Sivo + kontrast: tamni deo (brojevi) ka crnoj, papir ka beloj — po raspodeli svetline same slike. */
+function enhance(ctx, w, h) {
+  const im = ctx.getImageData(0, 0, w, h), d = im.data, n = w * h;
+  const hist = new Array(256).fill(0);
+  for (let i = 0; i < d.length; i += 4) hist[lumOf(d, i) | 0]++;
+  const pct = (p) => { let c = 0; for (let i = 0; i < 256; i++) { c += hist[i]; if (c >= n * p) return i; } return 255; };
+  const lo = pct(0.01), hi = Math.max(lo + 40, pct(0.90)); // ~90 % slike je papir: on postaje beo
+  const k = 255 / (hi - lo);
+  for (let i = 0; i < d.length; i += 4) {
+    const v = Math.max(0, Math.min(255, (lumOf(d, i) - lo) * k));
+    d[i] = d[i + 1] = d[i + 2] = v;
+  }
+  ctx.putImageData(im, 0, 0);
+}
+
+export async function prepareImage(file, { max = 1600, quality = 0.8, maxBytes = 500 * 1024, clean = true } = {}) {
   const url = URL.createObjectURL(file);
   try {
     const img = await new Promise((resolve, reject) => {
@@ -480,24 +564,41 @@ export async function prepareImage(file, { max = 1600, quality = 0.8, maxBytes =
       i.src = url;
     });
     const ow = img.naturalWidth, oh = img.naturalHeight;
+    // gde je papir (mala kopija slike, samo za merenje)
+    let crop = { x: 0, y: 0, w: 1, h: 1 }, dark = false;
+    if (clean) {
+      try {
+        const A = 320, sc = A / Math.max(ow, oh), aw = Math.max(1, Math.round(ow * sc)), ah = Math.max(1, Math.round(oh * sc));
+        const c = document.createElement('canvas'); c.width = aw; c.height = ah;
+        const cx = c.getContext('2d', { willReadFrequently: true }); cx.drawImage(img, 0, 0, aw, ah);
+        const d = cx.getImageData(0, 0, aw, ah).data, lum = new Float32Array(aw * ah);
+        for (let i = 0; i < lum.length; i++) lum[i] = lumOf(d, i * 4);
+        c.width = c.height = 0;
+        const box = findPaper(lum, aw, ah);
+        if (box && box.dark) dark = true; else if (box) crop = box;
+      } catch {}
+    }
+    const cw = ow * crop.w, ch = oh * crop.h, sx = ow * crop.x, sy = oh * crop.y;
     let side = max, q = quality, dataUrl = '', w = 0, h = 0;
     // Smanjuj dok slika ne bude ispod ~500 KB (prvo kvalitet, pa dimenzije).
     for (let step = 0; step < 6; step++) {
-      const scale = Math.min(1, side / Math.max(ow, oh));
-      w = Math.round(ow * scale); h = Math.round(oh * scale);
+      const scale = Math.min(1, side / Math.max(cw, ch));
+      w = Math.round(cw * scale); h = Math.round(ch * scale);
       const canvas = document.createElement('canvas');
       canvas.width = w; canvas.height = h;
-      const ctx = canvas.getContext('2d');
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
       ctx.fillStyle = '#fff';
       ctx.fillRect(0, 0, w, h);
-      ctx.drawImage(img, 0, 0, w, h);
+      ctx.drawImage(img, sx, sy, cw, ch, 0, 0, w, h);
+      if (clean && !dark) { try { enhance(ctx, w, h); } catch {} }
       dataUrl = canvas.toDataURL('image/jpeg', q);
       canvas.width = canvas.height = 0; // oslobodi memoriju odmah (važno na telefonu)
       if (b64Bytes(dataUrl) <= maxBytes) break;
       if (q > 0.62) q -= 0.1; else side = Math.round(side * 0.85);
     }
     const base64 = dataUrl.split(',')[1];
-    return { mime: 'image/jpeg', base64, preview: dataUrl, info: { ow, oh, origBytes: file.size, w, h, bytes: b64Bytes(dataUrl), quality: +q.toFixed(2) } };
+    const cropped = crop.w < 1 || crop.h < 1;
+    return { mime: 'image/jpeg', base64, preview: dataUrl, info: { ow, oh, origBytes: file.size, w, h, bytes: b64Bytes(dataUrl), quality: +q.toFixed(2), ...(cropped ? { crop: `${Math.round(crop.w * 100)}×${Math.round(crop.h * 100)} %` } : {}), ...(clean && !dark ? { clean: 1 } : {}) } };
   } finally {
     URL.revokeObjectURL(url);
   }
@@ -555,10 +656,10 @@ export async function scanSong(images, signal, onStatus, diag) {
 
 /** Jedan poziv za TAB stranu (dug odgovor: do 32 768 tokena). Vraća JSON ili null ako odgovor nije ceo / ispravan. */
 async function askTab(apiKey, img, text, signal, onStatus, diag, { maxTokens = 32768, deadline = 0 } = {}) {
-  const contents = [{ parts: [{ text }, { inline_data: { mime_type: img.mime, data: img.base64 } }] }];
+  const contents = [{ parts: [{ inline_data: { mime_type: img.mime, data: img.base64 } }, { text }] }];
   // dužina odgovora ograničena prema broju traženih taktova: kad se model „zaglavi“ i ponavlja iste brojeve,
   // odgovor se preseče za nekoliko sekundi umesto da se piše minutima
-  const cfg = { temperature: 0.1, responseMimeType: 'application/json', maxOutputTokens: maxTokens };
+  const cfg = { temperature: 0.1, responseMimeType: 'application/json', maxOutputTokens: maxTokens, mediaResolution: HIGH_RES };
   let res;
   try {
     res = await generate(apiKey, { contents, generationConfig: { ...cfg, responseSchema: TAB_SCHEMA } }, { signal, onStatus, diag, deadline });
@@ -588,6 +689,30 @@ export function cleanComposer(raw, j = {}) {
 const TAB_PAGE_MS = 180000; // jedna strana najduže 3 min (uz čekanje na slobodan model); posle toga dalje sa pročitanim
 const tabTokens = (bars) => 2000 + 700 * bars; // ~350 tokena po taktu ×2, plus mesto za kratko „razmišljanje“ modela
 
+/** Jedan poziv u kratkom tekstu (kolone žica/prag, ritam računa aplikacija). Vraća isti oblik kao askTab ili null. */
+// Slika PRE uputstva (preporuka za Gemini: model prvo „vidi“ list, pa čita šta da radi) i u visokoj rezoluciji
+// (sitni brojevi u tablaturi). Ako model ne prihvati mediaResolution, šalje se bez nje (zapamti se po modelu).
+const HIGH_RES = 'MEDIA_RESOLUTION_HIGH';
+async function askTabText(apiKey, img, text, signal, onStatus, diag, { maxTokens = 6000, deadline = 0, expect = 24 } = {}) {
+  const contents = [{ parts: [{ inline_data: { mime_type: img.mime, data: img.base64 } }, { text }] }];
+  let seen = 0;
+  const stream = {
+    onText: (sofar) => {
+      const got = (sofar.match(/^\s*T\s*\d{1,3}\s*[:.]/gim) || []).length;
+      if (got !== seen) { seen = got; onStatus?.('progress', got, expect); }
+      return looksStuck(sofar, expect); // ponavlja se u krug → prekini odmah (pročitano ostaje)
+    },
+  };
+  const res = await generate(apiKey, { contents, generationConfig: { temperature: 0.1, maxOutputTokens: maxTokens, mediaResolution: HIGH_RES } }, { signal, onStatus, diag, deadline, stream });
+  if (signal && signal.aborted) throw new DOMException('Aborted', 'AbortError');
+  const cand = res.data && res.data.candidates && res.data.candidates[0];
+  // presečen odgovor (granica dužine, ponavljanje, prekid): poslednji red možda nije ceo — odbaci ga
+  const j = parseTabText(textOf(res.data), { truncated: !!cand && (cand.finishReason === 'MAX_TOKENS' || cand.finishReason === 'PARTIAL'), loop: !!cand && cand.partial === 'LOOP' });
+  if (j) { j.scanModel = res.model; if (cand.partial) j.partial = cand.partial; }
+  return j;
+}
+const tabTextTokens = (bars) => 1500 + 160 * bars; // ~10 kolona × ~6 tokena po taktu, plus mesto za kratko „razmišljanje“
+
 /**
  * TAB list → sirov JSON taktova (pesmu pravi tabSong.fromScan). Jedan zahtev po strani (ceo red taktova obično stigne
  * za nekoliko sekundi) i najviše jedan dopunski za taktove koji fale — besplatan Gemini ključ dozvoljava samo ~5
@@ -614,16 +739,22 @@ export async function scanTab(images, signal, onStatus, diag) {
     const img = list[pi], N = list.length, t0 = Date.now();
     const left = () => TAB_PAGE_MS - (Date.now() - t0);
     // zahtev → odgovor ili null (nepotpun / isteklo / svi modeli zauzeti); ključ, mreža i otkazivanje prekidaju sve
-    const ask = async (text, bars) => {
+    // kratak tekst (kolone žica/prag) — lak i brz zadatak; isti zahtev kao JSON samo kad tekst ne uspe (rezerva)
+    const ask = async (text, bars, json = false, maxMs = Infinity) => {
       if (left() < 10000) return null;
-      try { return await askTab(apiKey, img, text, signal, onStatus, diag, { maxTokens: tabTokens(bars), deadline: left() }); }
+      const deadline = Math.min(left(), maxMs);
+      try {
+        return json ? await askTab(apiKey, img, text, signal, onStatus, diag, { maxTokens: tabTokens(bars), deadline })
+          : await askTabText(apiKey, img, text, signal, onStatus, diag, { maxTokens: tabTextTokens(bars), deadline, expect: bars });
+      }
       catch (e) {
         if (e instanceof GeminiError && ['TIMEOUT', 'BUSY', 'HTTP_500', 'HTTP_502', 'HTTP_503', 'HTTP_504'].includes(e.code)) { lastErr = e; return null; }
         throw e;
       }
     };
     onStatus?.('page', pi + 1, N);
-    const j = await ask(TAB_PROMPT + TAB_PAGE(pi + 1, N, next), 24);
+    let j = await ask(TAB_TEXT_PROMPT + TAB_TEXT_PAGE(pi + 1, N, next), 24);
+    if (!j && !(lastErr && lastErr.code === 'BUSY') && left() > 30000) j = await ask(TAB_PROMPT + TAB_PAGE(pi + 1, N, next), 24, true); // rezerva: stari način
     meta(j);
     const first = j && Number.isInteger(j.firstBar) && j.firstBar > 0 ? j.firstBar : next;
     const counted = j && Number.isInteger(j.pageBars) && j.pageBars > 0 && j.pageBars <= 80 ? j.pageBars : 0;
@@ -643,14 +774,35 @@ export async function scanTab(images, signal, onStatus, diag) {
     if (missing().length && (j || !counted)) {
       const m = missing(), a = m[0], b = m[m.length - 1];
       onStatus?.('range', a, b, pi + 1, N);
-      const jj = await ask(TAB_PROMPT + TAB_PAGE(pi + 1, N, first) + TAB_RANGE(a, b), b - a + 1);
+      const jj = await ask(TAB_TEXT_PROMPT + TAB_TEXT_PAGE(pi + 1, N, first) + TAB_TEXT_RANGE(a, b), b - a + 1);
       if (jj) { meta(jj); take(jj.bars, a, b); }
     } else if (!j && !counted) {
       // strana uopšte nije pročitana i ne zna se koliko taktova ima: još jedan pokušaj cele strane
-      const jj = await ask(TAB_PROMPT + TAB_PAGE(pi + 1, N, next), 24);
+      const jj = await ask(TAB_TEXT_PROMPT + TAB_TEXT_PAGE(pi + 1, N, next), 24);
       meta(jj); take(jj && jj.bars, next, next + 79);
       last = Math.max(last, ...have.keys());
     }
+    // Muzička provera: takt koji Gemini označi „?“, sa nejasnim brojevima, dve note na istoj žici, trajanjima koja
+    // ne staju u takt, ili sa mnogo manje/više kolona nego ostali taktovi na strani → JEDAN dodatni zahtev samo za
+    // te taktove (pažljivo, broj po broj). Novo čitanje se uzima samo ako je čisto; inače ostaje prvo + napomena.
+    const cols = (x) => new Set(x.notes.map((y) => y.start)).size;
+    const read = [...have.values()].filter((x) => x.notes.length).sort((x, y) => x.n - y.n);
+    const counts = read.map(cols).sort((x, y) => x - y), mode = counts.length >= 4 ? counts[counts.length >> 1] : 0;
+    const odd = new Set(mode >= 3 ? read.filter((x) => x.n !== read[read.length - 1].n && (cols(x) * 2 < mode || cols(x) > mode * 2)).map((x) => x.n) : []);
+    const doubt = read.filter((x) => x.doubt || odd.has(x.n)).map((x) => x.n);
+    if (doubt.length && doubt.length <= 8 && left() > 25000) {
+      onStatus?.('recheck', doubt.join(', '));
+      const jj = await ask(TAB_TEXT_PROMPT + TAB_TEXT_PAGE(pi + 1, N, first) + TAB_TEXT_BARS(doubt), doubt.length, false, 60000);
+      const fixed = new Set();
+      for (const x of (jj && jj.bars) || []) {
+        if (!doubt.includes(x.n) || x.doubt || !x.notes.length) continue;
+        if (odd.has(x.n) && !have.get(x.n).doubt && Math.abs(cols(x) - mode) >= Math.abs(cols(have.get(x.n)) - mode) && cols(x) !== cols(have.get(x.n))) continue; // ništa bolje
+        have.set(x.n, x); fixed.add(x.n);
+      }
+      if (diag) diag.recheck = [...(diag.recheck || []), { bars: doubt, fixed: [...fixed] }];
+      out.unsure = out.unsure.filter((u) => !fixed.has(u.bar));
+      for (const n of odd) if (!fixed.has(n) && !have.get(n).doubt) out.unsure.push({ bar: n, why: t('tab.doubt') });
+    } else for (const n of odd) out.unsure.push({ bar: n, why: t('tab.doubt') });
     for (const n of missing()) { have.set(n, { n, notes: [] }); out.unsure.push({ bar: n, why: t('tab.notRead') }); }
     out.bars.push(...[...have.values()].sort((x, y) => x.n - y.n));
     next = Math.max(next, last + 1);
