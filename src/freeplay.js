@@ -636,6 +636,7 @@ async function startLive({ onExit, onSaved }) {
     if (on) allowSleep('freeplay'); else { keepAwake('freeplay'); timer = setInterval(status, 50); }
   }
   async function begin() {
+    window.dispatchEvent(new Event('gitara-mic')); // bez sviranja pesme dok mikrofon sluša
     try {
       mic = await openMic();
     } catch (e) {

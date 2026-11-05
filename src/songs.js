@@ -667,7 +667,8 @@ export async function renderSong(root, id, nav = null) {
       <button class="icon-btn scroll-collapse" id="sCollapse" aria-label="${t('scroll.collapse')}" title="${t('scroll.collapse')}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.6 7.4 10 6l6 6-6 6-1.4-1.4L13.2 12z"/></svg></button>
     </div>
     <div class="song-actions">
-      <button class="btn primary" id="sPdf">
+      <button class="btn primary" id="sPlaySong"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg> ${t('song.play')}</button>
+      <button class="btn" id="sPdf">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z"/></svg> ${t('song.pdf')}</button>
       <button class="btn" id="sShare">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 16a3 3 0 0 0-2.4 1.2l-6.7-3.4a3 3 0 0 0 0-1.6l6.7-3.4A3 3 0 1 0 15 7l-6.7 3.4a3 3 0 1 0 0 3.2L15 17a3 3 0 1 0 3-1z"/></svg> ${t('song.share')}</button>
@@ -796,7 +797,7 @@ export async function renderSong(root, id, nav = null) {
   // Sve odjednom (otvaranje pesme, odgovor na pitanje, izmena ritma…)
   const draw = () => { drawHead(); drawAsk(); drawSuggest(); drawControls(); drawDetails(); drawLyrics(); };
   // Tonalitet/kapodaster: samo kontrole, predlozi, detalji i akordi u tekstu
-  const drawKeyChange = () => { drawControls(); drawSuggest(); drawDetails(); drawLyrics(); };
+  const drawKeyChange = () => { closePlayer(); drawControls(); drawSuggest(); drawDetails(); drawLyrics(); };
   // „Detalji“: zatvoreni posle prvog pregleda pesme; pamti se poslednji izbor
   const detInit = !stored.seen || localStorageGet('gitara-details') === '1';
   $('sDet').open = detInit;
@@ -1186,7 +1187,56 @@ export async function renderSong(root, id, nav = null) {
     await setCapo(e.capo);
     toast(t('sug.easyText', { n: e.capo, shapes: e.shapes.map((x) => dn(x)).join(', ') }));
   });
+  // ---- „Pusti“: pesma zvukom gitare (akordi po ritmu pesme, tonalitet, kapodaster); učitava se tek na dugme ----
+  let playerUI = null, plTl = null, plCh = null, plLn = null;
+  function plMark(seg) {
+    plCh?.classList.remove('playing'); plLn?.classList.remove('playing');
+    plCh = plLn = null;
+    if (!seg) return;
+    const sec = $('sLyrics').querySelectorAll(':scope > .sec')[seg.ref.si];
+    plLn = sec ? sec.querySelectorAll(':scope > .ln')[seg.ref.li] : null;
+    plCh = plLn ? plLn.querySelectorAll('.ch')[seg.ref.ci] : null;
+    plLn?.classList.add('playing'); plCh?.classList.add('playing');
+  }
+  function closePlayer() { if (!playerUI) return; playerUI.destroy(); playerUI = null; plMark(null); allowSleep('songplay'); }
+  async function openPlayer() {
+    if (playerUI) return playerUI;
+    const [sp, pl] = await Promise.all([import('./songPlay.js'), import('./songPlayer.js')]);
+    plTl = sp.chordTimeline(stored, { tp, capo });
+    if (!plTl.events.length) { toast(t('pr.pesma.noChords'), 'error'); return null; }
+    stopScroll();
+    let lastSeg = -1;
+    playerUI = pl.mountPlayerBar($('sScrollBar'), plTl, {
+      bpm: await songBpm(), partLabel: (p) => p.name || t('song.chordsFallback'),
+      onFrame: (b, si) => {
+        if (si === lastSeg) return;
+        lastSeg = si; plMark(plTl.segs[si]);
+        if (plLn) { const d = plLn.getBoundingClientRect().top - window.innerHeight * 0.3; if (Math.abs(d) > 40) window.scrollBy({ top: d, behavior: 'smooth' }); }
+      },
+      onStop: () => { lastSeg = -1; },
+      onClose: closePlayer,
+    });
+    $('sScrollBar').classList.add('pl-host');
+    keepAwake('songplay');
+    return playerUI;
+  }
+  $('sPlaySong').addEventListener('click', async () => { const u = await openPlayer(); if (u && !u.playing) u.startAt(0); });
+  window.addEventListener('hashchange', function offPl() { closePlayer(); window.removeEventListener('hashchange', offPl); });
+  /** Dok je „Pusti“ otvoren: dodir na red ili akord = sviranje odatle (inače akord otvara dijagram, kao i pre). */
+  function seekFrom(target) {
+    const ln = target.closest('.ln');
+    if (!playerUI || !ln || !$('sLyrics').contains(ln)) return false;
+    const sec = ln.closest('.sec'), si = [...$('sLyrics').querySelectorAll(':scope > .sec')].indexOf(sec);
+    const li = [...sec.querySelectorAll(':scope > .ln')].indexOf(ln);
+    const ch = target.closest('.ch'), ci = ch ? [...ln.querySelectorAll('.ch')].indexOf(ch) : -1;
+    let k = plTl.segs.findIndex((x) => x.ref.si === si && x.ref.li === li && (ci < 0 || x.ref.ci === ci));
+    if (k < 0) k = plTl.segs.findIndex((x) => x.ref.si > si || (x.ref.si === si && x.ref.li >= li));
+    if (k < 0) return false;
+    playerUI.startAt(plTl.segs[k].beat);
+    return true;
+  }
   root.querySelector('.song-view').addEventListener('click', (e) => {
+    if (seekFrom(e.target)) return;
     const tp_ = e.target.closest('[data-tabplay]');
     if (tp_) return toggleTab(tp_);
     const un = e.target.closest('[data-unsure]');

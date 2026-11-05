@@ -169,7 +169,7 @@ export async function playBars(tab, bars, { bpm = 50, onNote, onEnd } = {}) {
 
 // ---------------- Ekran TAB pesme ----------------
 const PR_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" d="M12 2.2c-4.9 0-8.6 2-8.6 5.6 0 4.6 4.2 10.2 8.6 14 4.4-3.8 8.6-9.4 8.6-14 0-3.6-3.7-5.6-8.6-5.6zM10 7.6v6.2l5.2-3.1z"/></svg>';
-const PLAY = '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>', PAUSE = '<svg viewBox="0 0 24 24"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>';
+const PLAY_SM = '<svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>';
 export const DEFAULT_TAB_BPM = 66;
 
 /** Zajednički opis: „Anonymous · Takt 3/4 · e-mol → E-dur“. */
@@ -211,13 +211,12 @@ export async function renderTabSong(root, stored, nav, { ytRowHTML, shareSong, d
         </div>
         <span class="ctl-sub">BPM</span>
       </div>
-      <p class="small muted tab-tap">${t('tab.tapHint')}</p>
+      <p class="small muted tab-tap">${t('play.tapHint')}</p>
     </div>
     <details class="song-details" id="tDet"><summary><span>${t('song.details')}</span></summary><div id="tDetBody"></div></details>
     <div class="tab-staff2" id="tStaff"></div>
     <div class="scroll-bar" id="tScrollBar">
-      <button class="btn round small" id="tPlay" aria-label="${t('scroll.play')}">${PLAY}</button>
-      <span class="small muted" id="tScrollInfo">${t('tab.tempo')}: ${bpm} BPM</span>
+      <button class="btn small primary" id="tPlay">${PLAY_SM} ${t('play.open')}</button>
     </div>
     <div class="song-actions">
       <button class="btn primary" id="tPdf"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z"/></svg> ${t('song.pdf')}</button>
@@ -267,70 +266,44 @@ export async function renderTabSong(root, stored, nav, { ytRowHTML, shareSong, d
   drawHead(); drawSug(); drawDet(); drawTab();
   if (!stored.seen) { stored.seen = true; save().catch(() => {}); }
 
-  // ---- Dodir na takt: polako, sa referentnim tonovima ----
-  let stopPlay = null, playingBar = -1;
-  async function playBar(bi) {
-    stopAll();
-    playingBar = bi; mark(bi, 'cur', true);
-    keepAwake('tabplay');
-    stopPlay = await playBars(stored.tab, [bi], {
-      bpm: Math.max(36, Math.round(bpm * 0.6)),
-      onNote: (b, ni) => { const n = $('tStaff')?.querySelector(`[data-note="${b}-${ni}"]`); if (n) { n.classList.remove('on'); void n.getBBox(); n.classList.add('on'); } },
-      onEnd: () => stopAll(),
-    });
-  }
-  function stopAll() {
-    stopPlay?.(); stopPlay = null;
-    if (playingBar >= 0) mark(playingBar, 'cur', false);
-    playingBar = -1;
-    allowSleep('tabplay');
-  }
-
-  // ---- Automatsko skrolovanje u tempu pesme (prati ponavljanja; tekući takt je blago označen) ----
-  let scrolling = false, raf = 0, t0 = 0, curBar = -1;
-  const order = playOrder(stored.tab), info = barInfo(stored.tab);
-  const starts = []; { let s = 0; for (const bi of order) { starts.push(s); s += info[bi].len; } starts.push(s); }
-  function step(now) {
-    if (!scrolling) return;
-    const beat = ((now - t0) / 60000) * bpm - 1; // jedna doba pre početka
-    let k = 0;
-    while (k + 1 < order.length && starts[k + 1] <= beat) k++;
-    if (beat >= starts[order.length]) { stopScroll(); return; }
-    const bi = order[Math.max(0, k)];
-    if (bi !== curBar) { if (curBar >= 0) mark(curBar, 'now', false); curBar = bi; mark(bi, 'now', true); }
-    const row = barEl(bi)?.closest('.tb-row');
-    if (row) {
-      const want = window.scrollY + row.getBoundingClientRect().top - window.innerHeight * 0.28;
-      const d = want - window.scrollY;
-      if (Math.abs(d) > 1) window.scrollBy(0, d * 0.08);
+  // ---- „Pusti“: cela pesma zvukom gitare (modul se učitava tek na dugme); tekuća nota i takt se ističu, ekran prati ----
+  let ui = null, tlP = null, nowBar = -1;
+  const markNow = (bi) => { if (nowBar === bi) return; if (nowBar >= 0) mark(nowBar, 'now', false); nowBar = bi; if (bi >= 0) mark(bi, 'now', true); };
+  function onFrame(beat, si, fired) {
+    const seg = tlP.segs[si];
+    if (seg) markNow(seg.ref.bar);
+    for (const e of fired) {
+      const n = $('tStaff')?.querySelector(`[data-note="${e.ref.bar}-${e.ref.ni}"]`);
+      if (n) { n.classList.remove('on'); void n.getBBox(); n.classList.add('on'); }
     }
-    raf = requestAnimationFrame(step);
+    const row = barEl(nowBar)?.closest('.tb-row');
+    if (row) { const d = row.getBoundingClientRect().top - window.innerHeight * 0.28; if (Math.abs(d) > 1) window.scrollBy(0, d * 0.08); }
   }
-  function startScroll() {
-    stopAll();
-    scrolling = true; t0 = performance.now(); curBar = -1;
-    $('tPlay').innerHTML = PAUSE; $('tPlay').setAttribute('aria-label', t('scroll.pause'));
-    $('tScrollBar').classList.add('dim');
-    keepAwake('autoscroll');
-    raf = requestAnimationFrame(step);
+  async function ensurePlayer() {
+    if (ui) return ui;
+    const [sp, pl] = await Promise.all([import('./songPlay.js'), import('./songPlayer.js')]);
+    if (!$('tScrollBar')) return null;
+    tlP = sp.tabTimeline(stored, partName);
+    $('tScrollBar').innerHTML = '';
+    $('tScrollBar').classList.add('pl-host');
+    ui = pl.mountPlayerBar($('tScrollBar'), tlP, { bpm, allowMute: true, onFrame, onStop: () => markNow(-1) });
+    keepAwake('songplay');
+    return ui;
   }
-  function stopScroll() {
-    if (!scrolling) return;
-    scrolling = false; cancelAnimationFrame(raf);
-    if (curBar >= 0) mark(curBar, 'now', false);
-    curBar = -1;
-    allowSleep('autoscroll');
-    const b = $('tPlay');
-    if (b) { b.innerHTML = PLAY; b.setAttribute('aria-label', t('scroll.play')); }
-    $('tScrollBar')?.classList.remove('dim');
+  /** Sviraj od takta bi (prvo pojavljivanje u redosledu sviranja). */
+  async function playFromBar(bi) {
+    const u = await ensurePlayer();
+    if (!u) return;
+    const k = tlP.segs.findIndex((x) => x.ref.bar === bi);
+    u.startAt(k >= 0 ? tlP.segs[k].beat : 0);
   }
-  $('tPlay').addEventListener('click', () => (scrolling ? stopScroll() : startScroll()));
+  $('tPlay').addEventListener('click', () => playFromBar(0));
 
   // ---- Tempo ----
   async function setBpm(v) {
     bpm = Math.max(30, Math.min(220, v));
     $('tTempo').textContent = bpm;
-    $('tScrollInfo').textContent = `${t('tab.tempo')}: ${bpm} BPM`;
+    if (ui) { ui.destroy(); ui = null; markNow(-1); ensurePlayer(); } // nov tempo pesme: traka iznova (zaustavljena)
     stored.bpm = bpm;
     await save();
   }
@@ -350,7 +323,7 @@ export async function renderTabSong(root, stored, nav, { ytRowHTML, shareSong, d
     if (ok) { stored.tab.bars[+ok.dataset.okbar].ok = 1; await save(); drawSug(); drawTab(); return; }
     if (yb) { await editYt(yb.dataset.yt); return; }
     const bar = e.target.closest('[data-bar]');
-    if (bar && $('tStaff').contains(bar)) { if (playingBar === +bar.dataset.bar) stopAll(); else playBar(+bar.dataset.bar); }
+    if (bar && $('tStaff').contains(bar)) playFromBar(+bar.dataset.bar); // sviranje od tog takta
   });
   async function editYt(kind) {
     const cur = (stored.yt && stored.yt[kind]) || '';
@@ -389,7 +362,7 @@ export async function renderTabSong(root, stored, nav, { ytRowHTML, shareSong, d
   $('tShare').addEventListener('click', () => shareSong(stored).catch(() => toast(t('share.failed'), 'error')));
 
   // ---- Odlazak sa ekrana: zvuk i skrolovanje staju ----
-  const onHash = () => { stopAll(); stopScroll(); ro.disconnect(); window.removeEventListener('hashchange', onHash); };
+  const onHash = () => { ui?.destroy(); ui = null; allowSleep('songplay'); ro.disconnect(); window.removeEventListener('hashchange', onHash); };
   window.addEventListener('hashchange', onHash);
 }
 

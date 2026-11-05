@@ -169,6 +169,7 @@ export default {
   'song.fontUp': 'Zoom in',
   'song.edit': 'Edit',
   'song.pdf': 'Download PDF',
+  'song.play': 'Play',
   'song.share': 'Share song',
   'song.key': 'Key:',
   'song.transpose': 'Transpose',

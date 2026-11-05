@@ -84,6 +84,7 @@ export async function createGame(api) {
         return `<button class="chip${p === part ? ' active' : ''}" data-part="${p.i}">${esc(label(p, k))}${k === hardest ? ` <span class="pr-hard">${t('pr.pesma.hardest')}</span>` : ''}${rec.best ? ` <small>${Math.round(rec.best)} · ${rec.lastTempo} BPM</small>` : ''}</button>`;
       }).join('')}</div>
       <p class="small muted center">${part.chords.map((c) => esc(dn(c.chord))).join(' · ')}</p>
+      <div class="center"><button class="btn small" id="prListenPart" aria-pressed="false">${listening ? '■ ' + t('pr.listenStop') : '♫ ' + t('pr.listen')}</button></div>
       <div class="pr-optlabel">${t('pr.pesma.per')}</div>
       <div class="seg-tabs" role="radiogroup">
         <button role="radio" data-per="4" class="${per === 4 ? 'active' : ''}">${t('pr.pesma.perBar')}</button>
@@ -96,8 +97,22 @@ export async function createGame(api) {
     api.setBpm(startTempo(part));
     drawOpts();
   }
+  // „Poslušaj“: izabrani deo jednom, u trenutnom tempu vežbe (zvuk gitare; staje čim igra uključi mikrofon)
+  let listening = null;
+  async function listenPart() {
+    if (listening) { listening.stop(); listening = null; drawOpts(); return; }
+    const [sp, pl] = await Promise.all([import('./songPlay.js'), import('./songPlayer.js')]);
+    const tl = sp.chordTimeline(song);
+    const pt = part.i === 'all' ? { from: 0, to: tl.total } : tl.parts.find((p) => p.si === part.i);
+    if (!pt) return;
+    listening = pl.playOnce(tl, { bpm: api.bpm || songBpm, from: pt.from, to: pt.to, onEnd: () => { listening = null; drawOpts(); } });
+    drawOpts();
+  }
+  window.addEventListener('gitara-mic', () => { if (listening) { listening = null; drawOpts(); } });
+  api.onCleanup?.(() => { listening?.stop(); listening = null; });
   drawOpts();
   api.opts.addEventListener('click', (e) => {
+    if (e.target.closest('#prListenPart')) { listenPart(); return; }
     const b = e.target.closest('[data-part]'), pb = e.target.closest('[data-per]');
     if (b && !api.running) choose(all.find((p) => String(p.i) === b.dataset.part) || part);
     if (pb) {

@@ -183,6 +183,7 @@ const sr = {
   'song.fontUp': 'Uvećaj tekst',
   'song.edit': 'Uredi',
   'song.pdf': 'Skini PDF',
+  'song.play': 'Pusti',
   'song.share': 'Podeli pesmu',
   'song.key': 'Tonalitet:',
   'song.transpose': 'Transpozicija',

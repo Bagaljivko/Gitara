@@ -48,8 +48,27 @@ export async function createTabGame(api, song, songId) {
       <div class="pr-chips">${all.map((p) => {
         const rec = st[String(p.id)] || {};
         return `<button class="chip${p === part ? ' active' : ''}" data-part="${p.id}">${esc(label(p))}${p === hardest ? ` <span class="pr-hard">${t('pr.pesma.hardest')}</span>` : ''}${rec.best ? ` <small>${Math.round(rec.best)} · ${rec.lastTempo} BPM</small>` : ''}</button>`;
-      }).join('')}</div>`;
+      }).join('')}</div>
+      <div class="center"><button class="btn small" id="prListenPart">${listening ? '■ ' + t('pr.listenStop') : '♫ ' + t('pr.listen')}</button></div>`;
   }
+  // „Poslušaj“: izabrani deo jednom, tačne note iz tablature, u trenutnom tempu vežbe
+  let listening = null;
+  async function listenPart() {
+    if (listening) { listening.stop(); listening = null; drawOpts(); return; }
+    const [sp, pl] = await Promise.all([import('./songPlay.js'), import('./songPlayer.js')]);
+    const tl = sp.tabTimeline(song);
+    let from = 0, to = tl.total;
+    if (part.id !== 'all') {
+      const k0 = tl.segs.findIndex((x) => x.ref.bar === part.from);
+      const k1 = tl.segs.findIndex((x, k) => k >= k0 && x.ref.bar === part.to);
+      if (k0 < 0 || k1 < 0) return;
+      from = tl.segs[k0].beat; to = tl.segs[k1].beat + tl.segs[k1].len;
+    }
+    listening = pl.playOnce(tl, { bpm: api.bpm || songBpm, from, to, onEnd: () => { listening = null; drawOpts(); } });
+    drawOpts();
+  }
+  window.addEventListener('gitara-mic', () => { if (listening) { listening = null; drawOpts(); } });
+  api.onCleanup?.(() => { listening?.stop(); listening = null; });
   function choose(p) {
     part = p;
     try { localStorage.setItem(partKey, String(part.id)); } catch {}
@@ -58,6 +77,7 @@ export async function createTabGame(api, song, songId) {
   }
   drawOpts();
   api.opts.addEventListener('click', (e) => {
+    if (e.target.closest('#prListenPart')) { listenPart(); return; }
     const b = e.target.closest('[data-part]');
     if (b && !api.running) choose(all.find((p) => String(p.id) === b.dataset.part) || part);
   });

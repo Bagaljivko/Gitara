@@ -285,6 +285,7 @@ async function renderGame(root, game, args, params) {
     },
     /** Slušanje (mikrofon) — zajedničko za sve igre; gasi se automatski pri izlasku. */
     async listen(opts) {
+      window.dispatchEvent(new Event('gitara-mic')); // sviranje pesme („Pusti“, „Poslušaj“) staje — igra ne sme da čuje sebe
       if (!listener) { const { createListener } = await import('./practiceListen.js'); listener = createListener(); }
       const gameLevel = opts.onLevel;
       await listener.start({ ...opts, onLevel: (ev) => { onLevel(ev); gameLevel?.(ev); } });
