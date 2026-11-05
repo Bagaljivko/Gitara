@@ -130,6 +130,7 @@ export async function renderSettings(root) {
       <div class="row wrap">
         <button class="btn" id="diagCopy">${t('diag.copy')}</button>
         <button class="btn" id="diagClear">${t('diag.clear')}</button>
+        <button class="btn" id="diagScan">${t('diag.lastScan')}</button>
       </div>
       <textarea readonly class="diag-report" id="diagOut" rows="8" hidden></textarea>
     </div>
@@ -207,6 +208,14 @@ export async function renderSettings(root) {
     $('diagOut').hidden = false;
     try { await navigator.clipboard.writeText(txt); toast(t('diag.copied')); }
     catch { toast(t('diag.copyManual')); }
+  });
+  // Poslednje skeniranje (i uspešno): model, trajanje i ishod svakog zahteva — za slanje kad skeniranje traje predugo
+  $('diagScan').addEventListener('click', async () => {
+    let r = null; try { r = JSON.parse(localStorage.getItem('gitara-lastscan') || 'null'); } catch {}
+    const txt = r && r.text ? r.text : t('diag.noScan');
+    $('diagOut').textContent = txt;
+    $('diagOut').hidden = false;
+    if (r && r.text) { try { await navigator.clipboard.writeText(txt); toast(t('diag.copied')); } catch { toast(t('diag.copyManual')); } }
   });
   $('diagClear').addEventListener('click', async () => {
     const { clearDiag } = await import('./diag.js');

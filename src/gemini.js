@@ -286,7 +286,13 @@ function httpError(res, data, model) {
   if (res.status === 400 && /API_KEY_INVALID|API key not valid/i.test(msg + reason)) return new GeminiError(t('gem.badKey'), { code: 'BAD_KEY' });
   if (res.status === 401 || res.status === 403) return new GeminiError(t('gem.forbidden'), { code: 'BAD_KEY' });
   if (res.status === 503 || res.status === 429 || /overloaded|UNAVAILABLE|RESOURCE_EXHAUSTED|try again later/i.test(msg)) {
-    return new GeminiError(t('gem.busy'), { code: 'BUSY', model });
+    // koliko da se čeka: Google ga za 429 šalje (RetryInfo „37s“); preopterećenje (503) obično prođe za ~30 s
+    const rd = /"retryDelay":"(\d+(?:\.\d+)?)s"/.exec(reason);
+    const quotaModel = (/model: ([\w.-]+)/.exec(msg) || [])[1] || '';
+    const e = new GeminiError(t('gem.busy'), { code: 'BUSY', model });
+    e.retryMs = rd ? Math.min(90000, Math.ceil(Number(rd[1]) * 1000) + 1000) : res.status === 429 ? 60000 : 30000;
+    e.quota = res.status === 429; e.quotaModel = quotaModel;
+    return e;
   }
   if (res.status >= 500) return new GeminiError(t('gem.unavailable'), { code: 'HTTP_' + res.status, model });
   if (res.status === 400 && /thinking/i.test(msg)) return new GeminiError(msg, { code: 'THINKING', model });
@@ -294,8 +300,21 @@ function httpError(res, data, model) {
   return new GeminiError(msg ? t('gem.errorMsg', { msg }) : t('gem.error'), { code: 'HTTP_' + res.status, model });
 }
 
+const ATTEMPT_MS = () => globalThis.__gitaraAttemptMs || 75000; // jedan pokušaj kod jednog modela: duže = zaglavljen → sledeći model
 async function callOnce(apiKey, body, signal, model, { diag, onStatus, thinking } = {}) {
   if (navigator.onLine === false) throw new GeminiError(t('gem.offline'));
+  const own = new AbortController();
+  let stuck = false;
+  const onParent = () => own.abort();
+  if (signal) { if (signal.aborted) own.abort(); else signal.addEventListener('abort', onParent, { once: true }); }
+  const stuckT = setTimeout(() => { stuck = true; own.abort(); }, ATTEMPT_MS());
+  try { return await callOnceInner(apiKey, body, own.signal, model, { diag, onStatus, thinking }); }
+  catch (e) {
+    if (stuck && e && e.name === 'AbortError') { const last = diag && diag.attempts[diag.attempts.length - 1]; if (last) last.status = 'zaglavljen (75 s)'; throw Object.assign(new GeminiError(t('gem.busy'), { code: 'BUSY', model }), { retryMs: 60000, stuck: true }); }
+    throw e;
+  } finally { clearTimeout(stuckT); if (signal) signal.removeEventListener('abort', onParent); }
+}
+async function callOnceInner(apiKey, body, signal, model, { diag, onStatus, thinking } = {}) {
   const payload = JSON.stringify(body);
   const att = { model, thinking: describeThinking(thinking), sentBytes: payload.length, ms: 0, status: '…', message: '' };
   if (diag) diag.attempts.push(att);
@@ -332,20 +351,38 @@ async function callOnce(apiKey, body, signal, model, { diag, onStatus, thinking 
   att.message = cand ? `OK (finishReason ${cand.finishReason || '?'})` : 'OK (bez kandidata)';
   return data;
 }
-/** Jedan model sa ponavljanjem kada je zauzet (503 / 429 / „overloaded“). */
-async function callWithRetry(apiKey, body, signal, model, onStatus, delays, diag) {
+// ---------------- Zauzeti modeli (ograničenje zahteva u minutu, preopterećenje) ----------------
+// Besplatan ključ ima ~5 zahteva u minutu PO MODELU. Model koji kaže „ograničenje“ ili „preopterećen“ se ne pita
+// ponovo dok ne prođe vreme koje Google navede — umesto toga se odmah pita drugi model (svaki ima svoje ograničenje).
+const cool = new Map();
+const coolDown = (m, ms) => { if (m) cool.set(m, Math.max(cool.get(m) || 0, Date.now() + ms)); };
+const coolLeft = (m) => Math.max(0, (cool.get(m) || 0) - Date.now());
+export const _coolForTests = cool;
+// Koja varijanta „razmišljanja“ radi za koji model (da se ne troše zahtevi na „MINIMAL nije podržan“)
+const THINK_KEY = 'gitara-think';
+const thinkStart = (m) => { try { return Number((JSON.parse(localStorage.getItem(THINK_KEY) || '{}'))[m]) || 0; } catch { return 0; } };
+const thinkSave = (m, v) => { try { const o = JSON.parse(localStorage.getItem(THINK_KEY) || '{}'); o[m] = v; localStorage.setItem(THINK_KEY, JSON.stringify(o)); } catch {} };
+
+/** Jedan model. auto: zauzet → hlađenje i greška (pita se drugi model); izabran model: čeka koliko Google kaže. */
+async function callWithRetry(apiKey, body, signal, model, onStatus, delays, diag, { auto = false, until = Infinity } = {}) {
   const variants = thinkingVariants(model);
-  for (let v = 0; v < variants.length; v++) {
+  for (let v = Math.min(thinkStart(model), variants.length - 1); v < variants.length; v++) {
     const b = withThinking(body, variants[v]);
     for (let attempt = 0; ; attempt++) {
       try {
-        return await callOnce(apiKey, b, signal, model, { diag, onStatus, thinking: variants[v] });
+        const data = await callOnce(apiKey, b, signal, model, { diag, onStatus, thinking: variants[v] });
+        if (v !== thinkStart(model)) thinkSave(model, v);
+        return data;
       } catch (e) {
-        if (e instanceof GeminiError && e.code === 'THINKING' && v < variants.length - 1) break; // sledeća varijanta
+        if (e instanceof GeminiError && e.code === 'THINKING' && v < variants.length - 1) { thinkSave(model, v + 1); break; } // sledeća varijanta, zapamćeno
         if (e instanceof GeminiError && e.code === 'THINKING') throw new GeminiError(t('gem.errorMsg', { msg: e.message }), { code: 'HTTP_400', model });
-        if (!(e instanceof GeminiError) || e.code !== 'BUSY' || attempt >= delays.length) throw e;
-        if (onStatus) onStatus('retry', model);
-        await sleep(delays[attempt], signal);
+        if (!(e instanceof GeminiError) || e.code !== 'BUSY') throw e;
+        const wait = e.retryMs || 30000;
+        coolDown(model, wait); if (e.quotaModel) coolDown(e.quotaModel, wait);
+        if (auto) throw e; // drugi model odmah
+        if (attempt >= delays.length || Date.now() + wait > until - 5000) throw e;
+        if (onStatus) onStatus('wait', Math.round(wait / 1000));
+        await sleep(wait, signal);
       }
     }
   }
@@ -356,33 +393,45 @@ async function callWithRetry(apiKey, body, signal, model, onStatus, delays, diag
  * Flash-Lite, ostali) dok jedan ne uspe. Ukupno najviše ~60 s; „Otkaži“ (signal) prekida odmah.
  * Vraća { data, model }.
  */
-async function generate(apiKey, body, { signal, onStatus, selection, models, diag } = {}) {
+async function generate(apiKey, body, { signal, onStatus, selection, models, diag, deadline = 0 } = {}) {
   if (!apiKey) throw new GeminiError(t('gem.noKey'));
   if (navigator.onLine === false) throw new GeminiError(t('gem.offline'));
   const ctrl = new AbortController();
   let timedOut = false;
-  const timer = setTimeout(() => { timedOut = true; ctrl.abort(); }, DEADLINE_MS());
+  const timer = setTimeout(() => { timedOut = true; ctrl.abort(); }, deadline ? Math.min(deadline, DEADLINE_MS()) : DEADLINE_MS());
   const onAbort = () => ctrl.abort();
   if (signal) { if (signal.aborted) ctrl.abort(); signal.addEventListener('abort', onAbort); }
   const sel = selection || (await getModelSetting());
   if (diag) diag.selection = sel;
   try {
     const list = models || (await candidates(apiKey, sel));
-    const auto = sel === AUTO && !models;
-    let lastErr = null;
-    for (let i = 0; i < list.length; i++) {
-      const model = list[i];
-      if (i > 0 && onStatus) onStatus('switch', model);
-      try {
-        const data = await callWithRetry(apiKey, body, ctrl.signal, model, onStatus, auto && list.length > 1 ? FALLBACK_RETRY : RETRY_DELAYS, diag);
-        if (auto) await settings.set('geminiLastModel', model);
-        return { data, model };
-      } catch (e) {
-        if (e && e.name === 'AbortError') throw e;
-        const tryNext = e instanceof GeminiError && ['BUSY', 'MODEL_UNAVAILABLE', 'HTTP_500', 'HTTP_502', 'HTTP_504'].includes(e.code);
-        if (!auto || !tryNext) throw e;
-        lastErr = e;
+    const auto = sel === AUTO && !models && list.length > 1;
+    const until = Date.now() + (deadline ? Math.min(deadline, DEADLINE_MS()) : DEADLINE_MS());
+    let lastErr = null, prev = '';
+    for (let round = 0; round < 6; round++) {
+      // modeli koji nisu „na hlađenju“ (onaj koji je poslednji radio je prvi u spisku)
+      const ready = auto ? list.filter((m) => !coolLeft(m)) : list;
+      for (const model of ready) {
+        if (prev && model !== prev && onStatus) onStatus('switch', model);
+        prev = model;
+        try {
+          const data = await callWithRetry(apiKey, body, ctrl.signal, model, onStatus, auto ? FALLBACK_RETRY : RETRY_DELAYS, diag, { auto, until });
+          if (auto) await settings.set('geminiLastModel', model);
+          return { data, model };
+        } catch (e) {
+          if (e && e.name === 'AbortError') throw e;
+          const tryNext = e instanceof GeminiError && ['BUSY', 'MODEL_UNAVAILABLE', 'HTTP_500', 'HTTP_502', 'HTTP_504'].includes(e.code);
+          if (!auto || !tryNext) throw e;
+          if (e.code !== 'BUSY') coolDown(model, 10 * 60000); // model ne postoji / ne radi: ne pitaj ga dugo
+          lastErr = e;
+        }
       }
+      if (!auto) break;
+      // svi su zauzeti: sačekaj prvi koji se „ohladi“ (ako stigne pre roka), pa ponovo
+      const soonest = Math.min(...list.map(coolLeft).filter((x) => x > 0));
+      if (!isFinite(soonest) || Date.now() + soonest > until - 8000) break;
+      if (onStatus) onStatus('wait', Math.round(soonest / 1000));
+      await sleep(soonest, ctrl.signal);
     }
     if (lastErr && lastErr.code === 'BUSY') throw new GeminiError(t('gem.busyAll'), { code: 'BUSY' });
     throw lastErr || new GeminiError(t('gem.noAnswer'));
@@ -505,15 +554,17 @@ export async function scanSong(images, signal, onStatus, diag) {
 }
 
 /** Jedan poziv za TAB stranu (dug odgovor: do 32 768 tokena). Vraća JSON ili null ako odgovor nije ceo / ispravan. */
-async function askTab(apiKey, img, text, signal, onStatus, diag) {
+async function askTab(apiKey, img, text, signal, onStatus, diag, { maxTokens = 32768, deadline = 0 } = {}) {
   const contents = [{ parts: [{ text }, { inline_data: { mime_type: img.mime, data: img.base64 } }] }];
-  const cfg = { temperature: 0.1, responseMimeType: 'application/json', maxOutputTokens: 32768 };
+  // dužina odgovora ograničena prema broju traženih taktova: kad se model „zaglavi“ i ponavlja iste brojeve,
+  // odgovor se preseče za nekoliko sekundi umesto da se piše minutima
+  const cfg = { temperature: 0.1, responseMimeType: 'application/json', maxOutputTokens: maxTokens };
   let res;
   try {
-    res = await generate(apiKey, { contents, generationConfig: { ...cfg, responseSchema: TAB_SCHEMA } }, { signal, onStatus, diag });
+    res = await generate(apiKey, { contents, generationConfig: { ...cfg, responseSchema: TAB_SCHEMA } }, { signal, onStatus, diag, deadline });
   } catch (e) {
     if (!(e instanceof GeminiError) || e.code !== 'HTTP_400' || !e.model || !/schema|response_?schema|responseMimeType|field|maxOutputTokens/i.test(e.message)) throw e;
-    res = await generate(apiKey, { contents, generationConfig: { temperature: 0.1, responseMimeType: 'application/json' } }, { signal, onStatus, models: [e.model], diag });
+    res = await generate(apiKey, { contents, generationConfig: { temperature: 0.1, responseMimeType: 'application/json', maxOutputTokens: maxTokens } }, { signal, onStatus, models: [e.model], diag, deadline });
   }
   try {
     const j = JSON.parse(textOf(res.data).trim().replace(/^```(?:json)?\s*|\s*```$/g, ''));
@@ -534,25 +585,22 @@ export function cleanComposer(raw, j = {}) {
   return c;
 }
 
-const TAB_HEAD = `
-
-U OVOM KORAKU NE PREPISUJ NOTE: "bars" je prazan niz []. Vrati samo naslov, kompozitora, aranžera, izdavača, tonalitet, takt, tempo, "firstBar" i "pageBars".`;
-const TAB_CHUNK = 4;   // taktova po zahtevu (jedan red lista) — kratak odgovor, stigne za ~15–30 s
-const TAB_PAR = 2;     // istovremenih zahteva (besplatni Gemini nalozi imaju malo zahteva u minutu)
-const SLOW = ['TIMEOUT', 'BUSY', 'HTTP_500', 'HTTP_502', 'HTTP_503', 'HTTP_504'];
+const TAB_PAGE_MS = 180000; // jedna strana najduže 3 min (uz čekanje na slobodan model); posle toga dalje sa pročitanim
+const tabTokens = (bars) => 2000 + 700 * bars; // ~350 tokena po taktu ×2, plus mesto za kratko „razmišljanje“ modela
 
 /**
- * TAB list → sirov JSON taktova (pesmu pravi tabSong.fromScan). Strana po strana: prvo kratko pitanje (naslov,
- * kompozitor, takt, koliko taktova ima strana), pa taktovi po 4 (dva zahteva istovremeno). Ceo list u jednom
- * odgovoru je predugačak (Gemini piše više od 2 minuta i sve se gubi); kratki delovi stižu brzo, a spor deo se
- * deli na pola. Što ni tada nije pročitano ostaje prazan takt označen za proveru — ništa se ne izmišlja.
- * onStatus(kind, …): 'page' (i, n), 'range' (a, b, i, n), ostalo kao generate().
+ * TAB list → sirov JSON taktova (pesmu pravi tabSong.fromScan). Jedan zahtev po strani (ceo red taktova obično stigne
+ * za nekoliko sekundi) i najviše jedan dopunski za taktove koji fale — besplatan Gemini ključ dozvoljava samo ~5
+ * zahteva u minutu po modelu, pa je manje zahteva brže od mnogo malih. Zauzet / preopterećen / zaglavljen model:
+ * generate() odmah pita drugi model ili sačeka koliko Google kaže. Svaka strana ima rok; što nije pročitano ostaje
+ * prazan takt „nije pročitan“ — ništa se ne izmišlja i ništa pročitano se ne gubi.
+ * onStatus: 'page' (i, n), 'range' (a, b, i, n), 'wait' (sekunde), ostalo kao generate().
  */
 export async function scanTab(images, signal, onStatus, diag) {
   const list = Array.isArray(images) ? images : [images];
   const apiKey = await getApiKey();
   const out = { title: '', composer: '', key: '', sig: '', bpm: 0, bars: [], unsure: [] };
-  let next = 1, model = '', anyAnswer = false;
+  let next = 1, model = '', anyAnswer = false, lastErr = null;
   const meta = (j) => {
     if (!j) return;
     anyAnswer = true;
@@ -562,18 +610,23 @@ export async function scanTab(images, signal, onStatus, diag) {
     if (!out.bpm && Number(j.bpm) > 0) out.bpm = Number(j.bpm);
     for (const u of Array.isArray(j.unsure) ? j.unsure : []) out.unsure.push(u);
   };
-  // jedan zahtev; spor / zauzet → null (deo se deli ili označava), ostale greške (ključ, mreža, otkazano) prekidaju
-  const ask = async (img, text) => {
-    try { return await askTab(apiKey, img, text, signal, onStatus, diag); }
-    catch (e) { if (e instanceof GeminiError && SLOW.includes(e.code)) return null; throw e; }
-  };
   for (let pi = 0; pi < list.length; pi++) {
-    const img = list[pi], N = list.length;
+    const img = list[pi], N = list.length, t0 = Date.now();
+    const left = () => TAB_PAGE_MS - (Date.now() - t0);
+    // zahtev → odgovor ili null (nepotpun / isteklo / svi modeli zauzeti); ključ, mreža i otkazivanje prekidaju sve
+    const ask = async (text, bars) => {
+      if (left() < 10000) return null;
+      try { return await askTab(apiKey, img, text, signal, onStatus, diag, { maxTokens: tabTokens(bars), deadline: left() }); }
+      catch (e) {
+        if (e instanceof GeminiError && ['TIMEOUT', 'BUSY', 'HTTP_500', 'HTTP_502', 'HTTP_503', 'HTTP_504'].includes(e.code)) { lastErr = e; return null; }
+        throw e;
+      }
+    };
     onStatus?.('page', pi + 1, N);
-    const head = await ask(img, TAB_PROMPT + TAB_PAGE(pi + 1, N, next) + TAB_HEAD);
-    meta(head);
-    const first = head && Number.isInteger(head.firstBar) && head.firstBar > 0 ? head.firstBar : next;
-    const counted = head && Number.isInteger(head.pageBars) && head.pageBars > 0 && head.pageBars <= 80 ? head.pageBars : 0;
+    const j = await ask(TAB_PROMPT + TAB_PAGE(pi + 1, N, next), 24);
+    meta(j);
+    const first = j && Number.isInteger(j.firstBar) && j.firstBar > 0 ? j.firstBar : next;
+    const counted = j && Number.isInteger(j.pageBars) && j.pageBars > 0 && j.pageBars <= 80 ? j.pageBars : 0;
     const have = new Map();
     const take = (bars, a, b) => {
       let k = a;
@@ -583,37 +636,29 @@ export async function scanTab(images, signal, onStatus, diag) {
         if (Array.isArray(x.notes) && x.notes.length && (!have.has(n) || x.notes.length > have.get(n).notes.length)) have.set(n, { ...x, n });
       }
     };
-    if (head) take(head.bars, first, first + (counted || 80) - 1); // ako je ipak prepisao neke taktove, zadrži ih
-    const readRange = async (a, b, depth = 0) => {
-      const need = []; for (let n = a; n <= b; n++) if (!have.has(n)) need.push(n);
-      if (!need.length) return 0;
-      a = need[0]; b = need[need.length - 1];
+    take(j && j.bars, first, first + (counted || 80) - 1);
+    let last = counted ? first + counted - 1 : Math.max(first - 1, ...have.keys());
+    const missing = () => { const m = []; for (let n = first; n <= last; n++) if (!have.has(n)) m.push(n); return m; };
+    // jedan dopunski zahtev za sve što fali (prekinut ili „lenj“ odgovor)
+    if (missing().length && (j || !counted)) {
+      const m = missing(), a = m[0], b = m[m.length - 1];
       onStatus?.('range', a, b, pi + 1, N);
-      const jj = await ask(img, TAB_PROMPT + TAB_PAGE(pi + 1, N, first) + TAB_RANGE(a, b));
+      const jj = await ask(TAB_PROMPT + TAB_PAGE(pi + 1, N, first) + TAB_RANGE(a, b), b - a + 1);
       if (jj) { meta(jj); take(jj.bars, a, b); }
-      const got = jj ? (jj.bars || []).length : 0;
-      // spor ili nepotpun odgovor: dva manja dela (do pojedinačnog takta)
-      const left = []; for (let n = a; n <= b; n++) if (!have.has(n)) left.push(n);
-      if (left.length && depth < 2 && b > a) { const mid = Math.floor((a + b) / 2); await readRange(a, mid, depth + 1); await readRange(mid + 1, b, depth + 1); }
-      return got;
-    };
-    let last;
-    if (counted) {
-      last = first + counted - 1;
-      const ranges = []; for (let a = first; a <= last; a += TAB_CHUNK) ranges.push([a, Math.min(last, a + TAB_CHUNK - 1)]);
-      let ri = 0;
-      await Promise.all(Array.from({ length: Math.min(TAB_PAR, ranges.length) }, async () => { while (ri < ranges.length) { const [a, b] = ranges[ri++]; await readRange(a, b); } }));
-    } else {
-      // broj taktova nije poznat: deo po deo dok ima taktova (najviše 60 na strani)
-      let a = first;
-      for (; a < first + 60; a += TAB_CHUNK) { const got = await readRange(a, a + TAB_CHUNK - 1); if (!got && ![...have.keys()].some((n) => n >= a)) break; }
-      last = Math.max(first - 1, ...have.keys());
+    } else if (!j && !counted) {
+      // strana uopšte nije pročitana i ne zna se koliko taktova ima: još jedan pokušaj cele strane
+      const jj = await ask(TAB_PROMPT + TAB_PAGE(pi + 1, N, next), 24);
+      meta(jj); take(jj && jj.bars, next, next + 79);
+      last = Math.max(last, ...have.keys());
     }
-    for (let n = first; n <= last; n++) if (!have.has(n)) { have.set(n, { n, notes: [] }); out.unsure.push({ bar: n, why: t('tab.notRead') }); }
+    for (const n of missing()) { have.set(n, { n, notes: [] }); out.unsure.push({ bar: n, why: t('tab.notRead') }); }
     out.bars.push(...[...have.values()].sort((x, y) => x.n - y.n));
     next = Math.max(next, last + 1);
   }
-  if (!out.bars.some((b) => b.notes.length)) throw new GeminiError(anyAnswer ? t('gem.noTab') : t('gem.timeout'), anyAnswer ? {} : { code: 'TIMEOUT' });
+  if (!out.bars.some((b) => b.notes.length)) {
+    if (lastErr && lastErr.code === 'BUSY') throw new GeminiError(t('gem.busyAll'), { code: 'BUSY' });
+    throw new GeminiError(anyAnswer ? t('gem.noTab') : t('gem.timeout'), anyAnswer ? {} : { code: 'TIMEOUT' });
+  }
   out.sig = out.sig || '4/4';
   out.scanModel = model;
   return out;

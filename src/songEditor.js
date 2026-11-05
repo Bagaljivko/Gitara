@@ -138,6 +138,8 @@ async function runScan(files, prepared = null, opts = {}) {
       setText(t('tab.reading'));
       const tabDraft = await readTab(imgs, ctrl.signal, setText, diag);
       if (cancelled) return;
+      diag.totalMs = performance.now() - t0;
+      saveScanReport(formatScanDiag(diag, null));
       close();
       if (!tabDraft) { toast(t('gem.noTab'), 'error'); return; }
       tabDraft.__rescanOf = opts.rescanTabOf;
@@ -153,6 +155,7 @@ async function runScan(files, prepared = null, opts = {}) {
       if (kind === 'send') setText(t('scan.stepSend'));
       else if (kind === 'reading') setText(t('scan.stepReading'));
       else if (kind === 'switch') setText(t('scan.switchModel', { model }));
+      else if (kind === 'wait') setText(t('scan.wait', { s: model }));
       else setText(t('scan.busy'));
     }, diag);
     // TAB list (prebiranje): Gemini je prepoznao tablaturu → drugo čitanje, taktovi i note sa ritmom
@@ -163,6 +166,7 @@ async function runScan(files, prepared = null, opts = {}) {
       if (cancelled) return;
     }
     diag.totalMs = performance.now() - t0;
+    saveScanReport(formatScanDiag(diag, null));
     close();
     if (opts.onSong) { opts.onSong(song, imgs); return; }
     await placeUnplacedTabs(song);
@@ -182,6 +186,7 @@ async function runScan(files, prepared = null, opts = {}) {
     const code = e instanceof GeminiError ? e.code : 'ERROR';
     const title = code === 'TIMEOUT' ? t('scan.timeoutTitle') : code === 'BUSY' ? t('scan.busyTitle') : t('scan.failedTitle');
     const report = formatScanDiag(diag, e);
+    saveScanReport(report);
     const canRetry = imgs && imgs.length && code !== 'BAD_KEY';
     const p = dialog({
       title,
@@ -203,6 +208,9 @@ async function runScan(files, prepared = null, opts = {}) {
     if (opts.onFail) opts.onFail(e);
   }
 }
+
+/** Poslednje skeniranje (i uspešno) — za Podešavanja → Dijagnostika: model, trajanje i ishod svakog zahteva. */
+function saveScanReport(text) { try { localStorage.setItem('gitara-lastscan', JSON.stringify({ at: Date.now(), text })); } catch {} }
 
 const kb = (b) => (b >= 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)} MB` : `${Math.round(b / 1024)} KB`);
 const secs = (ms) => `${(ms / 1000).toFixed(1)} s`;
@@ -297,7 +305,8 @@ async function readTab(imgs, signal, setText, diag) {
     if (kind === 'page') setText((cur = t('tab.readingPage', { i: model, n: x })));
     else if (kind === 'range') setText((cur = n > 1 ? t('tab.readingRangeP', { a: model, b: x, i, n }) : t('tab.readingRange', { a: model, b: x })));
     else if (kind === 'switch') setText(t('scan.switchModel', { model }));
-    else if (kind === 'busy') setText(t('scan.busy'));
+    else if (kind === 'busy' || kind === 'retry') setText(t('scan.busy'));
+    else if (kind === 'wait') setText(t('scan.wait', { s: model }));
     else setText(cur);
   }, diag);
   const { fromScan } = await import('./tabSong.js');

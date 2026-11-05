@@ -129,6 +129,7 @@ const sr = {
   'scan.camera': 'Slikaj',
   'scan.label': 'Skeniranje',
   'scan.reading': 'Čitam pesmu… ovo može da potraje 10–30 sekundi.',
+  'scan.wait': "Gemini je zauzet – čekam {s} s, pa pokušavam ponovo…",
   'scan.busy': 'Gemini je zauzet, pokušavam ponovo…',
   'scan.busyTitle': 'Gemini je zauzet',
   'scan.failedTitle': 'Skeniranje nije uspelo',
@@ -145,6 +146,8 @@ const sr = {
   'diag.title': 'Dijagnostika',
   'diag.note': 'Ako se aplikacija zaglavi ili prikaže prazan ekran, ovde se beleži šta se desilo i koliko traje pokretanje. Sve ostaje na telefonu — ništa se ne šalje. Možeš da kopiraš izveštaj i pošalješ ga (bez pesama i ključeva).',
   'diag.copy': 'Kopiraj izveštaj',
+  'diag.lastScan': "Poslednje skeniranje",
+  'diag.noScan': "Još nema skeniranja na ovom uređaju.",
   'diag.clear': 'Obriši zapis',
   'diag.errors': 'Zabeleženih grešaka: {n}',
   'diag.noErrors': 'Nema zabeleženih grešaka',
@@ -421,8 +424,8 @@ const sr = {
 
   // Gemini modeli — automatski izbor
   'gem.busyAll': 'Svi Gemini modeli su trenutno preopterećeni. Sačekaj malo pa dodirni „Pokušaj ponovo“.',
-  'gem.timeout': 'Gemini nije odgovorio ni posle 120 sekundi. Proveri internet vezu pa dodirni „Pokušaj ponovo“. Ispod su detalji greške.',
-  'scan.switchModel': 'Model je zauzet, probam drugi: {model}…',
+  'gem.timeout': "Gemini nije odgovorio na vreme — verovatno je trenutno preopterećen (kod Google-a). Sačekaj minut pa dodirni „Pokušaj ponovo“. Ispod su detalji.",
+  'scan.switchModel': "Model je zauzet ili preopterećen, probam drugi: {model}…",
   'scan.timeoutTitle': 'Predugo traje',
   'edit.scanModel': 'Prepisao model: {model}',
   'set.modelAuto': 'Automatski (preporučeno)',
