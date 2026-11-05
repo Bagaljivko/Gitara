@@ -1,6 +1,6 @@
 // Tab "Pesme": biblioteka, prikaz pesme, deljenje i uvoz. Editor i skeniranje su u songEditor.js (učitava se po potrebi).
 const loadEditor = () => import('./songEditor.js');
-import { songs as db } from './db.js';
+import { songs as db, versions } from './db.js';
 import { esc, toast, dialog, confirmDialog, pickFile, shareOrDownload, closeXHTML } from './ui.js';
 import { chordSVG, voicingCount, shapeNavHTML, onShapeSwipe } from './diagram.js';
 import { getVoicings } from './chords.js';
@@ -201,10 +201,21 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
   backupNudge($('lNudge'), all.filter((x) => !x.demo).length);
 }
 
+// „Prethodna verzija“ (izgubljen sukob sa drugim uređajem, sadržaj pre ponovnog skeniranja): mala napomena ispod zaglavlja
+function showVersionNote(root, id) {
+  versions.list('song:' + id).then(async (l) => {
+    if (!l.length) return;
+    const { versionNote } = await import('./versionsView.js');
+    for (let i = 0; i < 20 && !root.querySelector('.topbar'); i++) await new Promise((r) => setTimeout(r, 100)); // posle iscrtavanja ekrana
+    const top = root.querySelector('.topbar');
+    if (top) versionNote(top, 'song:' + id);
+  }).catch(() => {});
+}
+
 // Podsetnik za rezervnu kopiju: posle 3+ pesama bez Google Drive-a; „Ne sada“ ga sakrije na 30 dana.
 const NUDGE_MIN = 3, NUDGE_SNOOZE = 30 * 864e5;
 async function backupNudge(box, count) {
-  if (count < NUDGE_MIN || (await driveConnected())) return;
+  if (count < NUDGE_MIN || (await driveConnected()) || ((await settings.get('syncCfg', null)) || {}).on) return;
   const st = (await settings.get('backupNudge', null)) || {};
   if (st.snoozedAt && Date.now() - st.snoozedAt < NUDGE_SNOOZE) return;
   if (st.exportedAt && Date.now() - st.exportedAt < NUDGE_SNOOZE) return;
@@ -611,6 +622,7 @@ export async function renderSong(root, id, nav = null) {
   if (needsUpgrade(stored)) { stored = upgradeSong(stored); db.put(stored).catch(() => {}); }
   markOpened(stored.id); // za sortiranje „Nedavno otvorene“ (pamti se samo na uređaju, ne pokreće rezervnu kopiju)
   // TAB pesma (prebiranje): poseban ekran (tablatura), učitava se tek sada
+  showVersionNote(root, id);
   if (stored.type === 'tab') return (await import('./tabView.js')).renderTabSong(root, stored, nav, { ytRowHTML, shareSong, driveConnected });
   let tp = stored.transpose || 0;
   let capo = stored.capo || 0;

@@ -96,6 +96,7 @@ export function demoSong(lang) {
 export async function seedDemoSong(lang) {
   if (await settings.get('demoSeeded', false)) return false;
   await settings.set('demoSeeded', true);
+  try { if ((JSON.parse(localStorage.getItem('gitara-sync') || 'null') || {}).on) return false; } catch {} // pesme stižu sa naloga
   if (await songs.count()) return false;
   await songs.save(demoSong(lang));
   return true;

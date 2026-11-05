@@ -5,7 +5,7 @@
 import { t } from './i18n.js';
 import { useTabTexts } from './tabText.js';
 import { esc, toast, dialog, confirmDialog } from './ui.js';
-import { songs as db } from './db.js';
+import { songs as db, versions } from './db.js';
 import { checkBars, barInfo, cleanTabSong } from './tabSong.js';
 import { drawStaff, playBars } from './tabView.js';
 import { findExisting } from './songIdentity.js';
@@ -16,19 +16,27 @@ const SIGS = ['2/4', '3/4', '4/4', '5/4', '6/4', '2/2', '3/8', '6/8', '9/8', '12
 const KEEP_ON_REPLACE = ['id', 'createdAt', 'folders', 'bpm', 'yt', 'zoom', 'seen'];
 
 /**
- * opts: { isNew, scanned, images (pregled slika), onType(kind) → Promise (promena vrste posle skeniranja), done(rec) }
+ * opts: { isNew, scanned, images (pregled slika), onType(kind) → Promise (promena vrste posle skeniranja), done(rec),
+ *         base (postojeća pesma kod „Skeniraj ponovo“), onRescan() (dugme „Skeniraj ponovo“ za postojeću pesmu) }
  * song: TAB pesma (nova iz skeniranja ili postojeća).
  */
-export function renderTabEditor(root, song0, { isNew = false, scanned = false, images = null, onType = null, onCancel, done }) {
+export function renderTabEditor(root, song0, { isNew = false, scanned = false, images = null, onType = null, onCancel, done, base = null, onRescan = null }) {
   const song = JSON.parse(JSON.stringify(song0));
+  if (base) {
+    // ponovo skenirano u postojeću pesmu: naslov, kompozitor i tempo ostaju njeni (kompozitor sa lista samo ako ga nije bilo)
+    song.title = base.title || song.title;
+    song.artist = base.artist || song.artist || '';
+    if (Number(base.bpm) > 0) song.bpm = base.bpm;
+  }
   const tab = song.tab;
   root.innerHTML = `
   <section class="view editor-view tab-view">
     <header class="topbar">
       <button class="back" id="eCancel">${t('edit.cancel')}</button>
-      <div class="topbar-actions"><button class="btn primary" id="eSave">${t('common.save')}</button></div>
+      <div class="topbar-actions">${onRescan ? `<button class="btn small" id="eRescan">${t('rescan.btn')}</button>` : ''}<button class="btn primary" id="eSave">${t('common.save')}</button></div>
     </header>
     <h1>${t('tab.editTitle')}</h1>
+    ${base ? `<p class="rescan-note small">${esc(t('rescan.tabNote', { title: base.title }))}</p>` : ''}
     ${scanned && onType ? `<div class="tab-type"><span class="small muted">${t('tab.typeQ')}</span>
       <div class="seg-tabs" role="radiogroup"><button role="radio" data-kind="chords">${t('tab.typeChords')}</button><button role="radio" class="active" aria-checked="true" data-kind="tab">${t('tab.typeTab')}</button></div>
       <span class="small muted">${t('tab.typeHint')}</span></div>` : ''}
@@ -101,6 +109,7 @@ export function renderTabEditor(root, song0, { isNew = false, scanned = false, i
     stop?.(); ro.disconnect();
     onCancel?.();
   });
+  $('eRescan')?.addEventListener('click', () => onRescan());
   let saving = false;
   $('eSave').addEventListener('click', async () => {
     if (saving) return;
@@ -119,7 +128,14 @@ export function renderTabEditor(root, song0, { isNew = false, scanned = false, i
     if (bpm >= 30 && bpm <= 220) rec.bpm = bpm; else delete rec.bpm;
     delete rec.scanModel; delete rec.sheetKind;
     let msg = t('edit.saved');
-    if (isNew) {
+    if (base) {
+      // isti ID (napredak u Vežbama, set liste, folderi, podešavanja pesme) — menja se samo tablatura
+      rec = { ...base, title: rec.title, artist: rec.artist, key: clean.key, tab: clean, type: 'tab', sections: [], transpose: 0, ...(rec.bpm ? { bpm: rec.bpm } : {}) };
+      if (!(bpm >= 30 && bpm <= 220)) delete rec.bpm;
+      delete rec.__rescanOf; delete rec.__newId;
+      await versions.save('song:' + base.id, base, 'rescan'); // stara tablatura ostaje kao „Prethodna verzija“
+      msg = t('rescan.tabSaved');
+    } else if (isNew) {
       rec.id = song0.__newId || undefined;
       delete rec.__newId;
       const others = (await db.all()).filter((x) => x.id !== rec.id);

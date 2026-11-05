@@ -18,6 +18,11 @@ const loadChordCheck = lazy(() => import('./chordCheck.js'));
 const loadPractice = lazy(() => import('./practice.js')); // Vežbe: učitava se tek kad se otvori
 const hasSharedSong = () => location.hash.startsWith('#pesma=') || location.hash.startsWith('#g='); // poslata pesma / set lista (sharelink.js, shareCode.js)
 
+// Osećaj prave aplikacije: dugi pritisak ne otvara meni pregledača („Kopiraj / Potraži / Sačuvaj sliku“), ništa se ne
+// označava i ne prevlači — osim u poljima za unos (gde se kuca i lepi tekst).
+const editable = (el) => !!(el && el.closest && el.closest('input, textarea, [contenteditable]:not([contenteditable="false"])'));
+for (const ev of ['contextmenu', 'selectstart', 'dragstart']) document.addEventListener(ev, (e) => { if (!editable(e.target)) e.preventDefault(); }, { capture: true });
+
 const app = document.getElementById('app');
 const views = {};
 let activeLive = null; // tuner/akordi koriste mikrofon — gasimo ga pri promeni taba
@@ -255,3 +260,14 @@ idle(() => import('./songSync.js').then((m) => m.cleanupDuplicates({ settings })
 }).catch(() => {}));
 // Google Drive (~25 KB) se učitava samo ako je rezervna kopija uključena; inače tek kad se otvore Podešavanja
 idle(() => settings.get('drive', null).then((d) => { if (d && d.connected) return import('./drive.js').then((m) => m.initDrive()); }).catch(() => {}));
+// Sinhronizacija između uređaja: tek posle prvog ekrana (nikad ne usporava pokretanje), samo ako je uključena
+idle(() => settings.get('syncCfg', null).then(async (c) => {
+  let ls = null; try { ls = JSON.parse(localStorage.getItem('gitara-sync') || 'null'); } catch {}
+  if ((c && c.on) || (!c && ls && ls.on)) return (await import('./sync.js')).initSync();
+  // stara rezervna kopija je povezana: jednom ponudi sinhronizaciju (isti Google nalog, jedan dodir)
+  const d = await settings.get('drive', null);
+  if (!c && d && d.connected && !(await settings.get('syncOffered', false))) {
+    await settings.set('syncOffered', true);
+    (await import('./ui.js')).toast(t('sync.offer'), '', { label: t('sync.connectBtn'), onClick: () => import('./sync.js').then((m) => m.connectSync()).catch(() => { location.hash = '#/podesavanja'; }) });
+  }
+}).catch(() => {}));

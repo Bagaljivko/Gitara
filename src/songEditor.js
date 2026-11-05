@@ -1,5 +1,5 @@
 // Pesme → uređivanje i skeniranje (učitava se tek kada zatreba: editor, skeniranje, Gemini).
-import { songs as db, newSongId } from './db.js';
+import { songs as db, newSongId, versions } from './db.js';
 import { findExisting } from './songIdentity.js';
 import { esc, toast, dialog, confirmDialog, pickFiles, closeXHTML } from './ui.js';
 import { textToSections, sectionsToText, songExtras, cleanUncertain } from './songformat.js';
@@ -133,6 +133,21 @@ async function runScan(files, prepared = null, opts = {}) {
     diag.images = imgs.map((i) => i.info);
     if (cancelled) return;
     overlay.querySelector('.scan-preview').style.backgroundImage = `url(${imgs[0].preview})`;
+    // „Skeniraj ponovo“ za TAB pesmu: odmah čitanje tablature (isti tok i isti ekran „Proveri tablaturu“)
+    if (opts.rescanTabOf) {
+      setText(t('tab.reading'));
+      const tabDraft = await readTab(imgs, ctrl.signal, setText, diag);
+      if (cancelled) return;
+      close();
+      if (!tabDraft) { toast(t('gem.noTab'), 'error'); return; }
+      tabDraft.__rescanOf = opts.rescanTabOf;
+      tabDraft.__newId = opts.rescanTabOf;
+      drafts = { chords: null, tab: tabDraft }; draftImgs = null;
+      draft = tabDraft;
+      draftImage = imgs.map((i) => i.preview);
+      location.hash = '#/uredi/sken';
+      return;
+    }
     // 2) Pošalji i sačekaj odgovor
     const song = await scanSong(imgs, ctrl.signal, (kind, model) => {
       if (kind === 'send') setText(t('scan.stepSend'));
@@ -172,7 +187,7 @@ async function runScan(files, prepared = null, opts = {}) {
       title,
       html: true,
       body: `<p>${esc(e instanceof GeminiError ? e.message : t('common.error'))}</p>
-        <details class="diag"><summary>${t('scan.details')}</summary><pre id="diagText">${esc(report)}</pre>
+        <details class="diag"><summary>${t('scan.details')}</summary><textarea readonly class="diag-text" id="diagText" rows="8">${esc(report)}</textarea>
         <button class="btn small" id="diagCopy" type="button">${t('scan.copyDetails')}</button></details>`,
       buttons: canRetry
         ? [{ label: t('common.cancel'), value: false }, { label: t('common.retry'), value: true, kind: 'primary' }]
@@ -182,7 +197,7 @@ async function runScan(files, prepared = null, opts = {}) {
     modal.querySelector('#diagCopy').addEventListener('click', async (ev) => {
       ev.stopPropagation();
       try { await navigator.clipboard.writeText(report); toast(t('scan.copied')); }
-      catch { const r = document.createRange(); r.selectNodeContents(modal.querySelector('#diagText')); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); }
+      catch { const ta = modal.querySelector('#diagText'); ta.focus(); ta.select(); }
     });
     if (await p) return runScan(files, imgs, opts);
     if (opts.onFail) opts.onFail(e);
@@ -206,6 +221,22 @@ function formatScanDiag(d, e) {
   L.push(`${t('diag.message')}: ${(e && e.message) || String(e)}`);
   L.push(`${t('diag.app')}: Gitara ${APP_VERSION} · ${navigator.onLine === false ? 'offline' : 'online'} · ${navigator.userAgent}`);
   return L.join('\n');
+}
+
+/** „Skeniraj ponovo“ (Uredi): nove fotografije u postojeću pesmu — isti ID, napredak, set liste i podešavanja. */
+async function askRescan(id, isTab) {
+  const how = await dialog({
+    title: t('rescan.btn'),
+    body: t(isTab ? 'rescan.tabBody' : 'rescan.body'),
+    buttons: [{ label: t('scan.gallery'), value: 'gallery' }, { label: t('scan.camera'), value: 'camera', kind: 'primary' }],
+  });
+  if (!how) return;
+  if (!(await getApiKey())) { toast(t('scan.needKeyTitle'), 'error'); return; }
+  if (navigator.onLine === false) { await dialog({ title: t('scan.offlineTitle'), body: t('scan.offlineBody') }); return; }
+  const files = await pickFiles('image/*', how === 'camera' ? 'environment' : null);
+  if (!files.length) return;
+  const pages = await collectPages(files);
+  if (pages) await runScan(pages, null, isTab ? { rescanTabOf: id } : { rescanOf: id });
 }
 
 /** Samo tablature sa slika (za „Dodaj tablaturu“ → skeniranje). Vraća niz tablatura ili null. */
@@ -303,8 +334,10 @@ async function switchToTab(root, chord) {
 /** TAB pesma: poseban editor (učitava se tek sada). */
 async function renderTab(root, song, isNew) {
   const { renderTabEditor } = await import('./tabEditor.js');
+  const base = isNew && song.__rescanOf ? await db.get(song.__rescanOf) : null; // „Skeniraj ponovo“: postojeća pesma
   renderTabEditor(root, song, {
-    isNew, scanned: isNew && drafts.tab === song, images: isNew ? draftImage : null,
+    isNew, base, scanned: isNew && drafts.tab === song, images: isNew ? draftImage : null,
+    onRescan: isNew ? null : () => askRescan(song.id, true),
     onType: isNew && drafts.tab === song && drafts.chords ? () => { draft = drafts.chords; renderEditor(root, 'sken'); } : null,
     onCancel: () => {
       draft = null; draftImage = null; drafts = { chords: null, tab: null }; draftImgs = null;
@@ -479,19 +512,7 @@ export async function renderEditor(root, id) {
       toast(t('tab.scanned', { n: res.length }));
     }
   });
-  $('eRescan')?.addEventListener('click', async () => {
-    const how = await dialog({
-      title: t('rescan.btn'),
-      body: t('rescan.body'),
-      buttons: [{ label: t('scan.gallery'), value: 'gallery' }, { label: t('scan.camera'), value: 'camera', kind: 'primary' }],
-    });
-    if (!how) return;
-    if (!(await getApiKey())) { toast(t('scan.needKeyTitle'), 'error'); return; }
-    const files = await pickFiles('image/*', how === 'camera' ? 'environment' : null);
-    if (!files.length) return;
-    const pages = await collectPages(files);
-    if (pages) await runScan(pages, null, { rescanOf: id });
-  });
+  $('eRescan')?.addEventListener('click', () => askRescan(id, false));
   $('eText').addEventListener('input', () => { autoGrow($('eText')); validate(); });
   validate();
 
@@ -584,6 +605,7 @@ export async function renderEditor(root, id) {
         }
       }
     }
+    if (base) await versions.save('song:' + base.id, base, 'rescan'); // stari sadržaj ostaje kao „Prethodna verzija“
     const rec = await db.save(rec0);
     draft = null; draftImage = null; drafts = { chords: null, tab: null }; draftImgs = null;
     toast(msg);

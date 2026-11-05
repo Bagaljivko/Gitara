@@ -7,6 +7,7 @@ import { parseBackup, SongFormatError } from './songformat.js';
 import { APP_VERSION } from './version.js';
 import { tunerSettingsHTML, bindTunerSettings, loadTunerSettings } from './tunerSettings.js';
 import { t, getLang, setLang } from './i18n.js';
+import { syncState, onSyncChange, statusText, connectSync, reconnect as syncReconnect, disconnectSync, syncNow, initSync } from './sync.js';
 import { driveState, onDriveChange, connect as driveConnect, disconnect as driveDisconnect, reconnect as driveReconnect, backupNow, restoreFlow, formatDate, DriveError } from './drive.js';
 
 import { isStandalone, isIOS, canPromptInstall, promptInstall } from './install.js';
@@ -123,7 +124,7 @@ export async function renderSettings(root) {
         <button class="btn" id="diagCopy">${t('diag.copy')}</button>
         <button class="btn" id="diagClear">${t('diag.clear')}</button>
       </div>
-      <pre class="diag-report" id="diagOut" hidden></pre>
+      <textarea readonly class="diag-report" id="diagOut" rows="8" hidden></textarea>
     </div>
 
     <div class="about muted small">
@@ -132,7 +133,7 @@ export async function renderSettings(root) {
         <label class="switch-row"><input type="checkbox" id="prDbgOn"> <span>${t('pr.debug.toggle')}</span></label>
         <p class="small">${t('pr.debug.note')}</p>
         <div class="row wrap"><button class="btn small" id="prDbgShow">${t('pr.debug.show')}</button><button class="btn small" id="prDbgCopy">${t('diag.copy')}</button><button class="btn small" id="prDbgClear">${t('diag.clear')}</button></div>
-        <pre class="diag-report" id="prDbgOut" hidden></pre>
+        <textarea readonly class="diag-report" id="prDbgOut" rows="8" hidden></textarea>
       </div>
       <button class="btn small" id="bUpdate">${t('update.check')}</button>
       <p><a href="privacy.html" target="_blank" rel="noopener">${t('set.privacy')}</a></p>
@@ -174,7 +175,7 @@ export async function renderSettings(root) {
     det.open = openSet.has(key);
     const sum = document.createElement('summary');
     const h2 = card.querySelector(':scope > h2');
-    sum.innerHTML = `<h2>${h2 ? h2.innerHTML : t('drive.title')}</h2>`;
+    sum.innerHTML = `<h2>${h2 ? h2.innerHTML : t('sync.group')}</h2>`;
     if (h2) h2.remove();
     card.replaceWith(det);
     det.appendChild(sum);
@@ -379,21 +380,39 @@ export async function renderSettings(root) {
   const driveCard = $('driveCard');
   let driveMsg = '', driveMsgCls = '';
   const drawDrive = () => {
-    const d = driveState();
+    const d = driveState(), y = syncState();
+    // Sinhronizacija između uređaja (skrivena fascikla aplikacije) — glavni način; stara kopija (fajl) ispod
+    const pend = y.pending > 0 ? ` · ${esc(t('sync.pending', { n: y.pending }))}` : '';
+    const syncHtml = !y.on ? `
+        <h3 class="sync-h">${t('sync.title')}</h3>
+        <p class="muted small">${t('sync.intro')}</p>
+        <button class="btn primary wide" data-d="sync">${t('sync.connect')}</button>`
+      : `
+        <h3 class="sync-h">${t('sync.title')}</h3>
+        <p class="drive-account">${t('sync.account')} <b>${esc(y.email || t('drive.account'))}</b></p>
+        <p class="sync-status ${y.status === 'synced' ? 'ok' : y.status === 'error' || y.status === 'quota' || y.status === 'newer' ? 'err' : ''}" role="status">${esc(statusText(y.status) || t('sync.syncing'))}${pend}</p>
+        ${y.last ? `<p class="small muted">${t('sync.last')} ${esc(formatDate(y.last))}</p>` : ''}
+        ${y.status === 'connect' ? `<button class="btn primary wide" data-d="syncReconnect">${t('sync.connectBtn')}</button>` : ''}
+        <div class="row wrap">
+          <button class="btn" data-d="syncNow">${t('sync.now')}</button>
+          <button class="btn" data-d="versions">${t('ver.title')}</button>
+          <button class="btn" data-d="syncSwitch">${t('sync.switch')}</button>
+        </div>
+        <button class="btn danger-text" data-d="syncOff">${t('sync.off')}</button>`;
+    const syncMsg = `<p class="status ${driveMsgCls}" role="status">${esc(driveMsg)}</p>`;
     if (!d.connected) {
-      driveCard.innerHTML = `
-        <h2>${t('drive.title')}</h2>
+      driveCard.innerHTML = `${syncHtml}${syncMsg}
+        <h3 class="sync-h">${t('drive.fileTitle')}</h3>
         <p class="muted small">${t('drive.intro')}</p>
-        <button class="btn primary wide" data-d="connect">${t('drive.connect')}</button>
-        <p class="status ${driveMsgCls}" role="status">${esc(driveMsg)}</p>`;
+        <button class="btn wide" data-d="connect">${t('drive.connect')}</button>`;
       return;
     }
     const status = d.busy ? t('drive.busy')
       : d.needsReconnect ? t('drive.expiredStatus')
       : d.pending ? (d.lastError || t('drive.pending'))
-      : driveMsg;
-    driveCard.innerHTML = `
-      <h2>${t('drive.title')}</h2>
+      : '';
+    driveCard.innerHTML = `${syncHtml}${syncMsg}
+      <h3 class="sync-h">${t('drive.fileTitle')}</h3>
       <p class="drive-account">${t('drive.connected')} <b>${esc(d.email || t('drive.account'))}</b></p>
       <p class="small">${t('drive.last')} <b>${d.lastBackup ? esc(formatDate(d.lastBackup)) : t('drive.never')}</b></p>
       ${d.needsReconnect ? `<button class="btn primary wide" data-d="reconnect">${t('drive.reconnect')}</button>` : ''}
@@ -401,19 +420,33 @@ export async function renderSettings(root) {
         <button class="btn" data-d="backup" ${d.busy ? 'disabled' : ''}>${t('drive.backupNow')}</button>
         <button class="btn" data-d="restore" ${d.busy ? 'disabled' : ''}>${t('drive.restore')}</button>
       </div>
-      <p class="status ${d.needsReconnect || (d.pending && d.lastError) ? 'err' : driveMsgCls}" role="status">${esc(status)}</p>
-      <p class="muted small">${t('drive.auto')}</p>
+      ${status ? `<p class="status ${d.needsReconnect || (d.pending && d.lastError) ? 'err' : ''}" role="status">${esc(status)}</p>` : ''}
+      <p class="muted small">${y.on ? t('drive.autoOffSync') : t('drive.auto')}</p>
       <button class="btn danger-text" data-d="disconnect">${t('drive.disconnect')}</button>`;
   };
   const setDriveMsg = (m, cls = '') => { driveMsg = m; driveMsgCls = cls; drawDrive(); };
-  const driveErr = (e) => (e instanceof DriveError ? e.message : t('common.error'));
+  const driveErr = (e) => (e instanceof DriveError || (e && e.user) ? e.message : t('common.error'));
   drawDrive();
+  initSync().catch(() => {}); // stanje (nalog, status) — sama sinhronizacija se ne pokreće ponovo ako već radi
   const unsub = onDriveChange(() => { if (!document.body.contains(driveCard)) return unsub(); drawDrive(); });
+  const unsubSync = onSyncChange(() => { if (!document.body.contains(driveCard)) return unsubSync(); drawDrive(); });
   driveCard.addEventListener('click', async (e) => {
     const b = e.target.closest('[data-d]');
     if (!b) return;
     const a = b.dataset.d;
-    if (a === 'connect') {
+    if (a === 'sync' || a === 'syncSwitch') {
+      setDriveMsg(t('drive.connecting'));
+      try { const ok = await connectSync({ pick: a === 'syncSwitch' }); setDriveMsg(ok ? t('sync.okConnected') : '', ok ? 'ok' : ''); }
+      catch (err) { setDriveMsg(driveErr(err), 'err'); }
+    } else if (a === 'syncReconnect') {
+      try { await syncReconnect(); setDriveMsg(''); } catch (err) { setDriveMsg(driveErr(err), 'err'); }
+    } else if (a === 'syncNow') { syncNow(); setDriveMsg(''); }
+    else if (a === 'versions') { (await import('./versionsView.js')).openVersions(); }
+    else if (a === 'syncOff') {
+      if (!(await confirmDialog(t('sync.offTitle'), t('sync.offBody'), t('sync.off'), 'danger'))) return;
+      await disconnectSync();
+      setDriveMsg('');
+    } else if (a === 'connect') {
       setDriveMsg(t('drive.connecting'));
       try { await driveConnect(); setDriveMsg(t('drive.okConnected'), 'ok'); }
       catch (err) { setDriveMsg(driveErr(err), 'err'); }

@@ -1,10 +1,13 @@
 // Jednostavan IndexedDB omotač: pesme i podešavanja ostaju samo na uređaju.
 import { upgradeSong, needsUpgrade } from './songmodel.js';
+import { nextVersion } from './syncClock.js';
 const DB_NAME = 'gitara';
-const DB_VERSION = 3; // v2: mali indeks pesama („lib“) za brzu biblioteku; v3: obrisane pesme („deleted“: id + vreme)
+// v2: mali indeks pesama („lib“) za brzu biblioteku; v3: obrisane pesme („deleted“: id + vreme);
+// v4: sinhronizacija između uređaja („sync“: verzija i „čeka slanje“ po stavci, „syncState“, „versions“: Prethodna verzija)
+const DB_VERSION = 4;
 let dbPromise = null;
 
-function open() {
+export function open() {
   if (dbPromise) return dbPromise;
   dbPromise = new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
@@ -14,6 +17,9 @@ function open() {
       if (!db.objectStoreNames.contains('settings')) db.createObjectStore('settings');
       if (!db.objectStoreNames.contains('lib')) db.createObjectStore('lib', { keyPath: 'id' });
       if (!db.objectStoreNames.contains('deleted')) db.createObjectStore('deleted', { keyPath: 'id' });
+      if (!db.objectStoreNames.contains('sync')) db.createObjectStore('sync', { keyPath: 'key' });
+      if (!db.objectStoreNames.contains('syncState')) db.createObjectStore('syncState');
+      if (!db.objectStoreNames.contains('versions')) db.createObjectStore('versions', { keyPath: 'n', autoIncrement: true }).createIndex('key', 'key');
     };
     req.onsuccess = () => {
       const db = req.result;
@@ -54,10 +60,55 @@ function tx(store, mode, fn) {
 
 // Obaveštenja o izmenama (za automatsku rezervnu kopiju na Google Drive).
 export const events = new EventTarget();
-const changed = (type, detail) => {
+const changed = (type, detail, remote = false) => {
   if (type === 'songs-changed') libMem = null; // indeks u memoriji je zastareo
-  events.dispatchEvent(new CustomEvent(type, { detail }));
+  const e = new CustomEvent(type, { detail });
+  e.remote = remote; // izmena stigla sinhronizacijom (sa drugog uređaja ili iz druge kartice) — ne šalje se nazad
+  events.dispatchEvent(e);
 };
+/** Sinhronizacija je upisala u bazu mimo ovog modula: osveži indeks i javi ekranima. */
+export function notifyRemote(keys) {
+  let songsHit = false;
+  const sets = new Set();
+  for (const k of keys) {
+    if (k.startsWith('song:')) songsHit = true;
+    else { const s = SYNC_SETTING_OF(k); if (s) sets.add(s); }
+  }
+  if (songsHit) changed('songs-changed', null, true);
+  for (const s of sets) changed('settings-changed', s, true);
+}
+
+// ---- Sinhronizacija: svaka izmena u istoj transakciji označi stavku „čeka slanje“ (outbox) ----
+// Više izmena iste stavke pre slanja = jedna promena. Verzija (hibridni sat) je uvek veća od one koju zamenjuje.
+export const PREF_KEYS = ['a4', 'lang', 'metBpm', 'tunerRoom', 'tuning', 'wakeMode', 'wakeMinutes', 'noteNames', 'geminiModel', 'geminiModelSel', 'syncMigrated'];
+const LIST_KEYS = { setlists: 'set:', folders: 'folder:' }; // nizovi: svaka set lista / folder je posebna stavka
+const WHOLE_KEYS = ['practice', 'skale'];
+export function SYNC_SETTING_OF(k) {
+  if (k.startsWith('set:')) return 'setlists';
+  if (k.startsWith('folder:')) return 'folders';
+  if (k.startsWith('pref:')) return k.slice(5);
+  if (k === 'secret') return 'geminiKey';
+  return WHOLE_KEYS.includes(k) ? k : null;
+}
+function mark(store, key, deleted = false) {
+  const r = store.get(key);
+  // base: verzija na kojoj je izmena napravljena (za prepoznavanje istovremenih izmena na dva uređaja)
+  r.onsuccess = () => { const m = r.result; store.put({ ...(m || {}), key, hlc: nextVersion(m && m.hlc), base: m && m.dirty ? m.base || '' : (m && m.hlc) || '', dirty: true, deleted }); };
+}
+const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+/** settings.set/remove → stavke za sinhronizaciju (u istoj transakciji). */
+function markSetting(sync, key, val, old, removed) {
+  if (LIST_KEYS[key]) {
+    const pre = LIST_KEYS[key];
+    const was = new Map((Array.isArray(old) ? old : []).filter((x) => x && x.id).map((x) => [x.id, x]));
+    const now = new Map((removed || !Array.isArray(val) ? [] : val).filter((x) => x && x.id).map((x) => [x.id, x]));
+    for (const [id, x] of now) if (!same(x, was.get(id))) mark(sync, pre + id);
+    for (const id of was.keys()) if (!now.has(id)) mark(sync, pre + id, true);
+  } else if (WHOLE_KEYS.includes(key)) { if (!same(val, old)) mark(sync, key, !!removed); }
+  else if (PREF_KEYS.includes(key)) { if (!same(val, old)) mark(sync, 'pref:' + key, !!removed); }
+  else if (key === 'geminiKey') { if (!same(val, old)) mark(sync, 'secret', !!removed); }
+}
+export const SYNCED_SETTING = (k) => !!LIST_KEYS[k] || WHOLE_KEYS.includes(k) || PREF_KEYS.includes(k) || k === 'geminiKey';
 
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
 
@@ -72,9 +123,9 @@ function txMulti(stores, fn) {
 }
 // Obrisana pesma se pamti (id + vreme): nijedno kasnije upisivanje stare kopije (otvoren ekran pesme, rezervna kopija,
 // druga kartica) je ne vraća. Samo `force` (novija verzija iz rezervne kopije, izmenjena posle brisanja) briše oznaku.
-const putRec = (rec, force = false) => txMulti(['songs', 'lib', 'deleted'], (s, l, d) => {
+const putRec = (rec, force = false) => txMulti(['songs', 'lib', 'deleted', 'sync'], (s, l, d, y) => {
   const out = { ok: true };
-  const write = () => { s.put(rec); l.put(summarize(rec)); };
+  const write = () => { s.put(rec); l.put(summarize(rec)); if (!rec.demo) mark(y, 'song:' + rec.id); }; // primer pesme ostaje samo na uređaju
   if (force) { d.delete(rec.id); write(); return out; }
   const r = d.get(rec.id);
   r.onsuccess = () => { if (r.result) out.ok = false; else write(); };
@@ -119,7 +170,10 @@ export const songs = {
     changed('songs-changed', rec.id);
     return rec.id;
   },
-  remove: (id, at = Date.now()) => txMulti(['songs', 'lib', 'deleted'], (s, l, d) => { s.delete(id); l.delete(id); d.put({ id, at }); }).then(() => { changed('songs-changed', id); }),
+  remove: (id, at = Date.now()) => txMulti(['songs', 'lib', 'deleted', 'sync'], (s, l, d, y) => {
+    const r = s.get(id);
+    r.onsuccess = () => { if (!(r.result && r.result.demo)) mark(y, 'song:' + id, true); s.delete(id); l.delete(id); d.put({ id, at }); };
+  }).then(() => { changed('songs-changed', id); }),
   /** Obrisane pesme: { id: vreme } (stare oznake se usput brišu). */
   async deleted() {
     const all = await tx('deleted', 'readonly', (d) => d.getAll());
@@ -136,17 +190,56 @@ export const songs = {
       if (cur && (cur.updatedAt || 0) > at) continue; // menjana posle brisanja na drugom uređaju — ostaje
       const had = await tx('deleted', 'readonly', (d) => d.get(id));
       if (had && had.at >= at && !cur) continue;
-      await txMulti(['songs', 'lib', 'deleted'], (s, l, d) => { s.delete(id); l.delete(id); d.put({ id, at: Math.max(at, had ? had.at : 0) }); });
+      await txMulti(['songs', 'lib', 'deleted', 'sync'], (s, l, d, y) => { s.delete(id); l.delete(id); d.put({ id, at: Math.max(at, had ? had.at : 0) }); if (cur) mark(y, 'song:' + id, true); });
       if (cur) n++;
     }
     if (n) changed('songs-changed', null);
     return n;
   },
-  clear: () => txMulti(['songs', 'lib'], (s, l) => { s.clear(); l.clear(); }).then(() => { changed('songs-changed', null); }),
+  clear: () => txMulti(['songs', 'lib', 'sync'], (s, l, y) => {
+    const r = s.getAllKeys();
+    r.onsuccess = () => { r.result.forEach((id) => mark(y, 'song:' + id, true)); s.clear(); l.clear(); };
+  }).then(() => { changed('songs-changed', null); }),
 };
 
+function setWithSync(key, val, removed) {
+  if (!SYNCED_SETTING(key)) return tx('settings', 'readwrite', (s) => (removed ? s.delete(key) : s.put(val, key)));
+  return txMulti(['settings', 'sync'], (s, y) => {
+    const r = s.get(key);
+    r.onsuccess = () => { markSetting(y, key, val, r.result, removed); if (removed) s.delete(key); else s.put(val, key); };
+  });
+}
 export const settings = {
   get: (key, def) => tx('settings', 'readonly', (s) => s.get(key)).then((v) => (v === undefined ? def : v)),
-  set: (key, val) => tx('settings', 'readwrite', (s) => s.put(val, key)).then((r) => { changed('settings-changed', key); return r; }),
-  remove: (key) => tx('settings', 'readwrite', (s) => s.delete(key)),
+  set: (key, val) => setWithSync(key, val, false).then(() => { changed('settings-changed', key); }),
+  remove: (key) => setWithSync(key, undefined, true).then(() => { if (SYNCED_SETTING(key)) changed('settings-changed', key); }),
+};
+
+// ---- Prethodna verzija (izgubljena strana sukoba, ponovni sken…): do 5 po stavci, ukupno do 300 ----
+const VERSIONS_PER_KEY = 5, VERSIONS_MAX = 300;
+export function keepVersion(store, key, data, reason, hlc = '', at = Date.now()) {
+  if (data == null) return;
+  store.add({ key, data, reason, hlc, at });
+  const r = store.index('key').getAllKeys(key);
+  r.onsuccess = () => { const ks = r.result; for (let i = 0; i < ks.length - VERSIONS_PER_KEY; i++) store.delete(ks[i]); };
+  const c = store.count();
+  c.onsuccess = () => { if (c.result > VERSIONS_MAX) { const k = store.getAllKeys(null, c.result - VERSIONS_MAX); k.onsuccess = () => k.result.forEach((n) => store.delete(n)); } };
+}
+export const versions = {
+  /** Sačuvaj staru verziju (npr. pre ponovnog skeniranja). */
+  save: (key, data, reason) => txMulti(['versions'], (v) => keepVersion(v, key, data, reason)),
+  /** Prethodne verzije jedne stavke (najnovija prva) ili svih. */
+  async list(key) {
+    const all = await tx('versions', 'readonly', (v) => (key ? v.index('key').getAll(key) : v.getAll()));
+    return all.sort((a, b) => b.at - a.at);
+  },
+  remove: (n) => txMulti(['versions'], (v) => v.delete(n)),
+};
+
+// ---- Stanje sinhronizacije (za Web Worker i podešavanja) ----
+export const syncMeta = {
+  all: () => tx('sync', 'readonly', (y) => y.getAll()),
+  pending: () => tx('sync', 'readonly', (y) => y.getAll()).then((a) => a.filter((m) => m.dirty).length),
+  state: (k) => tx('syncState', 'readonly', (s) => s.get(k)),
+  setState: (k, v) => tx('syncState', 'readwrite', (s) => s.put(v, k)),
 };

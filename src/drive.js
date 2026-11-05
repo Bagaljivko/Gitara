@@ -3,13 +3,18 @@
 // Nema client secret-a — token client radi samo sa javnim Client ID-jem.
 import { songs as db, settings, events } from './db.js';
 import { mergeSongs } from './songSync.js';
+import { cleanPractice, cleanSkale, mergeSkale, mergePractice } from './syncMerge.js';
 import { normalizeSong, SongFormatError, safeFileName, songExtras, songMeta, cleanRecording } from './songformat.js';
 import { cleanFolders, cleanSetlists, cleanSongFolders, mergeById } from './collections.js';
 import { toast, dialog } from './ui.js';
 import { t, songsCount, setLang } from './i18n.js';
 
 const CLIENT_ID = '633765324865-ki9jk8hvnt9cfqbsemipfl8f796g3s1v.apps.googleusercontent.com';
-const SCOPE = 'https://www.googleapis.com/auth/drive.file';
+const SCOPE_FILE = 'https://www.googleapis.com/auth/drive.file';
+const SCOPE_APPDATA = 'https://www.googleapis.com/auth/drive.appdata'; // sinhronizacija: skrivena fascikla aplikacije
+const SCOPE = SCOPE_FILE + ' ' + SCOPE_APPDATA;
+/** Sinhronizacija je uključena: stara rezervna kopija (fajl u folderu „Gitara“) se više ne menja sama. */
+const syncOn = () => { try { return !!(JSON.parse(localStorage.getItem('gitara-sync') || 'null') || {}).on; } catch { return false; } };
 const GIS_URL = 'https://accounts.google.com/gsi/client';
 const API = 'https://www.googleapis.com/drive/v3';
 const UPLOAD = 'https://www.googleapis.com/upload/drive/v3';
@@ -32,6 +37,7 @@ const state = {
   lastBackup: 0,
   token: '',
   tokenExp: 0,
+  tokenSync: false, // token važi i za sinhronizaciju (drive.appdata)
   needsReconnect: false,
   busy: false,
   pending: false,
@@ -48,7 +54,7 @@ async function persist() {
     lastBackup: state.lastBackup, pending: state.pending,
   });
   // Token je kratkotrajan (oko 1 h); čuvamo ga da bi preživeo ponovno otvaranje aplikacije.
-  if (state.token) await settings.set('driveToken', { t: state.token, exp: state.tokenExp });
+  if (state.token) await settings.set('driveToken', { t: state.token, exp: state.tokenExp, s: state.tokenSync ? 2 : 1 });
   else await settings.remove('driveToken');
 }
 
@@ -85,10 +91,9 @@ function getTokenClient() {
         const denied = resp.error === 'access_denied';
         return p.reject(new DriveError(denied ? t('drive.e.denied') : t('drive.e.auth'), denied ? 'denied' : 'auth'));
       }
-      if (!google.accounts.oauth2.hasGrantedAllScopes(resp, SCOPE)) {
-        return p.reject(new DriveError(t('drive.e.scope'), 'denied'));
-      }
-      p.resolve(resp);
+      const file = google.accounts.oauth2.hasGrantedAllScopes(resp, SCOPE_FILE), app = google.accounts.oauth2.hasGrantedAllScopes(resp, SCOPE_APPDATA);
+      if (!(p.need === 'sync' ? app : file)) return p.reject(new DriveError(t('drive.e.scope'), 'denied'));
+      p.resolve({ ...resp, file, app });
     },
     error_callback: (err) => {
       const p = pendingToken; pendingToken = null;
@@ -102,18 +107,20 @@ function getTokenClient() {
 }
 
 /** Traži token. interactive=false: tihi pokušaj (bez izbora naloga). */
-async function requestToken({ interactive }) {
+async function requestToken({ interactive, need = 'file', hint = '', pick = false }) {
   await loadGis();
   const client = getTokenClient();
   if (pendingToken) pendingToken.reject(new DriveError(t('drive.e.cancelled'), 'cancelled'));
   const resp = await new Promise((resolve, reject) => {
-    pendingToken = { resolve, reject };
-    const opts = { prompt: interactive ? (state.email ? '' : 'select_account') : 'none' };
-    if (state.email) opts.login_hint = state.email;
+    pendingToken = { resolve, reject, need };
+    const who = hint || state.email;
+    const opts = { prompt: interactive ? (who && !pick ? '' : 'select_account') : 'none' };
+    if (who && !pick) opts.login_hint = who;
     try { client.requestAccessToken(opts); } catch (e) { pendingToken = null; reject(new DriveError(t('drive.e.auth'), 'auth')); }
   });
   state.token = resp.access_token;
   state.tokenExp = Date.now() + (Number(resp.expires_in) || 3600) * 1000 - 60000;
+  state.tokenSync = !!resp.app;
   state.needsReconnect = false;
   await persist();
   emit();
@@ -133,6 +140,30 @@ async function getToken() {
     showReconnectBanner();
     throw new DriveError(t('drive.e.expired'), 'reconnect');
   }
+}
+
+// ---------------- Token za sinhronizaciju (sync.js) ----------------
+/** Token sa pristupom skrivenoj fascikli aplikacije. interactive: iz dodira korisnika (izbor naloga / dozvola).
+ *  Tiho osvežavanje ne prikazuje ništa; ako ne uspe, sinhronizacija pokaže malo dugme „Poveži“. */
+export async function syncToken({ interactive = false, force = false, hint = '', pick = false } = {}) {
+  if (!interactive && !force && state.token && state.tokenSync && Date.now() < state.tokenExp) return { token: state.token, exp: state.tokenExp };
+  if (!interactive && navigator.onLine === false) throw new DriveError(t('drive.e.offline'), 'offline');
+  await requestToken({ interactive, need: 'sync', hint, pick });
+  return { token: state.token, exp: state.tokenExp };
+}
+/** Odjava sinhronizacije: token se opoziva samo ako ga ni stara rezervna kopija ne koristi. */
+export async function syncSignOut() {
+  if (state.connected) return;
+  const tk = state.token;
+  Object.assign(state, { token: '', tokenExp: 0, tokenSync: false });
+  await settings.remove('driveToken');
+  if (tk && window.google && google.accounts && google.accounts.oauth2) { try { google.accounts.oauth2.revoke(tk, () => {}); } catch {} }
+}
+/** Stara rezervna kopija (gitara-backup.json) — samo čitanje, bez pravljenja foldera (za jednokratni prelazak). */
+export async function readOldBackup() {
+  const files = await findFiles(`name='${BACKUP_NAME}' and trashed=false`);
+  if (!files.length) return null;
+  return parseBackup(files[0]);
 }
 
 // ---------------- Drive REST ----------------
@@ -214,59 +245,6 @@ async function uploadFile({ id, name, mime, blob, parents, appProperties }) {
 }
 
 // ---------------- Rezervna kopija ----------------
-/** Rezultati iz Vežbi: samo brojevi i datumi u očekivanom obliku (ništa drugo se ne prepisuje). */
-function cleanPractice(p) {
-  if (!p || typeof p !== 'object') return null;
-  const rec = (r) => (r && typeof r === 'object' ? {
-    best: Math.round(Math.max(0, Math.min(100, Number(r.best) || 0))),
-    bestMetric: Number.isFinite(Number(r.bestMetric)) && r.bestMetric != null ? Math.max(0, Math.min(1000, Math.round(Number(r.bestMetric)))) : undefined,
-    streak: Math.max(0, Math.round(Number(r.streak) || 0)),
-    lastDay: typeof r.lastDay === 'string' && /^\d{4}-\d{1,2}-\d{1,2}$/.test(r.lastDay) ? r.lastDay : '',
-    lastTempo: Math.max(0, Math.min(400, Math.round(Number(r.lastTempo) || 0))) || undefined,
-    plays: Math.max(0, Math.round(Number(r.plays) || 0)),
-  } : null);
-  const games = {}, songs = {};
-  for (const [k, v] of Object.entries(p.games || {})) if (/^[a-z]{2,12}$/.test(k)) { const r = rec(v); if (r) games[k] = r; }
-  for (const [id, parts] of Object.entries(p.songs || {})) {
-    if (typeof id !== 'string' || id.length > 80 || !parts || typeof parts !== 'object') continue;
-    const o = {};
-    for (const [pk, v] of Object.entries(parts)) if (/^(\d{1,3}|all)$/.test(pk)) { const r = rec(v); if (r) o[pk] = r; }
-    if (Object.keys(o).length) songs[id] = o;
-  }
-  return { v: 1, games, songs };
-}
-
-/** Vežbe → Skale (v1): napredak po tonalitet-skala-pozicija-obrazac + put (pređeni koraci, otkrivene kartice). */
-const SK_SCALES = ['minPent', 'majPent', 'major', 'minor', 'blues', 'chromatic'], SK_PATS = ['updown', 'thirds', 'seq3', 'seq4'];
-function cleanSkale(p) {
-  if (!p || typeof p !== 'object') return null;
-  const items = {}, done = {}, cards = {};
-  for (const [k, r] of Object.entries(p.items || {}).slice(0, 2000)) {
-    const m = /^(\d{1,2})-([a-zA-Z]{4,10})-(\d{1,2})-([a-z0-9]{4,7})$/.exec(k);
-    if (!m || +m[1] > 11 || !SK_SCALES.includes(m[2]) || +m[3] > 12 || !SK_PATS.includes(m[4]) || !r || typeof r !== 'object') continue;
-    const n = (v, max) => Math.max(0, Math.min(max, Math.round(Number(v) || 0)));
-    const o = { best: n(r.best, 100), stars: n(r.stars, 3), plays: n(r.plays, 1e6) };
-    if (n(r.bpm, 400)) o.bpm = n(r.bpm, 400);
-    if (n(r.lastTempo, 400)) o.lastTempo = n(r.lastTempo, 400);
-    if (r.learned) o.learned = true;
-    if (r.passed) o.passed = true;
-    items[k] = o;
-  }
-  for (const [k, v] of Object.entries(p.path?.done || {})) if (/^[a-z0-9]{2,16}$/.test(k)) done[k] = Number(v) || 1;
-  for (const [k, v] of Object.entries(p.path?.cards || {})) if (/^[a-zA-Z]{2,16}$/.test(k)) cards[k] = Number(v) || 1;
-  return { v: 1, items, path: { done, cards } };
-}
-function mergeSkale(a, b) {
-  if (!a) return b;
-  const out = { v: 1, items: { ...(a.items || {}) }, path: { done: { ...(a.path?.done || {}), ...(b.path?.done || {}) }, cards: { ...(a.path?.cards || {}), ...(b.path?.cards || {}) } } };
-  for (const [k, r] of Object.entries(b.items || {})) {
-    const x = out.items[k];
-    out.items[k] = !x ? r : { ...x, best: Math.max(x.best || 0, r.best || 0), stars: Math.max(x.stars || 0, r.stars || 0), plays: Math.max(x.plays || 0, r.plays || 0),
-      bpm: Math.max(x.bpm || 0, r.bpm || 0) || undefined, lastTempo: Math.max(x.lastTempo || 0, r.lastTempo || 0) || undefined, learned: !!(x.learned || r.learned) || undefined, passed: !!(x.passed || r.passed) || undefined };
-  }
-  return out;
-}
-
 /** Spajanje rezultata (telefon + kopija): veći najbolji rezultat; niz i tempo sa skorije korišćenog. */
 /** Moji snimci (Samo sviraj) iz rezervne kopije: samo poznat oblik, razumne granice (do 10 min, pragovi 0–12). */
 function cleanFreeplayRecs(list) { // stari zapis (pre v1.37): pri otvaranju „Samo sviraj“ prelazi u pesme
@@ -280,24 +258,6 @@ function cleanFreeplayRecs(list) { // stari zapis (pre v1.37): pri otvaranju „
   return out;
 }
 
-function mergePractice(a, b) {
-  if (!a) return b;
-  const day = (r) => { const [y, m, d] = String(r && r.lastDay || '').split('-').map(Number); return y ? y * 400 + m * 32 + d : 0; };
-  const one = (x, y) => {
-    if (!x) return y; if (!y) return x;
-    const newer = day(y) > day(x) ? y : x;
-    const bm = Math.max(x.bestMetric ?? -1, y.bestMetric ?? -1);
-    return { ...newer, best: Math.max(x.best || 0, y.best || 0), plays: Math.max(x.plays || 0, y.plays || 0), ...(bm >= 0 ? { bestMetric: bm } : {}) };
-  };
-  const out = { v: 1, games: { ...(a.games || {}) }, songs: { ...(a.songs || {}) } };
-  for (const [k, r] of Object.entries(b.games || {})) out.games[k] = one(out.games[k], r);
-  for (const [id, parts] of Object.entries(b.songs || {})) {
-    const o = { ...(out.songs[id] || {}) };
-    for (const [pk, r] of Object.entries(parts)) o[pk] = one(o[pk], r);
-    out.songs[id] = o;
-  }
-  return out;
-}
 
 async function buildBackup() {
   const all = await db.all();
@@ -341,6 +301,9 @@ export async function backupNow() {
 export async function readBackup() {
   const f = await findBackup();
   if (!f) return null;
+  return parseBackup(f);
+}
+async function parseBackup(f) {
   const res = await api(`${API}/files/${f.id}?alt=media`);
   let data;
   try { data = await res.json(); } catch { throw new DriveError(t('drive.e.corrupt'), 'format'); }
@@ -471,14 +434,14 @@ export async function reconnect() {
 }
 
 export async function disconnect() {
-  const t = state.token;
-  Object.assign(state, { connected: false, email: '', folderId: '', backupId: '', lastBackup: 0, token: '', tokenExp: 0, needsReconnect: false, pending: false, lastError: '' });
+  const t = state.token, keep = syncOn(); // sinhronizacija koristi isti token — ostaje
+  Object.assign(state, { connected: false, email: '', folderId: '', backupId: '', lastBackup: 0, needsReconnect: false, pending: false, lastError: '' }, keep ? {} : { token: '', tokenExp: 0, tokenSync: false });
   clearTimeout(timer);
   hideReconnectBanner();
   await settings.remove('drive');
-  await settings.remove('driveToken');
+  if (!keep) await settings.remove('driveToken');
   emit();
-  if (t && window.google && google.accounts && google.accounts.oauth2) {
+  if (t && !keep && window.google && google.accounts && google.accounts.oauth2) {
     try { google.accounts.oauth2.revoke(t, () => {}); } catch {}
   }
 }
@@ -520,7 +483,7 @@ let retryDelay = 30000;
 let suppress = 0;
 
 export function scheduleBackup(delay = BACKUP_DELAY) {
-  if (!state.connected) return;
+  if (!state.connected || syncOn()) return;
   if (!state.pending) { state.pending = true; persist(); emit(); }
   clearTimeout(timer);
   timer = setTimeout(runScheduled, delay);
@@ -585,9 +548,9 @@ async function doInit() {
   const saved = await settings.get('drive', null);
   if (saved && saved.connected) {
     Object.assign(state, saved);
-    const tok = await settings.get('driveToken', null);
-    if (tok && tok.exp > Date.now()) { state.token = tok.t; state.tokenExp = tok.exp; }
   }
+  const tok = await settings.get('driveToken', null);
+  if (tok && tok.exp > Date.now()) { state.token = tok.t; state.tokenExp = tok.exp; state.tokenSync = tok.s === 2; }
   events.addEventListener('songs-changed', () => { if (!suppress) scheduleBackup(); });
   events.addEventListener('settings-changed', (e) => { if (!suppress && BACKUP_SETTINGS.includes(e.detail)) scheduleBackup(); });
   window.addEventListener('online', () => { if (state.pending) scheduleBackup(1500); });
@@ -595,7 +558,7 @@ async function doInit() {
   if (!state.connected) return;
   if (state.pending) scheduleBackup(3000);
   // Prazna biblioteka (npr. podaci su obrisani) → ponudi vraćanje ako je token još važeći.
-  if (state.token && navigator.onLine !== false) {
+  if (state.token && navigator.onLine !== false && !syncOn()) { // sa sinhronizacijom pesme stižu same
     if (!(await db.count())) {
       try { if (!(await alreadyAsked()) && (await findBackup())) await offerRestore(); } catch {}
     }
