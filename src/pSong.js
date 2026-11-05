@@ -57,6 +57,7 @@ export async function createGame(api) {
   const song = await db.get(songId);
   const empty = (msg) => { api.stage.innerHTML = `<p class="muted center">${msg}</p>`; return { noTempo: true, noStart: true, beats: 0, start() { api.stopNow(); }, stop() {} }; };
   if (!song) return empty(t('song.notFound'));
+  if (song.type === 'tab') return (await import('./pTab.js')).createTabGame(api, song, songId); // TAB pesma (prebiranje)
   const parts = songParts(song);
   if (!parts.length) return empty(t('pr.pesma.noChords'));
   const songBpm = Number(song.bpm) || Number(await settings.get('metBpm', 90)) || 90;

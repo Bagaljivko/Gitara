@@ -49,6 +49,7 @@ const folded = (s) => { let f = foldMemo.get(s); if (!f) { f = { t: fold(s.title
 const libKey = (s) => (s.keyN ? keyName({ root: (s.keyN.root + (s.transpose || 0) + 120) % 12, minor: s.keyN.minor }, 'en') : s.key);
 function libBadges(s) {
   const b = [];
+  if (s.type === 'tab') b.push('<span class="badge-sm tab-badge">TAB</span>');
   if (s.capo) b.push(`<span class="badge-sm" title="${esc(t('capo.title'))}">${esc(t('lib.badgeCapo', { n: s.capo }))}</span>`);
   if (s.tuning && s.tuning !== 'standard') b.push(`<span class="badge-sm">${esc(t('tuning.' + s.tuning))}</span>`);
   if (s.hasTabs ?? (s.sections || []).some((x) => (x.tabs || []).length)) b.push(`<span class="badge-sm">${esc(t('lib.badgeTab'))}</span>`);
@@ -287,6 +288,7 @@ export async function renderSharedSong(root) {
     history.replaceState(null, '', location.pathname + location.search + '#/pesme');
     return;
   }
+  if (song.type === 'tab') return renderSharedTab(root, song);
   // Primljena pesma se prikazuje u MOM imenovanju (akordi u linku su nedvosmisleni ili se prepoznaju)
   song = upgradeSong(song);
   const shapes = transposeSong(song, (song.transpose || 0) - (song.capo || 0));
@@ -333,6 +335,32 @@ export async function renderSharedSong(root) {
       rec = await db.save(song);
       toast(t('import.added', { title: song.title }));
     }
+    leave('#/pesma/' + encodeURIComponent(rec.id));
+  });
+}
+
+/** Primljena TAB pesma: pregled tablature i „Dodaj u pesmaricu“ (ista provera duplikata kao za druge pesme). */
+async function renderSharedTab(root, song) {
+  const tv = await import('./tabView.js');
+  root.innerHTML = `<section class="view shared-view tab-view">
+    <div class="card add-card"><h2>${t('link.addTitle')}</h2><p class="muted"><b>${esc(song.title)}</b>${song.artist ? ' — ' + esc(song.artist) : ''}</p>
+      <div class="row"><button class="btn" id="shCancel">${t('common.cancel')}</button><button class="btn primary" id="shAdd">${t('link.add')}</button></div></div>
+    <h1 class="song-h1">${esc(song.title)} <span class="badge-sm tab-badge">TAB</span></h1>
+    <p class="song-meta">${tv.tabMeta(song).map(esc).join(' · ')}</p>
+    <div class="tab-staff2" id="shStaff"></div></section>`;
+  requestAnimationFrame(() => tv.drawStaff(root.querySelector('#shStaff'), song.tab));
+  const leave = (hash) => location.replace(location.pathname + location.search + hash);
+  root.querySelector('#shCancel').addEventListener('click', () => leave('#/pesme'));
+  root.querySelector('#shAdd').addEventListener('click', async () => {
+    const { findExisting } = await import('./songIdentity.js');
+    const existing = findExisting(song, await db.all());
+    let rec;
+    if (existing) {
+      const choice = await dialog({ title: t('dup.title', { title: existing.title }), body: t('dup.body'), buttons: [{ label: t('common.cancel'), value: null }, { label: t('dup.saveNew'), value: 'new' }, { label: t('dup.replace'), value: 'replace', kind: 'primary' }] });
+      if (!choice) return;
+      rec = choice === 'replace' ? await db.save({ ...existing, ...song, id: existing.id, createdAt: existing.createdAt, folders: existing.folders, bpm: existing.bpm ?? song.bpm }) : await db.save(song);
+    } else rec = await db.save(song);
+    toast(t('import.added', { title: song.title }));
     leave('#/pesma/' + encodeURIComponent(rec.id));
   });
 }
@@ -582,6 +610,8 @@ export async function renderSong(root, id, nav = null) {
   // Pesma još nije prebačena u novi zapis akorda (npr. otvorena pre jednokratne konverzije) — uradi to sada
   if (needsUpgrade(stored)) { stored = upgradeSong(stored); db.put(stored).catch(() => {}); }
   markOpened(stored.id); // za sortiranje „Nedavno otvorene“ (pamti se samo na uređaju, ne pokreće rezervnu kopiju)
+  // TAB pesma (prebiranje): poseban ekran (tablatura), učitava se tek sada
+  if (stored.type === 'tab') return (await import('./tabView.js')).renderTabSong(root, stored, nav, { ytRowHTML, shareSong, driveConnected });
   let tp = stored.transpose || 0;
   let capo = stored.capo || 0;
   let zoom = Number(stored.zoom) || (Number(localStorageGet('gitara-font')) || 1);

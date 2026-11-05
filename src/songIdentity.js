@@ -10,7 +10,8 @@ export function contentKey(s) {
     (sec.lines || []).map((l) => [String(l.text || '').replace(/\s+$/, ''), (l.chords || []).map((c) => [String(c.chord || ''), Math.round(Number(c.position) || 0)]).sort((a, b) => a[1] - b[1])]),
     (sec.tabs || []).map((tb) => JSON.stringify(tb)),
   ]);
-  return JSON.stringify([fold(s.title), fold(s.artist), secs]);
+  // TAB pesma: taktovi i note (zapis je već očišćen, pa je JSON dovoljan)
+  return JSON.stringify([fold(s.title), fold(s.artist), secs, s.type === 'tab' ? ['tab', s.tab || null] : 0]);
 }
 
 export const sameTitle = (a, b) => !!fold(a) && fold(a) === fold(b);
@@ -27,7 +28,14 @@ function dice(a, b) { // sličnost dva niza (dvojke susednih elemenata), 0–1
 }
 
 /** Skoro ista pesma: tekst ≥ 85 % isti i akordi ≥ 70 % isti (ili oba bez akorda). */
+const tabTokens = (s) => (s.tab && Array.isArray(s.tab.bars) ? s.tab.bars.flatMap((b) => (b.notes || []).map((n) => n.s + ':' + n.f)) : []);
 export function nearlySame(a, b) {
+  // TAB pesme: skoro isti niz nota (žica:prag); TAB i pesma sa akordima nisu ista pesma
+  if (a.type === 'tab' || b.type === 'tab') {
+    if (a.type !== b.type) return false;
+    const ta = tabTokens(a), tb = tabTokens(b);
+    return ta.length >= 8 && tb.length >= 8 && dice(ta, tb) >= 0.85;
+  }
   const wa = words(a), wb = words(b);
   if (wa.length < 6 || wb.length < 6) return false;
   if (dice(wa, wb) < 0.85) return false;

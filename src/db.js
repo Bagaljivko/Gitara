@@ -28,14 +28,14 @@ function open() {
 // ---- Indeks pesama: samo ono što biblioteka i setliste prikazuju (bez akorda i originala) ----
 // Pesma sa svim akordima i originalom je ~10–15 KB; za 300 pesama čitanje svega je ~4 MB i na
 // sporom telefonu traje pola sekunde. Indeks je ~20 puta manji i čita se odmah.
-const LIB_V = 1;
+const LIB_V = 2; // v2: vrsta pesme (TAB)
 const fold = (x) => String(x || '').trim().toLocaleLowerCase('sr').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'dj');
 export function summarize(rec) {
   const secs = rec.sections || [];
   return {
     v: LIB_V, id: rec.id, title: rec.title || '', artist: rec.artist || '', key: rec.key || '', keyN: rec.keyN || null,
     transpose: rec.transpose || 0, capo: rec.capo || 0, tuning: rec.tuning || '', folders: rec.folders || [],
-    demo: !!rec.demo, createdAt: rec.createdAt || 0, updatedAt: rec.updatedAt || 0,
+    demo: !!rec.demo, createdAt: rec.createdAt || 0, updatedAt: rec.updatedAt || 0, ...(rec.type === 'tab' ? { type: 'tab' } : {}),
     hasTabs: secs.some((x) => (x.tabs || []).length),
     find: fold(secs.map((sec) => (sec.lines || []).map((l) => l.text || '').join('\n')).join('\n')), // za pretragu teksta
   };

@@ -1,0 +1,38 @@
+/* TAB pesme (učitava se tek sa TAB ekranom ili pregledom posle skeniranja) — isti tamni stil i boje prstiju kao igre */
+.tab-staff2 { margin: 8px 0 18px; user-select: none; -webkit-user-select: none; }
+.tab-staff2 .tb-row { display: block; overflow: visible; margin: 0 0 4px; }
+.tb-name { fill: var(--muted); font-weight: 700; font-family: var(--sans); }
+.tb-line { stroke: #4a4f58; stroke-width: 1; }
+.tb-barline { stroke: #8b919c; stroke-width: 1.2; }
+.tb-thick, .tb-dot { fill: #c9ced6; }
+.tb-sig { fill: var(--text); font-weight: 800; font-family: var(--sans); }
+.tb-num { fill: var(--muted); font-family: var(--sans); }
+.tb-key { fill: var(--accent); font-weight: 700; font-family: var(--sans); }
+.tb-volta { fill: none; stroke: var(--muted); stroke-width: 1; }
+.tb-barre { fill: #8fb9ea; font-weight: 700; font-family: var(--sans); }
+.tb-barre-l { stroke: #8fb9ea; stroke-width: 1; stroke-dasharray: 3 3; opacity: .7; }
+.tb-hit { fill: transparent; cursor: pointer; transition: fill .25s; }
+.tb-bar.flag .tb-hit { fill: rgba(245, 165, 36, .1); stroke: rgba(245, 165, 36, .45); stroke-width: 1; }
+.tb-bar.cur .tb-hit { fill: rgba(90, 169, 255, .12); }
+.tb-bar.now .tb-hit { fill: rgba(245, 165, 36, .1); }
+.tb-bar.pulse .tb-hit { animation: tbPulse 1.2s ease-out; }
+@keyframes tbPulse { 0%, 40% { fill: rgba(245, 165, 36, .35); } 100% { fill: rgba(245, 165, 36, .1); } }
+.tb-n rect { fill: var(--bg); }
+.tb-n text { fill: var(--text); font-weight: 700; font-family: var(--sans); }
+.tb-n.on text { animation: tbOn .6s ease-out; }
+@keyframes tbOn { 0% { fill: #fff; } 30% { fill: var(--accent); } 100% { fill: var(--text); } }
+.tb-fi { font-weight: 800; font-family: var(--sans); }
+.tb-fi.fc1 { fill: #5aa9ff; } .tb-fi.fc2 { fill: #ffd75e; } .tb-fi.fc3 { fill: #ff7cc3; } .tb-fi.fc4 { fill: #b48cff; }
+.tb-edit .tb-n { cursor: pointer; }
+.tb-edit .tb-n rect { stroke: rgba(245, 165, 36, .35); stroke-width: 1; }
+.tab-badge { vertical-align: middle; font-size: .55em; letter-spacing: .04em; }
+.tab-ctl { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.tab-tap { margin: 0; }
+.tab-sug .sug-item { justify-content: space-between; }
+.tab-sug .sug-what { font-family: var(--sans); }
+/* Proveri tablaturu (posle skeniranja) */
+.tab-type { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 10px; }
+.tab-type .seg-tabs { align-self: flex-start; }
+.tab-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; }
+.tab-fields label { display: flex; flex-direction: column; gap: 3px; font-size: .85rem; color: var(--muted); }
+@media (max-width: 380px) { .tab-fields { grid-template-columns: 1fr; } }

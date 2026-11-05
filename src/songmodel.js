@@ -7,7 +7,7 @@ export const CV = 2; // verzija zapisa akorda
 
 /** Da li pesmi treba (ponovo) napraviti neutralni sloj: stara verzija ili akordi bez n (npr. iz linka ili rezervne kopije). */
 export function needsUpgrade(song) {
-  if (!song || !Array.isArray(song.sections)) return false;
+  if (!song || !Array.isArray(song.sections) || song.type === 'tab') return false; // TAB pesma nema akorde
   if (!(song.cv >= CV)) return true;
   return song.sections.some((sec) => (sec.lines || []).some((l) => (l.chords || []).some((c) => !c.n)));
 }

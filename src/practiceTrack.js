@@ -139,7 +139,7 @@ export function createTrack({ t, onExit, lookBeats = 4.5, onInfo = null }) {
   }
 
   // ---- Bazeni elemenata (prave se jednom, posle se samo ponovo koriste) ----
-  const pools = { note: [], chord: [], strum: [], grid: [], ring: [], ghost: [] };
+  const pools = { note: [], chord: [], strum: [], grid: [], ring: [], ghost: [], barre: [] };
   function make(kind) {
     const e = document.createElement('div');
     if (kind === 'note') { e.className = 'tn'; e.innerHTML = '<b></b>'; itemsL.appendChild(e); }
@@ -152,6 +152,7 @@ export function createTrack({ t, onExit, lookBeats = 4.5, onInfo = null }) {
     } else if (kind === 'grid') { e.className = 'tgl'; gridL.appendChild(e); }
     else if (kind === 'ring') { e.className = 'tr'; fxL.appendChild(e); }
     else if (kind === 'ghost') { e.className = 'tgh'; e.innerHTML = '<b></b>'; fxL.appendChild(e); }
+    else if (kind === 'barre') { e.className = 'tbr'; e.innerHTML = '<b></b>'; gridL.appendChild(e); }
     return e;
   }
   function take(kind) { const p = pools[kind]; const e = p.length ? p.pop() : make(kind); e.style.opacity = ''; return e; }
@@ -161,8 +162,9 @@ export function createTrack({ t, onExit, lookBeats = 4.5, onInfo = null }) {
   function assign(it) {
     const e = take(it.kind);
     if (it.kind === 'note') {
-      e.className = `tn fc${it.finger || 0}${it.root ? ' root' : ''}`;
+      e.className = `tn fc${it.finger || 0}${it.root ? ' root' : ''}${it.ring ? ' ring' : ''}`;
       e.firstChild.textContent = String(it.f);
+      if (it.ring) e.style.setProperty('--len', Math.max(0, it.dur * G.ppb - G.r * 1.5).toFixed(0) + 'px'); // žica zvoni (prebiranje)
     } else if (it.kind === 'chord') {
       e.className = 'tc' + (it.deco ? ' deco' : '');
       const w = Math.max(G.r * 2 + 8, (it.dur || 1) * G.ppb - 6 + G.r * 2 + 8);
@@ -178,6 +180,11 @@ export function createTrack({ t, onExit, lookBeats = 4.5, onInfo = null }) {
       }
     } else if (it.kind === 'strum') {
       e.className = `ts ${it.dir === 'U' ? 'up' : 'down'}${it.muted ? ' muted' : ''}`;
+    } else if (it.kind === 'barre') {
+      // barre: blaga traka preko žica koje prvi prst pritiska (samo prikaz)
+      e.style.width = Math.max(G.r * 2, it.dur * G.ppb).toFixed(0) + 'px';
+      e.style.height = (y(it.to) - y(it.from) + G.r * 1.6).toFixed(0) + 'px';
+      e.firstChild.textContent = it.label || '';
     }
     if (it === cur) e.classList.add('cur');
     if (it.state === 'miss') e.classList.add('missed');
@@ -217,6 +224,7 @@ export function createTrack({ t, onExit, lookBeats = 4.5, onInfo = null }) {
       const e = it._el || assign(it);
       if (it.kind === 'note') setX(e, `translate3d(${(x - r * 1.5).toFixed(1)}px,${(y(it.s) - r * 1.5).toFixed(1)}px,0)`);
       else if (it.kind === 'chord') setX(e, `translate3d(${(x - r - 4).toFixed(1)}px,${G.padY.toFixed(1)}px,0)`);
+      else if (it.kind === 'barre') setX(e, `translate3d(${(x - r).toFixed(1)}px,${(y(it.from) - r * 0.8).toFixed(1)}px,0)`);
       else setX(e, `translate3d(${(x - r * 1.1).toFixed(1)}px,${(y(0) - r * 0.7).toFixed(1)}px,0)`);
     }
   }
@@ -281,14 +289,15 @@ export function createTrack({ t, onExit, lookBeats = 4.5, onInfo = null }) {
     setGrid(gr) { grid = gr; },
     set beatMs(v) { beatMs = v; },
     /** Ocena: kind 'hit' | 'early' | 'late' | 'miss'; text = poruka; sound = cink */
-    judge(it, kind, text, { sound = true } = {}) {
+    judge(it, kind, text, { sound = true, quiet = false } = {}) {
       const real = performance.now();
       const x = Math.max(G.hitX, G.hitX + ((it.at - clock()) / beatMs) * G.ppb);
       it.state = kind === 'miss' ? 'miss' : 'hit';
       it.doneAt = real;
-      if (kind === 'miss') { it._el?.classList.add('missed'); ringAt(it, 'miss', x); setCombo(0); }
-      else { ringAt(it, 'hit', G.hitX); clearGhost(); setCombo(combo + 1); if (sound) hitSound(); }
-      pop(text, kind);
+      // quiet: nota koja prati drugu u istom napadu (bas uz melodiju) — samo prsten, bez poruke i niza
+      if (kind === 'miss') { it._el?.classList.add('missed'); ringAt(it, 'miss', x); if (!quiet) setCombo(0); }
+      else { ringAt(it, 'hit', G.hitX); if (!quiet) { clearGhost(); setCombo(combo + 1); if (sound) hitSound(); } }
+      if (!quiet) pop(text, kind);
     },
     /** Pogrešno, ali nota i dalje čeka: crveni prsten oko mete (i bled crveni krug na odsviranoj noti). */
     wrong(it, text, heard = null) {
@@ -405,7 +414,12 @@ export const starsOf = (score) => (score >= 92 ? 3 : score >= 75 ? 2 : score >= 
 export function runTrack({ api, track, t, items, bpm, wait = null, mode = 'normal', lagMs = 180, hintOf, fingersOf, demo = null, onEnd }) {
   const beg = (wait ?? mode === 'beg') && !demo; // „Čekaj me“
   const beatMs = beg ? 60000 / 66 : 60000 / bpm; // Čekaj me: stalan, spor razmak između nota (bez tempa)
-  const judged = items.filter((it) => !it.deco);
+  const judged = items.filter((it) => !it.deco && !it.follow); // follow = ista nota napada kao prethodna (bas uz melodiju)
+  // presuda za notu važi i za note koje je prate (isti trzaj)
+  const judgeIt = (it, kind, text, o) => {
+    track.judge(it, kind, text, o);
+    for (const g of it.group || []) track.judge(g, kind, '', { quiet: true });
+  };
   const endBeat = Math.max(...items.map((it) => it.beat + (it.dur || 1)));
   let met = null, gen = 0, resumeBeat = 0, paused = false, firstStart = false, ended = false, counting = true, sweepT = 0, lastCur = null, timers = [];
   let vt = -1e9, lastReal = performance.now(); // Početnik: virtuelni sat (staje kod note koja čeka)
@@ -486,12 +500,12 @@ export function runTrack({ api, track, t, items, bpm, wait = null, mode = 'norma
         if (it.state || now < it.at) return;
         demo.play?.(it);
         const early = demo.early?.(i);
-        track.judge(it, early ? 'early' : 'hit', early ? t('pr.trk.early') : t('pr.trk.hit'), { sound: false });
+        judgeIt(it, early ? 'early' : 'hit', early ? t('pr.trk.early') : t('pr.trk.hit'), { sound: false });
         if (demo.captions && demo.captions[i] != null) track.caption(demo.captions[i]);
       });
     } else {
       const lag = lagMs + (getLatency() ?? 60);
-      for (const it of judged) if (!it.state && now - it.at > win(it) + lag) { it.score = 0; track.judge(it, 'miss', t('pr.trk.miss')); }
+      for (const it of judged) if (!it.state && now - it.at > win(it) + lag) { it.score = 0; judgeIt(it, 'miss', t('pr.trk.miss')); }
     }
     track.progress(judged.filter((it) => it.state).length / judged.length);
   }
@@ -520,7 +534,7 @@ export function runTrack({ api, track, t, items, bpm, wait = null, mode = 'norma
       const r = check(c);
       if (r.pending) return; // nejasno — igra još sluša (stabilno očitavanje), pa javi ponovo
       // Početnik: bez tempa i promašaja — svaki pogrešan pokušaj odnese malo (najviše do 70 %)
-      if (r.ok) { c.score = Math.max(0.7, 1 - 0.1 * (c.wrong || 0)); c.kindHit = 'hit'; track.judge(c, 'hit', t('pr.trk.hit')); }
+      if (r.ok) { c.score = Math.max(0.7, 1 - 0.1 * (c.wrong || 0)); c.kindHit = 'hit'; judgeIt(c, 'hit', t('pr.trk.hit')); }
       else { c.wrong = (c.wrong || 0) + 1; track.wrong(c, r.text ? t('pr.trk.tryAgain', { x: r.text }) : t('pr.trk.notClear'), r.heard ?? null); }
       return;
     }
@@ -534,7 +548,7 @@ export function runTrack({ api, track, t, items, bpm, wait = null, mode = 'norma
     best.score = (tm.kind === 'off' ? 0.6 : 0.6 + 0.4 * tm.score) * (best.wrong ? 0.7 : 1);
     const kind = tm.kind === 'hit' ? 'hit' : dt < 0 ? 'early' : 'late';
     best.kindHit = kind;
-    track.judge(best, kind, kind === 'hit' ? t('pr.trk.hit') : t(kind === 'early' ? 'pr.trk.early' : 'pr.trk.late'));
+    judgeIt(best, kind, kind === 'hit' ? t('pr.trk.hit') : t(kind === 'early' ? 'pr.trk.early' : 'pr.trk.late'));
   }
 
   // Uspravno usred runde → pauza; položeno → novo odbrojavanje

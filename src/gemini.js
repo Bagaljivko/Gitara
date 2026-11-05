@@ -72,6 +72,7 @@ PRAVILA:
 9. NESIGURNA MESTA: ako neki akord ili reč nisi mogao pouzdano da pročitaš, napiši u tekstu/akordima svoju najbolju procenu i dodaj stavku u "uncertain": { "section": indeks dela (od 0), "line": indeks linije u tom delu (od 0), "kind": "chord" ili "word", "text": tačno ono što si upisao, "position": pozicija akorda ili početak reči u liniji, "suggestion": drugo najverovatnije čitanje }. Navedi samo zaista nesigurna mesta (najviše 15); ako ih nema, "uncertain" je prazan niz.
 10. TABLATURA: ako slika sadrži gitarsku tablaturu (šest linija sa brojevima pragova), prepiši je u polje "tab" tog dela kao ASCII tekst od TAČNO 6 redova razdvojenih sa \n, odozgo: e, B, G, D, A, E (visoka e gore). Svaki red počinje nazivom žice i znakom "|", taktovi se odvajaju sa "|", crtice "-" popunjavaju prazna mesta, a kolone moraju biti poravnate (ista nota u svim redovima je u istoj koloni). Primer jednog reda: "e|-----0-----|---------3-|". Tehnike piši posle broja: h, p, /, \\, b, ~. "tabSig" je takt ako je naznačen (npr. "3/4"), inače "4/4". Prag koji nisi pouzdano pročitao dodaj u "tabUnsure": { "string": 1–6 (1 = e gore), "column": indeks prvog znaka tog broja u redu, računajući od 0 od prvog znaka POSLE prve "|", "fret": upisan broj, "suggestion": drugi najverovatniji broj }.
 11. Ako je više slika i jedna sadrži samo tablaturu, stavi je u odgovarajući deo pesme koji nema tekst (npr. "Uvod"/"Intro", "Rif"/"Riff", deo sa prebiranjem). Ako nisi siguran gde pripada, napravi zaseban deo sa tom tablaturom i postavi "tabPlacementUnclear": true.
+12. VRSTA LISTA: "sheetKind" je "akordi" za pesmu sa tekstom i akordima (i kad ima malo tablature), a "tab" ako je list notni zapis / tablatura cele kompozicije za gitaru (prebiranje, klasična gitara: šest linija sa brojevima pragova kroz ceo list, taktovi, obično bez teksta pesme). Ako nisi siguran, "akordi".
 8. Ako na papiru postoji ritam udaranja (strelice ↓ ↑, ili zapis poput „D DU UDU“ / „dole gore“), vrati ga kao "strum": { "steps": "...", "sig": "4/4" }. "steps" ima jedan znak po osmini: D = udarac na dole, U = na gore, x = prigušen udarac, - = pauza (npr. „↓ ↓↑ ↑↓↑“ u 4/4 je "D-DU-UDU"). "sig" je "2/4", "3/4", "4/4" ili "6/8". Ako ritam važi samo za jedan deo pesme, stavi "strum" u taj deo (sekciju). Ako ritma nema, izostavi polje "strum".
 
 Vrati ISKLJUČIVO JSON ovog oblika (polja "strum" su opciona):
@@ -89,6 +90,7 @@ const UNCERTAIN_SCHEMA = {
 const RESPONSE_SCHEMA = {
   type: 'OBJECT',
   properties: {
+    sheetKind: { type: 'STRING' },
     strum: STRUM_SCHEMA,
     uncertain: UNCERTAIN_SCHEMA,
     title: { type: 'STRING' },
@@ -125,6 +127,50 @@ const RESPONSE_SCHEMA = {
     },
   },
   required: ['title', 'artist', 'key', 'sections'],
+};
+
+// ---- TAB list (prebiranje, klasična gitara): taktovi i note sa ritmom ----
+const TAB_PROMPT = `Ti si precizan prepisivač notnih zapisa za gitaru (TAB). Na slici je kompozicija za gitaru: notni sistem i ispod njega tablatura (šest linija sa brojevima pragova).
+
+PRAVILA:
+1. Brojevi u TABLATURI su izvor istine: za svaku notu prepiši žicu i prag tačno kako su odštampani. Note iz notnog sistema koristi SAMO za ritam (gde nota počinje i koliko traje) — ne menjaj prag prema notama.
+2. Žice: 1 = najviša (tanka e, gornja linija tablature), 6 = najniža (debela E, donja linija). Prag 0–24.
+3. Za svaki takt redom (brojevi taktova od 1) navedi sve note: "s" žica, "f" prag, "start" = početak u četvrtinama od početka takta (prva doba = 0; u 3/4 su dobe 0, 1, 2), "len" = trajanje u četvrtinama (četvrtina = 1, osmina = 0.5, triola osmina = 0.333, polovina = 2, polovina sa tačkom = 3). Triole: tri note u jednoj dobi počinju na 0, 0.333, 0.667 te dobe. Bas koji traje ceo takt ima len celog takta. Note koje se sviraju zajedno imaju isti "start".
+4. "finger" je odštampan broj prsta leve ruke (1–4) uz notu, ako postoji; inače 0. Slova p, i, m, a (desna ruka) ignoriši.
+5. Barre: oznake kao "BV", "BVII", "CII", "1/2 BV", "½ CV" prepiši u "barre": [{ "label": tačno kako piše, "fret": broj praga (rimski broj pretvori u broj), "half": true za 1/2 ili ½ }] tog takta (i svakog takta dokle se proteže crta posle oznake).
+6. Ponavljanja: "repeatStart": true na taktu koji počinje znakom „|:“, "repeatEnd": true na taktu koji se završava znakom „:|“ ("times": broj prolaza, obično 2). Volte (1. i 2. završetak): "ending": 1 ili 2.
+7. "sig" je takt kompozicije (npr. "3/4"); ako se takt menja, stavi "sig" u takt gde počinje promena. "key" je tonalitet na početku (po predznacima i kraju: npr. "Em", "E", "Am"); ako se predznaci promene, stavi "key" u prvi takt novog tonaliteta (npr. "E"). "bpm" je tempo ako je odštampan (broj uz četvrtinu), inače 0.
+8. "title" i "composer" sa lista (npr. "Anonymous").
+9. NESIGURNO: ako neki takt ne možeš pouzdano da pročitaš (mutan broj, nejasan ritam), prepiši najbolju procenu i dodaj { "bar": broj takta, "why": kratko objašnjenje na srpskom } u "unsure". Ne izmišljaj note koje ne vidiš.
+10. Ne prepisuj ništa osim kompozicije (bez imena izdavača, brojeva strana, reklama).
+
+Vrati ISKLJUČIVO JSON ovog oblika:
+{ "title": "", "composer": "", "key": "Em", "sig": "3/4", "bpm": 0, "unsure": [ { "bar": 12, "why": "" } ], "bars": [ { "n": 1, "sig": "", "key": "", "repeatStart": false, "repeatEnd": false, "times": 2, "ending": 0, "barre": [ { "label": "1/2 BV", "fret": 5, "half": true } ], "notes": [ { "s": 6, "f": 0, "start": 0, "len": 3, "finger": 0 } ] } ] }`;
+
+const TAB_MULTI = (n) => `
+
+VIŠE SLIKA: dobijaš ${n} slika, ovim redom — uzastopne strane ISTE kompozicije. Spoji ih u jedan niz taktova, redom; brojevi taktova se nastavljaju preko strana (druga strana obično počinje brojem takta odštampanim na početku reda). Ako se isti takt vidi na kraju jedne i početku sledeće slike, prepiši ga JEDNOM.`;
+
+const TAB_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    title: { type: 'STRING' }, composer: { type: 'STRING' }, key: { type: 'STRING' }, sig: { type: 'STRING' }, bpm: { type: 'NUMBER' },
+    unsure: { type: 'ARRAY', items: { type: 'OBJECT', properties: { bar: { type: 'INTEGER' }, why: { type: 'STRING' } } } },
+    bars: {
+      type: 'ARRAY',
+      items: {
+        type: 'OBJECT',
+        properties: {
+          n: { type: 'INTEGER' }, sig: { type: 'STRING' }, key: { type: 'STRING' },
+          repeatStart: { type: 'BOOLEAN' }, repeatEnd: { type: 'BOOLEAN' }, times: { type: 'INTEGER' }, ending: { type: 'INTEGER' },
+          barre: { type: 'ARRAY', items: { type: 'OBJECT', properties: { label: { type: 'STRING' }, fret: { type: 'INTEGER' }, half: { type: 'BOOLEAN' } } } },
+          notes: { type: 'ARRAY', items: { type: 'OBJECT', properties: { s: { type: 'INTEGER' }, f: { type: 'INTEGER' }, start: { type: 'NUMBER' }, len: { type: 'NUMBER' }, finger: { type: 'INTEGER' } }, required: ['s', 'f', 'start', 'len'] } },
+        },
+        required: ['n', 'notes'],
+      },
+    },
+  },
+  required: ['title', 'sig', 'bars'],
 };
 
 const RETRY_DELAYS = [1500, 3000, 5000]; // do 3 ponovna pokušaja kada je Gemini zauzet
@@ -442,11 +488,42 @@ export async function scanSong(images, signal, onStatus, diag) {
   try { json = JSON.parse(text); } catch { throw new GeminiError(t('gem.badJson')); }
   const unplaced = tabsFromScan(json);
   let song;
-  try { song = normalizeSong(json); } catch { throw new GeminiError(t('gem.noSong')); }
+  try { song = normalizeSong(json); } catch {
+    // TAB list: tekst i akordi često ne postoje — svejedno nastavi na čitanje tablature
+    if (json && json.sheetKind === 'tab') song = { title: String(json.title || '').slice(0, 120), artist: String(json.artist || '').slice(0, 120), key: '', transpose: 0, sections: [{ name: '', lines: [{ text: '', chords: [] }] }] };
+    else throw new GeminiError(t('gem.noSong'));
+  }
   // delovi sa tablaturom za koje Gemini nije siguran gde pripadaju (indeksi posle normalizacije su isti)
   song.unplacedTabs = unplaced.filter((i) => song.sections[i] && song.sections[i].tabs);
   song.scanModel = res.model; // prikazuje se na „Proveri i ispravi“, ne čuva se u pesmi
+  if (json.sheetKind === 'tab') song.sheetKind = 'tab'; // Gemini misli da je ovo TAB list (pitaj/pročitaj kao TAB)
   return song;
+}
+
+/** TAB list (jedna ili više strana) → sirov JSON taktova (pesmu pravi tabSong.fromScan). */
+export async function scanTab(images, signal, onStatus, diag) {
+  const list = Array.isArray(images) ? images : [images];
+  const apiKey = await getApiKey();
+  const parts = [{ text: TAB_PROMPT + (list.length > 1 ? TAB_MULTI(list.length) : '') }];
+  list.forEach((img, i) => {
+    if (list.length > 1) parts.push({ text: `Strana ${i + 1} od ${list.length}:` });
+    parts.push({ inline_data: { mime_type: img.mime, data: img.base64 } });
+  });
+  const contents = [{ parts }];
+  const cfg = { temperature: 0.1, responseMimeType: 'application/json' };
+  let res;
+  try {
+    res = await generate(apiKey, { contents, generationConfig: { ...cfg, responseSchema: TAB_SCHEMA } }, { signal, onStatus, diag });
+  } catch (e) {
+    if (!(e instanceof GeminiError) || e.code !== 'HTTP_400' || !e.model || !/schema|response_?schema|responseMimeType|field/i.test(e.message)) throw e;
+    res = await generate(apiKey, { contents, generationConfig: cfg }, { signal, onStatus, models: [e.model], diag });
+  }
+  const text = textOf(res.data).trim().replace(/^```(?:json)?\s*|\s*```$/g, '');
+  let json;
+  try { json = JSON.parse(text); } catch { throw new GeminiError(t('gem.badJson')); }
+  if (!json || !Array.isArray(json.bars) || !json.bars.length) throw new GeminiError(t('gem.noTab'));
+  json.scanModel = res.model;
+  return json;
 }
 
 /**

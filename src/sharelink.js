@@ -5,8 +5,20 @@ import { t } from './i18n.js';
 
 const PREFIX = '#pesma=';
 
+// TAB pesma u linku: note kao [žica, prag, početak·24, trajanje·24, prst?], uz takt i ostale oznake takta
+const packTab = (tab) => ({ g: tab.sig, k: tab.key || undefined, b: tab.bars.map((b) => {
+  const x = { n: b.notes.map((n) => [n.s, n.f, Math.round(n.b * 24), Math.round(n.d * 24), ...(n.fi ? [n.fi] : [])]) };
+  for (const k of ['sig', 'key', 'rs', 're', 'end', 'barre', 'ok']) if (b[k] != null) x[k] = b[k];
+  return x;
+}) });
+const unpackTab = (o) => ({ sig: o && o.g, key: o && o.k, bars: (o && Array.isArray(o.b) ? o.b : []).map((x) => ({ ...x, notes: (x.n || []).map(([s, f, b, d, fi]) => ({ s, f, b: b / 24, d: d / 24, fi })) })) });
+
 /** Kratki ključevi da link bude što kraći. */
 function pack(song) {
+  if (song.type === 'tab') {
+    const ex = songExtras(song);
+    return { v: 1, ty: 't', t: song.title, a: song.artist || undefined, k: song.key || undefined, y: ex.yt, b: ex.bpm, tb: packTab(song.tab) };
+  }
   const ex = songExtras(song);
   const o = { v: 1, t: song.title, a: song.artist || undefined, k: song.key || undefined, s: song.sections.map((sec) => {
     const x = { l: sec.lines.map((l) => (l.chords && l.chords.length ? [l.text || '', l.chords.map((c) => [c.chord, c.position])] : [l.text || ''])) };
@@ -26,6 +38,7 @@ function pack(song) {
 }
 
 function unpack(o) {
+  if (o && o.v === 1 && o.ty === 't') return normalizeSong({ type: 'tab', title: o.t, artist: o.a, key: o.k, yt: o.y, bpm: o.b, tab: unpackTab(o.tb) });
   if (!o || o.v !== 1 || !Array.isArray(o.s)) throw new SongFormatError(t('link.bad'));
   return normalizeSong({
     title: o.t, artist: o.a, key: o.k, capo: o.c, strum: o.p, yt: o.y, tuning: o.u, bpm: o.b, transpose: o.tr,

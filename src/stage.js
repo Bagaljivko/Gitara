@@ -62,6 +62,8 @@ export async function renderStage(root, setlistId, params) {
       </div>`;
     fitLyrics(root.querySelector('.stage-lyrics'));
     layoutTabs($('stBody'));
+    // TAB pesma u setlisti: tablatura umesto teksta (modul se učitava tek tada)
+    if (s.type === 'tab') import('./tabView.js').then((tv) => { const l = root.querySelector('.stage-lyrics'); if (l && all.get(ids[i]) === s) { l.className = 'tab-staff2'; tv.drawStaff(l, s.tab, { zoom: Math.max(1, zoom) }); } });
     window.scrollTo(0, 0);
     history.replaceState(null, '', `#/nastup/${encodeURIComponent(setlistId)}?i=${i}`);
   }

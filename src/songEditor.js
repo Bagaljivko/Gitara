@@ -3,7 +3,8 @@ import { songs as db, newSongId } from './db.js';
 import { findExisting } from './songIdentity.js';
 import { esc, toast, dialog, confirmDialog, pickFiles, closeXHTML } from './ui.js';
 import { textToSections, sectionsToText, songExtras, cleanUncertain } from './songformat.js';
-import { scanSong, prepareImage, getApiKey, GeminiError } from './gemini.js';
+import { scanSong, scanTab, prepareImage, getApiKey, GeminiError } from './gemini.js';
+import './tabText.js'; // tekstovi za izbor vrste (Akordi / TAB) — mali modul, ostatak TAB koda se učitava tek kad zatreba
 import { t } from './i18n.js';
 import { layoutTabs, tabToAscii } from './tabs.js';
 import { APP_VERSION } from './version.js';
@@ -15,6 +16,8 @@ import { renderSectionsHTML, applyUncertain } from './songs.js';
 
 let draft = null; // nesačuvana pesma (npr. posle skeniranja)
 let draftImage = null;
+// posle skeniranja: obe vrste čitanja iste slike (Akordi / TAB) i slike za drugo čitanje — bez veza između nacrta
+let drafts = { chords: null, tab: null }, draftImgs = null;
 
 /** „Nova pesma“ iz biblioteke. */
 export function newSongDraft() {
@@ -137,6 +140,13 @@ async function runScan(files, prepared = null, opts = {}) {
       else if (kind === 'switch') setText(t('scan.switchModel', { model }));
       else setText(t('scan.busy'));
     }, diag);
+    // TAB list (prebiranje): Gemini je prepoznao tablaturu → drugo čitanje, taktovi i note sa ritmom
+    let tabDraft = null;
+    if (song.sheetKind === 'tab' && !opts.onSong && !opts.rescanOf) {
+      setText(t('tab.reading'));
+      try { tabDraft = await readTab(imgs, ctrl.signal, setText, diag); } catch (e) { if (cancelled || (e && e.name === 'AbortError')) throw e; tabDraft = null; }
+      if (cancelled) return;
+    }
     diag.totalMs = performance.now() - t0;
     close();
     if (opts.onSong) { opts.onSong(song, imgs); return; }
@@ -144,7 +154,10 @@ async function runScan(files, prepared = null, opts = {}) {
     if (opts.rescanOf) song.__rescanOf = opts.rescanOf;
     song.__original = snapshotOriginal(song); // skenirano tačno kako je pročitano — ne menja se nikad
     song.__newId = newSongId(); // ID nove pesme se zna od skeniranja: ponovljeno čuvanje upisuje istu pesmu, ne drugu
-    draft = song;
+    // za promenu vrste (Akordi ↔ TAB) pre čuvanja: oba čitanja i slike
+    drafts = { chords: song, tab: tabDraft }; draftImgs = opts.rescanOf ? null : imgs;
+    if (tabDraft) tabDraft.__newId = song.__newId;
+    draft = tabDraft || song;
     draftImage = imgs.map((i) => i.preview);
     location.hash = '#/uredi/sken';
   } catch (e) {
@@ -246,12 +259,66 @@ async function placeUnplacedTabs(song) {
 
 
 // ---------------- Uređivanje ("Proveri i ispravi") ----------------
+/** Čitanje TAB lista (posle prepoznate tablature ili kad korisnik promeni vrstu). Vraća TAB pesmu ili null. */
+async function readTab(imgs, signal, setText, diag) {
+  const json = await scanTab(imgs, signal, (kind, model) => {
+    if (kind === 'switch') setText(t('scan.switchModel', { model }));
+    else if (kind === 'busy') setText(t('scan.busy'));
+    else setText(t('tab.reading'));
+  }, diag);
+  const { fromScan } = await import('./tabSong.js');
+  const s = fromScan(json);
+  if (s) s.scanModel = json.scanModel;
+  return s;
+}
+/** Promena vrste posle skeniranja (Akordi → TAB): ista slika, drugo čitanje (uz „Otkaži“). */
+async function switchToTab(root, chord) {
+  if (drafts.tab) { draft = drafts.tab; return renderEditor(root, 'sken'); }
+  if (!draftImgs) { toast(t('tab.needPhoto'), 'error'); return; }
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-backdrop';
+  overlay.innerHTML = `<div class="modal scan-modal" role="dialog" aria-modal="true"><p class="scan-msg"><span class="spinner"></span> <span id="tsText">${t('tab.reading')}</span></p>
+    <div class="modal-actions"><button class="btn" id="tsCancel">${t('common.cancel')}</button></div></div>`;
+  document.body.appendChild(overlay);
+  const ctrl = new AbortController();
+  overlay.__close = () => overlay.querySelector('#tsCancel')?.click();
+  overlay.querySelector('#tsCancel').addEventListener('click', () => { ctrl.abort(); overlay.remove(); });
+  try {
+    const tab = await readTab(draftImgs, ctrl.signal, (x) => { const e = overlay.querySelector('#tsText'); if (e) e.textContent = x; }, { images: [], attempts: [] });
+    overlay.remove();
+    if (!tab) { toast(t('gem.noTab'), 'error'); return; }
+    tab.__newId = chord.__newId;
+    drafts.tab = tab;
+    draft = tab;
+    renderEditor(root, 'sken');
+  } catch (e) {
+    overlay.remove();
+    if (e && e.name === 'AbortError') return;
+    toast(e instanceof GeminiError ? e.message : t('common.error'), 'error');
+  }
+}
+/** TAB pesma: poseban editor (učitava se tek sada). */
+async function renderTab(root, song, isNew) {
+  const { renderTabEditor } = await import('./tabEditor.js');
+  renderTabEditor(root, song, {
+    isNew, scanned: isNew && drafts.tab === song, images: isNew ? draftImage : null,
+    onType: isNew && drafts.tab === song && drafts.chords ? () => { draft = drafts.chords; renderEditor(root, 'sken'); } : null,
+    onCancel: () => {
+      draft = null; draftImage = null; drafts = { chords: null, tab: null }; draftImgs = null;
+      if (!isNew) location.replace(`#/pesma/${encodeURIComponent(song.id)}`);
+      else history.length > 1 ? history.back() : (location.hash = '#/pesme');
+    },
+    done: (rec) => { draft = null; draftImage = null; drafts = { chords: null, tab: null }; draftImgs = null; location.replace(`#/pesma/${encodeURIComponent(rec.id)}`); },
+  });
+}
+
 export async function renderEditor(root, id) {
   let song;
   let isNew = false;
   let base = null; // postojeća pesma kod „Skeniraj ponovo“
   if (id === 'sken' || id === 'novo') {
     if (!draft) { location.hash = '#/pesme'; return; }
+    if (draft.type === 'tab') return renderTab(root, draft, true);
     song = draft;
     isNew = true;
     if (draft.__rescanOf) {
@@ -267,6 +334,7 @@ export async function renderEditor(root, id) {
   } else {
     song = await db.get(id);
     if (!song) { location.hash = '#/pesme'; return; }
+    if (song.type === 'tab') return renderTab(root, song, false);
   }
   const scanned = id === 'sken';
   // Akordi u editoru su u izabranom imenovanju (H/Fis… ili B/F#…); nova skeniranja se prvo pročitaju
@@ -282,6 +350,9 @@ export async function renderEditor(root, id) {
     <h1>${scanned ? t('edit.titleScanned') : isNew ? t('edit.titleNew') : t('edit.titleEdit')}</h1>
     ${base ? `<p class="rescan-note small">${esc(t('rescan.note', { title: base.title }))}</p>` : ''}
     ${canRestore ? `<div class="restore-row"><button class="btn small" id="eRestore">${t('orig.restore')}</button><span class="small muted">${t('orig.restoreHint')}</span></div>` : ''}
+    ${scanned && drafts.chords === song && draftImgs ? `<div class="tab-type" style="display:flex;flex-direction:column;gap:6px;margin:4px 0 10px"><span class="small muted">${t('tab.typeQ')}</span>
+      <div class="seg-tabs" role="radiogroup" style="align-self:flex-start"><button role="radio" class="active" aria-checked="true" data-kind="chords">${t('tab.typeChords')}</button><button role="radio" data-kind="tab">${t('tab.typeTab')}</button></div>
+      <span class="small muted">${t('tab.typeHint')}</span></div>` : ''}
     ${scanned ? `<p class="muted">${t('edit.scannedHint')}</p>${song.scanModel ? `<p class="scan-model small muted">${esc(t('edit.scanModel', { model: song.scanModel }))}</p>` : ''}` : ''}
     ${draftImage && scanned ? `<details class="card photo-ref"><summary>${t('edit.showPhoto')}</summary>${[].concat(draftImage).map((src, i) => `<img src="${src}" alt="${esc(t('scan.page', { n: i + 1 }))}">`).join('')}</details>` : ''}
     <div class="form">
@@ -310,6 +381,7 @@ export async function renderEditor(root, id) {
     <div id ="ePreviewPane" class="lyrics" hidden></div>
   </section>`;
   const $ = (q) => root.querySelector('#' + q);
+  root.querySelector('[data-kind="tab"]')?.addEventListener('click', () => switchToTab(root, song));
   const shownText = sectionsToText(shown.sections);
   $('eText').value = shownText;
   autoGrow($('eText'));
@@ -434,7 +506,7 @@ export async function renderEditor(root, id) {
       const ok = await confirmDialog(t('edit.discardTitle'), scanned ? t('edit.discardScanned') : t('edit.discardBody'), t('edit.discard'), 'danger');
       if (!ok) return;
     }
-    draft = null; draftImage = null;
+    draft = null; draftImage = null; drafts = { chords: null, tab: null }; draftImgs = null;
     if (base) { location.replace(`#/pesma/${encodeURIComponent(base.id)}`); return; }
     history.length > 1 ? history.back() : (location.hash = isNew ? '#/pesme' : `#/pesma/${encodeURIComponent(id)}`);
   });
@@ -442,7 +514,7 @@ export async function renderEditor(root, id) {
     if (!(await confirmDialog(t('orig.confirmTitle'), t('orig.confirmBody', { title: song.original.title || song.title }), t('orig.restore'), 'danger'))) return;
     const restored = restoreOriginal(song);
     await db.put({ ...restored, updatedAt: Date.now() });
-    draft = null; draftImage = null;
+    draft = null; draftImage = null; drafts = { chords: null, tab: null }; draftImgs = null;
     toast(t('orig.restored'));
     location.replace(`#/pesma/${encodeURIComponent(song.id)}`);
   });
@@ -485,7 +557,7 @@ export async function renderEditor(root, id) {
       rec0 = upgradeSong({ ...rec0, sections, key: keyText, cv: 0, keyN: undefined, keyAlt: undefined, namingAsk: false, keyAsk: false }, { naming: currentNaming(), keyText });
     }
     const newId = song.__newId;
-    delete rec0.__original; delete rec0.__rescanOf; delete rec0.__newId;
+    delete rec0.__original; delete rec0.__rescanOf; delete rec0.__newId; delete rec0.sheetKind;
     let msg = t('edit.saved');
     if (isNew && !base) {
       rec0.id = newId || undefined;
@@ -510,7 +582,7 @@ export async function renderEditor(root, id) {
       }
     }
     const rec = await db.save(rec0);
-    draft = null; draftImage = null;
+    draft = null; draftImage = null; drafts = { chords: null, tab: null }; draftImgs = null;
     toast(msg);
     location.replace(`#/pesma/${encodeURIComponent(rec.id)}`);
   }

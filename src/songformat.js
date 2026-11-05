@@ -3,6 +3,7 @@ import { t } from './i18n.js';
 import { cleanPattern } from './rhythm.js';
 import { cleanTuning } from './tunings.js';
 import { isTabLine, parseAsciiTab, tabToAscii, cleanTab, noteAt } from './tabs.js';
+import { cleanTabSong } from './tabData.js';
 import { isChord as isEnglishChord, transposeChord, transposeKey, parseChord, parseKey, prefersFlats } from './music.js';
 import { readChord, renderChord, keyName } from './chordnames.js';
 
@@ -207,6 +208,12 @@ const str = (v, max = 500) => (typeof v === 'string' ? v : v == null ? '' : Stri
 /** Validira i normalizuje objekat pesme. Baca SongFormatError sa porukom na srpskom. */
 export function normalizeSong(raw) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new SongFormatError(t('fmt.noSong'));
+  // TAB pesma (prebiranje): taktovi i note umesto teksta i akorada
+  if (raw.type === 'tab') {
+    const tab = cleanTabSong(raw.tab);
+    if (!tab) throw new SongFormatError(t('fmt.empty'));
+    return { type: 'tab', title: str(raw.title, 120).trim() || t('common.untitled'), artist: str(raw.artist, 120).trim(), key: str(raw.key || tab.key, 12).trim(), sections: [], transpose: 0, tab, ...songExtras(raw) };
+  }
   if (!Array.isArray(raw.sections)) throw new SongFormatError(t('fmt.notGitara'));
   if (raw.sections.length > 200) throw new SongFormatError(t('fmt.tooBig'));
   const sections = raw.sections.map((s, si) => {
@@ -288,6 +295,7 @@ function cleanYt(raw) {
  */
 export function songMeta(raw) {
   const out = {};
+  if (raw.type === 'tab') { const tab = cleanTabSong(raw.tab); if (tab) { out.type = 'tab'; out.tab = tab; } }
   // Nov zapis akorda (neutralni sloj) i original — čuvaju se u rezervnoj kopiji
   if (Number(raw.cv) >= 2) out.cv = Number(raw.cv);
   if (raw.naming === 'sr' || raw.naming === 'en') out.naming = raw.naming;

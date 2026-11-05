@@ -69,6 +69,33 @@ export function matchNote(seg0, sr0, midi, a4 = 440) {
   }
   return { ok: false, score: best, nb: bestNb, margin: best - bestNb };
 }
+/**
+ * Isto kao matchNote, ali bez dubokih tonova (bas koji je udaren zajedno sa melodijom): visokopropusni filter ispod
+ * očekivane note. Debela E žica ima alikvote baš na H4 i E5 (melodija u prebiranju), pa bi inače zbunila proveru.
+ */
+export function matchNoteHigh(seg, sr, midi, a4 = 440) {
+  if (!seg) return { ok: false, score: 0, margin: 0 };
+  const fc = 0.62 * a4 * Math.pow(2, (midi - 69) / 12);
+  const w = Math.tan((Math.PI * fc) / sr), q = Math.SQRT1_2, n = 1 / (1 + w / q + w * w);
+  const b0 = n, b1 = -2 * n, b2 = n, a1 = 2 * (w * w - 1) * n, a2 = (1 - w / q + w * w) * n;
+  const out = new Float32Array(seg.length);
+  // dva prolaza (4 pola): bas i njegovi niži alikvoti su skoro sasvim uklonjeni
+  for (let pass = 0; pass < 2; pass++) {
+    const src = pass ? out.slice() : seg;
+    let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+    for (let i = 0; i < src.length; i++) { const x = src[i], y = b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2; x2 = x1; x1 = x; y2 = y1; y1 = y; out[i] = y; }
+  }
+  return matchNote(out.subarray(Math.min(96, out.length >> 3)), sr, midi, a4);
+}
+/**
+ * Provera note u prebiranju (više žica zvoni): kao matchNote, a prihvata i nešto slabiji pogodak ako je jasno
+ * iznad susednih pragova (prva provera u ostalim igrama ostaje ista). high = bas udaren zajedno sa notom.
+ */
+export function matchArp(seg, sr, midi, a4 = 440, high = false) {
+  const r = high ? matchNoteHigh(seg, sr, midi, a4) : matchNote(seg, sr, midi, a4);
+  if (!r.ok && r.score >= 0.32 && r.margin >= 0.12) return { ...r, ok: true };
+  return r;
+}
 /** Koja nota je ovo verovatno bila (za poruku „To je G“) — najbolji pogodak u opsegu gitare. */
 export function guessNote(seg0, sr0, a4 = 440, lo = 40, hi = 88) {
   if (!seg0) return null;
@@ -85,7 +112,10 @@ export function guessNote(seg0, sr0, a4 = 440, lo = 40, hi = 88) {
  * - pluck: ~90 ms posle trzaja, isečak novog zvuka (za proveru očekivane note)
  * - note: tunerova detekcija (practicePitch.js) — za oznaku „čujem: …“
  */
-export function createDetector({ sensitivity = 'auto', a4 = 440 } = {}) {
+// Prebiranje (TAB pesme): žice zvone jedna preko druge, pa je nov trzaj tiša promena u ukupnom zvuku — niži pragovi.
+// Ostale igre koriste podrazumevane (rise 4, sustain 1,35) — za njih se ništa ne menja.
+export const ARPEGGIO = { rise: 2.5, sustain: 1.12 };
+export function createDetector({ sensitivity = 'auto', a4 = 440, rise = 4, sustain = 1.35 } = {}) {
   const tr = new PracticePitch({ sensitivity, a4 });
   tr.a4 = a4;
   tr.setAnyNote();
@@ -117,7 +147,7 @@ export function createDetector({ sensitivity = 'auto', a4 = 440 } = {}) {
       const at = now - ((buf.length - i) / sr) * 1000;
       hAt[hN % HN] = at; hE[hN % HN] = e; hN++;
       // novi napad; i kad prethodni još čeka proveru (klik metronoma pa trzaj odmah posle njega — oba čekaju)
-      if (e > pre * 4 && Math.sqrt(e) > minAbs && at > lastAt + 70 && at > lastCand + 25) {
+      if (e > pre * rise && Math.sqrt(e) > minAbs && at > lastAt + 70 && at > lastCand + 25) {
         lastCand = at;
         pends.push({ at, rms: Math.sqrt(e), preRms: Math.sqrt(pre) });
       }
@@ -134,10 +164,10 @@ export function createDetector({ sensitivity = 'auto', a4 = 440 } = {}) {
         for (let k = Math.max(0, hN - HN); k < hN; k++) { const j = k % HN; if (hAt[j] >= lo && hAt[j] <= hi) { ms += hE[j]; mc++; } }
         const m = mc ? Math.sqrt(ms / mc) : 0;
         // „utihnuo“ = vratio se na nivo od pre napada (tišina ili žica koja je već zvonila)
-        if (m < Math.max(c.preRms * 1.35, minAbs)) continue;
+        if (m < Math.max(c.preRms * sustain, minAbs)) continue;
       }
       // i zvuk mora trajno da bude jači nego pre napada (klik preko žice koja već zvoni to ne ispunjava)
-      if (out.level >= c.rms * 0.12 && out.level >= c.preRms * 1.35) {
+      if (out.level >= c.rms * 0.12 && out.level >= c.preRms * sustain) {
         lastAt = c.at;
         const from = Math.max(0, buf.length - Math.round(((now - (c.at + 15)) / 1000) * sr));
         const seg = Float32Array.from(tr.lowpass(buf.subarray(from), sr));
@@ -158,7 +188,7 @@ export function createDetector({ sensitivity = 'auto', a4 = 440 } = {}) {
 }
 
 export function createListener() {
-  let mic = null, an = null, buf = null, timer = 0, det = null, opts = {};
+  let mic = null, an = null, buf = null, timer = 0, det = null, opts = {}, detArp = false;
   let chordAn = null, spec = null, chordTimer = 0, chordMod = null;
   const acc = new Float32Array(12), accBass = new Float32Array(12);
   let lastOnset = -1e9, running = false, sr = 48000, pending = [], lastNote = null, paused = false;
@@ -207,7 +237,9 @@ export function createListener() {
     async start(o = {}) {
       opts = { ...opts, ...o };
       if (o.chords) opts.strums = true; // akordi = udarci preko žica (bez jasne jedne note)
-      if (running) return;
+      // prebiranje (TAB) traži niže pragove napada; druga igra posle nje opet podrazumevane
+      if (running) { if (!!o.arpeggio !== detArp) { detArp = !!o.arpeggio; det = createDetector({ sensitivity: roomToSensitivity(await getRoom()), a4: det.tracker.a4, ...(detArp ? ARPEGGIO : {}) }); } return; }
+      detArp = !!o.arpeggio;
       // Isto kao tuner: deljeni mikrofon (audio.js), analizator 4096 bez izglađivanja, kadar na 20 ms
       mic = await openMic();
       sr = mic.ctx.sampleRate;
@@ -217,7 +249,7 @@ export function createListener() {
       mic.source.connect(an);
       buf = new Float32Array(an.fftSize);
       const a4 = Number(await settings.get('a4', 440)) || 440;
-      det = createDetector({ sensitivity: roomToSensitivity(await getRoom()), a4 });
+      det = createDetector({ sensitivity: roomToSensitivity(await getRoom()), a4, ...(o.arpeggio ? ARPEGGIO : {}) });
       if (o.chords) {
         chordMod = await import('./chordrec.js');
         chordAn = mic.ctx.createAnalyser();

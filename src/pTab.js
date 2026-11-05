@@ -1,0 +1,156 @@
+// Vežbe → „Delovi pesme“ za TAB pesmu (prebiranje): delovi po strukturi (fraze od ~4 takta, ponavljanja, deo u
+// svakom tonalitetu), „Najteže“ = najviše skokova ruke i barre-a. Na stazi su tačne note iz tablature (žica, prag,
+// pravo vreme) u bojama prstiju; barre je blaga traka preko žica. Žice zvone jedna preko druge: svaki nov trzaj se
+// sudi po svom napadu (nikad ne pada zato što prethodna žica još zvoni); bas i melodija zajedno su jedan trzaj.
+// „Čekaj me“ čeka na svaku notu; Normalno: počinje sporije, posle čistog prolaza malo brže; napredak po delu.
+import { useTabTexts } from './tabText.js';
+import { tabParts, partDifficulty, practiceItems, playOrder, barInfo } from './tabSong.js';
+import { partName, keyLabel, barreLabel, DEFAULT_TAB_BPM } from './tabView.js';
+import { trackGame, noteHint } from './practiceTrack.js';
+import { createHitLog, matchArp } from './practiceListen.js';
+import { noteLabel } from './practiceBoard.js';
+import { pluck } from './synth.js';
+
+useTabTexts();
+const MAX_PASSES = 6;
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+export async function createTabGame(api, song, songId) {
+  const { t, esc } = api;
+  const tab = song.tab;
+  const parts = tabParts(tab);
+  const phrases = parts.filter((p) => p.kind === 'bars');
+  if (!phrases.length || !tab.bars.some((b) => b.notes.length)) {
+    api.stage.innerHTML = `<p class="muted center">${t('pr.tab.noNotes')}</p>`;
+    return { noTempo: true, noStart: true, beats: 0, start() { api.stopNow(); }, stop() {} };
+  }
+  const songBpm = Number(song.bpm) || DEFAULT_TAB_BPM;
+  const stats = () => (api.allStats.songs || {})[songId] || {};
+  const diffs = phrases.map((p) => partDifficulty(tab, p));
+  const hardest = phrases.length > 1 ? phrases[diffs.indexOf(Math.max(...diffs))] : null;
+  const whole = { id: 'all', kind: 'all' };
+  const all = [...parts, whole];
+  const partKey = `gitara-pr-part-${songId}`;
+  let part = all.find((p) => String(p.id) === localStorage.getItem(partKey)) || hardest || phrases[0];
+  const startTempo = (p) => Math.min(songBpm, (stats()[String(p.id)] || {}).lastTempo || Math.max(40, Math.round((songBpm * 0.6) / 5) * 5));
+  const label = (p) => (p.id === 'all' ? t('pr.pesma.whole') : partName(p));
+  const barsOf = (p) => (p.id === 'all' ? playOrder(tab) : Array.from({ length: p.to - p.from + 1 }, (_, k) => p.from + k));
+  const info = barInfo(tab);
+
+  function drawOpts() {
+    const st = stats();
+    const keys = [...new Set(info.map((x) => x.key).filter(Boolean))].map(keyLabel).join(' → ');
+    api.opts.innerHTML = `
+      <div class="pr-song-head"><b>${esc(song.title)}</b>${song.artist ? `<span class="small muted">${esc(song.artist)}</span>` : ''}
+        <span class="small muted">${t('pr.tab.info', { n: tab.bars.length, sig: tab.sig })}${keys ? ' · ' + esc(keys) : ''} · ${t('pr.pesma.songTempo', { bpm: songBpm })}</span>
+        <a class="small" href="#/vezbe/pesma">${t('pr.pesma.other')}</a></div>
+      <div class="pr-optlabel">${t('pr.pesma.whichPart')}</div>
+      <div class="pr-chips">${all.map((p) => {
+        const rec = st[String(p.id)] || {};
+        return `<button class="chip${p === part ? ' active' : ''}" data-part="${p.id}">${esc(label(p))}${p === hardest ? ` <span class="pr-hard">${t('pr.pesma.hardest')}</span>` : ''}${rec.best ? ` <small>${Math.round(rec.best)} · ${rec.lastTempo} BPM</small>` : ''}</button>`;
+      }).join('')}</div>`;
+  }
+  function choose(p) {
+    part = p;
+    try { localStorage.setItem(partKey, String(part.id)); } catch {}
+    api.setBpm(startTempo(part));
+    drawOpts();
+  }
+  drawOpts();
+  api.opts.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-part]');
+    if (b && !api.running) choose(all.find((p) => String(p.id) === b.dataset.part) || part);
+  });
+  api.stage.hidden = true;
+
+  // Note za stazu: tačne pozicije; red iznad vrata pokazuje broj takta
+  const toItems = (bars) => practiceItems(tab, bars).map((it) => {
+    if (it.kind === 'barre') return { ...it, label: barreLabel(it) };
+    const o = { ...it, ring: true, group: undefined };
+    if (it.lyric !== undefined) o.lyric = t('tab.bar', { n: it.lyric });
+    return o;
+  }); // grupe (bas uz melodiju) se ponovo vezuju u link() — kopije moraju da pokazuju jedna na drugu
+  function link(items) {
+    // practiceItems pravi glavu napada pa njene pratioce odmah iza; poveži kopije istim redom
+    const out = items;
+    for (let i = 0; i < out.length; i++) {
+      const it = out[i];
+      if (it.kind !== 'note' || it.follow) continue;
+      const g = [];
+      for (let j = i + 1; j < out.length && out[j].kind === 'note' && out[j].follow && out[j].beat === it.beat; j++) g.push(out[j]);
+      it.group = g;
+    }
+    return out;
+  }
+  let passes = 0;
+  const build = () => {
+    const items = link(toItems(barsOf(part)));
+    return {
+      items,
+      key: [songId, String(part.id)],
+      lagMs: 180,
+      hintOf: (it) => noteHint(t, it),
+      fingersOf: (it) => [...new Set([it.finger, ...(it.group || []).map((g) => g.finger)].filter((f) => f > 0))],
+      extra: (st) => (st.clean && st.tempo >= songBpm
+        ? [...(part.id !== 'all' ? [{ id: 'nextPart', label: t('pr.pesma.nextPart'), primary: true }] : []), { id: 'whole', label: t('pr.pesma.whole'), primary: part.id === 'all' }]
+        : []),
+    };
+  };
+
+  return trackGame(api, {
+    levels: [{ id: 'beg', label: t('pr.lvl.beg') }, { id: 'normal', label: t('pr.lvl.normal') }],
+    bpm: { start: startTempo(part), min: 30, max: songBpm, step: 5 },
+    initialTempo: startTempo(part),
+    firstBpm: startTempo(part),
+    round() { passes = 0; return build(); },
+    listen(round, input) {
+      const log = createHitLog();
+      return {
+        arpeggio: true,
+        // Svaki trzaj po svom napadu: najbliža nota po vremenu; bas uz melodiju = sudi se melodija (bez basa).
+        // Nejasno prvo čitanje (blizu, mala razlika) → ustaljen zvuk ~0,2 s posle trzaja, pa ponovo.
+        onPluck: (p) => {
+          log.onset({ at: p.at }); log.pluck(p);
+          const h = log.hits[log.hits.length - 1];
+          const run = (steadied) => input(h.at, (it) => {
+            const r = matchArp(h.seg, h.sr, it.midi, h.a4, (it.group || []).length > 0);
+            if (r.ok) return { ok: true };
+            if (!steadied && r.margin > -0.12 && api.listener) { api.listener.steady(p.rawAt ?? p.at, (sg) => { log.steadied(h, sg); run(true); }); return { pending: true }; }
+            const g = log.midiOf(h, it.midi);
+            return { ok: false, text: g != null ? t('pr.trk.wrong', { n: noteLabel(g) }) : '', heard: g };
+          });
+          run(false);
+        },
+      };
+    },
+    async onRoundEnd(st, round, ctl) {
+      if (st.beginner) return false;
+      passes++;
+      if ((st.clean && st.tempo >= songBpm) || passes >= MAX_PASSES) return false;
+      await api.save({ score: st.score, tempo: st.tempo, accuracy: st.accuracy }, round.key);
+      const nb = st.clean ? Math.min(songBpm, st.tempo + 5) : st.tempo;
+      api.setBpm(nb);
+      ctl.track.pop(st.clean ? t('pr.pesma.faster', { bpm: nb }) : t('pr.pesma.again', { n: passes + 1 }), st.clean ? 'hit' : 'late');
+      await wait(1500);
+      if (!api.running || !ctl.track) return true;
+      await ctl.next(build());
+      return true;
+    },
+    onChoice(choice, round, ctl) {
+      if (choice === 'nextPart') {
+        const k = phrases.indexOf(part);
+        choose(phrases[(k + 1) % phrases.length] || phrases[0]);
+        api.restart();
+      } else if (choice === 'whole') { choose(whole); api.restart(); }
+      else ctl.close();
+    },
+    demo: {
+      bpm: 60,
+      intro: t('pr.tab.demo1'),
+      items: () => link(toItems(barsOf(part).slice(0, 2))).filter((it) => it.kind !== 'note' || it.beat < 6),
+      fingersOf: (it) => [...new Set([it.finger, ...(it.group || []).map((g) => g.finger)].filter((f) => f > 0))],
+      play: (it) => { for (const n of [it, ...(it.group || [])]) pluck(440 * Math.pow(2, (n.midi - 69) / 12), { gain: 0.5, duration: 2, group: 'practice' }); },
+      captions: { 0: t('pr.tab.demo2'), 3: t('pr.tab.demo3'), 9: t('pr.tab.demo4') },
+    },
+  });
+}
