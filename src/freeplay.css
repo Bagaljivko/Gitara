@@ -29,7 +29,7 @@ body.fpv-open { overflow: hidden; }
 .fpv-band b { font-size: clamp(1.7rem, 11vh, 3rem); font-weight: 800; color: #fff; text-shadow: 0 0 20px rgba(245,165,36,.6); white-space: nowrap; }
 .fpv-band small { color: #aab1bc; font-size: .82rem; min-height: 1.2em; margin-top: 2px; }
 .fpv-band.unsure b { color: #f3c98a; text-shadow: 0 0 12px rgba(245,165,36,.3); }
-.fpv-msg { display: none; font-weight: 600; color: var(--muted); font-size: 1.05rem; }
+.fpv-msg { display: none; font-weight: 600; color: var(--muted); font-size: 1.05rem; white-space: pre-line; }
 .fpv-band.msg b, .fpv-band.msg small { display: none; }
 .fpv-band.msg .fpv-msg { display: block; animation: fpIn .4s ease-out; }
 .fpv-band.err .fpv-msg { color: #ffb4a8; font-size: .9rem; line-height: 1.3; }
