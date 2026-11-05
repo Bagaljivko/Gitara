@@ -33,6 +33,10 @@ export const GAMES = [
   { id: 'pauk', color: '#b48cff', load: () => import('./pSpider.js'),
     icon: '<path d="M4 18h16M4 14h16M4 10h16M4 6h16" stroke-width="1.4"/><circle cx="7" cy="16" r="1.7" class="f"/><circle cx="10" cy="12" r="1.7" class="f"/><circle cx="13" cy="8" r="1.7" class="f"/><circle cx="16" cy="4.4" r="1.7" class="f"/>',
     prev: `${LINES}${HIT}<g class="pv-slide">${[0, 1].map((k) => [[22, 1], [34, 2], [46, 3], [58, 4]].map(([y, f], i) => `<circle cx="${30 + i * 14 + k * 56}" cy="${y}" r="5" class="pv-f${f}"/>`).join('')).join('')}</g>` },
+  { id: 'skale', color: '#9be15d', load: () => import('./pScales.js'),
+    // stepenice skale: note se penju po žicama
+    icon: '<path d="M4 20h4v-4h4v-4h4V8h4" stroke-width="1.6"/><circle cx="6" cy="17" r="1.6" class="f"/><circle cx="10" cy="13" r="1.6" class="f"/><circle cx="14" cy="9" r="1.6" class="f"/><circle cx="18" cy="5" r="1.6" class="f"/>',
+    prev: `${LINES}${HIT}<g class="pv-slide">${[0, 1].map((k) => [[58, 1], [58, 3], [46, 1], [46, 3], [34, 1], [34, 3], [22, 1], [22, 4]].map(([y, f], i) => `<circle cx="${28 + i * 7 + k * 56}" cy="${y}" r="4" class="pv-f${f}"/>`).join('')).join('')}</g>` },
   { id: 'lovac', color: '#ff7cc3', load: () => import('./pHunter.js'),
     icon: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1.3" class="f"/><path d="M12 1.5v4M12 18.5v4M1.5 12h4M18.5 12h4"/>',
     prev: '<circle cx="40" cy="40" r="24" class="pv-ring"/><circle cx="40" cy="40" r="14" class="pv-ring"/><path class="pv-ring" d="M40 8v10M40 62v10M8 40h10M62 40h10"/><circle cx="40" cy="40" r="5" class="pv-dot pv-hunt"/><circle cx="40" cy="40" r="24" class="pv-ping"/>' },
@@ -119,7 +123,12 @@ function levelOf(id) {
   return l === 'beg' ? t('pr.lvl.beg') : l === 'normal' ? t('pr.lvl.normal') : t('pr.lvl.n', { n: l });
 }
 /** Najbolji rezultat kao kratak broj sa jedinicom (bez decimala). */
-function bestText(g, rec, st) {
+function bestText(g, rec, st, sk = null) {
+  // Skale: trenutni korak puta i najbolji tempo
+  if (g.id === 'skale' && sk) {
+    const total = sk.total, n = Math.min(total, sk.step + 1), bpm = Math.max(0, ...Object.values(sk.items || {}).map((r) => r.bpm || 0));
+    return t('sk.stepOf', { n, total }) + (bpm ? ` · ${bpm} BPM` : '');
+  }
   if (g.id === 'promena' && rec.bestMetric != null) return t('pr.unit.perMin', { n: rec.bestMetric });
   if (g.id === 'pesma') {
     let all = 0, good = 0;
@@ -132,6 +141,10 @@ function bestText(g, rec, st) {
 async function renderHub(root) {
   setWakeZone(null);
   const st = await loadStats();
+  // Skale: napredak puta (mali zapis; bez učitavanja koda igre)
+  const skRaw = await settings.get('skale', null);
+  const sk = skRaw && typeof skRaw === 'object' ? { items: skRaw.items || {}, step: (await import('./skalePath.js')).PATH.findIndex((p) => !(skRaw.path?.done || {})[p.id]), total: 0 } : null;
+  if (sk) { const { PATH } = await import('./skalePath.js'); sk.total = PATH.length; if (sk.step < 0) sk.step = PATH.length - 1; }
   const streak = Math.max(0, ...GAMES.map((g) => currentStreak(st.games[g.id])));
   root.innerHTML = `
   <section class="view practice-view">
@@ -147,7 +160,7 @@ async function renderHub(root) {
             <span class="pr-name">${ico(g)}<b>${t('pr.g.' + g.id)}</b></span>
             <span class="pr-desc">${t('pr.d.' + g.id)}</span>
             <span class="pr-meta">${played
-              ? `${starsHTML(starsOf(rec.best || 0))}<b class="pr-num">${bestText(g, rec, st)}</b><span class="pr-lvchip">${levelOf(g.id)}</span>`
+              ? `${starsHTML(starsOf(rec.best || 0))}<b class="pr-num">${bestText(g, rec, st, g.id === 'skale' ? sk : null)}</b><span class="pr-lvchip">${levelOf(g.id)}</span>`
               : `<span class="pr-new">${t('pr.new')}</span>`}</span>
           </span>
         </a>`;
@@ -173,6 +186,10 @@ async function renderGame(root, game, args, params) {
     <div class="pr-stage" id="prStage"><p class="muted center">${t('common.loading')}</p></div>
     <div class="pr-fb" id="prFb" role="status" aria-live="polite">&nbsp;</div>
     <div class="pr-level" id="prLevel" hidden></div>
+    <div class="pr-wait" id="prWaitBox" hidden>
+      <label class="switch"><input type="checkbox" id="prWait"><span class="switch-track"><span class="switch-thumb"></span></span><span>${t('pr.wait.label')}</span></label>
+      <small class="muted" id="prWaitHint"></small>
+    </div>
     <div class="pr-opts" id="prOpts"></div>
     <div class="pr-tempo" id="prTempo">
       <button class="btn round small" id="prSlower" aria-label="${t('pr.slower')}">−</button>
@@ -193,6 +210,17 @@ async function renderGame(root, game, args, params) {
   const LKEY = 'gitara-pr-level-' + game.id;
   let level = (() => { try { return localStorage.getItem(LKEY) || 'beg'; } catch { return 'beg'; } })();
   const cleanups = new Set(), levelSubs = new Set();
+  // „Čekaj me“ (sve igre na stazi): pamti se po igri i nivou; Početnik ga uključuje sam, Normalno počinje bez njega
+  const WKEY = (lv) => `gitara-pr-wait-${game.id}-${lv}`;
+  const waitOf = (lv) => { try { const v = localStorage.getItem(WKEY(lv)); return v == null ? lv === 'beg' : v === '1'; } catch { return lv === 'beg'; } };
+  let waitOn = waitOf(level);
+  const syncTempo = () => { $('prTempo').hidden = !!gameObj?.noTempo || (waitOn && !gameObj?.tempoInBeg); };
+  function drawWait() {
+    if (!gameObj?.track) return;
+    $('prWaitBox').hidden = false;
+    $('prWait').checked = waitOn;
+    $('prWaitHint').textContent = t(waitOn ? 'pr.wait.onHint' : 'pr.wait.offHint');
+  }
   // Jačina ulaza + poslednja čuta nota: na svakom ekranu igre (da se odmah vidi da li mikrofon čuje gitaru)
   let lastHeard = null, meterAt = 0;
   function onLevel(ev) {
@@ -220,11 +248,20 @@ async function renderGame(root, game, args, params) {
     get bpm() { return bpm; },
     get level() { return level; },
     get listener() { return listener; },
+    /** „Čekaj me“ uključen (za ovu igru i nivo). */
+    get wait() { return waitOn; },
+    setWait(on) {
+      waitOn = !!on;
+      try { localStorage.setItem(WKEY(level), waitOn ? '1' : '0'); } catch {}
+      drawWait(); syncTempo();
+      gameObj?.onWait?.(waitOn);
+    },
     setLevel(l) {
       level = l;
       try { localStorage.setItem(LKEY, l); } catch {}
       $('prLevel').querySelectorAll('[data-lv]').forEach((x) => x.classList.toggle('active', x.dataset.lv === l));
-      $('prTempo').hidden = !!gameObj?.noTempo || (l === 'beg' && !gameObj?.tempoInBeg);
+      waitOn = waitOf(l);
+      drawWait(); syncTempo();
       gameObj?.onLevel?.(l);
     },
     /** Sačuvaj rezultat bez zaustavljanja (npr. svaki prolaz u „Delovi pesme“). */
@@ -304,7 +341,8 @@ async function renderGame(root, game, args, params) {
   $('prUnit').textContent = B.unit;
   api.setBpm(gameObj.initialTempo || rec.lastTempo || B.start);
   if (gameObj.noTempo) $('prTempo').hidden = true;
-  if (LV.length) api.setLevel(level);
+  if (LV.length) api.setLevel(level); else { drawWait(); syncTempo(); }
+  $('prWait').addEventListener('change', (e) => { if (running) { e.target.checked = waitOn; return; } api.setWait(e.target.checked); });
   if (gameObj.noStart) $('prGo').hidden = true; // npr. izbor pesme pre igre
   $('prSlower').addEventListener('click', () => api.setBpm(bpm - B.step * B.dir));
   $('prFaster').addEventListener('click', () => api.setBpm(bpm + B.step * B.dir));

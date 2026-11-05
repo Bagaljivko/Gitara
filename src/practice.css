@@ -241,6 +241,7 @@ body.trk-open { overflow: hidden; }
 .tn b, .tgh b { font: 800 calc(var(--r) * 1.05) / 1 system-ui, sans-serif; color: #0b0c10; }
 .tn.fc1 { --c: #5aa9ff; --cg: rgba(90,169,255,.3); } .tn.fc2 { --c: #ffd75e; --cg: rgba(255,215,94,.28); }
 .tn.fc3 { --c: #ff7cc3; --cg: rgba(255,124,195,.3); } .tn.fc4 { --c: #b48cff; --cg: rgba(180,140,255,.3); }
+.tn.root::before { content: ''; position: absolute; inset: calc(var(--r) * .12); border-radius: 50%; border: 2px solid rgba(245,165,36,.95); box-shadow: 0 0 0 1px rgba(0,0,0,.5); }
 .tn.cur::after { content: ''; position: absolute; inset: calc(var(--r) * .4); border-radius: 50%; border: 2.5px solid rgba(255,255,255,.8); }
 .tn.missed, .tc.missed, .ts.missed { opacity: .25; transition: opacity .6s; }
 .tgh { width: calc(var(--r) * 2); height: calc(var(--r) * 2); background: radial-gradient(closest-side, rgba(255,107,107,.75) 0 82%, rgba(255,107,107,0) 100%); opacity: 0; }
@@ -297,3 +298,64 @@ body.trk-open { overflow: hidden; }
 .pr-qwrap { position: relative; display: inline-grid; place-items: center; padding: 6px 18px; }
 .pr-qring { position: absolute; inset: 0; border-radius: 18px; border: 3px solid var(--ok); opacity: 0; pointer-events: none; }
 .pr-qring.bad { border-color: var(--danger); }
+
+/* „Čekaj me“ (sve igre na stazi) */
+.pr-wait { display: flex; flex-direction: column; align-items: flex-start; gap: 0; margin: 2px 0 6px; }
+.pr-wait small { line-height: 1.35; margin-top: -4px; }
+.pr-game.running .pr-wait { opacity: .5; pointer-events: none; }
+
+/* ---- Skale (isti stil kao ostale igre; delovi od postojećih: chip, seg-tabs, kartice, zvezdice) ---- */
+.trk-i, .sk-i { appearance: none; border: 1px solid var(--line); background: var(--surface-2); color: var(--muted); width: 32px; height: 32px; border-radius: 50%; font: italic 700 1rem/1 Georgia, serif; cursor: pointer; display: inline-grid; place-items: center; flex: none; }
+.trk-i:hover, .sk-i:hover { color: var(--text); }
+.pb-dot.root circle { stroke: var(--accent); stroke-width: 2.5; }
+.sk-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 6px 2px 2px; }
+.sk-head b { font-size: 1.02rem; }
+.sk-head-r { display: inline-flex; align-items: center; gap: 8px; }
+.sk-hero { appearance: none; width: 100%; display: flex; align-items: center; gap: 14px; text-align: left; padding: 16px; border-radius: 16px; cursor: pointer; color: var(--text); font: inherit;
+  border: 1px solid color-mix(in srgb, var(--gc) 40%, var(--line)); background: linear-gradient(120deg, color-mix(in srgb, var(--gc) 16%, var(--surface)), var(--surface) 70%); animation: skIn .28s ease-out both; }
+.sk-hero b { display: block; font-size: 1.05rem; } .sk-hero small { color: var(--muted); }
+.sk-hero-ico { width: 44px; height: 44px; border-radius: 50%; background: var(--gc); display: grid; place-items: center; flex: none; }
+.sk-hero-ico svg { width: 22px; height: 22px; fill: #0b0c10; }
+/* put: mirna mapa — tačke povezane linijom */
+.sk-path { list-style: none; margin: 4px 0 0; padding: 0; position: relative; }
+.sk-path::before { content: ''; position: absolute; left: 21px; top: 22px; bottom: 22px; width: 2px; background: var(--line); }
+.sk-step button { appearance: none; width: 100%; display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 7px 4px; background: none; border: 0; color: var(--text); font: inherit; text-align: left; cursor: pointer; border-radius: 12px; position: relative; }
+.sk-step.sel button { background: var(--surface-2); }
+.sk-num { width: 30px; height: 30px; margin-left: 7px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: .85rem; background: var(--surface-2); border: 1.5px solid var(--line); color: var(--muted); }
+.sk-step.done .sk-num { background: color-mix(in srgb, var(--gc) 85%, #000); border-color: var(--gc); color: #0b0c10; }
+.sk-step.next .sk-num { border-color: var(--gc); color: var(--gc); box-shadow: 0 0 0 4px color-mix(in srgb, var(--gc) 18%, transparent); }
+.sk-sname { min-width: 0; display: flex; flex-direction: column; }
+.sk-sname b { font-size: .95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sk-sname small, .sk-sres small { color: var(--muted); font-size: .76rem; }
+.sk-sres { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; }
+.sk-step.later { opacity: .5; }
+.sk-later-note { text-align: center; margin: 4px 0; animation: skIn .25s ease-out both; }
+.sk-cont { margin-top: 6px; }
+.sk-free { margin-top: 14px; display: flex; flex-direction: column; gap: 6px; }
+.sk-scales { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.sk-scales .chip { display: flex; flex-direction: column; align-items: flex-start; height: auto; padding: 8px 12px; text-align: left; line-height: 1.2; border-radius: 12px; }
+.sk-scales .chip small { color: var(--muted); font-weight: 500; font-size: .75rem; }
+.sk-keys { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.sk-keys .chip { padding: 0; min-width: 0; justify-content: center; }
+.sk-pos { grid-template-columns: repeat(7, 1fr); }
+.sk-pats button.locked { opacity: .35; cursor: not-allowed; }
+.sk-preview { margin-top: 12px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.sk-ptitle { text-align: center; display: flex; flex-direction: column; }
+.sk-ptitle small { color: var(--muted); }
+/* donji list (kartica / teorija): blago klizi odozdo, nikad ne pokriva liniju tokom sviranja (otvara se samo van runde ili uz pauzu) */
+.sk-sheet-wrap { position: fixed; inset: 0; z-index: 300; background: rgba(0,0,0,0); display: flex; align-items: flex-end; justify-content: center; transition: background .25s ease-out; }
+.sk-sheet-wrap.on { background: rgba(0,0,0,.5); }
+.sk-sheet { width: min(560px, 100%); max-height: 82vh; overflow: auto; background: var(--surface); border: 1px solid var(--line); border-bottom: 0; border-radius: 20px 20px 0 0;
+  padding: 10px 18px calc(16px + env(safe-area-inset-bottom)); transform: translate3d(0,100%,0); transition: transform .28s ease-out; touch-action: pan-y; }
+.sk-sheet-wrap.on .sk-sheet { transform: translate3d(0,0,0); }
+.sk-grip { display: block; width: 40px; height: 4px; border-radius: 2px; background: var(--line); margin: 0 auto 10px; }
+.sk-sheet h3 { margin: 4px 0 6px; }
+.sk-sheet p { margin: 0 0 10px; line-height: 1.5; }
+.sk-card-kicker { font-size: .75rem; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); font-weight: 700; }
+.sk-more { animation: skIn .22s ease-out both; color: var(--muted); }
+.sk-lib-h { text-align: left; margin: 10px 0 4px; }
+.sk-lib-list { display: flex; flex-direction: column; gap: 6px; }
+.sk-lib-item { appearance: none; text-align: left; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--line); color: var(--text); font: inherit; cursor: pointer; display: flex; flex-direction: column; gap: 2px; }
+.sk-lib-item small { color: var(--muted); line-height: 1.35; }
+@keyframes skIn { from { opacity: 0; transform: translate3d(0,6px,0); } }
+@media (prefers-reduced-motion: reduce) { .sk-sheet, .sk-sheet-wrap { transition: none; } .sk-hero, .sk-more, .sk-later-note { animation: none; } }

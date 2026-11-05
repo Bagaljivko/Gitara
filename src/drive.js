@@ -16,7 +16,7 @@ const FOLDER_NAME = 'Gitara';
 const BACKUP_NAME = 'gitara-backup.json';
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
 const BACKUP_DELAY = 4000; // ms posle izmene
-const BACKUP_SETTINGS = ['a4', 'geminiModel', 'geminiModelSel', 'lang', 'metBpm', 'folders', 'setlists', 'tunerRoom', 'tuning', 'wakeMode', 'wakeMinutes', 'noteNames', 'practice', 'freeplayRecs']; // Gemini ključ se NIKAD ne šalje na Drive
+const BACKUP_SETTINGS = ['a4', 'geminiModel', 'geminiModelSel', 'lang', 'metBpm', 'folders', 'setlists', 'tunerRoom', 'tuning', 'wakeMode', 'wakeMinutes', 'noteNames', 'practice', 'freeplayRecs', 'skale']; // Gemini ključ se NIKAD ne šalje na Drive
 
 export class DriveError extends Error {
   constructor(message, code = '') { super(message); this.code = code; }
@@ -235,6 +235,37 @@ function cleanPractice(p) {
   return { v: 1, games, songs };
 }
 
+/** Vežbe → Skale (v1): napredak po tonalitet-skala-pozicija-obrazac + put (pređeni koraci, otkrivene kartice). */
+const SK_SCALES = ['minPent', 'majPent', 'major', 'minor', 'blues', 'chromatic'], SK_PATS = ['updown', 'thirds', 'seq3', 'seq4'];
+function cleanSkale(p) {
+  if (!p || typeof p !== 'object') return null;
+  const items = {}, done = {}, cards = {};
+  for (const [k, r] of Object.entries(p.items || {}).slice(0, 2000)) {
+    const m = /^(\d{1,2})-([a-zA-Z]{4,10})-(\d{1,2})-([a-z0-9]{4,7})$/.exec(k);
+    if (!m || +m[1] > 11 || !SK_SCALES.includes(m[2]) || +m[3] > 12 || !SK_PATS.includes(m[4]) || !r || typeof r !== 'object') continue;
+    const n = (v, max) => Math.max(0, Math.min(max, Math.round(Number(v) || 0)));
+    const o = { best: n(r.best, 100), stars: n(r.stars, 3), plays: n(r.plays, 1e6) };
+    if (n(r.bpm, 400)) o.bpm = n(r.bpm, 400);
+    if (n(r.lastTempo, 400)) o.lastTempo = n(r.lastTempo, 400);
+    if (r.learned) o.learned = true;
+    if (r.passed) o.passed = true;
+    items[k] = o;
+  }
+  for (const [k, v] of Object.entries(p.path?.done || {})) if (/^[a-z0-9]{2,16}$/.test(k)) done[k] = Number(v) || 1;
+  for (const [k, v] of Object.entries(p.path?.cards || {})) if (/^[a-zA-Z]{2,16}$/.test(k)) cards[k] = Number(v) || 1;
+  return { v: 1, items, path: { done, cards } };
+}
+function mergeSkale(a, b) {
+  if (!a) return b;
+  const out = { v: 1, items: { ...(a.items || {}) }, path: { done: { ...(a.path?.done || {}), ...(b.path?.done || {}) }, cards: { ...(a.path?.cards || {}), ...(b.path?.cards || {}) } } };
+  for (const [k, r] of Object.entries(b.items || {})) {
+    const x = out.items[k];
+    out.items[k] = !x ? r : { ...x, best: Math.max(x.best || 0, r.best || 0), stars: Math.max(x.stars || 0, r.stars || 0), plays: Math.max(x.plays || 0, r.plays || 0),
+      bpm: Math.max(x.bpm || 0, r.bpm || 0) || undefined, lastTempo: Math.max(x.lastTempo || 0, r.lastTempo || 0) || undefined, learned: !!(x.learned || r.learned) || undefined, passed: !!(x.passed || r.passed) || undefined };
+  }
+  return out;
+}
+
 /** Spajanje rezultata (telefon + kopija): veći najbolji rezultat; niz i tempo sa skorije korišćenog. */
 /** Moji snimci (Samo sviraj) iz rezervne kopije: samo poznat oblik, razumne granice (do 10 min, pragovi 0–12). */
 function cleanFreeplayRecs(list) { // stari zapis (pre v1.37): pri otvaranju „Samo sviraj“ prelazi u pesme
@@ -334,6 +365,8 @@ export async function readBackup() {
     if (fr) st.freeplayRecs = fr; // Akordi → Samo sviraj: Moji snimci
     const pr = cleanPractice(data.settings.practice);
     if (pr) st.practice = pr; // Vežbe: najbolji rezultati, nizovi i poslednji tempo (po igri i po pesmi)
+    const sk = cleanSkale(data.settings.skale);
+    if (sk) st.skale = sk; // Vežbe → Skale: napredak i put
     if (['songs', 'active', 'never'].includes(data.settings.wakeMode)) st.wakeMode = data.settings.wakeMode;
     if (['auto', 'sr', 'en'].includes(data.settings.noteNames)) st.noteNames = data.settings.noteNames;
     if ([5, 10, 20].includes(Number(data.settings.wakeMinutes))) st.wakeMinutes = Number(data.settings.wakeMinutes);
@@ -373,6 +406,7 @@ export async function applyRestore(backup, mode) {
     if (k === 'lang') await setLang(v); // jezik se primenjuje odmah
     else if (mode === 'merge' && (k === 'folders' || k === 'setlists')) await settings.set(k, mergeById((await settings.get(k, [])) || [], v));
     else if (mode === 'merge' && k === 'practice') await settings.set(k, mergePractice(await settings.get(k, null), v));
+    else if (mode === 'merge' && k === 'skale') await settings.set(k, mergeSkale(await settings.get(k, null), v));
     else if (mode === 'merge' && k === 'freeplayRecs') await settings.set(k, mergeById((await settings.get(k, [])) || [], v));
     else await settings.set(k, v);
   }

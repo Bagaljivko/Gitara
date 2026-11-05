@@ -8,7 +8,9 @@
 //
 // runTrack(): zajednički tok runde za sve igre na stazi —
 //   „Normalno“: metronom, odbrojavanje 3-2-1, ocena rano/kasno, promašaji;
-//   „Početnik“: staza stane na liniji kod svake note i čeka da je odsviraš (bez tempa i promašaja);
+//   „Čekaj me“ (jedan zajednički mehanizam za sve igre na stazi): staza stane na liniji kod svake note/akorda i
+//   čeka da je odsviraš (bez tempa i promašaja; pogrešno → crvena tačka + „To je F, probaj ponovo“; savet + prst).
+//   Početnik ga uključuje sam (može da se isključi); Normalno počinje bez njega. Početnik = samo lakši sadržaj;
 //   telefon uspravno usred runde → pauza i „Okreni telefon“; položeno → novo odbrojavanje i nastavak;
 //   demo: igra sama „svira“ (zvuk + zelene note), bez mikrofona.
 import { hitSound, placeOf, quizPluck } from './practiceCommon.js';
@@ -33,12 +35,12 @@ const HAND_SVG = `<svg viewBox="0 0 100 143" aria-hidden="true"><defs><linearGra
  * elementi iz „bazena“ koji se pomeraju samo preko CSS transform/opacity, iz jedne requestAnimationFrame petlje.
  * Bez čitanja rasporeda tokom runde, bez pravljenja elemenata po kadru, bez animiranih senki/blura.
  */
-export function createTrack({ t, onExit, lookBeats = 4.5 }) {
+export function createTrack({ t, onExit, lookBeats = 4.5, onInfo = null }) {
   const el = document.createElement('div');
   el.className = 'trk';
   el.innerHTML = `
     <div class="trk-top">
-      <button class="trk-x" aria-label="${t('pr.trk.exit')}">✕</button>
+      <button class="trk-x" aria-label="${t('pr.trk.exit')}">✕</button>${onInfo ? `<button class="trk-i" aria-label="${t('pr.info.what')}">i</button>` : ''}
       <div class="trk-prog" aria-hidden="true"><i></i></div>
       <div class="trk-combo"><b>0</b><small>${t('pr.trk.combo')}</small></div>
       <div class="trk-meter" aria-hidden="true"><span class="pr-lvl"><i></i></span><span class="trk-heard"></span></div>
@@ -65,6 +67,7 @@ export function createTrack({ t, onExit, lookBeats = 4.5 }) {
   const capEl = q('.trk-captxt'), lyrEl = q('.trk-lyric'), bigEl = q('.trk-big'), popEl = q('.trk-pop');
   const exit = () => onExit?.();
   q('.trk-x').addEventListener('click', exit);
+  q('.trk-i')?.addEventListener('click', () => onInfo?.());
   q('.trk-x2').addEventListener('click', exit);
 
   let items = [], grid = null, beatMs = 1000, raf = 0, combo = 0, maxCombo = 0, alive = true, sleeping = false, cur = null;
@@ -158,7 +161,7 @@ export function createTrack({ t, onExit, lookBeats = 4.5 }) {
   function assign(it) {
     const e = take(it.kind);
     if (it.kind === 'note') {
-      e.className = `tn fc${it.finger || 0}`;
+      e.className = `tn fc${it.finger || 0}${it.root ? ' root' : ''}`;
       e.firstChild.textContent = String(it.f);
     } else if (it.kind === 'chord') {
       e.className = 'tc' + (it.deco ? ' deco' : '');
@@ -393,15 +396,15 @@ export const starsOf = (score) => (score >= 92 ? 3 : score >= 75 ? 2 : score >= 
  * Jedna runda na stazi.
  * items: [{ kind: 'note'|'chord'|'strum', beat, dur?, s?, f?, finger?, frets?, fingers?, label?, dir?, lyric?,
  *           winBeats?, winCap?, deco? (samo za prikaz, ne ocenjuje se) }]
- * mode: 'beg' (Početnik: čeka na svaku notu) | 'normal'
+ * wait: true = „Čekaj me“ (čeka na svaku notu/akord, bez tempa); mode: 'beg' je stari naziv za isto
  * lagMs: koliko posle note još može da stigne ocena (provera trzaja ~90 ms, akorda ~350 ms) + kašnjenje mikrofona
  * hintOf(it) → tekst saveta u Početniku; fingersOf(it) → prsti koji svetle na ruci
  * demo: { play(it), early?(i) → true za jednu notu „rano“, captions: { [index]: tekst } }
  * Vraća { input(at, check), stop() }; check(it) → { ok, text? } (text = poruka za pogrešno).
  */
-export function runTrack({ api, track, t, items, bpm, mode = 'normal', lagMs = 180, hintOf, fingersOf, demo = null, onEnd }) {
-  const beg = mode === 'beg' && !demo;
-  const beatMs = beg ? 60000 / 66 : 60000 / bpm; // Početnik: stalan, spor razmak između nota (bez tempa)
+export function runTrack({ api, track, t, items, bpm, wait = null, mode = 'normal', lagMs = 180, hintOf, fingersOf, demo = null, onEnd }) {
+  const beg = (wait ?? mode === 'beg') && !demo; // „Čekaj me“
+  const beatMs = beg ? 60000 / 66 : 60000 / bpm; // Čekaj me: stalan, spor razmak između nota (bez tempa)
   const judged = items.filter((it) => !it.deco);
   const endBeat = Math.max(...items.map((it) => it.beat + (it.dur || 1)));
   let met = null, gen = 0, resumeBeat = 0, paused = false, firstStart = false, ended = false, counting = true, sweepT = 0, lastCur = null, timers = [];
@@ -506,7 +509,7 @@ export function runTrack({ api, track, t, items, bpm, mode = 'normal', lagMs = 1
     const wrongs = judged.reduce((a, it) => a + (it.wrong || 0), 0);
     const onTime = judged.filter((it) => it.kindHit === 'hit').length, offTime = judged.filter((it) => it.kindHit === 'early' || it.kindHit === 'late').length;
     track.caption(''); track.handLight([]); track.clearGhost();
-    onEnd?.({ score, accuracy: hits / n, maxCombo: track.maxCombo, wrongs, n, hits, onTime, offTime, misses: n - hits, clean: beg ? wrongs <= Math.max(1, Math.round(n * 0.1)) : hits / n >= 0.85, tempo: bpm, beginner: beg });
+    onEnd?.({ score, accuracy: hits / n, maxCombo: track.maxCombo, wrongs, n, hits, onTime, offTime, misses: n - hits, clean: beg ? wrongs <= Math.max(1, Math.round(n * 0.1)) : hits / n >= 0.85, tempo: bpm, beginner: beg, waited: beg });
   }
   // Ulaz igre (trzaj / udarac): nota najbliža trenutku „at“ (Početnik: nota koja čeka)
   function input(at, check) {
@@ -561,8 +564,12 @@ export function runTrack({ api, track, t, items, bpm, mode = 'normal', lagMs = 1
   if (track.isPortrait()) { paused = true; resumeBeat = 0; firstStart = true; track.sleep(true); api.pauseHw?.(true); } // počinje tek kad se telefon okrene
   else if (beg) startBeginner(true); else startMetronome(true);
 
+  let held = false;
   return {
     input,
+    /** Ručna pauza (npr. otvorena kartica „i“); nastavak ide uz novo odbrojavanje. */
+    hold() { if (!paused) { held = true; pause(); } },
+    release() { if (held) { held = false; if (!track.isPortrait()) resume(); } },
     stop() { ended = true; gen++; clearInterval(sweepT); met?.stop(); off(); },
     get beatMs() { return beatMs; },
   };
@@ -577,8 +584,10 @@ export async function roundResults({ api, track, t, stats, key = null, extra = [
   if (!track) return { choice: 'back' };
   const stars = starsOf(stats.score);
   const next = stats.beginner ? stats.tempo : info.nextTempo > stats.tempo ? info.nextTempo : stats.tempo + step;
+  // posle „Čekaj me“: bez tempa; „Probaj Normalno“ samo iz Početnika (u Normalnom: „Bez čekanja“)
+  const fromBeg = api.level === 'beg';
   const buttons = stats.beginner
-    ? [...(stats.clean ? [{ id: 'tryNormal', label: t('pr.lvl.tryNormal'), primary: true }] : []), { id: 'again', label: t('pr.trk.again'), primary: !stats.clean }, { id: 'back', label: t('pr.trk.back') }]
+    ? [...(stats.clean ? [fromBeg ? { id: 'tryNormal', label: t('pr.lvl.tryNormal'), primary: true } : { id: 'noWait', label: t('pr.wait.tryOff'), primary: true }] : []), ...extra.filter((b) => b.always), { id: 'again', label: t('pr.trk.again'), primary: !stats.clean }, { id: 'back', label: t('pr.trk.back') }]
     // uz „Sledeći deo“ / „Cela pesma“ (pravi tempo pesme je dostignut) nema „Brže“
     : [...extra, ...(extra.length ? [] : [{ id: 'faster', label: t('pr.trk.faster', { bpm: next }), primary: stars >= 2 }]), { id: 'again', label: t('pr.trk.again'), primary: !extra.length && stars < 2 }, { id: 'back', label: t('pr.trk.back') }];
   // Zašto je rezultat ovakav: pogođeno, u ritmu / rano-kasno, promašeno, pogrešni pokušaji
@@ -595,7 +604,7 @@ export async function roundResults({ api, track, t, stats, key = null, extra = [
   const choice = await track.results({
     title: stats.beginner ? t(stats.clean ? 'pr.lvl.cleanTitle' : 'pr.lvl.notCleanTitle') : t('pr.trk.res' + stars),
     stars, score: stats.score, lines,
-    note: [info.newBest ? t('pr.newBest') : '', stats.beginner && stats.clean ? t('pr.lvl.cleanNote') : ''].filter(Boolean).join(' '),
+    note: [info.newBest ? t('pr.newBest') : '', stats.beginner && stats.clean ? t(fromBeg ? 'pr.lvl.cleanNote' : 'pr.wait.cleanNote') : ''].filter(Boolean).join(' '),
     buttons,
   });
   return { choice, next };
@@ -605,6 +614,7 @@ export async function roundResults({ api, track, t, stats, key = null, extra = [
 export function handleChoice(api, choice, next, close) {
   if (choice === 'back') { close(); return true; }
   if (choice === 'tryNormal') { api.setLevel('normal'); api.restart(); return true; }
+  if (choice === 'noWait') { api.setWait(false); api.restart(); return true; }
   if (choice === 'faster') { api.setBpm(next); api.restart(); return true; }
   if (choice === 'again') { api.restart(); return true; }
   return false;
@@ -629,13 +639,16 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 export function trackGame(api, cfg) {
   const { t } = api;
   let track = null, runner = null, unsub = null, gen = 0;
-  const open = () => { if (track) track.reset(); else track = createTrack({ t, onExit: () => api.stop() }); return track; };
+  const open = () => { if (track) track.reset(); else track = createTrack({ t, onExit: () => api.stop(), onInfo: cfg.onInfo ? () => cfg.onInfo(ctl) : null }); return track; };
   const close = () => { gen++; runner?.stop(); runner = null; track?.destroy(); track = null; };
   const ctl = {
     get track() { return track; },
     close,
     /** Nova runda bez novog dodira (npr. sledeći prolaz): mikrofon ostaje uključen. */
     async next(round) { await startRound(round, api.bpm); },
+    /** Pauza / nastavak runde u toku (kartica „i“). */
+    hold() { runner?.hold(); },
+    release() { runner?.release(); },
   };
 
   async function startRound(round, bpm) {
@@ -645,7 +658,7 @@ export function trackGame(api, cfg) {
     track.setLyricMode(round.items.some((it) => it.lyric !== undefined));
     track.relayout(); // raspored se meri jednom, na početku runde
     runner = runTrack({
-      api, track, t, items: round.items, bpm: round.bpm || bpm, mode: api.level === 'beg' ? 'beg' : 'normal',
+      api, track, t, items: round.items, bpm: round.bpm || bpm, wait: round.wait ?? api.wait,
       lagMs: round.lagMs ?? 180, hintOf: round.hintOf, fingersOf: round.fingersOf,
       onEnd: (stats) => my === gen && ended(stats, round),
     });
@@ -691,7 +704,7 @@ export function trackGame(api, cfg) {
         api.stopNow();
         const choice = await track.results({
           title: t('pr.demo.end'), stars: null,
-          note: api.level === 'beg' ? t('pr.demo.slowBeg') : t('pr.demo.slow', { bpm: cfg.firstBpm || 50 }),
+          note: api.wait ? t('pr.demo.slowBeg') : t('pr.demo.slow', { bpm: cfg.firstBpm || 50 }),
           buttons: [{ id: 'go', label: t('pr.demo.nowYou'), primary: true }, { id: 'replay', label: t('pr.demo.replay') }, { id: 'back', label: t('pr.trk.back') }],
         });
         if (choice === 'back') { close(); return; }
