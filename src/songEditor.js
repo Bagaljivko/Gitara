@@ -261,10 +261,13 @@ async function placeUnplacedTabs(song) {
 // ---------------- Uređivanje ("Proveri i ispravi") ----------------
 /** Čitanje TAB lista (posle prepoznate tablature ili kad korisnik promeni vrstu). Vraća TAB pesmu ili null. */
 async function readTab(imgs, signal, setText, diag) {
-  const json = await scanTab(imgs, signal, (kind, model) => {
-    if (kind === 'switch') setText(t('scan.switchModel', { model }));
+  let cur = t('tab.reading'); // strana / taktovi koji se upravo čitaju (ostaje i dok Gemini „čita“)
+  const json = await scanTab(imgs, signal, (kind, model, x) => {
+    if (kind === 'page') setText((cur = t('tab.readingPage', { i: model, n: x })));
+    else if (kind === 'bars') setText((cur = t('tab.readingBars', { a: model, b: x })));
+    else if (kind === 'switch') setText(t('scan.switchModel', { model }));
     else if (kind === 'busy') setText(t('scan.busy'));
-    else setText(t('tab.reading'));
+    else setText(cur);
   }, diag);
   const { fromScan } = await import('./tabSong.js');
   const s = fromScan(json);

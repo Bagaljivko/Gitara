@@ -145,16 +145,20 @@ PRAVILA:
 10. Ne prepisuj ništa osim kompozicije (bez imena izdavača, brojeva strana, reklama).
 
 Vrati ISKLJUČIVO JSON ovog oblika:
-{ "title": "", "composer": "", "key": "Em", "sig": "3/4", "bpm": 0, "unsure": [ { "bar": 12, "why": "" } ], "bars": [ { "n": 1, "sig": "", "key": "", "repeatStart": false, "repeatEnd": false, "times": 2, "ending": 0, "barre": [ { "label": "1/2 BV", "fret": 5, "half": true } ], "notes": [ { "s": 6, "f": 0, "start": 0, "len": 3, "finger": 0 } ] } ] }`;
+{ "title": "", "composer": "", "key": "Em", "sig": "3/4", "bpm": 0, "firstBar": 1, "pageBars": 16, "unsure": [ { "bar": 12, "why": "" } ], "bars": [ { "n": 1, "sig": "", "key": "", "repeatStart": false, "repeatEnd": false, "times": 2, "ending": 0, "barre": [ { "label": "1/2 BV", "fret": 5, "half": true } ], "notes": [ { "s": 6, "f": 0, "start": 0, "len": 3, "finger": 0 } ] } ] }`;
 
-const TAB_MULTI = (n) => `
+const TAB_PAGE = (i, n, firstExpected) => `
 
-VIŠE SLIKA: dobijaš ${n} slika, ovim redom — uzastopne strane ISTE kompozicije. Spoji ih u jedan niz taktova, redom; brojevi taktova se nastavljaju preko strana (druga strana obično počinje brojem takta odštampanim na početku reda). Ako se isti takt vidi na kraju jedne i početku sledeće slike, prepiši ga JEDNOM.`;
+STRANA: ovo je strana ${i} od ${n}. NAJPRE prebroj taktove na ovoj strani: "firstBar" = broj prvog takta na strani (broj odštampan na početku prvog reda; ako ga nema, ${firstExpected}), "pageBars" = koliko taktova ima na ovoj strani (prebroj sve redove do kraja strane). Zatim prepiši SVE te taktove, redom, svaki sa svojim brojem "n" — nijedan ne izostavljaj, ni poslednje redove strane.`;
+const TAB_RANGE = (a, b) => `
+
+PREPIŠI SAMO TAKTOVE ${a}–${b} sa ove strane (polje "bars" sadrži samo njih, sa tačnim brojevima "n").`;
 
 const TAB_SCHEMA = {
   type: 'OBJECT',
   properties: {
     title: { type: 'STRING' }, composer: { type: 'STRING' }, key: { type: 'STRING' }, sig: { type: 'STRING' }, bpm: { type: 'NUMBER' },
+    firstBar: { type: 'INTEGER' }, pageBars: { type: 'INTEGER' },
     unsure: { type: 'ARRAY', items: { type: 'OBJECT', properties: { bar: { type: 'INTEGER' }, why: { type: 'STRING' } } } },
     bars: {
       type: 'ARRAY',
@@ -500,30 +504,66 @@ export async function scanSong(images, signal, onStatus, diag) {
   return song;
 }
 
-/** TAB list (jedna ili više strana) → sirov JSON taktova (pesmu pravi tabSong.fromScan). */
-export async function scanTab(images, signal, onStatus, diag) {
-  const list = Array.isArray(images) ? images : [images];
-  const apiKey = await getApiKey();
-  const parts = [{ text: TAB_PROMPT + (list.length > 1 ? TAB_MULTI(list.length) : '') }];
-  list.forEach((img, i) => {
-    if (list.length > 1) parts.push({ text: `Strana ${i + 1} od ${list.length}:` });
-    parts.push({ inline_data: { mime_type: img.mime, data: img.base64 } });
-  });
-  const contents = [{ parts }];
-  const cfg = { temperature: 0.1, responseMimeType: 'application/json' };
+/** Jedan poziv za TAB stranu (dug odgovor: do 32 768 tokena). Vraća JSON ili null ako odgovor nije ceo / ispravan. */
+async function askTab(apiKey, img, text, signal, onStatus, diag) {
+  const contents = [{ parts: [{ text }, { inline_data: { mime_type: img.mime, data: img.base64 } }] }];
+  const cfg = { temperature: 0.1, responseMimeType: 'application/json', maxOutputTokens: 32768 };
   let res;
   try {
     res = await generate(apiKey, { contents, generationConfig: { ...cfg, responseSchema: TAB_SCHEMA } }, { signal, onStatus, diag });
   } catch (e) {
-    if (!(e instanceof GeminiError) || e.code !== 'HTTP_400' || !e.model || !/schema|response_?schema|responseMimeType|field/i.test(e.message)) throw e;
-    res = await generate(apiKey, { contents, generationConfig: cfg }, { signal, onStatus, models: [e.model], diag });
+    if (!(e instanceof GeminiError) || e.code !== 'HTTP_400' || !e.model || !/schema|response_?schema|responseMimeType|field|maxOutputTokens/i.test(e.message)) throw e;
+    res = await generate(apiKey, { contents, generationConfig: { temperature: 0.1, responseMimeType: 'application/json' } }, { signal, onStatus, models: [e.model], diag });
   }
-  const text = textOf(res.data).trim().replace(/^```(?:json)?\s*|\s*```$/g, '');
-  let json;
-  try { json = JSON.parse(text); } catch { throw new GeminiError(t('gem.badJson')); }
-  if (!json || !Array.isArray(json.bars) || !json.bars.length) throw new GeminiError(t('gem.noTab'));
-  json.scanModel = res.model;
-  return json;
+  try {
+    const j = JSON.parse(textOf(res.data).trim().replace(/^```(?:json)?\s*|\s*```$/g, ''));
+    if (j && typeof j === 'object') j.scanModel = res.model;
+    return j && Array.isArray(j.bars) ? j : null;
+  } catch { return null; } // odgovor prekinut (predugačak) — dočitava se po delovima
+}
+
+/**
+ * TAB list → sirov JSON taktova (pesmu pravi tabSong.fromScan). Strana po strana: Gemini prvo prebroji taktove na strani,
+ * pa ih prepiše; taktovi koji fale (prekinut ili „lenj“ odgovor) se traže ponovo po 8, do 3 puta. Ono što ni tada nije
+ * pročitano ostaje prazan takt označen za proveru — ništa se ne izmišlja i ništa ne nestaje bez traga.
+ * onStatus(kind, …): 'page' (i, n), 'bars' (a, b), ostalo kao generate().
+ */
+export async function scanTab(images, signal, onStatus, diag) {
+  const list = Array.isArray(images) ? images : [images];
+  const apiKey = await getApiKey();
+  const out = { title: '', composer: '', key: '', sig: '', bpm: 0, bars: [], unsure: [] };
+  let next = 1, model = '';
+  for (let pi = 0; pi < list.length; pi++) {
+    onStatus?.('page', pi + 1, list.length);
+    const pageText = TAB_PROMPT + TAB_PAGE(pi + 1, list.length, next);
+    const j = await askTab(apiKey, list[pi], pageText, signal, onStatus, diag);
+    if (j) {
+      model = j.scanModel || model;
+      for (const k of ['title', 'composer', 'key', 'sig']) if (!out[k] && typeof j[k] === 'string' && j[k].trim()) out[k] = j[k].trim();
+      if (!out.bpm && Number(j.bpm) > 0) out.bpm = Number(j.bpm);
+      for (const u of Array.isArray(j.unsure) ? j.unsure : []) out.unsure.push(u);
+    }
+    const first = j && Number.isInteger(j.firstBar) && j.firstBar > 0 ? j.firstBar : next;
+    const have = new Map();
+    const take = (bars) => { let k = first; for (const b of bars || []) { const n = Number.isInteger(b.n) && b.n > 0 ? b.n : k; k = n + 1; if (Array.isArray(b.notes) && b.notes.length && (!have.has(n) || b.notes.length > have.get(n).notes.length)) have.set(n, { ...b, n }); } };
+    take(j && j.bars);
+    const counted = j && Number.isInteger(j.pageBars) && j.pageBars > 0 && j.pageBars <= 80 ? j.pageBars : 0;
+    const last = counted ? first + counted - 1 : Math.max(first - 1, ...have.keys());
+    const missing = () => { const m = []; for (let n = first; n <= last; n++) if (!have.has(n)) m.push(n); return m; };
+    for (let tries = 0; tries < 3 && missing().length; tries++) {
+      const chunk = missing().slice(0, 8), a = chunk[0], b = chunk[chunk.length - 1];
+      onStatus?.('bars', a, b);
+      const jj = await askTab(apiKey, list[pi], TAB_PROMPT + TAB_PAGE(pi + 1, list.length, first) + TAB_RANGE(a, b), signal, onStatus, diag);
+      if (jj) { model = jj.scanModel || model; take((jj.bars || []).filter((x) => !Number.isInteger(x.n) || (x.n >= a && x.n <= b))); }
+    }
+    for (const n of missing()) { have.set(n, { n, notes: [] }); out.unsure.push({ bar: n, why: t('tab.notRead') }); }
+    out.bars.push(...[...have.values()].sort((x, y) => x.n - y.n));
+    next = Math.max(next, last + 1, ...[...have.keys()].map((n) => n + 1));
+  }
+  if (!out.bars.some((b) => b.notes.length)) throw new GeminiError(t('gem.noTab'));
+  out.sig = out.sig || '4/4';
+  out.scanModel = model;
+  return out;
 }
 
 /**

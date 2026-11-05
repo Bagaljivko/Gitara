@@ -52,7 +52,8 @@ function css() {
 .pl-bar select{max-width:42%;padding:4px 6px;font-size:.85rem}
 .pl-bar .pl-play.on{background:var(--accent);color:var(--accent-ink)}
 .ch.playing{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px;background:var(--accent-soft)}
-.ln.playing{background:linear-gradient(90deg,rgba(245,165,36,.08),transparent 70%);border-radius:6px}`;
+.ln.playing{background:linear-gradient(90deg,rgba(245,165,36,.08),transparent 70%);border-radius:6px}
+.seg.sung .tx{color:var(--accent);font-weight:700}`;
   document.head.appendChild(st);
 }
 

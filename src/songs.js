@@ -1189,14 +1189,19 @@ export async function renderSong(root, id, nav = null) {
   });
   // ---- „Pusti“: pesma zvukom gitare (akordi po ritmu pesme, tonalitet, kapodaster); učitava se tek na dugme ----
   let playerUI = null, plTl = null, plCh = null, plLn = null;
+  let plSung = [];
   function plMark(seg) {
     plCh?.classList.remove('playing'); plLn?.classList.remove('playing');
+    plSung.forEach((x) => x.classList.remove('sung')); plSung = [];
     plCh = plLn = null;
     if (!seg) return;
     const sec = $('sLyrics').querySelectorAll(':scope > .sec')[seg.ref.si];
     plLn = sec ? sec.querySelectorAll(':scope > .ln')[seg.ref.li] : null;
     plCh = plLn ? plLn.querySelectorAll('.ch')[seg.ref.ci] : null;
     plLn?.classList.add('playing'); plCh?.classList.add('playing');
+    // reči koje se pevaju uz ovaj akord: od njegovog dela reda do sledećeg akorda
+    const segs = plLn ? [...plLn.querySelectorAll('.seg')] : [], at = plCh ? segs.indexOf(plCh.closest('.seg')) : -1;
+    if (at >= 0) for (let i = at; i < segs.length && (i === at || !segs[i].querySelector('.ch')); i++) { segs[i].classList.add('sung'); plSung.push(segs[i]); }
   }
   function closePlayer() { if (!playerUI) return; playerUI.destroy(); playerUI = null; plMark(null); allowSleep('songplay'); }
   async function openPlayer() {

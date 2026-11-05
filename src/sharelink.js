@@ -76,3 +76,6 @@ export function songFromHash(hash = location.hash) {
 // Za testove
 export const _pack = pack;
 export const _unpack = unpack;
+
+/** Isti kratak zapis pesme za deljenje set liste (shareCode.js). */
+export { pack as packSong, unpack as unpackSong };

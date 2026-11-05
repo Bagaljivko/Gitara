@@ -244,6 +244,8 @@ body.trk-open { overflow: hidden; }
 .tn.root::before { content: ''; position: absolute; inset: calc(var(--r) * .12); border-radius: 50%; border: 2px solid rgba(245,165,36,.95); box-shadow: 0 0 0 1px rgba(0,0,0,.5); }
 .tn.cur::after { content: ''; position: absolute; inset: calc(var(--r) * .4); border-radius: 50%; border: 2.5px solid rgba(255,255,255,.8); }
 .tn.missed, .tc.missed, .ts.missed { opacity: .25; transition: opacity .6s; }
+/* tekst uz akord: već otpevano bleđe, reči uz tekući akord istaknute */
+.trk-lyric .ly-pre { opacity: .45; } .trk-lyric .ly-cur { color: var(--accent); font-weight: 800; } .trk-lyric .ly-post { opacity: .8; }
 /* TAB (prebiranje): nota ostavlja tanak trag dok žica zvoni; barre = blaga traka preko žica (ispod nota) */
 .tn.ring { background: none; }
 .tn.ring::before { content: ''; position: absolute; left: 50%; top: calc(50% - 2px); width: var(--len, 0); height: 4px; border-radius: 2px; background: var(--c); opacity: .22; z-index: -1; }

@@ -14,7 +14,7 @@ export function createBoard(el, { from = 0, to = 12 } = {}) {
   const W = 340, H = 150, padL = 34, padR = 10, padT = 16, padB = 22;
   let lo = from, hi = to;
   const gx = (f) => padL + ((f - lo + 0.5) / (hi - lo + 1)) * (W - padL - padR); // sredina polja (prazna žica = levo od nultog praga)
-  const sy = (s) => padT + (s / 5) * (H - padT - padB);
+  const sy = (s) => padT + ((5 - s) / 5) * (H - padT - padB); // tanka e gore, debela E dole (s: 0 = debela E)
 
   function draw() {
     const fx = (f) => padL + ((f - lo) / (hi - lo + 1)) * (W - padL - padR); // linija praga

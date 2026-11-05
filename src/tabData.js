@@ -42,7 +42,7 @@ export function cleanTabSong(raw) {
       if (!(s >= 1 && s <= 6) || !(f >= 0 && f <= 24) || !(st >= 0 && st < 16) || !(d > 0 && d <= 16)) return null;
       const o = { s, f, b: r4(st), d: r4(d) };
       const fi = Math.round(Number(n.fi));
-      if (fi >= 1 && fi <= 4) o.fi = fi;
+      if (fi >= 1 && fi <= 4 && f > 0) o.fi = fi; // prazna žica nema prst
       return o;
     }).filter(Boolean).sort((x, y) => x.b - y.b || x.s - y.s);
     const o = { notes };

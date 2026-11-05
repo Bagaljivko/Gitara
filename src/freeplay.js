@@ -168,7 +168,7 @@ function createStage({ mode = 'live', rec = null, onExit, onSaved }) {
   const G = { W: 0, H: 0, bx: 0, x0: 0, x1: 0, y0: 0, y1: 0, r: 12 };
   const fretX = (f) => G.x0 + fretPos(f) * (G.x1 - G.x0); // linija praga f
   const dotX = (f) => (f === 0 ? G.x0 - G.r * 1.3 : (fretX(f - 1) + fretX(f)) / 2);
-  const strY = (s) => G.y0 + (s / 5) * (G.y1 - G.y0);
+  const strY = (s) => G.y0 + ((5 - s) / 5) * (G.y1 - G.y0); // tanka e gore, debela E dole (s: 0 = debela E)
   function layout() {
     const w = neck.clientWidth, h = neck.clientHeight;
     if (!w || !h) return;

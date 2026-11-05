@@ -74,7 +74,7 @@ export function createTrack({ t, onExit, lookBeats = 4.5, onInfo = null }) {
   let clock = () => performance.now();
   // Geometrija (meri se samo na početku runde i kad se telefon okrene)
   const G = { W: 0, H: 0, padY: 0, gutter: 28, laneH: 0, hitX: 0, ppb: 0, r: 12 };
-  const y = (s) => G.padY + (s + 0.5) * G.laneH;
+  const y = (s) => G.padY + (5 - s + 0.5) * G.laneH; // tanka e gore, debela E dole (s: 0 = debela E — zapis se ne menja)
 
   // ---- „Okreni telefon“ (i savet za automatsko rotiranje posle nekoliko sekundi) ----
   const mq = portraitMq();
@@ -183,7 +183,7 @@ export function createTrack({ t, onExit, lookBeats = 4.5, onInfo = null }) {
     } else if (it.kind === 'barre') {
       // barre: blaga traka preko žica koje prvi prst pritiska (samo prikaz)
       e.style.width = Math.max(G.r * 2, it.dur * G.ppb).toFixed(0) + 'px';
-      e.style.height = (y(it.to) - y(it.from) + G.r * 1.6).toFixed(0) + 'px';
+      e.style.height = (Math.abs(y(it.to) - y(it.from)) + G.r * 1.6).toFixed(0) + 'px';
       e.firstChild.textContent = it.label || '';
     }
     if (it === cur) e.classList.add('cur');
@@ -224,8 +224,8 @@ export function createTrack({ t, onExit, lookBeats = 4.5, onInfo = null }) {
       const e = it._el || assign(it);
       if (it.kind === 'note') setX(e, `translate3d(${(x - r * 1.5).toFixed(1)}px,${(y(it.s) - r * 1.5).toFixed(1)}px,0)`);
       else if (it.kind === 'chord') setX(e, `translate3d(${(x - r - 4).toFixed(1)}px,${G.padY.toFixed(1)}px,0)`);
-      else if (it.kind === 'barre') setX(e, `translate3d(${(x - r).toFixed(1)}px,${(y(it.from) - r * 0.8).toFixed(1)}px,0)`);
-      else setX(e, `translate3d(${(x - r * 1.1).toFixed(1)}px,${(y(0) - r * 0.7).toFixed(1)}px,0)`);
+      else if (it.kind === 'barre') setX(e, `translate3d(${(x - r).toFixed(1)}px,${(Math.min(y(it.from), y(it.to)) - r * 0.8).toFixed(1)}px,0)`);
+      else setX(e, `translate3d(${(x - r * 1.1).toFixed(1)}px,${(y(5) - r * 0.7).toFixed(1)}px,0)`); // od gornje žice
     }
   }
   function wake() { if (!raf && alive && !sleeping) raf = requestAnimationFrame(frame); }
@@ -238,7 +238,7 @@ export function createTrack({ t, onExit, lookBeats = 4.5, onInfo = null }) {
     let w, h, x, yy;
     if (it.kind === 'note') { w = h = r * 2.5; x = xAt - w / 2; yy = y(it.s) - h / 2; e.className = `tr ${col}`; }
     else if (it.kind === 'chord') { w = r * 2 + 12; h = G.H - 2 * G.padY; x = xAt - w / 2; yy = G.padY; e.className = `tr box ${col}`; }
-    else { w = r * 2.6; h = y(5) - y(0) + r * 1.6; x = xAt - w / 2; yy = y(0) - r * 0.8; e.className = `tr box ${col}`; }
+    else { w = r * 2.6; h = y(0) - y(5) + r * 1.6; x = xAt - w / 2; yy = y(5) - r * 0.8; e.className = `tr box ${col}`; }
     e.style.width = w + 'px'; e.style.height = h + 'px';
     const base = `translate3d(${x.toFixed(1)}px,${yy.toFixed(1)}px,0)`;
     e.style.transform = base;
@@ -314,7 +314,16 @@ export function createTrack({ t, onExit, lookBeats = 4.5, onInfo = null }) {
     },
     pop,
     caption(text) { if (capEl.textContent !== (text || '')) capEl.textContent = text || ''; },
-    lyric(text) { if (lyrEl.textContent !== (text || '')) lyrEl.textContent = text || ''; },
+    /** Red teksta: običan tekst ili { pre, cur, post } — reči koje se pevaju uz tekući akord su istaknute. */
+    lyric(v) {
+      const obj = v && typeof v === 'object';
+      const k = obj ? `${v.pre}\u0001${v.cur}\u0001${v.post}` : v || '';
+      if (lyrEl._k === k) return;
+      lyrEl._k = k;
+      if (!obj) { lyrEl.textContent = v || ''; return; }
+      const e = (x) => String(x || '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+      lyrEl.innerHTML = `<span class="ly-pre">${e(v.pre)}</span><b class="ly-cur">${e(v.cur)}</b><span class="ly-post">${e(v.post)}</span>`;
+    },
     /** Red teksta iznad vrata (Delovi pesme): odluči se na početku runde, visina je stalna. */
     setLyricMode(on) { el.classList.toggle('with-lyric', !!on); },
     progress(frac) { progI.style.transform = `scaleX(${Math.max(0, Math.min(1, frac)).toFixed(3)})`; },

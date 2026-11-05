@@ -22,7 +22,15 @@ export function songParts(song) {
   const seen = new Set();
   return (shapes.sections || []).map((sec, i) => ({
     i, name: sec.name || '',
-    chords: (sec.lines || []).flatMap((l) => [...(l.chords || [])].sort((a, b) => a.position - b.position).map((c) => ({ chord: c.chord, lyric: (l.text || '').trim() }))).filter((c) => c.chord),
+    // uz svaki akord: reči koje se pevaju dok on traje (od njega do sledećeg akorda u redu), ostatak reda bleđe
+    chords: (sec.lines || []).flatMap((l) => {
+      const text = l.text || '', cs = [...(l.chords || [])].sort((a, b) => a.position - b.position);
+      return cs.map((c, k) => {
+        if (!text.trim()) return { chord: c.chord, lyric: '' };
+        const a = Math.min(c.position, text.length), b = k + 1 < cs.length ? Math.min(cs[k + 1].position, text.length) : text.length;
+        return { chord: c.chord, lyric: { pre: text.slice(0, a), cur: text.slice(a, Math.max(a, b)), post: text.slice(Math.max(a, b)) } };
+      });
+    }).filter((c) => c.chord),
   })).filter((p) => {
     if (!p.chords.length) return false;
     const sig = p.name + '|' + p.chords.map((c) => c.chord).join(',');
