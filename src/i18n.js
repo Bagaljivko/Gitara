@@ -227,6 +227,12 @@ const sr = {
   'edit.discard': 'Odbaci',
   'edit.empty': 'Pesma je prazna — dodaj tekst ili akorde.',
   'edit.saved': 'Pesma je sačuvana.',
+  'dup.title': 'Ova pesma već postoji: {title}',
+  'dup.body': 'Zameni: postojeća pesma dobija novo skeniranje, a folder, kapodaster, tonalitet i napredak u Vežbama ostaju. Sačuvaj kao novu: biće dve pesme.',
+  'dup.replace': 'Zameni',
+  'dup.saveNew': 'Sačuvaj kao novu',
+  'dup.replaced': 'Pesma „{title}“ je zamenjena novim skeniranjem.',
+  'dup.cleaned': 'Uklonjeni su duplikati pesama: {n}. Od svake je ostala jedna.',
   'export.allTitle': 'Gitara — sve pesme',
 
   // PDF

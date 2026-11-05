@@ -400,7 +400,9 @@ export function parseBackup(text) {
   if (data && data.song) return [parseSharedFile(text)];
   if (!data || !Array.isArray(data.songs)) throw new SongFormatError(t('fmt.notBackup'));
   const out = [];
-  for (const s of data.songs) { try { const n = normalizeSong(s); out.push({ ...n, ...songMeta({ ...s, sections: n.sections }) }); } catch {} }
+  // ID i vremena ostaju (spajanje po ID-u: ista pesma se ne dodaje dvaput, novija verzija pobeđuje)
+  const keep = (s) => ({ ...(typeof s.id === 'string' && s.id && s.id.length <= 80 ? { id: s.id } : {}), ...(Number(s.createdAt) > 0 ? { createdAt: Number(s.createdAt) } : {}), ...(Number(s.updatedAt) > 0 ? { updatedAt: Number(s.updatedAt) } : {}) });
+  for (const s of data.songs) { try { const n = normalizeSong(s); out.push({ ...n, ...songMeta({ ...s, sections: n.sections }), ...keep(s) }); } catch {} }
   if (!out.length) throw new SongFormatError(t('fmt.backupEmpty'));
   return out;
 }

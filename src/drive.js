@@ -2,6 +2,7 @@
 // Koristi samo opseg drive.file: aplikacija vidi isključivo fajlove koje je sama napravila.
 // Nema client secret-a — token client radi samo sa javnim Client ID-jem.
 import { songs as db, settings, events } from './db.js';
+import { mergeSongs } from './songSync.js';
 import { normalizeSong, SongFormatError, safeFileName, songExtras, songMeta, cleanRecording } from './songformat.js';
 import { cleanFolders, cleanSetlists, cleanSongFolders, mergeById } from './collections.js';
 import { toast, dialog } from './ui.js';
@@ -304,6 +305,7 @@ async function buildBackup() {
   for (const k of BACKUP_SETTINGS) { const v = await settings.get(k); if (v !== undefined) s[k] = v; }
   return {
     app: 'gitara', version: 1, type: 'backup', exportedAt: new Date().toISOString(),
+    deleted: await db.deleted(), // obrisane pesme (id → vreme): vraćanje ih ne donosi nazad
     songs: all.map((sg) => ({ id: sg.id, title: sg.title, artist: sg.artist, key: sg.key, sections: sg.sections, transpose: sg.transpose || 0, createdAt: sg.createdAt, updatedAt: sg.updatedAt, ...songExtras(sg), ...songMeta(sg), folders: sg.folders || [] })),
     settings: s,
   };
@@ -378,30 +380,17 @@ export async function readBackup() {
     if (ms === 'auto' || (typeof ms === 'string' && /^[a-z0-9][a-z0-9.\-]{1,80}$/i.test(ms))) st.geminiModelSel = ms;
     if (typeof data.settings.geminiModel === 'string' && /^[a-z0-9][a-z0-9.\-]{1,80}$/i.test(data.settings.geminiModel)) st.geminiModel = data.settings.geminiModel;
   }
-  return { songs, settings: st, modified: Date.parse(f.modifiedTime) || 0 };
+  const deleted = {};
+  if (data.deleted && typeof data.deleted === 'object') for (const [id, at] of Object.entries(data.deleted)) if (id.length <= 80 && Number(at) > 0) deleted[id] = Number(at);
+  return { songs, deleted, settings: st, modified: Date.parse(f.modifiedTime) || 0 };
 }
 
-const sig = (s) => JSON.stringify([String(s.title || '').trim().toLowerCase(), String(s.artist || '').trim().toLowerCase(), s.sections]);
-
-/** Vraća pesme. mode: 'replace' | 'merge'. Vraća broj dodatih pesama. */
+/** Vraća pesme. mode: 'replace' (zameni sve) | 'merge' (spoji po ID-u). Vraća broj dodatih (ili ažuriranih) pesama.
+ *  Nikad ne pravi drugu kopiju iste pesme i ne vraća obrisane (oznake brisanja i ovde i u kopiji). */
 export async function applyRestore(backup, mode) {
-  let added = 0;
-  if (mode === 'replace') {
-    await db.clear();
-    for (const s of backup.songs) { await db.put({ ...s, id: s.id || undefined, createdAt: s.createdAt || Date.now(), updatedAt: s.updatedAt || Date.now() }).catch(() => db.save(s)); added++; }
-  } else {
-    const local = await db.all();
-    const haveSig = new Set(local.map(sig));
-    const haveId = new Set(local.map((s) => s.id));
-    for (const s of backup.songs) {
-      if (haveSig.has(sig(s))) continue; // ista pesma već postoji
-      const rec = { ...s };
-      if (!rec.id || haveId.has(rec.id)) delete rec.id; // ista oznaka, drugačiji sadržaj → zadrži obe
-      await db.save(rec);
-      haveSig.add(sig(s));
-      added++;
-    }
-  }
+  if (mode === 'replace') await db.clear();
+  const r = await mergeSongs(backup.songs, { deleted: backup.deleted || {} });
+  const added = r.added + (mode === 'merge' ? r.updated : 0);
   for (const [k, v] of Object.entries(backup.settings || {})) {
     if (k === 'lang') await setLang(v); // jezik se primenjuje odmah
     else if (mode === 'merge' && (k === 'folders' || k === 'setlists')) await settings.set(k, mergeById((await settings.get(k, [])) || [], v));

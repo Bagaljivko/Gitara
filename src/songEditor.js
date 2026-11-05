@@ -1,5 +1,6 @@
 // Pesme → uređivanje i skeniranje (učitava se tek kada zatreba: editor, skeniranje, Gemini).
-import { songs as db } from './db.js';
+import { songs as db, newSongId } from './db.js';
+import { findExisting } from './songIdentity.js';
 import { esc, toast, dialog, confirmDialog, pickFiles, closeXHTML } from './ui.js';
 import { textToSections, sectionsToText, songExtras, cleanUncertain } from './songformat.js';
 import { scanSong, prepareImage, getApiKey, GeminiError } from './gemini.js';
@@ -17,7 +18,7 @@ let draftImage = null;
 
 /** „Nova pesma“ iz biblioteke. */
 export function newSongDraft() {
-  draft = { title: '', artist: '', key: '', sections: [{ name: t('lib.defaultSection'), lines: [] }] };
+  draft = { title: '', artist: '', key: '', sections: [{ name: t('lib.defaultSection'), lines: [] }], __newId: newSongId() };
   draftImage = null;
   location.hash = '#/uredi/novo';
 }
@@ -142,6 +143,7 @@ async function runScan(files, prepared = null, opts = {}) {
     await placeUnplacedTabs(song);
     if (opts.rescanOf) song.__rescanOf = opts.rescanOf;
     song.__original = snapshotOriginal(song); // skenirano tačno kako je pročitano — ne menja se nikad
+    song.__newId = newSongId(); // ID nove pesme se zna od skeniranja: ponovljeno čuvanje upisuje istu pesmu, ne drugu
     draft = song;
     draftImage = imgs.map((i) => i.preview);
     location.hash = '#/uredi/sken';
@@ -444,7 +446,14 @@ export async function renderEditor(root, id) {
     toast(t('orig.restored'));
     location.replace(`#/pesma/${encodeURIComponent(song.id)}`);
   });
+  // Čuvanje tačno jednom: dugme je zaključano dok traje (dupli dodir, spor telefon), a nova pesma ima ID od početka.
+  let saving = false;
   $('eSave').addEventListener('click', async () => {
+    if (saving) return;
+    saving = true; $('eSave').disabled = true;
+    try { await saveSong(); } finally { saving = false; if ($('eSave')) $('eSave').disabled = false; }
+  });
+  async function saveSong() {
     const sections = validate();
     if (!sections.length) { toast(t('edit.empty'), 'error'); return; }
     const title = $('eTitle').value.trim() || t('common.untitled');
@@ -475,13 +484,39 @@ export async function renderEditor(root, id) {
       // Akordi su upisani u izabranom imenovanju → nov neutralni sloj (original ostaje kakav je bio)
       rec0 = upgradeSong({ ...rec0, sections, key: keyText, cv: 0, keyN: undefined, keyAlt: undefined, namingAsk: false, keyAsk: false }, { naming: currentNaming(), keyText });
     }
-    delete rec0.__original; delete rec0.__rescanOf;
+    const newId = song.__newId;
+    delete rec0.__original; delete rec0.__rescanOf; delete rec0.__newId;
+    let msg = t('edit.saved');
+    if (isNew && !base) {
+      rec0.id = newId || undefined;
+      // Ista pesma već postoji (isti naslov ili skoro isti tekst i akordi)? — pitaj, nikad ne odlučuj sam
+      const others = (await db.all()).filter((x) => x.id !== newId);
+      const existing = findExisting(rec0, others);
+      if (existing) {
+        const choice = await dialog({
+          title: t('dup.title', { title: existing.title }),
+          body: t('dup.body'),
+          buttons: [{ label: t('common.cancel'), value: null }, { label: t('dup.saveNew'), value: 'new' }, { label: t('dup.replace'), value: 'replace', kind: 'primary' }],
+        });
+        if (!choice) return;
+        if (choice === 'replace') {
+          // novi tekst i akordi; ID, folderi, kapodaster, tonalitet, ritam, YouTube… (i napredak u Vežbama, po ID-u) ostaju
+          const kept = {};
+          for (const k of KEEP_ON_REPLACE) if (existing[k] !== undefined) kept[k] = existing[k];
+          rec0 = { ...existing, ...rec0, ...kept };
+          if (existing.tuning === undefined) delete rec0.tuning;
+          msg = t('dup.replaced', { title: existing.title });
+        }
+      }
+    }
     const rec = await db.save(rec0);
     draft = null; draftImage = null;
-    toast(t('edit.saved'));
+    toast(msg);
     location.replace(`#/pesma/${encodeURIComponent(rec.id)}`);
-  });
+  }
 }
+// „Zameni“ posle ponovnog skeniranja: ovo ostaje od postojeće pesme
+const KEEP_ON_REPLACE = ['id', 'createdAt', 'folders', 'capo', 'key', 'keyN', 'keyAlt', 'keyAsk', 'transpose', 'strum', 'yt', 'bpm', 'scrollSpeed', 'shapes', 'tuning', 'seen', 'recording'];
 
 function autoGrow(el) {
   el.style.height = 'auto';

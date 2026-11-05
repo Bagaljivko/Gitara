@@ -212,6 +212,12 @@ export default {
   'edit.discard': 'Discard',
   'edit.empty': 'The song is empty — add lyrics or chords.',
   'edit.saved': 'Song saved.',
+  'dup.title': 'This song already exists: {title}',
+  'dup.body': 'Replace: the existing song gets the new scan; its folder, capo, key and practice progress stay. Save as new: you will have two songs.',
+  'dup.replace': 'Replace',
+  'dup.saveNew': 'Save as new',
+  'dup.replaced': '“{title}” was replaced with the new scan.',
+  'dup.cleaned': 'Duplicate songs removed: {n}. One copy of each was kept.',
   'export.allTitle': 'Gitara — all songs',
 
   'pdf.key': 'Key: {key}',

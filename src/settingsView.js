@@ -366,11 +366,9 @@ export async function renderSettings(root) {
     if (!file) return;
     try {
       const list = parseBackup(await file.text());
-      const existing = await db.all();
-      const sig = (s) => JSON.stringify([s.title, s.artist, s.sections]);
-      const have = new Set(existing.map(sig));
-      let added = 0;
-      for (const s of list) if (!have.has(sig(s))) { await db.save(s); added++; }
+      const { mergeSongs } = await import('./songSync.js');
+      const r = await mergeSongs(list);
+      const added = r.added + r.updated;
       toast(added ? t('set.restored', { n: added }) : t('set.allExist'));
     } catch (e) {
       await dialog({ title: t('import.invalidTitle'), body: e instanceof SongFormatError ? e.message : t('set.cantRead') });

@@ -1269,7 +1269,7 @@ export async function renderSong(root, id, nav = null) {
 // Za podešavanja: izvoz/uvoz svih pesama
 export async function exportAll() {
   const all = await db.all();
-  const data = JSON.stringify({ app: 'gitara', version: 1, backup: true, exportedAt: new Date().toISOString(), songs: all.map((sg) => ({ title: sg.title, artist: sg.artist, key: sg.key, sections: sg.sections, transpose: sg.transpose, ...songExtras(sg), ...songMeta(sg) })) }, null, 1);
+  const data = JSON.stringify({ app: 'gitara', version: 1, backup: true, exportedAt: new Date().toISOString(), songs: all.map((sg) => ({ id: sg.id, createdAt: sg.createdAt, updatedAt: sg.updatedAt, title: sg.title, artist: sg.artist, key: sg.key, sections: sg.sections, transpose: sg.transpose, ...songExtras(sg), ...songMeta(sg) })) }, null, 1);
   return shareOrDownload(new Blob([data], { type: 'application/json' }), `gitara-pesme-${new Date().toISOString().slice(0, 10)}.json`, t('export.allTitle'));
 }
 

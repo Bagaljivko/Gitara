@@ -1,7 +1,7 @@
 // Jednostavan IndexedDB omotač: pesme i podešavanja ostaju samo na uređaju.
 import { upgradeSong, needsUpgrade } from './songmodel.js';
 const DB_NAME = 'gitara';
-const DB_VERSION = 2; // v2: mali indeks pesama („lib“) za brzu biblioteku
+const DB_VERSION = 3; // v2: mali indeks pesama („lib“) za brzu biblioteku; v3: obrisane pesme („deleted“: id + vreme)
 let dbPromise = null;
 
 function open() {
@@ -13,6 +13,7 @@ function open() {
       if (!db.objectStoreNames.contains('songs')) db.createObjectStore('songs', { keyPath: 'id' });
       if (!db.objectStoreNames.contains('settings')) db.createObjectStore('settings');
       if (!db.objectStoreNames.contains('lib')) db.createObjectStore('lib', { keyPath: 'id' });
+      if (!db.objectStoreNames.contains('deleted')) db.createObjectStore('deleted', { keyPath: 'id' });
     };
     req.onsuccess = () => {
       const db = req.result;
@@ -69,7 +70,18 @@ function txMulti(stores, fn) {
     t.onabort = () => reject(t.error);
   }));
 }
-const putRec = (rec) => txMulti(['songs', 'lib'], (s, l) => { s.put(rec); l.put(summarize(rec)); });
+// Obrisana pesma se pamti (id + vreme): nijedno kasnije upisivanje stare kopije (otvoren ekran pesme, rezervna kopija,
+// druga kartica) je ne vraća. Samo `force` (novija verzija iz rezervne kopije, izmenjena posle brisanja) briše oznaku.
+const putRec = (rec, force = false) => txMulti(['songs', 'lib', 'deleted'], (s, l, d) => {
+  const out = { ok: true };
+  const write = () => { s.put(rec); l.put(summarize(rec)); };
+  if (force) { d.delete(rec.id); write(); return out; }
+  const r = d.get(rec.id);
+  r.onsuccess = () => { if (r.result) out.ok = false; else write(); };
+  return out;
+});
+export const newSongId = uid;
+const TOMB_DAYS = 180; // oznake starije od pola godine se brišu
 
 let libMem = null; // indeks u memoriji (ponovni ulazak u biblioteku bez čitanja baze)
 async function rebuildLib() {
@@ -97,12 +109,39 @@ export const songs = {
     // Svaka pesma dobija neutralni sloj akorda i snimak originala (ako ih još nema)
     const up = needsUpgrade(song) ? upgradeSong(song) : song;
     const rec = { ...up, id: song.id || uid(), createdAt: song.createdAt || now, updatedAt: now };
-    await putRec(rec);
-    changed('songs-changed', rec.id);
+    if ((await putRec(rec)).ok) changed('songs-changed', rec.id);
     return rec;
   },
-  put: (rec0) => { const rec = needsUpgrade(rec0) ? upgradeSong(rec0) : rec0; return putRec(rec).then(() => { changed('songs-changed', rec.id); return rec.id; }); },
-  remove: (id) => txMulti(['songs', 'lib'], (s, l) => { s.delete(id); l.delete(id); }).then(() => { changed('songs-changed', id); }),
+  /** Upis cele pesme kakva jeste (isti id). Obrisana pesma se ne vraća, osim uz { force: true }. Vraća id ili null. */
+  put: async (rec0, { force = false } = {}) => {
+    const rec = needsUpgrade(rec0) ? upgradeSong(rec0) : rec0;
+    if (!(await putRec(rec, force)).ok) return null;
+    changed('songs-changed', rec.id);
+    return rec.id;
+  },
+  remove: (id, at = Date.now()) => txMulti(['songs', 'lib', 'deleted'], (s, l, d) => { s.delete(id); l.delete(id); d.put({ id, at }); }).then(() => { changed('songs-changed', id); }),
+  /** Obrisane pesme: { id: vreme } (stare oznake se usput brišu). */
+  async deleted() {
+    const all = await tx('deleted', 'readonly', (d) => d.getAll());
+    const cut = Date.now() - TOMB_DAYS * 864e5, out = {}, old = [];
+    for (const x of all) { if (x.at < cut) old.push(x.id); else out[x.id] = x.at; }
+    if (old.length) await txMulti(['deleted'], (d) => old.forEach((id) => d.delete(id)));
+    return out;
+  },
+  /** Oznake brisanja sa drugog uređaja (iz rezervne kopije): zapamti ih i obriši te pesme ako nisu menjane posle toga. */
+  async markDeleted(map) {
+    let n = 0;
+    for (const [id, at] of Object.entries(map || {})) {
+      const cur = await songs.get(id);
+      if (cur && (cur.updatedAt || 0) > at) continue; // menjana posle brisanja na drugom uređaju — ostaje
+      const had = await tx('deleted', 'readonly', (d) => d.get(id));
+      if (had && had.at >= at && !cur) continue;
+      await txMulti(['songs', 'lib', 'deleted'], (s, l, d) => { s.delete(id); l.delete(id); d.put({ id, at: Math.max(at, had ? had.at : 0) }); });
+      if (cur) n++;
+    }
+    if (n) changed('songs-changed', null);
+    return n;
+  },
   clear: () => txMulti(['songs', 'lib'], (s, l) => { s.clear(); l.clear(); }).then(() => { changed('songs-changed', null); }),
 };
 
