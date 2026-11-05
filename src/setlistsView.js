@@ -116,15 +116,17 @@ export async function renderSetlist(root, id) {
     <h1 id="slTitle">${esc(sl.name)}</h1>
     <div class="row">
       <button class="btn" id="slAdd">${t('sl.addSongs')}</button>
-      <button class="btn primary" id="slPlay">${t('sl.play')}</button>
+      <button class="btn" id="slShare"><svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18"><path fill="currentColor" d="M18 16a3 3 0 0 0-2.4 1.2l-6.7-3.4a3 3 0 0 0 0-1.6l6.7-3.4A3 3 0 1 0 15 7l-6.7 3.4a3 3 0 1 0 0 3.2L15 17a3 3 0 1 0 3-1z"/></svg> ${t('share.btn')}</button>
     </div>
-    <button class="btn wide stage-btn" id="slStage"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18v11H3zm2 2v7h14V7zM8 19h8v2H8z"/></svg>${t('stage.start')}</button>
+    <button class="btn primary wide stage-btn" id="slStage"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>${t('stage.playSet')}</button>
+    <button class="btn small ghost wide" id="slPlay">${t('sl.play')}</button>
     <p class="hint small">${t('sl.dragHint')}</p>
     <ol class="sl-list" id="slList"></ol>
   </section>`;
   const $ = (q) => root.querySelector('#' + q);
   const save = () => updateSetlist(id, { songIds: ids });
 
+  const resumeAt = () => { try { return Number(localStorage.getItem(`gitara-set-pos-${id}`)) || 0; } catch { return 0; } };
   const draw = () => {
     $('slPlay').disabled = !ids.length;
     $('slStage').disabled = !ids.length;
@@ -187,7 +189,41 @@ export async function renderSetlist(root, id) {
     await save();
   });
   $('slPlay').addEventListener('click', () => { if (ids.length) location.hash = `#/pesma/${encodeURIComponent(ids[0])}?sl=${encodeURIComponent(id)}&i=0`; });
-  $('slStage').addEventListener('click', async () => { if (ids.length) (await import('./stage.js')).enterStage(id, 0); });
+  // „Sviraj set“: kratko pitanje pre početka (pauza, skrolovanje, zvuk, od koje pesme) — pamti se uz set listu
+  $('slStage').addEventListener('click', async () => {
+    if (!ids.length) return;
+    const cur = (await getSetlist(id)) || sl;
+    const play = { pause: 5, scroll: true, sound: false, ...(cur.play || {}) };
+    const r = resumeAt(), canResume = r > 0 && r < ids.length;
+    let from = canResume ? r : 0;
+    const seg = (name, opts, val) => `<div class="seg-tabs pl-seg" role="radiogroup" data-name="${name}">${opts.map(([v, l]) => `<button type="button" role="radio" data-v="${v}" class="${String(v) === String(val) ? 'active' : ''}" aria-checked="${String(v) === String(val)}">${esc(l)}</button>`).join('')}</div>`;
+    const p = dialog({
+      title: t('stage.sheetTitle'), html: true, className: 'play-sheet',
+      body: `<p class="pl-q">${t('stage.pauseQ')}</p>${seg('pause', [[0, t('stage.pauseNone')], [5, t('stage.secs', { n: 5 })], [10, t('stage.secs', { n: 10 })], [20, t('stage.secs', { n: 20 })], [-1, t('stage.pauseWait')]], play.pause)}
+        <p class="pl-q">${t('stage.scrollQ')}</p>${seg('scroll', [[1, t('stage.scrollAuto')], [0, t('stage.scrollHand')]], play.scroll ? 1 : 0)}
+        <p class="pl-q">${t('stage.soundQ')}</p>${seg('sound', [[0, t('stage.off')], [1, t('stage.on')]], play.sound ? 1 : 0)}
+        ${canResume ? `<p class="pl-q">${t('stage.startQ')}</p>${seg('from', [[0, t('stage.fromStart')], [r, t('stage.resume', { n: r + 1 })]], from)}` : ''}
+        <p class="small muted">${t('stage.sheetHint')}</p>`,
+      buttons: [{ label: t('common.cancel'), value: null }, { label: t('stage.go'), value: 'go', kind: 'primary' }],
+    });
+    const modal = [...document.querySelectorAll('.modal-backdrop')].pop();
+    modal.addEventListener('click', (e) => {
+      const b = e.target.closest('.pl-seg [data-v]');
+      if (!b) return;
+      const g = b.parentElement, v = Number(b.dataset.v);
+      g.querySelectorAll('[data-v]').forEach((x) => { x.classList.toggle('active', x === b); x.setAttribute('aria-checked', String(x === b)); });
+      if (g.dataset.name === 'pause') play.pause = v; else if (g.dataset.name === 'scroll') play.scroll = !!v; else if (g.dataset.name === 'sound') play.sound = !!v; else from = v;
+    });
+    if ((await p) !== 'go') return;
+    await updateSetlist(id, { play: { pause: play.pause, scroll: play.scroll, sound: play.sound } });
+    (await import('./stage.js')).enterStage(id, Math.min(from, ids.length - 1));
+  });
+  // Podeli celu set listu (sve pesme, pun sadržaj) — link ili .gitara fajl kroz meni telefona
+  $('slShare').addEventListener('click', async () => {
+    if (!ids.length) { toast(t('sl.noSongs'), 'error'); return; }
+    const b = $('slShare'); b.disabled = true;
+    try { await (await import('./setShare.js')).shareSetlist({ ...sl, songIds: ids }); } catch { toast(t('share.failed'), 'error'); } finally { b.disabled = false; }
+  });
   $('slRename').addEventListener('click', async () => {
     const n = await askName(t('folder.rename'), sl.name);
     if (!n) return;

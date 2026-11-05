@@ -16,7 +16,7 @@ const loadChordRec = lazy(() => import('./chordrec.js'));
 const loadStage = lazy(() => import('./stage.js'));
 const loadChordCheck = lazy(() => import('./chordCheck.js'));
 const loadPractice = lazy(() => import('./practice.js')); // Vežbe: učitava se tek kad se otvori
-const hasSharedSong = () => location.hash.startsWith('#pesma='); // isto kao u sharelink.js
+const hasSharedSong = () => location.hash.startsWith('#pesma=') || location.hash.startsWith('#g='); // poslata pesma / set lista (sharelink.js, shareCode.js)
 
 const app = document.getElementById('app');
 const views = {};

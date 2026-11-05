@@ -66,7 +66,7 @@ async function saveSetlists(list) { await settings.set('setlists', list); }
 
 export async function addSetlist(name) {
   const list = await getSetlists();
-  const sl = { id: uid(), name: clean(name), songIds: [] };
+  const sl = { v: 1, id: uid(), name: clean(name), songIds: [], updatedAt: Date.now() };
   if (!sl.name) return null;
   list.push(sl);
   await saveSetlists(list);
@@ -77,7 +77,7 @@ export async function updateSetlist(id, patch) {
   const list = await getSetlists();
   const i = list.findIndex((x) => x.id === id);
   if (i < 0) return null;
-  list[i] = { ...list[i], ...patch, name: patch.name !== undefined ? clean(patch.name) || list[i].name : list[i].name };
+  list[i] = { ...list[i], ...patch, v: 1, updatedAt: Date.now(), name: patch.name !== undefined ? clean(patch.name) || list[i].name : list[i].name };
   await saveSetlists(list);
   return list[i];
 }
@@ -95,13 +95,22 @@ export function cleanSetlists(raw) {
     id: x.id.slice(0, 80),
     name: clean(x.name),
     songIds: (Array.isArray(x.songIds) ? x.songIds : []).filter((s) => typeof s === 'string').slice(0, 500),
+    v: 1, ...(Number(x.updatedAt) > 0 ? { updatedAt: Number(x.updatedAt) } : {}),
+    ...(cleanPlay(x.play) ? { play: cleanPlay(x.play) } : {}),
   }));
+}
+/** Izbor za „Sviraj set“ (pauza u sekundama, -1 = čekaj mene; skrolovanje; zvuk) — pamti se uz set listu. */
+export function cleanPlay(p) {
+  if (!p || typeof p !== 'object') return null;
+  const pause = [-1, 0, 5, 10, 20].includes(Number(p.pause)) ? Number(p.pause) : 5;
+  return { pause, scroll: !!p.scroll, sound: !!p.sound };
 }
 export const cleanSongFolders = (raw) => (Array.isArray(raw) ? raw.filter((x) => typeof x === 'string').slice(0, 50).map((x) => x.slice(0, 80)) : []);
 
 /** Spajanje po id-ju (za „Spoji“ pri vraćanju iz rezervne kopije). */
 export function mergeById(local, incoming) {
   const map = new Map(local.map((x) => [x.id, x]));
-  for (const x of incoming) if (!map.has(x.id)) map.set(x.id, x);
+  // isti ID: ostaje novija verzija (set liste imaju updatedAt); bez vremena ostaje lokalna, kao i pre
+  for (const x of incoming) { const cur = map.get(x.id); if (!cur || (x.updatedAt && cur.updatedAt && x.updatedAt > cur.updatedAt)) map.set(x.id, x); }
   return [...map.values()];
 }

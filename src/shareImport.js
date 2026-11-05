@@ -12,7 +12,7 @@ const KEEP_ON_REPLACE = ['id', 'createdAt', 'folders', 'seen', 'zoom', 'easyCapo
 
 /** Uvoz paketa; ask(existing, song) → 'replace' | 'new' | 'skip' (+ all). Vraća { setId, ids, added, replaced, skipped }. */
 export async function importPackage(pkg, ask) {
-  const all = await db.all();
+  const all = await db.all(); // samo pesme koje su postojale pre uvoza (pesme iz istog paketa se ne porede međusobno)
   const ids = [];
   let added = 0, replaced = 0, skipped = 0, always = null;
   for (const s0 of pkg.songs) {
@@ -34,7 +34,6 @@ export async function importPackage(pkg, ask) {
       continue;
     }
     const rec = await db.save(song); // nov, stabilan ID
-    all.push(rec);
     ids.push(rec.id); added++;
   }
   let setId = null;

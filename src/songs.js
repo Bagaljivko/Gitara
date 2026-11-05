@@ -230,12 +230,19 @@ async function backupNudge(box, count) {
 
 // ---------------- Uvoz / deljenje ----------------
 async function importSongFile() {
-  const file = await pickFile('.json,application/json,text/plain');
+  const file = await pickFile('.gitara,.json,application/json,text/plain,application/octet-stream');
   if (!file) return false;
   if (file.size > 2 * 1024 * 1024) { await dialog({ title: t('import.invalidTitle'), body: t('import.tooBig') }); return false; }
+  const text = await file.text();
+  // poslata set lista / pesma (.gitara): isti uvoz kao iz linka
+  if (/"app"\s*:\s*"gitara"[^]*"share"/.test(text.slice(0, 200))) {
+    location.hash = '#/primljena';
+    sessionStorage.setItem('gitara-import', text);
+    return false;
+  }
   let song;
   try {
-    song = parseSharedFile(await file.text());
+    song = parseSharedFile(text);
   } catch (e) {
     await dialog({ title: t('import.invalidTitle'), body: e instanceof SongFormatError ? e.message : t('import.cantRead') });
     return false;
@@ -261,25 +268,18 @@ async function importSongFile() {
 
 /** „Podeli pesmu“: link sa celom pesmom (kompresovano u adresi) preko sistemskog menija za deljenje. */
 async function shareSong(song) {
-  const { songLink } = await import('./sharelink.js'); // učitava se tek pri deljenju
-  const url = songLink(song);
-  const text = song.artist ? t('link.shareTextArtist', { title: song.title, artist: song.artist }) : t('link.shareText', { title: song.title });
-  if (navigator.share) {
-    try { await navigator.share({ title: song.title, text, url }); return; }
-    catch (e) { if (e && e.name === 'AbortError') return; /* u suprotnom: kopiraj link */ }
-  }
-  try {
-    await navigator.clipboard.writeText(url);
-    toast(t('link.copied'));
-  } catch {
-    // Poslednja mogućnost: prikaži link da ga korisnik ručno kopira
-    await dialog({ title: t('link.copyTitle'), html: true, body: `<textarea class="link-box" readonly rows="4">${esc(url)}</textarea>` });
-  }
+  // isti način kao za set listu: link (ili .gitara fajl kad je predugačko) kroz meni telefona za deljenje
+  const { shareSongs } = await import('./setShare.js');
+  await shareSongs([song]);
 }
 
 // ---------------- Pesma iz linka (#pesma=...) ----------------
 export async function renderSharedSong(root) {
   setWakeZone('song');
+  // novi zapis (#g=…): pesma ili cela set lista — „Uvezi …“ jednim dodirom
+  if (location.hash.startsWith('#g=')) return (await import('./shareImport.js')).renderSharedPackage(root, location.hash);
+  const fileText = sessionStorage.getItem('gitara-import'); // .gitara fajl iz „Uvezi“
+  if (fileText) { sessionStorage.removeItem('gitara-import'); return (await import('./shareImport.js')).renderSharedPackage(root, fileText); }
   let song;
   const { songFromHash } = await import('./sharelink.js');
   try { song = songFromHash(); } catch (e) {
