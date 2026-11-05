@@ -262,6 +262,19 @@ idle(() => import('./songSync.js').then((m) => m.cleanupDuplicates({ settings })
 }).catch(() => {}));
 // Google Drive (~25 KB) se učitava samo ako je rezervna kopija uključena; inače tek kad se otvore Podešavanja
 idle(() => settings.get('drive', null).then((d) => { if (d && d.connected) return import('./drive.js').then((m) => m.initDrive()); }).catch(() => {}));
+// Već podeljene pesme / set liste: posle izmene isti link tiho dobija novi sadržaj (sledeće „Podeli“ je trenutno)
+{
+  let shareT = 0;
+  const sharedSomething = () => { try { return Number(localStorage.getItem('gitara-shares')) > 0; } catch { return false; } };
+  const onEdit = (e) => {
+    if (e.type === 'settings-changed' && e.detail !== 'setlists') return;
+    if (!sharedSomething()) return;
+    clearTimeout(shareT);
+    shareT = setTimeout(() => import('./shareService.js').then((m) => m.refreshShared()).catch(() => {}), 20000);
+  };
+  dbEvents.addEventListener('songs-changed', onEdit);
+  dbEvents.addEventListener('settings-changed', onEdit);
+}
 // Deljenje: fajlovi u „Gitara – deljeno“ bez zapisa (prekinuto deljenje) se tiho brišu — samo ako je nešto deljeno
 idle(() => settings.get('shareFolder', '').then((f) => f && import('./shareService.js').then((m) => m.cleanupOrphans())).catch(() => {}));
 // Sinhronizacija između uređaja: tek posle prvog ekrana (nikad ne usporava pokretanje), samo ako je uključena

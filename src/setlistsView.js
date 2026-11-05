@@ -134,6 +134,7 @@ export async function renderSetlist(root, id) {
   </section>`;
   const $ = (q) => root.querySelector('#' + q);
   const save = () => updateSetlist(id, { songIds: ids });
+  try { if (localStorage.getItem('gitara-shares')) import('./shareService.js').then((m) => m.prewarmShare()).catch(() => {}); } catch {} // „Podeli“ ne čeka Google
 
   const resumeAt = () => { try { return Number(localStorage.getItem(`gitara-set-pos-${id}`)) || 0; } catch { return 0; } };
   const draw = () => {

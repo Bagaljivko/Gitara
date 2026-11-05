@@ -657,6 +657,7 @@ export async function renderSong(root, id, nav = null) {
   markOpened(stored.id); // za sortiranje „Nedavno otvorene“ (pamti se samo na uređaju, ne pokreće rezervnu kopiju)
   // TAB pesma (prebiranje): poseban ekran (tablatura), učitava se tek sada
   showVersionNote(root, id);
+  if (localStorageGet('gitara-shares')) import('./shareService.js').then((m) => m.prewarmShare()).catch(() => {}); // „Podeli“ ne čeka Google
   if (stored.type === 'tab') return (await import('./tabView.js')).renderTabSong(root, stored, nav, { ytRowHTML, shareSong, driveConnected });
   let tp = stored.transpose || 0;
   let capo = stored.capo || 0;

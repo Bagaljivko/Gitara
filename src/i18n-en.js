@@ -592,6 +592,7 @@ export default {
   'shared.stop': "Stop sharing",
   'shared.stopTitle': "Stop sharing?",
   'shared.stopBody': "The link for “{name}” stops working and the file is deleted from your Google Drive.",
+  'shared.missingItem': "This song or set list no longer exists.",
   'shared.stopped': "The link no longer works.",
   'share.btn': 'Share',
   'share.fileSaved': 'File saved to Downloads — send it as an attachment.',

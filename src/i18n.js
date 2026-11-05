@@ -628,6 +628,7 @@ const sr = {
   'shared.stop': "Prestani da deliš",
   'shared.stopTitle': "Prestati da deliš?",
   'shared.stopBody': "Link za „{name}“ prestaje da radi i fajl se briše sa tvog Google Drive-a.",
+  'shared.missingItem': "Ova pesma ili set lista više ne postoji.",
   'shared.stopped': "Link više ne radi.",
   'share.btn': 'Podeli',
   'share.fileSaved': 'Fajl je sačuvan u Preuzimanja — pošalji ga kao prilog.',

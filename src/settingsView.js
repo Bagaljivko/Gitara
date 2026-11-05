@@ -497,7 +497,17 @@ export async function renderSettings(root) {
         try { await stopSharing(r.fileId); toast(t('shared.stopped')); drawShared(); }
         catch (e) { stop.disabled = false; toast((e && e.message) || t('common.error'), 'error'); }
       });
-      acts.append(copy, stop);
+      // „Novi link“: zasebna kopija koja se ne menja sa originalom (ranije u listu posle deljenja — sada ovde, retko treba)
+      const fresh = document.createElement('button'); fresh.className = 'btn small'; fresh.textContent = t('share.newLink');
+      fresh.hidden = !!r.frozen;
+      fresh.addEventListener('click', async () => {
+        const ss = await import('./shareService.js');
+        const item = await ss.itemFromKey(r.key);
+        if (!item) { toast(t('shared.missingItem'), 'error'); return; }
+        await ss.shareItem(item, { fresh: true });
+        drawShared();
+      });
+      acts.append(copy, fresh, stop);
       li.append(info, acts);
       box.appendChild(li);
     }

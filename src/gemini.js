@@ -522,12 +522,6 @@ async function askTab(apiKey, img, text, signal, onStatus, diag) {
   } catch { return null; } // odgovor prekinut (predugačak) — dočitava se po delovima
 }
 
-/**
- * TAB list → sirov JSON taktova (pesmu pravi tabSong.fromScan). Strana po strana: Gemini prvo prebroji taktove na strani,
- * pa ih prepiše; taktovi koji fale (prekinut ili „lenj“ odgovor) se traže ponovo po 8, do 3 puta. Ono što ni tada nije
- * pročitano ostaje prazan takt označen za proveru — ništa se ne izmišlja i ništa ne nestaje bez traga.
- * onStatus(kind, …): 'page' (i, n), 'bars' (a, b), ostalo kao generate().
- */
 // Kompozitor sa lista — nikad izdavač, sajt ni aranžer (ako ga nema, ostaje prazno).
 const NOT_COMPOSER = /(\barr\.|\barrang|\btranscri|\bedited\b|\bedit(ion|ed by)\b|\bpublish|\bmusic\s*(ltd|inc|co\b|publishing)|\bmusic$|\bsheet\s*music\b|\bfree\b|©|\(c\)|copyright|www\.|https?:|\.(com|net|org|de|fr|it|ru|es|rs)\b|\btabs?\b|\btablature\b|\bpage\b|\bstrana\b)/i;
 export function cleanComposer(raw, j = {}) {
@@ -540,40 +534,86 @@ export function cleanComposer(raw, j = {}) {
   return c;
 }
 
+const TAB_HEAD = `
+
+U OVOM KORAKU NE PREPISUJ NOTE: "bars" je prazan niz []. Vrati samo naslov, kompozitora, aranžera, izdavača, tonalitet, takt, tempo, "firstBar" i "pageBars".`;
+const TAB_CHUNK = 4;   // taktova po zahtevu (jedan red lista) — kratak odgovor, stigne za ~15–30 s
+const TAB_PAR = 2;     // istovremenih zahteva (besplatni Gemini nalozi imaju malo zahteva u minutu)
+const SLOW = ['TIMEOUT', 'BUSY', 'HTTP_500', 'HTTP_502', 'HTTP_503', 'HTTP_504'];
+
+/**
+ * TAB list → sirov JSON taktova (pesmu pravi tabSong.fromScan). Strana po strana: prvo kratko pitanje (naslov,
+ * kompozitor, takt, koliko taktova ima strana), pa taktovi po 4 (dva zahteva istovremeno). Ceo list u jednom
+ * odgovoru je predugačak (Gemini piše više od 2 minuta i sve se gubi); kratki delovi stižu brzo, a spor deo se
+ * deli na pola. Što ni tada nije pročitano ostaje prazan takt označen za proveru — ništa se ne izmišlja.
+ * onStatus(kind, …): 'page' (i, n), 'range' (a, b, i, n), ostalo kao generate().
+ */
 export async function scanTab(images, signal, onStatus, diag) {
   const list = Array.isArray(images) ? images : [images];
   const apiKey = await getApiKey();
   const out = { title: '', composer: '', key: '', sig: '', bpm: 0, bars: [], unsure: [] };
-  let next = 1, model = '';
+  let next = 1, model = '', anyAnswer = false;
+  const meta = (j) => {
+    if (!j) return;
+    anyAnswer = true;
+    model = j.scanModel || model;
+    if (!out.composer) out.composer = cleanComposer(j.composer, j);
+    for (const k of ['title', 'key', 'sig']) if (!out[k] && typeof j[k] === 'string' && j[k].trim()) out[k] = j[k].trim();
+    if (!out.bpm && Number(j.bpm) > 0) out.bpm = Number(j.bpm);
+    for (const u of Array.isArray(j.unsure) ? j.unsure : []) out.unsure.push(u);
+  };
+  // jedan zahtev; spor / zauzet → null (deo se deli ili označava), ostale greške (ključ, mreža, otkazano) prekidaju
+  const ask = async (img, text) => {
+    try { return await askTab(apiKey, img, text, signal, onStatus, diag); }
+    catch (e) { if (e instanceof GeminiError && SLOW.includes(e.code)) return null; throw e; }
+  };
   for (let pi = 0; pi < list.length; pi++) {
-    onStatus?.('page', pi + 1, list.length);
-    const pageText = TAB_PROMPT + TAB_PAGE(pi + 1, list.length, next);
-    const j = await askTab(apiKey, list[pi], pageText, signal, onStatus, diag);
-    if (j) {
-      model = j.scanModel || model;
-      if (!out.composer) out.composer = cleanComposer(j.composer, j);
-      for (const k of ['title', 'key', 'sig']) if (!out[k] && typeof j[k] === 'string' && j[k].trim()) out[k] = j[k].trim();
-      if (!out.bpm && Number(j.bpm) > 0) out.bpm = Number(j.bpm);
-      for (const u of Array.isArray(j.unsure) ? j.unsure : []) out.unsure.push(u);
-    }
-    const first = j && Number.isInteger(j.firstBar) && j.firstBar > 0 ? j.firstBar : next;
+    const img = list[pi], N = list.length;
+    onStatus?.('page', pi + 1, N);
+    const head = await ask(img, TAB_PROMPT + TAB_PAGE(pi + 1, N, next) + TAB_HEAD);
+    meta(head);
+    const first = head && Number.isInteger(head.firstBar) && head.firstBar > 0 ? head.firstBar : next;
+    const counted = head && Number.isInteger(head.pageBars) && head.pageBars > 0 && head.pageBars <= 80 ? head.pageBars : 0;
     const have = new Map();
-    const take = (bars) => { let k = first; for (const b of bars || []) { const n = Number.isInteger(b.n) && b.n > 0 ? b.n : k; k = n + 1; if (Array.isArray(b.notes) && b.notes.length && (!have.has(n) || b.notes.length > have.get(n).notes.length)) have.set(n, { ...b, n }); } };
-    take(j && j.bars);
-    const counted = j && Number.isInteger(j.pageBars) && j.pageBars > 0 && j.pageBars <= 80 ? j.pageBars : 0;
-    const last = counted ? first + counted - 1 : Math.max(first - 1, ...have.keys());
-    const missing = () => { const m = []; for (let n = first; n <= last; n++) if (!have.has(n)) m.push(n); return m; };
-    for (let tries = 0; tries < 3 && missing().length; tries++) {
-      const chunk = missing().slice(0, 8), a = chunk[0], b = chunk[chunk.length - 1];
-      onStatus?.('bars', a, b);
-      const jj = await askTab(apiKey, list[pi], TAB_PROMPT + TAB_PAGE(pi + 1, list.length, first) + TAB_RANGE(a, b), signal, onStatus, diag);
-      if (jj) { model = jj.scanModel || model; take((jj.bars || []).filter((x) => !Number.isInteger(x.n) || (x.n >= a && x.n <= b))); }
+    const take = (bars, a, b) => {
+      let k = a;
+      for (const x of bars || []) {
+        const n = Number.isInteger(x.n) && x.n > 0 ? x.n : k; k = n + 1;
+        if (n < a || n > b) continue;
+        if (Array.isArray(x.notes) && x.notes.length && (!have.has(n) || x.notes.length > have.get(n).notes.length)) have.set(n, { ...x, n });
+      }
+    };
+    if (head) take(head.bars, first, first + (counted || 80) - 1); // ako je ipak prepisao neke taktove, zadrži ih
+    const readRange = async (a, b, depth = 0) => {
+      const need = []; for (let n = a; n <= b; n++) if (!have.has(n)) need.push(n);
+      if (!need.length) return 0;
+      a = need[0]; b = need[need.length - 1];
+      onStatus?.('range', a, b, pi + 1, N);
+      const jj = await ask(img, TAB_PROMPT + TAB_PAGE(pi + 1, N, first) + TAB_RANGE(a, b));
+      if (jj) { meta(jj); take(jj.bars, a, b); }
+      const got = jj ? (jj.bars || []).length : 0;
+      // spor ili nepotpun odgovor: dva manja dela (do pojedinačnog takta)
+      const left = []; for (let n = a; n <= b; n++) if (!have.has(n)) left.push(n);
+      if (left.length && depth < 2 && b > a) { const mid = Math.floor((a + b) / 2); await readRange(a, mid, depth + 1); await readRange(mid + 1, b, depth + 1); }
+      return got;
+    };
+    let last;
+    if (counted) {
+      last = first + counted - 1;
+      const ranges = []; for (let a = first; a <= last; a += TAB_CHUNK) ranges.push([a, Math.min(last, a + TAB_CHUNK - 1)]);
+      let ri = 0;
+      await Promise.all(Array.from({ length: Math.min(TAB_PAR, ranges.length) }, async () => { while (ri < ranges.length) { const [a, b] = ranges[ri++]; await readRange(a, b); } }));
+    } else {
+      // broj taktova nije poznat: deo po deo dok ima taktova (najviše 60 na strani)
+      let a = first;
+      for (; a < first + 60; a += TAB_CHUNK) { const got = await readRange(a, a + TAB_CHUNK - 1); if (!got && ![...have.keys()].some((n) => n >= a)) break; }
+      last = Math.max(first - 1, ...have.keys());
     }
-    for (const n of missing()) { have.set(n, { n, notes: [] }); out.unsure.push({ bar: n, why: t('tab.notRead') }); }
+    for (let n = first; n <= last; n++) if (!have.has(n)) { have.set(n, { n, notes: [] }); out.unsure.push({ bar: n, why: t('tab.notRead') }); }
     out.bars.push(...[...have.values()].sort((x, y) => x.n - y.n));
-    next = Math.max(next, last + 1, ...[...have.keys()].map((n) => n + 1));
+    next = Math.max(next, last + 1);
   }
-  if (!out.bars.some((b) => b.notes.length)) throw new GeminiError(t('gem.noTab'));
+  if (!out.bars.some((b) => b.notes.length)) throw new GeminiError(anyAnswer ? t('gem.noTab') : t('gem.timeout'), anyAnswer ? {} : { code: 'TIMEOUT' });
   out.sig = out.sig || '4/4';
   out.scanModel = model;
   return out;
