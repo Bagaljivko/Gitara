@@ -137,7 +137,11 @@ export function progressionSummary(song) {
       if (seq[seq.length - 1] !== c.chord) seq.push(c.chord);
     }
     return { name: s.name, chords: compressRepeats(seq) };
-  }).filter((x) => x.chords.length);
+  }).filter((x) => x.chords.length).filter((x, i, all) => {
+    // isti deo sa istim akordima (refren tri puta) — samo jednom
+    const k = (y) => `${(y.name || '').trim().toLowerCase().replace(/\s*\d+$/, '')}|${y.chords.join(' ')}`;
+    return all.findIndex((y) => k(y) === k(x)) === i;
+  });
 }
 
 function compressRepeats(seq) {

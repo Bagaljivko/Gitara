@@ -68,6 +68,14 @@ const sr = {
 
   // Biblioteka
   'lib.title': 'Pesme',
+  'lib.scanShort': 'Skeniraj',
+  'lib.importShort': 'Uvezi',
+  'lib.newShort': 'Nova',
+  'lib.songMenu': 'Opcije za „{title}“',
+  'lib.folders': 'Dodaj u folder',
+  'lib.foldersN': 'Folderi ({n})',
+  'nudge.short': 'Pesme su samo na ovom telefonu.',
+  'nudge.shortIos': 'Pesme su samo na ovom telefonu (Safari može da ih obriše).',
   'lib.scan': 'Skeniraj pesmu',
   'lib.import': 'Uvezi pesmu',
   'lib.new': 'Nova pesma',

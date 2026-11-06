@@ -165,7 +165,9 @@ body.tuner-screen .nav { background: rgba(0, 0, 0, .97); }
 .chroma { display: grid; grid-template-columns: repeat(12, 1fr); gap: 4px; height: 90px; margin: 4px 0 14px; }
 .chroma-col { display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .chroma-bar { flex: 1; width: 100%; background: var(--accent); border-radius: 4px 4px 2px 2px; transform-origin: bottom; transform: scaleY(0); transition: transform .1s; opacity: .85; }
-.chroma-col span { font-size: .62rem; color: var(--muted); }
+.chroma-col span { font-size: .74rem; font-weight: 600; color: var(--muted); }
+/* tiha osnovna linija: prazan merač izgleda namerno, ne kao rupa */
+.chroma-col { background: linear-gradient(var(--line), var(--line)) center calc(100% - 1.15rem) / 100% 3px no-repeat; }
 
 /* Dijagram akorda */
 .chord-svg { display: block; width: 100%; height: auto; }
@@ -181,10 +183,18 @@ body.tuner-screen .nav { background: rgba(0, 0, 0, .97); }
 .cd-finger { fill: var(--accent-ink); font: 700 8px var(--sans); }
 
 /* Biblioteka */
-.lib-actions { display: grid; gap: 10px; margin-bottom: 12px; }
-.lib-actions .btn.big svg { width: 22px; height: 22px; }
-.lib-tools { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-bottom: 8px; }
-.lib-tools select { width: auto; }
+/* Pesme: jedan red akcija (Skeniraj | Uvezi | Nova) — pesme se vide odmah, i na malom telefonu */
+.lib-actions { display: grid; grid-template-columns: 1.5fr 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+.lib-actions .btn { min-height: 46px; padding: 0 8px; white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.lib-actions .btn svg { width: 20px; height: 20px; fill: currentColor; flex: none; }
+.lib-tools { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; margin-bottom: 8px; }
+.lib-tools select { width: auto; max-width: 44vw; }
+.lib-tools input[type=search] { min-width: 0; }
+.more-btn { color: var(--muted); }
+.nudge-bar { display: flex; align-items: center; gap: 8px; padding: 6px 4px 6px 12px; margin: 2px 0 8px; border: 1px solid var(--accent); border-radius: 12px; background: var(--accent-soft); }
+.nudge-txt { flex: 1; min-width: 0; font-size: .86rem; line-height: 1.25; }
+.nudge-bar .btn { white-space: nowrap; flex: none; }
+.nudge-bar .icon-btn { flex: none; color: var(--muted); }
 .song-list { list-style: none; margin: 0; padding: 0; }
 .song-item { display: flex; align-items: center; border-bottom: 1px solid var(--line); }
 .song-link { flex: 1; display: flex; flex-direction: column; padding: 14px 4px; text-decoration: none; color: var(--text); min-height: 64px; justify-content: center; }
@@ -457,7 +467,7 @@ mark.unsure { cursor: pointer; }
   #rhPane > .sub-h { margin-top: 12px; }
 
   /* Pesme: dugmad u redu, lista u dve kolone */
-  .lib-actions { grid-template-columns: 1fr 1fr; }
+  .lib-actions { grid-template-columns: 1.5fr 1fr 1fr; }
   .lib-actions .row { align-items: stretch; }
   .song-list { display: grid; grid-template-columns: 1fr 1fr; column-gap: 20px; }
   .song-list .empty { grid-column: 1 / -1; }
@@ -507,7 +517,7 @@ body.two-pane-mode main { max-width: 1320px; }
 .two-pane { display: grid; grid-template-columns: minmax(300px, 380px) minmax(0, 1fr); gap: 24px; align-items: start; }
 .two-pane > .pane-list { position: sticky; top: 0; max-height: 100dvh; overflow-y: auto; padding-bottom: 24px; scrollbar-width: thin; }
 .two-pane .song-list { display: block; }
-.two-pane .lib-actions { grid-template-columns: 1fr; }
+.two-pane .lib-actions { grid-template-columns: 1.5fr 1fr 1fr; }
 .two-pane .song-item.selected { background: var(--accent-soft); border-radius: 12px; }
 .two-pane .song-item.selected .song-title { color: var(--accent); }
 .two-pane > .pane-song { min-width: 0; }
@@ -869,6 +879,7 @@ mark.cc-unknown { background: rgba(255, 90, 90, .3); color: var(--text); border-
 /* Tuner — gornji deo: „Tuner“ i AUTO u istom redu; ispod ikonica podešavanja (levo) i napredak (desno) */
 .tuner-view .view-head.tuner-head { display: grid; grid-template-columns: 1fr auto; grid-template-rows: 36px 36px; row-gap: 4px; align-items: center; }
 .tuner-head h1 { grid-column: 1; grid-row: 1; margin: 0; line-height: 36px; }
+.tuner-view .view-head.tuner-head h1 { margin: 10px 0 0; } /* isti položaj kao naslovi ostalih ekrana */
 .tuner-head .auto-switch { grid-column: 2; grid-row: 1; justify-self: end; }
 .tuner-set { grid-column: 1; grid-row: 2; justify-self: start; margin-left: -8px; width: 44px; height: 44px; border-radius: 50%; color: var(--muted); }
 .tuner-set svg { width: 24px; height: 24px; }
@@ -1016,3 +1027,6 @@ body.stage-mode main { padding-left: max(16px, env(safe-area-inset-left)); paddi
 .shared-item b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .shared-item .row { gap: 8px; }
 .shared-item .row .btn { flex: 0 0 auto; }
+/* Pesma: delovi teksta ispod ekrana se ne raspoređuju i ne crtaju dok se ne priđe (brže otvaranje dugih pesama).
+   Visina se pamti posle prvog prikaza (auto), pa skrol i automatsko pomeranje ostaju ravnomerni. */
+.song-view .lyrics > .sec { content-visibility: auto; contain-intrinsic-size: auto 260px; }

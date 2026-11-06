@@ -69,14 +69,12 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
     <div id="lSlPane" ${tab === 'sl' ? '' : 'hidden'}></div>
     <div id="lSongsPane" ${tab === 'sl' ? 'hidden' : ''}>
     <div class="lib-actions">
-      <button class="btn primary big" id="lScan">
+      <button class="btn primary" id="lScan">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3 7.2 5H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3.2L15 3H9zm3 15a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-2a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/></svg>
-        ${t('lib.scan')}
+        ${t('lib.scanShort')}
       </button>
-      <div class="row">
-        <button class="btn" id="lImport">${t('lib.import')}</button>
-        <button class="btn" id="lNew">${t('lib.new')}</button>
-      </div>
+      <button class="btn" id="lImport" aria-label="${t('lib.import')}">${t('lib.importShort')}</button>
+      <button class="btn" id="lNew" aria-label="${t('lib.new')}">${t('lib.newShort')}</button>
     </div>
     <div class="lib-tools">
       <input type="search" id="lSearch" placeholder="${t('lib.search')}" aria-label="${t('lib.searchLabel')}">
@@ -163,11 +161,8 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
           <span class="song-title">${esc(s.title)}</span>
           <span class="song-sub">${esc(s.artist || t('lib.unknownArtist'))}${((k) => (k ? ` · <span class="key">${esc(dn(k))}</span>` : ''))(libKey(s))}${libBadges(s)}</span>
         </a>
-        <button class="icon-btn" data-fold="${esc(s.id)}" aria-label="${esc(t('folder.forSong', { title: s.title }))}">
-          <svg viewBox="0 0 24 24"><path d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8l-2-2z"/></svg>${(s.folders || []).length ? `<span class="fold-count">${s.folders.length}</span>` : ''}
-        </button>
-        <button class="icon-btn" data-del="${esc(s.id)}" aria-label="${esc(t('lib.deleteSong', { title: s.title }))}">
-          <svg viewBox="0 0 24 24"><path d="M9 3h6l1 2h4v2H4V5h4l1-2zm-3 6h12l-1 12H7L6 9zm4 2v8h2v-8h-2zm4 0v8h2v-8h-2z"/></svg>
+        <button class="icon-btn more-btn" data-more="${esc(s.id)}" aria-label="${esc(t('lib.songMenu', { title: s.title }))}">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm0 6a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm0 6a2 2 0 1 1 0-4 2 2 0 0 1 0 4z"/></svg>
         </button>
       </li>`).join('');
   };
@@ -177,17 +172,22 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
   $('lSearch').addEventListener('input', () => { cancelAnimationFrame(searchQ); searchQ = requestAnimationFrame(draw); });
   $('lSort').addEventListener('change', () => { localStorageSet('gitara-sort', $('lSort').value); draw(); });
   $('lList').addEventListener('click', async (e) => {
-    const fb = e.target.closest('[data-fold]');
-    if (fb) {
-      e.preventDefault();
-      const song = all.find((x) => x.id === fb.dataset.fold);
-      if (await editSongFolders(song)) { all = await db.list(); folders = await getFolders(); drawFolders(); draw(); }
+    // „⋯“ uz pesmu: folderi / brisanje (umesto dve ikonice u svakom redu — manje gužve, teže je obrisati slučajno)
+    const mb = e.target.closest('[data-more]');
+    if (!mb) return;
+    e.preventDefault();
+    const s = all.find((x) => x.id === mb.dataset.more);
+    if (!s) return;
+    const n = (s.folders || []).filter((f) => !isSystemFolder(f)).length;
+    const pick = await dialog({ title: s.title, body: s.artist || '', buttons: [
+      { label: n ? t('lib.foldersN', { n }) : t('lib.folders'), value: 'fold' },
+      { label: t('common.delete'), value: 'del', kind: 'danger' },
+    ] });
+    if (pick === 'fold') {
+      if (await editSongFolders(s)) { all = await db.list(); folders = await getFolders(); drawFolders(); draw(); }
       return;
     }
-    const b = e.target.closest('[data-del]');
-    if (!b) return;
-    e.preventDefault();
-    const s = all.find((x) => x.id === b.dataset.del);
+    if (pick !== 'del') return;
     if (!(await confirmDialog(t('lib.deleteTitle'), t('lib.deleteBody', { title: s.title }), t('common.delete'), 'danger'))) return;
     await db.remove(s.id);
     all = all.filter((x) => x.id !== s.id);
@@ -220,14 +220,12 @@ async function backupNudge(box, count) {
   const st = (await settings.get('backupNudge', null)) || {};
   if (st.snoozedAt && Date.now() - st.snoozedAt < NUDGE_SNOOZE) return;
   if (st.exportedAt && Date.now() - st.exportedAt < NUDGE_SNOOZE) return;
-  box.innerHTML = `<div class="card nudge" role="note">
-    <b>${t('nudge.title')}</b>
-    <p class="muted small">${t(isIOS() && !isStandalone() ? 'nudge.bodyIos' : 'nudge.body')}</p>
-    <div class="row">
-      <a class="btn small primary" href="#/podesavanja">${t('nudge.drive')}</a>
-      <button class="btn small" data-n="export">${t('nudge.export')}</button>
-      <button class="btn small ghost" data-n="later">${t('nudge.later')}</button>
-    </div></div>`;
+  // kratka traka (ne velika kartica iznad pesama): poruka, „Poveži Drive“, ✕ (= „Ne sada“); izvoz je u Podešavanjima
+  const ios = isIOS() && !isStandalone();
+  box.innerHTML = `<div class="nudge-bar" role="note">
+    <span class="nudge-txt">${t(ios ? 'nudge.shortIos' : 'nudge.short')}</span>
+    <a class="btn small primary" href="#/podesavanja">${t('nudge.drive')}</a>
+    <button class="icon-btn" data-n="later" aria-label="${t('nudge.later')}" title="${t('nudge.later')}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z"/></svg></button></div>`;
   box.addEventListener('click', async (e) => {
     const b = e.target.closest('[data-n]');
     if (!b) return;
@@ -851,7 +849,8 @@ export async function renderSong(root, id, nav = null) {
   // Tonalitet/kapodaster: samo kontrole, predlozi, detalji i akordi u tekstu
   const drawKeyChange = () => { closePlayer(); drawControls(); drawSuggest(); drawDetails(); drawLyrics(); };
   // „Detalji“: zatvoreni posle prvog pregleda pesme; pamti se poslednji izbor
-  const detInit = !stored.seen || localStorageGet('gitara-details') === '1';
+  // tekst pesme je prvi: „Detalji“ zatvoreni, osim ako ih je korisnik sam ostavio otvorene
+  const detInit = localStorageGet('gitara-details') === '1';
   $('sDet').open = detInit;
   let detAuto = detInit; // prvo otvaranje je automatsko — ne pamti ga kao izbor korisnika
   $('sDet').addEventListener('toggle', () => {
@@ -891,12 +890,7 @@ export async function renderSong(root, id, nav = null) {
         ${u.slice(0, 6).map((x, i) => `<div class="sug-item"><span class="sug-what"><span class="unsure-sample">${esc(x.text)}</span> → <b>${esc(x.suggestion)}</b></span>
           <button class="btn small" data-unc-skip="${i}">${t('sug.keep')}</button><button class="btn small primary" data-unc-apply="${i}">${esc(t('sug.changeTo', { x: x.suggestion }))}</button></div>`).join('')}` });
     }
-    if (!(stored.skipped && stored.skipped.easy) && !stored.easyCapo && !capo) {
-      const e = easiestCapo(stored, tp);
-      if (e) items.push({ x: 'easy-skip', html: `<div class="sug-title">${t('sug.easyTitle')}</div>
-        <p class="small">${esc(t('sug.easyText', { n: e.capo, shapes: e.shapes.map((x) => dn(x)).join(', ') }))}</p>
-        <div class="sug-actions"><button class="btn small primary" data-sug="easy-apply" data-capo="${e.capo}">${t('sug.apply')}</button></div>` });
-    }
+    // lakša verzija (kapodaster): samo dugme „Lakša verzija“ gore — kartica je bila dupliran predlog iznad teksta
     if (!stored.recording && !hasStrum() && !(stored.skipped && stored.skipped.strum)) { // snimci iz „Samo sviraj“: bez predloga ritma
       const ss = stored.suggestStrum && patternById(stored.suggestStrum.id);
       if (ss) items.push({ x: 'strum-skip', html: `<div class="sug-title">${t('sug.strumTitle')}: ${esc(patternName(ss))} <span class="small muted">${ss.sig}</span>
@@ -1307,9 +1301,7 @@ export async function renderSong(root, id, nav = null) {
     if (sg) {
       const a = sg.dataset.sug;
       stored.skipped = stored.skipped || {};
-      if (a === 'easy-apply') { stored.easyCapo = +sg.dataset.capo; return setCapo(stored.easyCapo); }
       if (a === 'unc-hide') { uncHidden = true; return drawSuggest(); }
-      if (a === 'easy-skip') { stored.skipped.easy = true; return save().then(drawSuggest); }
       if (a === 'strum-skip') { stopStrum(); stored.skipped.strum = true; return save().then(drawSuggest); }
       if (a === 'strum-apply') {
         stopStrum();
