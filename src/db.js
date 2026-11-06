@@ -80,7 +80,7 @@ export function notifyRemote(keys) {
 
 // ---- Sinhronizacija: svaka izmena u istoj transakciji označi stavku „čeka slanje“ (outbox) ----
 // Više izmena iste stavke pre slanja = jedna promena. Verzija (hibridni sat) je uvek veća od one koju zamenjuje.
-export const PREF_KEYS = ['a4', 'lang', 'metBpm', 'tunerRoom', 'tuning', 'wakeMode', 'wakeMinutes', 'noteNames', 'geminiModel', 'geminiModelSel', 'syncMigrated'];
+export const PREF_KEYS = ['a4', 'lang', 'metBpm', 'tunerRoom', 'tuning', 'wakeMode', 'wakeMinutes', 'noteNames', 'geminiModel', 'geminiModelSel', 'syncMigrated', 'myRhythms'];
 const LIST_KEYS = { setlists: 'set:', folders: 'folder:' }; // nizovi: svaka set lista / folder je posebna stavka
 const WHOLE_KEYS = ['practice', 'skale'];
 export function SYNC_SETTING_OF(k) {

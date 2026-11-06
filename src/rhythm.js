@@ -10,17 +10,50 @@ export const SIGNATURES = {
   '6/8': { beats: 6, slotsPerBeat: 1, accents: [0, 3] }, // doba = osmina, naglasak na 1 i 4
 };
 
-// Koraci: D = dole, U = gore, x = prigušeno, - = pauza. Jedan znak = jedna osmina.
+// Koraci: D = dole, U = gore, x = prigušeno, B = samo bas (palac, najdublja žica akorda), - = pauza.
+// Jedan znak = jedna osmina (u 6/8 osmina = doba); 16 znakova u 4/4 = šesnaestine. swing: osmine „na i“ kasne (šafl).
 export const PATTERNS = [
-  { id: 'folk', sig: '4/4', steps: 'D-DU-UDU' },
-  { id: 'downs', sig: '4/4', steps: 'D-D-D-D-' },
-  { id: 'eighths', sig: '4/4', steps: 'DUDUDUDU' },
-  { id: 'rock', sig: '4/4', steps: 'D-DUxUDU' },
-  { id: 'reggae', sig: '4/4', steps: '-U-U-U-U' },
-  { id: 'waltz', sig: '3/4', steps: 'D-DUDU' },
-  { id: 'ballad68', sig: '6/8', steps: 'D-UD-U' },
-  { id: 'march', sig: '2/4', steps: 'D-DU' },
+  // 4/4 — osnovni
+  { id: 'folk', sig: '4/4', steps: 'D-DU-UDU', lv: 2, g: 'pop' },
+  { id: 'downs', sig: '4/4', steps: 'D-D-D-D-', lv: 1, g: 'basic' },
+  { id: 'eighths', sig: '4/4', steps: 'DUDUDUDU', lv: 1, g: 'basic' },
+  { id: 'slowpop', sig: '4/4', steps: 'D-D-D-DU', lv: 1, g: 'pop' },
+  { id: 'ballad44', sig: '4/4', steps: 'D---D-DU', lv: 1, g: 'ballad' },
+  { id: 'pop', sig: '4/4', steps: 'D-DUD-DU', lv: 2, g: 'pop' },
+  { id: 'popsync', sig: '4/4', steps: 'D-DU-U-U', lv: 2, g: 'pop' },
+  { id: 'rock', sig: '4/4', steps: 'D-DUxUDU', lv: 3, g: 'rock' },
+  { id: 'punk', sig: '4/4', steps: 'DDDDDDDD', lv: 2, g: 'rock' },
+  { id: 'chuck', sig: '4/4', steps: 'D-xUD-xU', lv: 3, g: 'rock' },
+  { id: 'rumba', sig: '4/4', steps: 'D-DUx-DU', lv: 3, g: 'latin' },
+  { id: 'reggae', sig: '4/4', steps: '-U-U-U-U', lv: 2, g: 'reggae' },
+  { id: 'boomchick', sig: '4/4', steps: 'B-D-B-D-', lv: 2, g: 'country' },
+  { id: 'boomchick2', sig: '4/4', steps: 'B-DUB-DU', lv: 3, g: 'country' },
+  // 4/4 — šafl (swing)
+  { id: 'shuffle', sig: '4/4', steps: 'DUDUDUDU', swing: true, lv: 2, g: 'blues' },
+  { id: 'swingballad', sig: '4/4', steps: 'D-DUD-DU', swing: true, lv: 2, g: 'blues' },
+  // 4/4 — šesnaestine
+  { id: 'pop16', sig: '4/4', steps: 'D-DUx-DU-UDUx-DU', lv: 3, g: 'pop' },
+  { id: 'funk16', sig: '4/4', steps: 'DUxUDUDUDUxUDUDU', lv: 3, g: 'funk' },
+  { id: 'bossa', sig: '4/4', steps: 'B--DB-D-B--DB-D-', lv: 3, g: 'latin' },
+  // 3/4
+  { id: 'waltz', sig: '3/4', steps: 'D-DUDU', lv: 2, g: 'waltz' },
+  { id: 'slowwaltz', sig: '3/4', steps: 'D-D-D-', lv: 1, g: 'waltz' },
+  { id: 'waltzbass', sig: '3/4', steps: 'B-D-D-', lv: 2, g: 'waltz' },
+  // 6/8
+  { id: 'ballad68', sig: '6/8', steps: 'D-UD-U', lv: 2, g: 'ballad' },
+  { id: 'sixdown', sig: '6/8', steps: 'DDDDDD', lv: 1, g: 'ballad' },
+  { id: 'sixddu', sig: '6/8', steps: 'DDUDDU', lv: 2, g: 'ballad' },
+  // 2/4
+  { id: 'march', sig: '2/4', steps: 'D-DU', lv: 1, g: 'basic' },
+  { id: 'polka', sig: '2/4', steps: 'B-DU', lv: 2, g: 'country' },
 ];
+
+/** Koliko mesta ima jedno doba ovog obrasca (2 = osmine, 4 = šesnaestine, 1 = 6/8). */
+export function slotsPerBeatOf(p) {
+  const sp = SIGNATURES[p && p.sig] || SIGNATURES['4/4'];
+  const n = p && p.steps ? p.steps.length / sp.beats : sp.slotsPerBeat;
+  return Number.isInteger(n) && n >= 1 ? n : sp.slotsPerBeat;
+}
 
 export const patternName = (p) => (p.id && t('pat.' + p.id) !== 'pat.' + p.id ? t('pat.' + p.id) : p.name || t('pat.custom'));
 
@@ -28,9 +61,10 @@ export const patternName = (p) => (p.id && t('pat.' + p.id) !== 'pat.' + p.id ? 
 export function cleanPattern(p) {
   if (!p || typeof p !== 'object') return null;
   const sig = SIGNATURES[p.sig] ? p.sig : '4/4';
-  const steps = String(p.steps || '').toUpperCase().replace(/X/g, 'x').replace(/[^DUx-]/g, '');
-  if (steps.length < 2 || steps.length > 16 || !/[DUx]/.test(steps)) return null;
+  const steps = String(p.steps || '').toUpperCase().replace(/X/g, 'x').replace(/[^DUxB-]/g, '');
+  if (steps.length < 2 || steps.length > 16 || !/[DUxB]/.test(steps)) return null;
   const out = { sig, steps };
+  if (p.swing === true && steps.length === SIGNATURES[sig].beats * 2) out.swing = true;
   if (typeof p.id === 'string' && PATTERNS.some((x) => x.id === p.id)) out.id = p.id;
   if (typeof p.name === 'string' && p.name.trim()) out.name = p.name.trim().slice(0, 40);
   return out;
@@ -40,16 +74,18 @@ export function cleanPattern(p) {
 export function countLabels(p) {
   const sg = SIGNATURES[p.sig] || SIGNATURES['4/4'];
   const and = t('pat.and');
-  return [...p.steps].map((_, i) => (sg.slotsPerBeat === 2 ? (i % 2 ? and : String(i / 2 + 1)) : String(i + 1)));
+  const k = slotsPerBeatOf(p);
+  if (k === 4) return [...p.steps].map((_, i) => (i % 4 === 0 ? String(i / 4 + 1) : i % 4 === 2 ? and : '·'));
+  return [...p.steps].map((_, i) => (k === 2 ? (i % 2 ? and : String(i / 2 + 1)) : String(i + 1)));
 }
 
-const ARROW = { D: '↓', U: '↑', x: '✕', '-': '·' };
+const ARROW = { D: '↓', U: '↑', x: '✕', B: 'B', '-': '·' };
 export const arrowOf = (s) => ARROW[s] || '·';
 
 /** HTML prikaz obrasca: strelice sa brojanjem ispod. */
 export function patternHTML(p, { compact = false } = {}) {
   const counts = countLabels(p);
-  return `<div class="pattern${compact ? ' compact' : ''}" aria-label="${p.steps}">${[...p.steps].map((s, i) => `<span class="pstep s-${s === '-' ? 'rest' : s}" data-i="${i}"><b>${arrowOf(s)}</b><i>${counts[i]}</i></span>`).join('')}</div>`;
+  return `<div class="pattern${compact ? ' compact' : ''}${p.steps.length > 8 ? ' p16' : ''}${p.swing ? ' swing' : ''}" aria-label="${p.steps}">${[...p.steps].map((s, i) => `<span class="pstep s-${s === '-' ? 'rest' : s}" data-i="${i}"><b>${arrowOf(s)}</b><i>${counts[i]}</i></span>`).join('')}</div>`;
 }
 
 /** Tekstualni prikaz za PDF: dva reda (strelice, brojanje). */
@@ -124,9 +160,12 @@ export class Metronome {
         const b = this.bpm, d = Math.max(0, (this.next - c.currentTime) * 1000);
         this.pendingUi.push(setTimeout(() => this.running && this.onTempo && this.onTempo(b), d));
       }
-      const slotDur = 60 / this.bpm / sp.slotsPerBeat;
-      const isBeat = i % sp.slotsPerBeat === 0;
-      const beat = isBeat ? Math.floor(i / sp.slotsPerBeat) % sp.beats : null;
+      const spb = this.pattern ? slotsPerBeatOf(this.pattern) : sp.slotsPerBeat;
+      // šafl: osmina „na doba“ traje 2/3 doba, „na i“ 1/3 (triolski osećaj)
+      const sw = this.pattern && this.pattern.swing && spb === 2 && !countIn;
+      const slotDur = sw ? (60 / this.bpm) * (i % 2 ? 1 / 3 : 2 / 3) : 60 / this.bpm / spb;
+      const isBeat = i % spb === 0;
+      const beat = isBeat ? Math.floor(i / spb) % sp.beats : null;
       const accent = isBeat && sp.accents.includes(beat) && (beat === 0 || this.sig === '6/8');
       const chord = this.chords && this.chords.length && !countIn ? this.chords[bar % this.chords.length] : null;
       if (isBeat && (this.clicks || countIn)) click(this.next, beat === 0);
@@ -134,6 +173,7 @@ export class Metronome {
         const s = this.pattern.steps[i];
         const notes = chordNotes(chord);
         if (s === 'D' || s === 'U') strum(this.next, s, { accent: isBeat && beat === 0, notes });
+        else if (s === 'B') strum(this.next, 'D', { accent: true, notes: bassOf(notes) });
         else if (s === 'x') strum(this.next, 'D', { mute: true, notes });
       }
       const delay = Math.max(0, (this.next - c.currentTime) * 1000);
@@ -148,6 +188,9 @@ export class Metronome {
     }
   }
 }
+
+/** Bas akorda (najdublja žica koja zvuči) — za „B“ udarac palcem. */
+export const bassOf = (notes) => (notes && notes.length ? notes.slice(0, 1) : [82.41]);
 
 // Frekvencije žica za akord (prvi, najlakši hvat); null = podrazumevani Em
 const OPEN_MIDI = [40, 45, 50, 55, 59, 64];

@@ -933,7 +933,8 @@ export async function renderSong(root, id, nav = null) {
         ${stored.strum ? `<div class="strum-head"><span class="small muted">${t('strum.label')}</span> <b>${esc(patternName(stored.strum))}</b> <span class="small muted">${stored.strum.sig}</span>
           <button class="icon-btn pat-play" id="sStrumPlay" aria-label="${t('pat.play')}"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button></div>
           ${patternHTML(stored.strum)}` : ''}
-        <button class="btn small" id="sStrumEdit">${stored.strum || stored.sections.some((x) => x.strum) ? t('strum.change') : t('strum.add')}</button>
+        <button class="btn small" id="sStrumEdit">${stored.strum ? t('strum.change') : t('strum.add')}</button>
+        ${secStrumHTML()}
       </div>
       ${prog.length ? `<div class="det-sec prog">${prog.map((p) => `<div class="prog-row"><span class="prog-name">${esc(p.name ? sectionLabel(p.name) : t('song.chordsFallback'))}</span><span class="prog-chords">${p.chords.map((c) => `<button class="ch" data-chord="${esc(c)}">${esc(dn(c))}</button>`).join('<span class="arrow">→</span>')}</span></div>`).join('')}</div>` : ''}
       ${chords.length ? `<div class="diagram-row" aria-label="${t('song.diagrams')}">${chords.map((c) => `<button class="diagram-btn" data-chord="${esc(c)}" aria-label="${esc(t('song.enlarge', { name: dn(c) }))}">${chordSVG(c, { voicing: (stored.shapes || {})[c] || 0 })}</button>`).join('')}</div>` : ''}
@@ -1130,38 +1131,27 @@ export async function renderSong(root, id, nav = null) {
     $('sStrumPlay')?.classList.add('playing');
     strumMet.onStep = (i) => root.querySelectorAll(scope + ' .pstep').forEach((s) => s.classList.toggle('now', +s.dataset.i === i));
   };
-  async function editStrum() {
+  // Ritam po delovima: čip uz svaki deo („kao cela pesma“ ili svoj ritam); dodir → izbor samo za taj deo
+  function secStrumHTML() {
+    const secs = stored.sections.map((x, i) => ({ x, i })).filter(({ x }) => x.lines.length || (x.tabs || []).length);
+    if (secs.length < 2) return '';
+    const any = secs.some(({ x }) => x.strum);
+    return `<details class="sec-strum"${any ? ' open' : ''}><summary>${t('strum.bySection')}</summary>
+      ${secs.map(({ x, i }) => `<div class="sec-strum-row"><span>${esc(x.name ? sectionLabel(x.name) : t('strum.section', { n: i + 1 }))}</span>
+        <button class="rp-chip${x.strum ? ' on' : ''}" data-secstrum="${i}">${x.strum ? esc(patternName(x.strum)) : t('rp.inherit')}</button></div>`).join('')}</details>`;
+  }
+  async function editStrum(target = 'song') {
     stopStrum();
-    const targets = [{ v: 'song', label: t('strum.wholeSong') }, ...stored.sections.map((s, i) => ({ v: String(i), label: s.name ? sectionLabel(s.name) : t('strum.section', { n: i + 1 }) }))];
-    const current = (target) => (target === 'song' ? stored.strum : stored.sections[+target]?.strum);
-    const body = `
-      <label class="small">${t('strum.for')}
-        <select id="stTarget">${targets.map((x) => `<option value="${x.v}">${esc(x.label)}</option>`).join('')}</select>
-      </label>
-      <div class="strum-pick" id="stList">
-        <label class="strum-opt"><input type="radio" name="st" value=""> <span>${t('strum.none')}</span></label>
-        ${PATTERNS.map((p) => `<label class="strum-opt"><input type="radio" name="st" value="${p.id}"> <span><b>${patternName(p)}</b> <small>${p.sig}</small>${patternHTML(p, { compact: true })}</span></label>`).join('')}
-      </div>`;
-    const wrapPromise = dialog({ title: t('strum.title'), body, html: true, buttons: [{ label: t('common.cancel'), value: null }, { label: t('common.save'), value: 'save', kind: 'primary' }] });
-    const modal = [...document.querySelectorAll('.modal-backdrop')].pop();
-    const sync = () => {
-      const cur = current(modal.querySelector('#stTarget').value);
-      const val = cur ? (cur.id || '') : '';
-      modal.querySelectorAll('input[name=st]').forEach((r) => (r.checked = r.value === val));
-    };
-    let chosen = { target: 'song', id: '' };
-    modal.querySelector('#stTarget').addEventListener('change', sync);
-    modal.addEventListener('change', () => {
-      chosen = { target: modal.querySelector('#stTarget').value, id: (modal.querySelector('input[name=st]:checked') || {}).value || '' };
-    });
-    sync();
-    chosen = { target: 'song', id: (stored.strum && stored.strum.id) || '' };
-    if (stored.strum && !stored.strum.id) chosen.id = '__keep';
-    const r = await wrapPromise;
-    if (r !== 'save') return;
-    const p = PATTERNS.find((x) => x.id === chosen.id);
-    const apply = (obj) => { if (chosen.id === '__keep') return; if (p) obj.strum = { id: p.id, sig: p.sig, steps: p.steps }; else delete obj.strum; };
-    if (chosen.target === 'song') apply(stored); else apply(stored.sections[+chosen.target]);
+    const sec = target === 'song' ? null : stored.sections[+target];
+    if (target !== 'song' && !sec) return;
+    const cur = sec ? sec.strum : stored.strum;
+    const title = sec ? t('strum.forSection', { name: sec.name ? sectionLabel(sec.name) : t('strum.section', { n: +target + 1 }) }) : t('strum.title');
+    const { openRhythmPicker } = await import('./rhythmPicker.js');
+    const r = await openRhythmPicker({ current: cur || null, title, inherit: !!sec, bpm: await songBpm() });
+    if (!r) return;
+    const obj = sec || stored;
+    if (r.pattern) obj.strum = { ...(r.pattern.id ? { id: r.pattern.id } : {}), ...(r.pattern.name && !r.pattern.id ? { name: r.pattern.name } : {}), sig: r.pattern.sig, steps: r.pattern.steps, ...(r.pattern.swing ? { swing: true } : {}) };
+    else delete obj.strum; // „Bez ritma“ / „Kao cela pesma“
     await save();
     draw();
   }
@@ -1417,7 +1407,7 @@ export async function renderSong(root, id, nav = null) {
       if (a === 'strum-apply') {
         stopStrum();
         const p = patternById(stored.suggestStrum && stored.suggestStrum.id);
-        if (p) stored.strum = { id: p.id, sig: p.sig, steps: p.steps };
+        if (p) stored.strum = { id: p.id, sig: p.sig, steps: p.steps, ...(p.swing ? { swing: true } : {}) };
         return save().then(draw);
       }
       if (a === 'strum-more' || a === 'strum-play') {
@@ -1453,6 +1443,7 @@ export async function renderSong(root, id, nav = null) {
     else if (b.id === 'cDown') setCapo(capo - 1);
     else if (b.id === 'sStrumPlay') playStrum();
     else if (b.id === 'sStrumEdit') editStrum();
+    else if (b.dataset.secstrum !== undefined) editStrum(b.dataset.secstrum);
     else if (b.id === 'sTempoDown') setBpm(-5);
     else if (b.id === 'sTempoUp') setBpm(5);
     else if (b.id === 'sTune') { settings.set('tuning', cleanTuning(stored.tuning)).then(() => { location.hash = '#/tuner'; }); }

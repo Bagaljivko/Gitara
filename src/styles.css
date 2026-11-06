@@ -1228,3 +1228,72 @@ body.stage-mode main { padding-left: max(16px, env(safe-area-inset-left)); paddi
 .sug-mini .btn.small { flex: none; }
 .sug-mini .sug-x { margin: 0; flex: none; }
 .sug-mini-body { padding: 4px 6px 6px 0; }
+
+/* v1.56 — izbor ritma: kartice (dodir = svira), napravi svoj, otkucaj, ritam po delovima */
+.rp-backdrop { z-index: 80; } /* iznad panela „Akordi i ritam“ (ranije se otvarao ispod njega) */
+.rp-sheet { max-height: 88dvh; display: flex; flex-direction: column; padding-bottom: 0; }
+.rp-in { overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; min-height: 0; padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
+.rp-tabs { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: 2px 0 10px; padding: 0; background: none; border: 0; }
+.rp-tabs::-webkit-scrollbar { display: none; }
+.rp-tabs button { flex: none; min-height: 36px; padding: 0 14px; border-radius: 18px; border: 1px solid var(--line); background: var(--surface-2); color: var(--muted); font: 600 .9rem var(--sans); cursor: pointer; }
+.rp-tabs button.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.rp-opts { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.rp-chip { min-height: 36px; padding: 0 14px; border-radius: 18px; border: 1px dashed var(--line); background: none; color: var(--muted); font: 600 .88rem var(--sans); cursor: pointer; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rp-chip.on { border-style: solid; border-color: var(--accent); color: var(--accent); background: rgba(245, 165, 36, .1); }
+.rp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.rp-card { position: relative; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-2); padding: 10px 10px 8px; cursor: pointer; display: flex; flex-direction: column; gap: 4px; min-width: 0; -webkit-tap-highlight-color: transparent; }
+.rp-card.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.rp-card.playing { background: rgba(245, 165, 36, .08); }
+.rp-card-top { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+.rp-card-top b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .95rem; }
+.rp-sig { font-size: .75rem; color: var(--muted); }
+.rp-del { width: 32px; height: 32px; margin: -6px -6px -6px 0; }
+.rp-del svg { width: 16px; height: 16px; fill: currentColor; }
+.rp-pat { flex-wrap: nowrap; gap: 0; margin: 2px 0 0; justify-content: space-between; }
+.rp-pat .pstep { min-width: 0; flex: 1; padding: 2px 0; }
+.rp-pat .pstep b { font-size: 1.3rem; }
+.rp-pat .pstep i { font-size: .62rem; }
+.rp-card-bot { display: flex; justify-content: space-between; align-items: center; font-size: .72rem; color: var(--muted); }
+.rp-lv { color: var(--accent); letter-spacing: 1px; font-size: .62rem; }
+.rp-card.on .rp-hear { color: var(--accent); font-weight: 700; }
+.rp-empty { grid-column: 1 / -1; }
+.rp-bar { position: sticky; bottom: calc(-12px - env(safe-area-inset-bottom)); display: flex; gap: 10px; justify-content: space-between; padding: 12px 0 calc(12px + env(safe-area-inset-bottom)); margin-top: 12px; background: var(--surface); border-top: 1px solid var(--line); }
+.rp-bar .btn { flex: 1; }
+.rp-help { margin: 0 2px 8px; }
+.rp-cells { display: grid; grid-template-columns: repeat(var(--n), 1fr); gap: 4px; margin: 0; }
+.rp-cell { appearance: none; border: 1px solid var(--line); background: var(--surface-2); color: inherit; min-width: 0; min-height: 64px; border-radius: 10px; justify-content: center; cursor: pointer; padding: 6px 0; font: inherit; }
+.rp-cell b { font-size: 1.6rem; }
+.rp-cell.s-rest b { color: var(--muted); opacity: .5; }
+.rp-cell.now { border-color: var(--accent); }
+.rp-row { display: flex; align-items: center; gap: 8px; margin: 10px 0 4px; flex-wrap: wrap; }
+.rp-row .btn svg { width: 18px; height: 18px; fill: currentColor; vertical-align: -4px; }
+.rp-play.playing { color: var(--accent); }
+.rp-text { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; }
+#rpText { font-family: var(--mono); letter-spacing: .08em; }
+.rp-fit { color: var(--accent); margin: 6px 2px 0; }
+.rp-count { text-align: center; font: 800 1.6rem var(--sans); color: var(--accent); min-height: 2.2em; display: flex; align-items: center; justify-content: center; }
+.rp-pad { height: 38dvh; min-height: 200px; border: 2px dashed var(--line); border-radius: 18px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; touch-action: none; user-select: none; cursor: pointer; color: var(--muted); }
+.rp-pad span { font-size: 2.4rem; }
+.rp-pad.hit { border-color: var(--accent); background: rgba(245, 165, 36, .1); color: var(--accent); }
+.sec-strum { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 8px; }
+.sec-strum > summary { cursor: pointer; font-weight: 700; padding: 6px 0; }
+.sec-strum-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 0; }
+.sec-strum-row > span { color: var(--muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sec-strum-row .rp-chip { flex: none; max-width: 60%; }
+/* v1.56 — 16-ine, šafl, bas, grupe */
+.pstep.s-B b { color: var(--accent); font-size: 1.05em; font-weight: 900; }
+.rp-group { grid-column: 1 / -1; margin: 10px 2px 0; font-size: .74rem; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.rp-group:first-child { margin-top: 0; }
+.rp-card.rp-wide { grid-column: 1 / -1; }
+.rp-tag { flex: none; font-size: .64rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--accent); border: 1px solid rgba(245, 165, 36, .5); border-radius: 6px; padding: 0 5px; }
+.rp-pat.p16 .pstep b { font-size: 1.05rem; }
+.rp-pat.p16 .pstep:nth-child(4n + 1) { border-left: 1px solid var(--line); }
+.rp-cells.p16 { grid-template-columns: repeat(8, 1fr); }
+.rp-cells.p16 .rp-cell { min-height: 54px; }
+.rp-cells.p16 .rp-cell:nth-child(4n + 1) { border-color: var(--muted); }
+.pattern.p16 { gap: 2px; }
+.pattern.compact.p16 .pstep { min-width: 14px; }
+.pattern.compact.p16 .pstep b { font-size: .85rem; }
+.rp-feel { margin: 0 0 6px; }
+.rp-head { position: sticky; top: 0; z-index: 2; background: var(--surface); padding-bottom: 2px; }
+.rp-head .rp-opts { margin-bottom: 8px; }

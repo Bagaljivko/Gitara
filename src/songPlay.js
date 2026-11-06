@@ -7,7 +7,7 @@
 // parts = [{ name, from, to }] (u dobama) — za „Ponavljaj deo“.
 import { playOrder, barInfo, midiOf, tabParts, snap } from './tabSong.js';
 import { transposeSong } from './songformat.js';
-import { chordNotes } from './rhythm.js';
+import { chordNotes, bassOf } from './rhythm.js';
 
 const DEFAULT_STEPS = { '4/4': 'D-DU-UDU', '3/4': 'D-DUDU', '6/8': 'D-UD-U', '2/4': 'D-DU' };
 const sigBeats = (sig) => { const [a, b] = String(sig || '4/4').split('/').map(Number); return a && b ? (a * 4) / b : 4; };
@@ -76,7 +76,9 @@ export function chordTimeline(song, { tp = song.transpose || 0, capo = song.capo
           const strums = [];
           for (let b = 0; b < len - 1e-6; b += slot) {
             const k = Math.round(((off - start + b) / slot)) % steps.length, st = steps[k];
-            if (st === 'D' || st === 'U' || st === 'x') strums.push({ beat: off + b, kind: 'strum', dir: st === 'U' ? 'U' : 'D', mute: st === 'x', accent: k === 0, freqs: notes.map((f) => f * lift), chord: c.chord, ref });
+            const sw = pat.swing && steps.length === bar * 2 && k % 2 ? slot / 3 : 0; // šafl: „i“ kasni do 2/3 doba
+            if (st === 'D' || st === 'U' || st === 'x') strums.push({ beat: off + b + sw, kind: 'strum', dir: st === 'U' ? 'U' : 'D', mute: st === 'x', accent: k === 0, freqs: notes.map((f) => f * lift), chord: c.chord, ref });
+            else if (st === 'B') strums.push({ beat: off + b + sw, kind: 'strum', dir: 'D', mute: false, accent: true, bass: true, freqs: bassOf(notes).map((f) => f * lift), chord: c.chord, ref });
           }
           if (!strums.length) strums.push({ beat: off, kind: 'strum', dir: 'D', mute: false, accent: true, freqs: notes.map((f) => f * lift), chord: c.chord, ref });
           strums.forEach((e, k) => { e.dur = (k + 1 < strums.length ? strums[k + 1].beat : off + len) - e.beat; events.push(e); });
