@@ -8,9 +8,9 @@ export const GUITAR = [40, 45, 50, 55, 59, 64]; // E2 A2 D3 G3 B3 E4 (MIDI)
 
 /** Tri nivoa osetljivosti. Visoka: tihe gitare i tihe sobe. Niska: bučna mesta. */
 export const SENSITIVITY = {
-  low: { onMult: 4.0, offMult: 2.0, minLevel: 0.0025, prob: 0.88, window: 100, tail: 0.03, lostMs: 300 },
-  medium: { onMult: 2.4, offMult: 1.4, minLevel: 0.0011, prob: 0.82, window: 150, tail: 0.012, lostMs: 450 },
-  high: { onMult: 1.7, offMult: 1.2, minLevel: 0.0006, prob: 0.78, window: 180, tail: 0.006, lostMs: 600 },
+  low: { onMult: 4.0, offMult: 2.0, minLevel: 0.0025, prob: 0.88, window: 100, tail: 0.02, lostMs: 350 },
+  medium: { onMult: 2.4, offMult: 1.4, minLevel: 0.0011, prob: 0.82, window: 150, tail: 0.008, lostMs: 500 },
+  high: { onMult: 1.7, offMult: 1.2, minLevel: 0.0006, prob: 0.78, window: 180, tail: 0.004, lostMs: 650 },
 };
 
 // „Auto“: osetljivost se bira sama prema izmerenoj buci u sobi i stalno se prilagođava.
@@ -33,6 +33,7 @@ const CALIBRATE_MS = 1000;   // merenje buke u prostoriji na početku
 const ONSET_RATIO = 1.8;     // skok jačine koji se računa kao trzaj
 const ARM_MS = 300;          // posle trzaja ovoliko čekamo prvi jasan ton
 const SHOW_FRAMES = 2;       // dva saglasna očitavanja → kazaljka se pomera
+const ATTACK_MS = 130;      // prvih ~130 ms posle trzaja žica zvuči malo „visoko“ — ta očitavanja se preskaču, da kazaljka ne skoči
 const STABLE_MS = 100;       // ovoliko dugo stabilan ton → sme da se označi kao naštimovan
 const STABLE_CENTS = 20;     // dozvoljeno kolebanje visine dok se proverava stabilnost
 const JUMP_CENTS = 60;       // veći skok = nova nota (npr. druga žica)
@@ -72,7 +73,7 @@ export class PitchTracker {
     this.muteUntil = 0;
   }
 
-  release() { this.cand = null; this.cleanSince = 0; this.mixUntil = 0; this.mixed = false; this.prevSid = -1; this.state = 'idle'; this.sid = -1; this.recent = []; this.run = []; this.peak = 0; this.lastGood = 0; this.breaks = []; this.shown = false; this.lastLevel = 0; }
+  release() { this.attack = false; this.cand = null; this.cleanSince = 0; this.mixUntil = 0; this.mixed = false; this.prevSid = -1; this.state = 'idle'; this.sid = -1; this.recent = []; this.run = []; this.peak = 0; this.lastGood = 0; this.breaks = []; this.shown = false; this.lastLevel = 0; }
 
   /** Merenje buke je u toku (prva sekunda). */
   get calibrating() { return !this.calibDone; }
@@ -163,6 +164,7 @@ export class PitchTracker {
       if (level < before * ONSET_RATIO) return { state: 'idle' };
       this.state = 'listening';
       this.onsetAt = now;
+      this.attack = true; // novi trzaj iz tišine
       this.peak = level;
     }
     // Posle trzaja mora brzo da se pojavi jasan ton žice; inače (govor, kucanje) čekaj sledeći trzaj.
@@ -265,6 +267,14 @@ export class PitchTracker {
     if (this.recent.length > 5) this.recent.shift();
     this.lastGood = now;
     if (this.breaks.length >= UNSTABLE_BREAKS) { this.release(); return { state: 'idle' }; } // visina klizi → nije žica
+    // Napad trzaja: žica je tada zategnutija (ton malo viši). Ta očitavanja se ne prikazuju i ne ulaze u prosek,
+    // da kazaljka ne skoči na „visoko“ — ali se i dalje proverava da li visina klizi (govor).
+    if (this.attack && !this.shown) {
+      if (now - this.onsetAt < ATTACK_MS) return { state: 'idle' };
+      this.attack = false;
+      this.run = this.run.slice(-1);
+      this.recent = this.recent.slice(-1);
+    }
     if (this.run.length < SHOW_FRAMES) return this.shown ? this.output(now) : { state: 'idle' };
     return this.output(now);
   }
@@ -327,6 +337,7 @@ export class PitchTracker {
     const stable = this.run.length >= 3 && now - this.run[0].t >= STABLE_MS && !this.run.slice(-3).some((x) => x.loose);
     if (stable && !this.cleanSince) this.cleanSince = now;
     this.shown = true;
+    this.attack = false; // napad važi samo za trzaj iz tišine, ne i za prelazak na drugu žicu
     return { state: 'tracking', sid: this.sid, freq, cents: 1200 * Math.log2(freq / this.target(this.sid)), stable };
   }
 }

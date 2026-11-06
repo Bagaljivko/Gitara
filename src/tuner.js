@@ -25,8 +25,9 @@ const STRINGS = [
 ];
 
 const IN_TUNE = 5;       // ±centi
-const HOLD_MS = 600;     // koliko dugo mora biti naštimovano da se žica označi kao gotova
-const DONE_AVG = 3;      // …i prosek za to vreme mora biti unutar ±3 centi (brže, a preciznije nego ranije: 1 s, ±5)
+const HOLD_MS = 350;     // koliko dugo mora biti naštimovano da se žica označi kao gotova
+const DONE_AVG = 4;      // …i prosek za to vreme mora biti unutar ±4 centi (uho ne čuje razliku, a štimuje se znatno brže)
+const LOST_MS = 500;     // kratak prekid (ruka dodirne žicu, žica se gasi) ne poništava ni kazaljku ni brojanje do „gotovo“
 const RANGE = 50;        // skala ±50 centi
 const LONG_PRESS = 450;  // ms za referentni ton
 
@@ -280,8 +281,10 @@ export function createTuner(root) {
       // veći pomak → brže praćenje, sitno podrhtavanje (< 0,8 centa) se ignoriše.
       const fresh = meter.dataset.state === 'idle' || sid !== shownSid;
       const d = r.cents - shownCents;
+      // Daleko od tona kazaljka brzo stiže; blizu cilja je mirna (sitno podrhtavanje se ne vidi).
+      const ad = Math.abs(d);
       if (fresh) shownCents = r.cents;
-      else if (Math.abs(d) > 0.8) shownCents += d * (Math.abs(d) > 12 ? 0.65 : 0.4);
+      else if (ad > 0.6) shownCents += d * (ad > 10 ? 0.8 : ad > 3 ? 0.5 : 0.22);
       shownSid = sid;
       setNeedle(shownCents);
       $('tNote').textContent = dn(midiName(69 + 12 * Math.log2(r.freq / a4)).name);
@@ -299,6 +302,7 @@ export function createTuner(root) {
       const lvl = Math.sqrt(e / (buf.length / 8));
       wave.set({ active: true, cents: shownCents, ok, level: Math.max(0.35, Math.min(1, 0.35 + Math.log10(Math.max(lvl, 1e-5) / 0.003) * 0.5)) });
       if (ok) {
+        // posle kratkog prekida iste žice brojanje se nastavlja (okSid ostaje); nova žica počinje ispočetka
         if (okSid !== sid || !okSince) { okSid = sid; okSince = now; okHist = []; }
         okHist.push({ t: now, c: r.cents });
         while (okHist.length && now - okHist[0].t > HOLD_MS) okHist.shift();
@@ -310,7 +314,7 @@ export function createTuner(root) {
           drawProgress();
         }
       } else if (Math.abs(shownCents) > lim) okSince = 0;
-    } else if (meter.dataset.state !== 'idle' && now - lastLocked > 350) {
+    } else if (meter.dataset.state !== 'idle' && now - lastLocked > LOST_MS) {
       idle();
     } else if (meter.dataset.state === 'idle') {
       okSince = 0;

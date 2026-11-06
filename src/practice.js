@@ -119,10 +119,16 @@ export async function renderPractice(root, parts = [], params = new URLSearchPar
 const daysText = (n) => t(n % 10 === 1 && n % 100 !== 11 ? 'pr.day1' : 'pr.dayN', { n });
 const starsHTML = (n) => `<span class="pr-stars" aria-label="${n}/3">${[0, 1, 2].map((i) => `<i class="${i < n ? 'on' : ''}">★</i>`).join('')}</span>`;
 function levelOf(id) {
-  let l = 'normal', sp = 'grad';
-  try { l = localStorage.getItem('gitara-pr-level-' + id) || 'normal'; sp = localStorage.getItem('gitara-pr-speed-' + id) || 'grad'; } catch {}
+  let l = 'normal', sp = 'normal', gr = true;
+  try {
+    l = localStorage.getItem('gitara-pr-level-' + id) || 'normal';
+    sp = localStorage.getItem('gitara-pr-speed-' + id) || 'normal';
+    const g = localStorage.getItem('gitara-pr-grad-' + id);
+    gr = g == null ? sp === 'grad' || !localStorage.getItem('gitara-pr-speed-' + id) : g === '1';
+  } catch {}
   if (l === 'beg') return t('pr.wait.chip');
-  return (/^\d$/.test(l) ? t('pr.lvl.n', { n: l }) + ' · ' : '') + t('pr.speed.' + sp);
+  if (sp === 'grad') sp = 'normal';
+  return (/^\d$/.test(l) ? t('pr.lvl.n', { n: l }) + ' · ' : '') + (gr ? t('pr.speed.grad') : t('pr.speed.' + sp));
 }
 /** Najbolji rezultat kao kratak broj sa jedinicom (bez decimala). */
 function bestText(g, rec, st, sk = null) {
@@ -140,6 +146,38 @@ function bestText(g, rec, st, sk = null) {
   return t('pr.unit.points', { n: Math.round(rec.best || 0) });
 }
 
+// „Danas“: jedan predlog vežbe za danas + niz dana.
+// 1) pesma koja se vežba, a neki deo još nije čist (≥ 80) — nastavi tu; 2) igra koja se najduže nije vežbala;
+// 3) ništa još nije vežbano — Pauk (zagrevanje prstiju).
+const FLAME = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2c.6 3.2-1.2 5-2.6 6.6C8 10.2 7 11.6 7 14a5 5 0 0 0 10 0c0-1.6-.6-3-1.6-4.1.1 1.4-.4 2.6-1.4 3.1.4-2.9-.6-6.6-2-11z"/></svg>';
+async function todaySuggestion(st) {
+  const songIds = Object.entries(st.songs || {})
+    .map(([id, parts]) => ({ id, parts: Object.entries(parts || {}).filter(([k, r]) => k !== 'all' && r) }))
+    .filter((s) => s.parts.length && s.parts.some(([, r]) => (r.best || 0) < 80))
+    .map((s) => ({ ...s, last: Math.max(...s.parts.map(([, r]) => dayNum(r.lastDay) || 0)) }))
+    .sort((a, b) => b.last - a.last);
+  for (const s of songIds.slice(0, 3)) {
+    try {
+      const { songs } = await import('./db.js');
+      const song = await songs.get(s.id);
+      if (song && !song.deleted) return { href: `#/vezbe/pesma/${encodeURIComponent(s.id)}`, title: song.title || t('pr.g.pesma'), sub: t('pr.today.song'), g: GAMES.find((g) => g.id === 'pesma') };
+    } catch {}
+  }
+  const played = GAMES.filter((g) => g.id !== 'pesma' && (st.games[g.id]?.plays || 0) > 0 && st.games[g.id].lastDay !== today());
+  if (played.length) {
+    const g = played.sort((a, b) => (dayNum(st.games[a.id].lastDay) || 0) - (dayNum(st.games[b.id].lastDay) || 0))[0];
+    return { href: `#/vezbe/${g.id}`, title: t('pr.g.' + g.id), sub: t('pr.today.again'), g };
+  }
+  const fresh = GAMES.find((g) => g.id !== 'pesma' && !(st.games[g.id]?.plays)) || GAMES[0];
+  return { href: `#/vezbe/${fresh.id}`, title: t('pr.g.' + fresh.id), sub: t(fresh.id === 'pauk' ? 'pr.today.warm' : 'pr.today.new'), g: fresh };
+}
+function todayCardHTML(sug, streak, doneToday) {
+  return `<a class="pr-today" href="${sug.href}" id="prToday">
+    <span class="td-top"><span class="td-k">${t('pr.today.k')}</span><span class="td-streak${streak ? ' on' : ''}" title="${esc(t('pr.streakTitle'))}">${FLAME}${streak ? `${t('pr.streak')}: ${daysText(streak)}` : t('pr.today.startStreak')}${doneToday ? ` · ${t('pr.today.done')}` : ''}</span></span>
+    <span class="td-main"><span class="td-txt"${sug.g ? ` style="--gc:${sug.g.color}"` : ''}>${sug.g ? ico(sug.g) : ''}<b>${esc(sug.title)}</b><small>${esc(sug.sub)}</small></span><span class="td-go">${t('pr.today.go')} ›</span></span>
+  </a>`;
+}
+
 async function renderHub(root) {
   setWakeZone(null);
   const st = await loadStats();
@@ -148,10 +186,13 @@ async function renderHub(root) {
   const sk = skRaw && typeof skRaw === 'object' ? { items: skRaw.items || {}, step: (await import('./skalePath.js')).PATH.findIndex((p) => !(skRaw.path?.done || {})[p.id]), total: 0 } : null;
   if (sk) { const { PATH } = await import('./skalePath.js'); sk.total = PATH.length; if (sk.step < 0) sk.step = PATH.length - 1; }
   const streak = Math.max(0, ...GAMES.map((g) => currentStreak(st.games[g.id])));
+  const doneToday = GAMES.some((g) => st.games[g.id]?.lastDay === today());
+  const sug = await todaySuggestion(st);
   root.innerHTML = `
   <section class="view practice-view">
-    <header class="view-head pr-hub-head"><h1>${t('pr.title')}</h1>${streak ? `<span class="pr-streak" title="${esc(t('pr.streakTitle'))}">${t('pr.streak')}: ${daysText(streak)}</span>` : ''}</header>
+    <header class="view-head pr-hub-head"><h1>${t('pr.title')}</h1></header>
     <p class="muted pr-intro">${t('pr.intro')}</p>
+    ${todayCardHTML(sug, streak, doneToday)}
     <div class="pr-cards">
       ${GAMES.map((g) => {
         const rec = st.games[g.id] || {};
@@ -196,6 +237,7 @@ async function renderGame(root, game, args, params) {
     <div class="pr-speed" id="prSpeed">
       <div class="pr-optlabel">${t('pr.speed.label')}</div>
       <div class="pr-speeds" id="prSpeeds" role="radiogroup"></div>
+      <label class="switch pr-grad"><input type="checkbox" id="prGrad"><span class="switch-track"><span class="switch-thumb"></span></span><span><b>${t('pr.grad.label')}</b><small>${t('pr.grad.hint')}</small></span></label>
       <div class="pr-tempo" id="prTempo">
         <button class="btn round tiny" id="prSlower" aria-label="${t('pr.slower')}">−</button>
         <span><b id="prBpm">90</b> <small id="prUnit">BPM</small></span>
@@ -229,11 +271,18 @@ async function renderGame(root, game, args, params) {
     const extra = LV.filter((l) => l.id !== 'beg');
     $('prLevel').hidden = level === 'beg' || extra.length < 2;
   }
-  // Brzina: Sporo / Normalno / Brzo / Izazov (u odnosu na „normalan“ tempo igre ili pesme) ili Postepeno
-  // (počinje sporije i posle svakog čistog prolaza malo ubrza). Pamti se po igri; menja se i tokom igre.
-  const SPEEDS = [{ id: 'slow', f: 0.7 }, { id: 'normal', f: 1 }, { id: 'grad' }, { id: 'fast', f: 1.15 }, { id: 'challenge', f: 1.3 }];
-  const SKEY = 'gitara-pr-speed-' + game.id;
-  let speed = (() => { try { const v = localStorage.getItem(SKEY); return SPEEDS.some((x) => x.id === v) ? v : 'grad'; } catch { return 'grad'; } })();
+  // Brzina: Sporo / Normalno / Brzo / Izazov (u odnosu na „normalan“ tempo igre ili pesme) + poseban prekidač
+  // „Postepeno ubrzavaj“: počni sporije i posle svakog čistog prolaza malo ubrzaj — do izabrane brzine.
+  // Pamti se po igri; menja se i tokom igre. api.speed je 'grad' dok je prekidač uključen (kao ranije).
+  const SPEEDS = [{ id: 'slow', f: 0.7 }, { id: 'normal', f: 1 }, { id: 'fast', f: 1.15 }, { id: 'challenge', f: 1.3 }];
+  const SKEY = 'gitara-pr-speed-' + game.id, GKEY = 'gitara-pr-grad-' + game.id;
+  let target = 'normal', gradOn = true;
+  try {
+    const v = localStorage.getItem(SKEY), g = localStorage.getItem(GKEY);
+    if (SPEEDS.some((x) => x.id === v)) target = v;
+    gradOn = g == null ? v == null || v === 'grad' : g === '1'; // ranije je „Postepeno“ bila jedna od brzina
+  } catch {}
+  let speed = gradOn ? 'grad' : target;
   // Jačina ulaza + poslednja čuta nota: na svakom ekranu igre (da se odmah vidi da li mikrofon čuje gitaru)
   let lastHeard = null, meterAt = 0;
   function onLevel(ev) {
@@ -278,16 +327,31 @@ async function renderGame(root, game, args, params) {
       gameObj?.onLevel?.(l);
     },
     get speed() { return speed; },
+    /** Izabrana brzina (Sporo/Normalno/Brzo/Izazov) — i kad je „Postepeno ubrzavaj“ uključeno (tada je to cilj). */
+    get target() { return target; },
+    get gradual() { return gradOn; },
+    /** Najviši tempo za „Postepeno ubrzavaj“: tempo izabrane brzine. */
+    get gradCap() { try { return tempoForSpeed(target); } catch { return undefined; } }, // pre podešavanja tempa igre: nema ograničenja (igra koristi svoje)
     /** Sledeća brzina posle dobrog prolaza (Sporo → Normalno → Brzo → Izazov); null = već Izazov / Postepeno. */
     get nextSpeed() { const k = ['slow', 'normal', 'fast', 'challenge'].indexOf(speed); return k >= 0 && k < 3 ? ['slow', 'normal', 'fast', 'challenge'][k + 1] : null; },
-    speedLabel: (id) => t('pr.speed.' + (id || speed)),
+    speedLabel: (id) => t('pr.speed.' + (id || target)),
     setSpeed(id) {
+      if (id === 'grad') { api.setGradual(true); return; }
       if (!SPEEDS.some((x) => x.id === id)) return;
-      speed = id;
+      target = id;
       try { localStorage.setItem(SKEY, id); } catch {}
-      api.setBpm(tempoForSpeed(id));
+      speed = gradOn ? 'grad' : target;
+      api.setBpm(tempoForSpeed(speed));
       drawSpeeds();
-      gameObj?.onSpeed?.(id);
+      gameObj?.onSpeed?.(speed);
+    },
+    setGradual(on) {
+      gradOn = !!on;
+      try { localStorage.setItem(GKEY, gradOn ? '1' : '0'); } catch {}
+      speed = gradOn ? 'grad' : target;
+      api.setBpm(tempoForSpeed(speed));
+      drawSpeeds();
+      gameObj?.onSpeed?.(speed);
     },
     /** Sačuvaj rezultat bez zaustavljanja (npr. svaki prolaz u „Delovi pesme“). */
     async save(res, key = null) { const fresh = await saveResult(game.id, { ...res, nextTempo: res.tempo }, key); Object.assign(rec, fresh.games[game.id]); Object.assign(st.songs, fresh.songs); },
@@ -335,7 +399,7 @@ async function renderGame(root, game, args, params) {
     async finish(res0, key = null) {
       let res = res0;
       stopRun(false);
-      const nextTempo = speed === 'grad' && res.score > 90 && !res.noTempoUp ? Math.max(B.min, Math.min(B.gradMax ?? B.max, res.tempo + B.step * B.dir)) : res.tempo; // Postepeno: najviše do pravog tempa pesme
+      const nextTempo = speed === 'grad' && res.score > 90 && !res.noTempoUp ? gradStep(res.tempo) : res.tempo; // Postepeno: najviše do izabrane brzine
       if (speed === 'challenge' && level !== 'beg' && res.score >= 90) res = { ...res, challenge: true };
       const prevBest = key ? ((st.songs[key[0]] || {})[key[1]] || {}).best || 0 : rec.best || 0;
       const fresh = await saveResult(game.id, { ...res, score: Math.round(res.score), nextTempo }, key);
@@ -380,19 +444,31 @@ async function renderGame(root, game, args, params) {
   const B = { start: 80, min: 40, max: 200, step: 5, dir: 1, fmt: (v) => String(v), unit: 'BPM', ...(gameObj.bpm || {}) };
   if (!B.normal) B.normal = B.start;
   $('prUnit').textContent = B.unit;
+  // Jedan korak „Postepeno ubrzavaj“: malo brže, ali ne preko izabrane brzine
+  function gradStep(tempo) {
+    const cap = tempoForSpeed(target), nx = tempo + B.step * B.dir;
+    return Math.max(B.min, Math.min(B.max, B.dir < 0 ? Math.max(cap, nx) : Math.min(cap, nx)));
+  }
   function tempoForSpeed(id) {
+    if (id === 'grad') {
+      // počni od poslednjeg tempa (ili sporije), nikad brže od izabrane brzine
+      const v = gameObj.initialTempo || rec.lastTempo || B.start, cap = tempoForSpeed(target);
+      return B.dir < 0 ? Math.max(cap, v) : Math.min(cap, v);
+    }
     const sp = SPEEDS.find((x) => x.id === id);
-    if (!sp || id === 'grad') return gameObj.initialTempo || rec.lastTempo || B.start;
+    if (!sp) return gameObj.initialTempo || rec.lastTempo || B.start;
     const v = B.dir < 0 ? B.normal / sp.f : B.normal * sp.f; // sekunde po noti: brže = kraće
     return Math.max(B.min, Math.min(B.max, Math.round(v / B.step) * B.step));
   }
   function drawSpeeds() {
-    $('prSpeeds').innerHTML = SPEEDS.map((x) => `<button role="radio" aria-checked="${x.id === speed}" class="pr-sp${x.id === speed ? ' on' : ''}" data-sp="${x.id}">${t('pr.speed.' + x.id)}</button>`).join('');
+    $('prSpeeds').innerHTML = SPEEDS.map((x) => `<button role="radio" aria-checked="${x.id === target}" class="pr-sp${x.id === target ? ' on' : ''}" data-sp="${x.id}">${t('pr.speed.' + x.id)}</button>`).join('');
+    $('prGrad').checked = gradOn;
   }
   drawSpeeds();
   api.setBpm(tempoForSpeed(speed));
   if (LV.length) api.setLevel(level); else { drawWait(); syncTempo(); }
   $('prSpeeds').addEventListener('click', (e) => { const b = e.target.closest('[data-sp]'); if (b) api.setSpeed(b.dataset.sp); });
+  $('prGrad').addEventListener('change', (e) => api.setGradual(e.target.checked));
   $('prWait').addEventListener('change', async (e) => {
     if (running) { e.target.checked = level === 'beg'; return; }
     const on = e.target.checked;

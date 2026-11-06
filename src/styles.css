@@ -1434,3 +1434,28 @@ body.stage-mode main { padding-left: max(16px, env(safe-area-inset-left)); paddi
   .lib-view .lib-title { background: var(--surface) !important; }
   body:not(.tuner-screen) .lib-view .song-item:active { background: var(--sec-soft); }
 }
+
+/* v1.60 — jedna aplikacija: svi naslovi ekrana u istom zlatnom prelivu (i Tuner, urednik, setlista, provera),
+   naslov Pesama se i dalje dodiruje (bira folder), ali izgleda kao ostali; paneli istog zaobljenja. */
+.view h1:not(.lib-h1), .lib-view .lib-title #lGroupName {
+  background: linear-gradient(100deg, #f59e0b 0%, #ffcc33 65%, #f59e0b 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.lib-view .lib-title, .lib-view .lib-title[aria-expanded="true"] { border: 0 !important; background: none !important; padding: 0; border-radius: 0; }
+.lib-view .lib-title .lib-chev { fill: #f59e0b; opacity: .85; }
+.sl-item, .sp-card { border-radius: var(--radius); }
+
+/* v1.60 — prvi put: obilazak u tri koraka (panel dole, iza se vidi pravi ekran) */
+.tour-backdrop { position: fixed; inset: 0; z-index: 90; background: rgba(0, 0, 0, .66); display: flex; align-items: flex-end; justify-content: center; animation: fade .15s; }
+.tour { width: 100%; max-width: 520px; background: linear-gradient(180deg, rgba(245, 158, 11, .08), var(--surface) 38%); border: 1px solid rgba(245, 158, 11, .22); border-bottom: 0; border-radius: 20px 20px 0 0; padding: 20px 20px calc(22px + env(safe-area-inset-bottom)); animation: rise .2s ease-out; }
+.tour-dots { display: flex; gap: 6px; margin-bottom: 16px; }
+.tour-dots i { height: 4px; flex: 1; border-radius: 2px; background: var(--surface-2); transition: background .2s; }
+.tour-dots i.on { background: linear-gradient(90deg, #f59e0b, #ffcc33); }
+.tour-ico { display: grid; place-items: center; width: 52px; height: 52px; border-radius: var(--radius); background: rgba(245, 158, 11, .12); border: 1px solid rgba(245, 158, 11, .28); margin-bottom: 12px; }
+.tour-ico svg { width: 28px; height: 28px; fill: #f5b31f; }
+.tour h2 { margin: 0 0 8px; font-size: 1.35rem; background: linear-gradient(100deg, #f59e0b, #ffcc33 65%, #f59e0b); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.tour-txt { margin: 0 0 20px; color: var(--muted); line-height: 1.5; }
+.tour-bar { display: flex; gap: 10px; }
+.tour-bar .btn { flex: 1; min-height: 48px; }
+.tour-bar .tour-next { flex: 1.4; }
+.tour-bar .tour-skip[hidden] { display: none; }

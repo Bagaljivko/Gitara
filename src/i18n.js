@@ -18,6 +18,15 @@ const sr = {
 
   // Navigacija
   'nav.tuner': 'Tuner',
+  'tour.skip': 'Preskoči',
+  'tour.next': 'Dalje',
+  'tour.start': 'Kreni',
+  'tour.tuner.title': 'Prvo naštimuj gitaru',
+  'tour.tuner.text': 'Dodirni „Pokreni tuner“ i odsviraj žicu. Tuner sam prepoznaje koju žicu sviraš — kad kazaljka pozeleni, žica je naštimovana.',
+  'tour.pesme.title': 'Tvoje pesme na jednom mestu',
+  'tour.pesme.text': 'Skeniraj pesmu sa papira, uvezi PDF ili je napiši sam. Akordi stoje iznad teksta, a pesma može i da se pusti.',
+  'tour.vezbe.title': 'Vežbaj po malo svaki dan',
+  'tour.vezbe.text': 'Kratke igre za prste, ritam i sluh. Aplikacija sluša tvoju gitaru i odmah kaže da li je tačno. Kartica „Danas“ predlaže šta da vežbaš.',
   'nav.chords': 'Akordi',
   'nav.songs': 'Pesme',
   'nav.settings': 'Podešavanja',

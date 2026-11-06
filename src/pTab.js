@@ -33,12 +33,13 @@ export async function createTabGame(api, song, songId) {
   const all = [...parts, whole];
   const partKey = `gitara-pr-part-${songId}`;
   let part = all.find((p) => String(p.id) === localStorage.getItem(partKey)) || hardest || phrases[0];
-  const startTempo = (p) => Math.min(songBpm, (stats()[String(p.id)] || {}).lastTempo || Math.max(40, Math.round((songBpm * 0.6) / 5) * 5));
+  const startTempo = (p) => Math.min(api.gradCap ?? songBpm, (stats()[String(p.id)] || {}).lastTempo || Math.max(40, Math.round((songBpm * 0.6) / 5) * 5));
   const label = (p) => (p.id === 'all' ? t('pr.pesma.whole') : partName(p));
   const barsOf = (p) => (p.id === 'all' ? playOrder(tab) : Array.from({ length: p.to - p.from + 1 }, (_, k) => p.from + k));
   const info = barInfo(tab);
 
   const grad = () => api.speed === 'grad';
+  const cap = () => api.gradCap ?? songBpm; // „Postepeno ubrzavaj“: najviše do izabrane brzine
   const findPart = (id) => all.find((p) => String(p.id) === String(id));
   // „Poslušaj“: deo jednom, tačne note iz tablature, u trenutnom tempu vežbe
   let listening = null, listenId = null;
@@ -114,7 +115,7 @@ export async function createTabGame(api, song, songId) {
       lagMs: 180,
       hintOf: (it) => noteHint(t, it),
       fingersOf: (it) => [...new Set([it.finger, ...(it.group || []).map((g) => g.finger)].filter((f) => f > 0))],
-      extra: (st) => (st.clean && (st.tempo >= songBpm || !grad())
+      extra: (st) => (st.clean && (st.tempo >= cap() || !grad())
         ? [...(part.id !== 'all' ? [{ id: 'nextPart', label: t('pr.pesma.nextPart'), primary: true }] : []), { id: 'whole', label: t('pr.pesma.whole'), primary: part.id === 'all' }]
         : []),
     };
@@ -150,9 +151,9 @@ export async function createTabGame(api, song, songId) {
     async onRoundEnd(st, round, ctl) {
       if (st.beginner) return false;
       passes++;
-      if ((st.clean && (st.tempo >= songBpm || !grad())) || passes >= MAX_PASSES) return false;
+      if ((st.clean && (st.tempo >= cap() || !grad())) || passes >= MAX_PASSES) return false;
       await api.save({ score: st.score, tempo: st.tempo, accuracy: st.accuracy }, round.key);
-      const nb = st.clean && grad() ? Math.min(songBpm, st.tempo + 5) : st.tempo;
+      const nb = st.clean && grad() ? Math.min(cap(), st.tempo + 5) : st.tempo;
       api.setBpm(nb);
       ctl.track.pop(st.clean && nb > st.tempo ? t('pr.pesma.faster', { bpm: nb }) : t('pr.pesma.again', { n: passes + 1 }), st.clean ? 'hit' : 'late');
       await wait(1500);

@@ -50,7 +50,8 @@ test('plucked A2: needle moves right away, green-ready after ~100 ms, follows th
   assert.ok(tr.length > 0, 'never tracked');
   const first = tr[0].now - T0, firstStable = st[0].now - T0;
   console.log(`  A2: first reading ${first.toFixed(0)} ms, stable ${firstStable.toFixed(0)} ms, tracked ${(tr[tr.length - 1].now - tr[0].now).toFixed(0)} ms`);
-  assert.ok(first < 120, 'first reading too slow: ' + first);
+  // v1.60: prvih ~130 ms (napad trzaja, ton malo „visoko“) se namerno ne prikazuje — kazaljka ne skače
+  assert.ok(first < 200, 'first reading too slow: ' + first);
   assert.ok(firstStable - first <= 140, 'stability too slow: ' + (firstStable - first));
   assert.ok(tr.every((x) => x.sid === 1), 'wrong string');
   assert.ok(tr[tr.length - 1].now - tr[0].now > 3000, 'stopped following too early');
@@ -220,7 +221,8 @@ test('auto: started while a string was still ringing — recovers within a few s
   const r = run(render(11, (t) => loud(t) + normal(t) + soft(t)), 'auto');
   const mid = r.filter((x) => x.now > 3000 && x.now < 7000), late = r.filter((x) => x.now > 7500);
   console.log(`  auto after ringing start: normal D3 green ${longestGreen(mid).toFixed(0)} ms, later soft G3 green ${longestGreen(late).toFixed(0)} ms`);
-  assert.ok(longestGreen(mid) >= 1000, 'normal pluck missed after a ringing start');
+  // v1.60: žica se označava posle 350 ms zelenog (ranije 600 ms / 1 s)
+  assert.ok(longestGreen(mid) >= 600, 'normal pluck missed after a ringing start');
   assert.ok(longestGreen(late) >= 1000, 'soft pluck missed after the room settled');
 });
 

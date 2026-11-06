@@ -692,11 +692,11 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 export function trackGame(api, cfg) {
   const { t } = api;
   let track = null, runner = null, unsub = null, gen = 0;
-  const ORDER = ['slow', 'normal', 'grad', 'fast', 'challenge'];
+  const ORDER = ['slow', 'normal', 'fast', 'challenge'];
   const speedCtl = {
     label: () => api.speedLabel(),
     cycle() {
-      const nx = ORDER[(ORDER.indexOf(api.speed) + 1) % ORDER.length];
+      const nx = ORDER[(ORDER.indexOf(api.target ?? api.speed) + 1) % ORDER.length];
       api.setSpeed(nx);
       if (runner && track && api.running) { track.pop(t('pr.speed.now', { s: api.speedLabel() }), 'hit'); startRound(cfg.round(api.level, api.bpm), api.bpm); }
       return api.speedLabel();

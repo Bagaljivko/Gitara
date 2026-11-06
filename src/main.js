@@ -18,6 +18,9 @@ const loadChordCheck = lazy(() => import('./chordCheck.js'));
 const loadPractice = lazy(() => import('./practice.js')); // Vežbe: učitava se tek kad se otvori
 // poslata pesma / set lista (shareImport.js): stari dugi linkovi, kratak link #d/<fileId> i ?d=<fileId> (Android intent iz
 // „Otvori u aplikaciji Gitara“ — tamo # zauzima intent)
+// Novi korisnik: još nijedan zapis aplikacije u pregledaču → posle prvog ekrana kratak obilazak (v1.60)
+// (ne i u automatizovanom pregledaču — testovi ekrana ne smeju da dobiju panel preko ekrana)
+const FIRST_RUN = (() => { try { return !navigator.webdriver && !Object.keys(localStorage).some((k) => k.startsWith('gitara-')); } catch { return false; } })();
 const hasSharedSong = () => location.hash.startsWith('#pesma=') || location.hash.startsWith('#g=') || location.hash.startsWith('#d/') || /[?&]d=/.test(location.search);
 
 // Osećaj prave aplikacije: dugi pritisak ne otvara meni pregledača („Kopiraj / Potraži / Sačuvaj sliku“), ništa se ne
@@ -271,6 +274,7 @@ applyStaticText();
 settings.get('lang', null).then((v) => { if (v && v !== getLang()) setLang(v, { save: false }); }).catch(() => {});
 
 route();
+if (FIRST_RUN && !hasSharedSong()) setTimeout(() => import('./tour.js').then((m) => { if (!m.tourSeen()) m.startTour(); }).catch(() => {}), 600);
 // Drive (automatska rezervna kopija) se učitava malo kasnije, kad se prvi ekran već prikaže.
 const idle = window.requestIdleCallback || ((f) => setTimeout(f, 1200));
 // Jednokratna konverzija postojećih pesama u novi zapis akorda (original ostaje netaknut)
