@@ -249,6 +249,22 @@ async function doInit() {
   if (!c.on) { emit(); return; }
   setStatus(navigator.onLine === false ? 'offline' : 'syncing');
   begin();
+  setTimeout(() => offerLongAccess().catch(() => {}), 6000);
+}
+
+/**
+ * Jednom (telefon koji je već povezan pre pomoćnika): „Dozvoli“ jednom → posle toga ključ se obnavlja bez Google-ovog
+ * prozora (bez belog bljeska). „Kasnije“ → ponovo najranije za 3 dana; do tada sve radi kao ranije.
+ */
+async function offerLongAccess() {
+  const drive = await import('./drive.js');
+  if (!st.on || !drive.tokenHelperOn() || (await drive.hasLongAccess()) || navigator.onLine === false || document.hidden) return;
+  let last = 0; try { last = Number(localStorage.getItem('gitara-longask')) || 0; } catch {}
+  if (Date.now() - last < 3 * 864e5) return;
+  try { localStorage.setItem('gitara-longask', String(Date.now())); } catch {}
+  const ok = await dialog({ title: t('sync.longTitle'), body: t('sync.longBody'), buttons: [{ label: t('common.later'), value: false }, { label: t('sync.longOk'), value: true, kind: 'primary' }] });
+  if (!ok) return;
+  try { await reconnect(); toast(t('sync.longDone')); } catch (e) { if (e && e.code !== 'cancelled') toast((e && e.message) || t('common.error'), 'error'); }
 }
 
 /**

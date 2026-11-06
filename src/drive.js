@@ -1,6 +1,6 @@
 // Google Drive rezervna kopija (Google Identity Services + Drive REST API v3, direktno iz pregledača).
 // Koristi samo opseg drive.file: aplikacija vidi isključivo fajlove koje je sama napravila.
-// Nema client secret-a — token client radi samo sa javnim Client ID-jem.
+// U aplikaciji nema client secret-a (samo javni Client ID); tajni deo je samo u pomoćniku (tools/token-helper.gs).
 import { songs as db, settings, events } from './db.js';
 import { mergeSongs } from './songSync.js';
 import { cleanPractice, cleanSkale, mergeSkale, mergePractice } from './syncMerge.js';
@@ -8,6 +8,7 @@ import { normalizeSong, SongFormatError, safeFileName, songExtras, songMeta, cle
 import { cleanFolders, cleanSetlists, cleanSongFolders, mergeById } from './collections.js';
 import { toast, dialog } from './ui.js';
 import { t, songsCount, setLang } from './i18n.js';
+import { TOKEN_HELPER } from './shareConfig.js';
 
 const CLIENT_ID = '633765324865-ki9jk8hvnt9cfqbsemipfl8f796g3s1v.apps.googleusercontent.com';
 const SCOPE_FILE = 'https://www.googleapis.com/auth/drive.file';
@@ -107,8 +108,75 @@ function getTokenClient() {
   return tokenClient;
 }
 
+// ---------------- Dugotrajna dozvola (bez Google prozora pri obnavljanju) ----------------
+// Kratki ključ (1 h) se obnavlja kroz Google-ov prozor koji se na telefonu na tren pokaže (beli bljesak posle sat
+// vremena). Sa pomoćnikom (Apps Script sa tajnim delom prijave): jednom „Dozvoli“, posle toga se ključ obnavlja običnim
+// zahtevom, bez ikakvog prozora. Dozvola je SAMO na ovom telefonu (ne sinhronizuje se, nije u rezervnoj kopiji).
+const RT_KEY = 'driveRT';
+const helperUrl = () => (typeof globalThis.__gitaraTokenHelper === 'string' ? globalThis.__gitaraTokenHelper : TOKEN_HELPER);
+async function helper(body) {
+  const ctrl = new AbortController(), tm = setTimeout(() => ctrl.abort(), 20000);
+  try {
+    // običan tekst (bez „preflight“ zahteva) — tako Apps Script prima POST sa drugog sajta
+    const res = await fetch(helperUrl(), { method: 'POST', body: JSON.stringify(body), signal: ctrl.signal, redirect: 'follow' });
+    return await res.json();
+  } finally { clearTimeout(tm); }
+}
+const scopesOf = (s) => ({ file: /drive\.file/.test(s || ''), app: /drive\.appdata/.test(s || '') });
+function useAccess(r, need) {
+  const sc = scopesOf(r.scope);
+  if (need === 'sync' ? !sc.app : !sc.file) return false;
+  state.token = r.access_token;
+  state.tokenExp = Date.now() + (Number(r.expires_in) || 3600) * 1000 - 60000;
+  state.tokenSync = sc.app; state.tokenFile = sc.file; state.needsReconnect = false;
+  return true;
+}
+/** Tiho obnavljanje (bez prozora): true ako je dobijen nov ključ. */
+async function refreshQuiet(need) {
+  if (!helperUrl() || navigator.onLine === false) return false;
+  const saved = await settings.get(RT_KEY, null);
+  if (!saved || !saved.rt) return false;
+  let r;
+  try { r = await helper({ a: 'refresh', rt: saved.rt }); } catch { return false; }
+  if (r && r.error === 'invalid_grant') { await settings.remove(RT_KEY); return false; } // dozvola opozvana / istekla
+  if (!r || !r.access_token || !useAccess({ ...r, scope: r.scope || saved.scope }, need)) return false;
+  await persist(); emit();
+  return true;
+}
+/** Ima li ovaj telefon dugotrajnu dozvolu (nema Google prozora pri obnavljanju)? */
+export async function hasLongAccess() { return !!helperUrl() && !!(await settings.get(RT_KEY, null)); }
+export const tokenHelperOn = () => !!helperUrl();
+/** Na dodir: Google pita „Dozvoli“ (jednom), pomoćnik menja kod za ključ i dugotrajnu dozvolu. */
+async function codeFlow({ need, hint, pick }) {
+  await loadGis();
+  const code = await new Promise((resolve, reject) => {
+    const client = google.accounts.oauth2.initCodeClient({
+      client_id: CLIENT_ID, scope: need === 'sync' ? SCOPE : SCOPE_FILE, ux_mode: 'popup', include_granted_scopes: true,
+      ...(hint && !pick ? { hint } : {}), ...(pick ? { select_account: true } : {}),
+      callback: (resp) => (resp && resp.code ? resolve(resp.code) : reject(new DriveError(resp && resp.error === 'access_denied' ? t('drive.e.denied') : t('drive.e.auth'), resp && resp.error === 'access_denied' ? 'denied' : 'auth'))),
+      error_callback: (err) => reject(err && err.type === 'popup_closed' ? new DriveError(t('drive.e.cancelled'), 'cancelled') : err && err.type === 'popup_failed_to_open' ? new DriveError(t('drive.e.popup'), 'popup') : new DriveError(t('drive.e.auth'), 'auth')),
+    });
+    client.requestCode();
+  });
+  let r = null;
+  try { r = await helper({ a: 'exchange', code }); } catch { r = null; }
+  if (!r || !r.access_token) throw new DriveError(t('drive.e.auth'), 'helper');
+  if (!useAccess(r, need)) throw new DriveError(t('drive.e.scope'), 'denied');
+  if (r.refresh_token) await settings.set(RT_KEY, { rt: r.refresh_token, scope: r.scope || '' });
+  await persist(); emit();
+  return state.token;
+}
+
 /** Traži token. interactive=false: tihi pokušaj (bez izbora naloga). */
 async function requestToken({ interactive, need = 'file', hint = '', pick = false }) {
+  // 1) dugotrajna dozvola: nov ključ bez ikakvog prozora
+  if (!interactive && (await refreshQuiet(need))) return state.token;
+  // 2) na dodir, sa pomoćnikom: jednom „Dozvoli“ → posle toga nikad više prozor pri obnavljanju
+  if (interactive && helperUrl()) {
+    try { return await codeFlow({ need, hint: hint || state.email, pick }); }
+    catch (e) { if (['cancelled', 'denied', 'popup', 'offline'].includes(e && e.code)) throw e; } // pomoćnik ne radi: kao ranije
+  }
+  // 3) kao ranije (kratki ključ; bez pomoćnika / dozvole Google na tren otvori svoj prozor)
   await loadGis();
   const client = getTokenClient();
   if (pendingToken) pendingToken.reject(new DriveError(t('drive.e.cancelled'), 'cancelled'));
@@ -175,6 +243,7 @@ export async function syncSignOut() {
   const tk = state.token;
   Object.assign(state, { token: '', tokenExp: 0, tokenSync: false });
   await settings.remove('driveToken');
+  await forgetLongAccess();
   if (tk && window.google && google.accounts && google.accounts.oauth2) { try { google.accounts.oauth2.revoke(tk, () => {}); } catch {} }
 }
 /** Stara rezervna kopija (gitara-backup.json) — samo čitanje, bez pravljenja foldera (za jednokratni prelazak). */
@@ -457,7 +526,7 @@ export async function disconnect() {
   clearTimeout(timer);
   hideReconnectBanner();
   await settings.remove('drive');
-  if (!keep) await settings.remove('driveToken');
+  if (!keep) { await settings.remove('driveToken'); await forgetLongAccess(); }
   emit();
   if (t && !keep && window.google && google.accounts && google.accounts.oauth2) {
     try { google.accounts.oauth2.revoke(t, () => {}); } catch {}
@@ -557,6 +626,13 @@ function showReconnectBanner() {
   el.querySelector('#driveBannerClose').addEventListener('click', () => el.remove());
 }
 function hideReconnectBanner() { document.getElementById('driveBanner')?.remove(); }
+
+/** Odjava: dugotrajna dozvola se opoziva kod Google-a i briše sa telefona. */
+async function forgetLongAccess() {
+  const saved = await settings.get(RT_KEY, null);
+  await settings.remove(RT_KEY);
+  if (saved && saved.rt) fetch('https://oauth2.googleapis.com/revoke', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'token=' + encodeURIComponent(saved.rt) }).catch(() => {});
+}
 
 // ---------------- Pokretanje ----------------
 // Priprema se jednom; svi pozivi čekaju istu pripremu (da niko ne vidi „nije povezan“ dok se stanje još čita)
