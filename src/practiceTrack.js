@@ -19,6 +19,29 @@ import { Metronome } from './rhythm.js';
 import { judgeTiming, getLatency, debugLog } from './practiceListen.js';
 import { dn } from './naming.js';
 import { getVoicings } from './chords.js';
+import { audioCtx } from './synth.js';
+import { loadNote, nearestNote } from './guitarSamples.js';
+import { chordNotes } from './rhythm.js';
+
+/**
+ * Zvuci gitare za ono što će se svirati (note, akordi, ritam na Em) učitaju se PRE nego što staza krene —
+ * inače se svaki nov ton učitava i dekodira usred animacije (na slabijem telefonu trzaj od ~100 ms).
+ * Čeka najviše maxMs; ono što ne stigne, učitava se kao i ranije.
+ */
+export function warmSounds(items, maxMs = 1500) {
+  try {
+    const ctx = audioCtx(), set = new Set();
+    const addF = (f) => { if (f) set.add(nearestNote(f)); };
+    for (const it of items || []) {
+      if (it.midi != null) set.add(Math.max(40, Math.min(86, it.midi)));
+      for (const g of it.group || []) if (g.midi != null) set.add(g.midi);
+      if (it.chord) (chordNotes(it.chord) || []).forEach(addF);
+    }
+    (chordNotes('Em') || []).forEach(addF); // ritam / metronom bez akorda
+    const all = Promise.all([...set].map((m) => loadNote(ctx, m).catch(() => null)));
+    return Promise.race([all, new Promise((r) => setTimeout(r, maxMs))]);
+  } catch { return Promise.resolve(); }
+}
 
 const C = { bg: '#07080a', wood: '#120d09', str: '#b9bdc4', accent: '#f5a524', ok: '#3dd68c', danger: '#ff6b6b', muted: '#9aa1ad' };
 const INK = '#0b0c10';
@@ -212,7 +235,8 @@ export function createTrack({ t, onExit, lookBeats = 4.5, onInfo = null, speed =
         const x = xOf(grid.t0 + b * beatMs);
         if (x < G.gutter || x > G.W) continue;
         const e = gridEls[gi] || (gridEls[gi] = take('grid'));
-        e.className = ((b % 4) + 4) % 4 === 0 ? 'tgl acc' : 'tgl';
+        const cls = ((b % 4) + 4) % 4 === 0 ? 'tgl acc' : 'tgl';
+        if (e._cls !== cls) { e._cls = cls; e.className = cls; } // klasa samo kad se promeni (inače stil svake sličice ispočetka)
         setX(e, `translate3d(${x.toFixed(1)}px,0,0)`);
         gi++;
       }
@@ -705,7 +729,7 @@ export function trackGame(api, cfg) {
   async function play(bpm) {
     open();
     const round = cfg.round(api.level, bpm);
-    await api.listen(cfg.listen(round, (at, check) => runner?.input(at, check)));
+    await Promise.all([api.listen(cfg.listen(round, (at, check) => runner?.input(at, check))), warmSounds(round.items)]);
     unsub?.(); unsub = api.onLevel((lv, note) => track?.level(lv, note));
     if (!api.running || !track) return;
     await startRound(round, bpm);
@@ -728,7 +752,7 @@ export function trackGame(api, cfg) {
     if (!track || my !== gen || !api.running) return;
     track.handPulse();
     track.caption(cfg.demo.intro);
-    await wait(2800);
+    await Promise.all([wait(2800), warmSounds(cfg.demo.items(), 2800)]); // zvuci se učitaju dok traje uvod
     if (!track || my !== gen || !api.running) return;
     const d = cfg.demo, its = d.items();
     track.setLyricMode(its.some((it) => it.lyric !== undefined));

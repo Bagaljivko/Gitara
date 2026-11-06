@@ -28,6 +28,7 @@ import { upgradeSong, CV, needsUpgrade } from './songmodel.js';
 import { keyName } from './chordnames.js';
 const openKeyWheel = (o) => import('./keyWheel.js').then((m) => m.openKeyWheel(o)); // samo kad se otvori točak tonaliteta
 import { cleanTuning, tuningNotes } from './tunings.js';
+import { srCompare } from './collate.js';
 
 let selectedId = null; // izabrana pesma u prikazu sa dva panela
 export function setSelectedSong(id) { selectedId = id; }
@@ -158,7 +159,7 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
     let list = all.filter((s) => inGroup(s, folderFilter, rec)).filter((s) => !q || folded(s).t.includes(q) || folded(s).a.includes(q) ||
       (s.find ?? '').includes(q));
     const sort = $('lSort').value;
-    const cmp = (a, b) => String(a || '').localeCompare(String(b || ''), 'sr', { sensitivity: 'base' });
+    const cmp = srCompare; // srpska latinica: C Č Ć … S Š … Z Ž
     if (sort === 'title') list.sort((a, b) => cmp(a.title, b.title));
     else if (sort === 'artist') list.sort((a, b) => cmp(a.artist, b.artist) || cmp(a.title, b.title));
     else if (sort === 'recent' || folderFilter === 'auto:recent') { const op = openedMap(); list.sort((a, b) => (op[b.id] || 0) - (op[a.id] || 0) || (b.updatedAt || 0) - (a.updatedAt || 0)); }

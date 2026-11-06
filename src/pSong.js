@@ -14,6 +14,7 @@ import { transposeSong } from './songformat.js';
 import { trackGame, chordItem, chordFingers } from './practiceTrack.js';
 import { checkChord } from './pChords.js';
 import { songPracticeUI } from './songPracticeUI.js';
+import { srCompare } from './collate.js';
 
 const MAX_PASSES = 6;
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -202,7 +203,7 @@ export async function createGame(api) {
 // Bez izabrane pesme: lista pesama iz biblioteke (brzi indeks, bez učitavanja celih pesama)
 async function pickSong(api) {
   const { t, esc } = api;
-  const list = (await db.list()).sort((a, b) => String(a.title).localeCompare(String(b.title), 'sr'));
+  const list = (await db.list()).sort((a, b) => srCompare(a.title, b.title));
   api.stage.innerHTML = list.length
     ? `<p class="pr-optlabel">${t('pr.pesma.pick')}</p><ul class="ps-list">${list.map((s) => `<li><a href="#/vezbe/pesma/${encodeURIComponent(s.id)}"><b>${esc(s.title)}</b><span class="small muted">${esc(s.artist || '')}</span></a></li>`).join('')}</ul>`
     : `<p class="muted center">${t('pr.pesma.empty')}</p>`;

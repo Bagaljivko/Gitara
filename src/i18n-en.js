@@ -542,6 +542,7 @@ export default {
   'folder.emptyFolder': 'No songs in this folder yet. Add them with the folder button next to a song.',
   'sl.new': 'New setlist',
   'sl.count': '{n} songs',
+  'sl.emptyTitle': 'Your set lists',
   'sl.empty': 'No setlists yet. Make one for a lesson or a gig.',
   'sl.backToList': '‹ Setlists',
   'sl.addSongs': 'Add songs',

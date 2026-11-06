@@ -570,6 +570,7 @@ const sr = {
   // Setliste
   'sl.new': 'Nova setlista',
   'sl.count': '{n} pesama',
+  'sl.emptyTitle': 'Tvoje setliste',
   'sl.empty': 'Još nema setlista. Napravi setlistu za čas ili nastup.',
   'sl.backToList': '‹ Setliste',
   'sl.addSongs': 'Dodaj pesme',

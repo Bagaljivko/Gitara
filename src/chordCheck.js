@@ -7,6 +7,7 @@ import { songs as db } from './db.js';
 import { t } from './i18n.js';
 import { esc } from './ui.js';
 import { readChord, renderChord, detectNaming, detectKey, keyName, isChordLineAs } from './chordnames.js';
+import { srCompare } from './collate.js';
 
 const EXTRA = /^(\||x\d+|\d+x|N\.?C\.?|%|\.{2,}|-+|\(|\))$/i;
 
@@ -102,7 +103,7 @@ function altHTML(a) {
 }
 
 export async function renderChordCheck(root) {
-  const songs = (await db.all()).sort((x, y) => String(x.title).localeCompare(String(y.title), 'sr'));
+  const songs = (await db.all()).sort((x, y) => srCompare(x.title, y.title));
   // Pregled se radi nad ORIGINALOM (kako je napisano), ne nad već prebačenim akordima
   const results = songs.map((s) => ({ song: s, a: analyzeSong(s.original ? { ...s, ...s.original } : s) }));
   const flagged = results.filter((r) => r.a.flags.any);

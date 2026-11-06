@@ -3,6 +3,7 @@ import { songs as db } from './db.js';
 import { setWakeZone } from './wakelock.js';
 import { esc, toast, dialog, confirmDialog } from './ui.js';
 import { t, songsCount } from './i18n.js';
+import { srCompare } from './collate.js';
 import {
   getFolders, addFolder, renameFolder, deleteFolder, setSongFolders, folderLabel, isSystemFolder,
   getSetlists, getSetlist, addSetlist, updateSetlist, deleteSetlist,
@@ -83,9 +84,9 @@ export async function renderSetlistsPane(el) {
   el.innerHTML = `
     <button class="btn primary wide" id="slNew">${t('sl.new')}</button>
     <ul class="song-list">
-      ${lists.length ? lists.map((l) => `<li class="song-item"><a class="song-link" href="#/setlista/${encodeURIComponent(l.id)}">
-        <span class="song-title">${esc(l.name)}</span><span class="song-sub">${esc(songsCount(l.songIds.length))}</span></a></li>`).join('')
-        : `<li class="empty muted">${t('sl.empty')}</li>`}
+      ${lists.length ? lists.map((l) => `<li class="song-item slp-item"><a class="song-link" href="#/setlista/${encodeURIComponent(l.id)}">
+        <span class="sl-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h12v2H3zm0 5h12v2H3zm0 5h8v2H3zm14-3v-3h2v3h3v2h-3v3h-2v-3h-3v-2z"/></svg></span><span class="sl-txt"><span class="song-title">${esc(l.name)}</span><span class="song-sub">${esc(songsCount(l.songIds.length))}</span></span></a></li>`).join('')
+        : `<li class="empty sl-empty-big"><span class="sl-ico big"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h12v2H3zm0 5h12v2H3zm0 5h8v2H3zm14-3v-3h2v3h3v2h-3v3h-2v-3h-3v-2z"/></svg></span><b>${t('sl.emptyTitle')}</b><span class="muted">${t('sl.empty')}</span></li>`}
     </ul>`;
   el.querySelector('#slNew').addEventListener('click', async () => {
     const name = await askName(t('sl.new'));
@@ -201,7 +202,7 @@ export async function renderSetlist(root, id) {
   $('slList').addEventListener('pointercancel', endDrag);
 
   $('slAdd').addEventListener('click', async () => {
-    const items = [...all].sort((a, b) => String(a.title).localeCompare(String(b.title), 'sr')).map((s) => ({ value: s.id, label: s.title, sub: s.artist }));
+    const items = [...all].sort((a, b) => srCompare(a.title, b.title)).map((s) => ({ value: s.id, label: s.title, sub: s.artist }));
     const r = await pickMany(t('sl.addSongs'), items, ids, t('lib.empty'));
     if (!r) return;
     // Zadrži postojeći redosled, nove dodaj na kraj

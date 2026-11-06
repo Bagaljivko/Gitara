@@ -19,3 +19,11 @@ test('normal text, short acronyms and empty values stay as they are', () => {
   for (const s of ['In My Life', 'Romance D\'Amour', 'AC/DC', 'ABBA', 'U2', '', 'Trad.', 'F. Tárrega']) assert.equal(fixCaps(s), s);
   assert.equal(fixCaps(undefined), undefined);
 });
+
+test('Serbian Latin alphabetical order: C Č Ć, D Dž Đ, L Lj, S Š, Z Ž; numbers naturally', async () => {
+  const { srCompare } = await import('../src/collate.js');
+  const w = ['Zora', 'Žar', 'Šuma', 'Sunce', 'Čaša', 'Cvet', 'Ćup', 'Dan', 'Đak', 'Džep', 'Ljubav', 'Lom'];
+  assert.deepEqual([...w].sort(srCompare), ['Cvet', 'Čaša', 'Ćup', 'Dan', 'Džep', 'Đak', 'Lom', 'Ljubav', 'Sunce', 'Šuma', 'Zora', 'Žar']);
+  assert.deepEqual(['Pesma 10', 'Pesma 2', 'pesma 1'].sort(srCompare), ['pesma 1', 'Pesma 2', 'Pesma 10']);
+  assert.equal(srCompare(null, ''), 0);
+});
