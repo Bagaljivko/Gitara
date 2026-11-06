@@ -76,12 +76,15 @@ export function createEngine(local, remote, { node, ask = async () => true, onSt
   const concurrent = (m, p) => !!(m && m.mine && m.hlc && p.b !== undefined && p.b !== m.hlc && m.base !== p.h);
   const stale = []; // moji fajlovi koje je zamenila novija verzija sa drugog uređaja (brišu se na kraju kruga)
   const drop = (m) => { if (m && m.own) stale.push(m.own); return { mine: false, ...(m && m.own ? { own: null } : {}) }; };
+  // verzija koju je napravio OVAJ uređaj (Drive javlja i moja slanja): deo moje istorije, nikad „sukob“
+  const byMe = (h) => { const n = hlcParse(h).n; return !!node && (n === node || n.startsWith(node + '~')); }; // ~ui (ekrani), ~s (prvo uključivanje)
   async function apply(p, fileId) {
     const key = p.k;
     if (!key || key === SNAPSHOT) return false;
     if ((Number(p.s) || 0) > SCHEMA) { blocked.add(key); newer = true; return false; }
     const m = (await local.meta(key)) || null;
     if (m && m.hlc === p.h) { if (fileId && m.fileId !== fileId) await local.setMeta(key, { fileId }); return false; }
+    if (m && m.hlc && byMe(p.h) && p.h < m.hlc) return false; // moje ranije slanje — već imam noviju izmenu
     clock.recv(p.h);
     const remoteData = p.d ? null : p.v;
     if (m && m.dirty) {
@@ -138,6 +141,7 @@ export function createEngine(local, remote, { node, ask = async () => true, onSt
     for (const [k, f] of best) {
       if ((Number(f.props.s) || 0) > SCHEMA) { blocked.add(k); newer = true; continue; }
       const m = await local.meta(k);
+      if (m && m.hlc && byMe(f.props.h) && f.props.h <= m.hlc) { if (f.fileId && m.fileId !== f.fileId && f.props.h === m.hlc) await local.setMeta(k, { fileId: f.fileId }); continue; } // moje slanje
       if (!m || !m.hlc || f.props.h > m.hlc || (m.dirty && f.props.h !== m.hlc)) out.push(f);
       else if (f.fileId && m.fileId !== f.fileId && f.props.h === m.hlc) await local.setMeta(k, { fileId: f.fileId });
     }

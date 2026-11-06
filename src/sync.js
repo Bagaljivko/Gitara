@@ -3,7 +3,7 @@
 // jednokratni prelazak sa stare rezervne kopije. Sam posao (mreža, gzip, baza) radi Web Worker (syncWorker.js).
 // Učitava se tek kad je prvi ekran prikazan (requestIdleCallback) i samo ako je sinhronizacija uključena.
 import { t, getLang, setLang } from './i18n.js';
-import { settings, syncMeta, events, notifyRemote, SYNCED_SETTING } from './db.js';
+import { settings, syncMeta, versions, events, notifyRemote, SYNCED_SETTING } from './db.js';
 import { deviceNode } from './syncClock.js';
 import { toast, dialog, esc } from './ui.js';
 
@@ -244,10 +244,31 @@ function begin() {
 let initP = null;
 export function initSync() { return initP || (initP = doInit()); }
 async function doInit() {
+  await cleanOwnEchoes();
   const c = await loadCfg();
   if (!c.on) { emit(); return; }
   setStatus(navigator.onLine === false ? 'offline' : 'syncing');
   begin();
+}
+
+/**
+ * Jednokratno (v1.53): lažne „Prethodne verzije — izmena sa drugog uređaja“ do v1.52. Drive javlja i slanja ovog
+ * uređaja; kad je pesma u međuvremenu ponovo menjana, sopstveno ranije slanje je čuvano kao „sukob“. Briše se
+ * samo kopija koju je napravio OVAJ uređaj, i to samo ako je i trenutna verzija pesme sa ovog uređaja (pravi sukob:
+ * trenutna verzija je sa drugog uređaja — ta kopija ostaje).
+ */
+async function cleanOwnEchoes() {
+  try {
+    if (localStorage.getItem('gitara-echo-clean')) return;
+    const node = deviceNode();
+    const me = (h) => { const n = String(h || '').split(':').slice(2).join(':'); return !!node && (n === node || n.startsWith(node + '~')); };
+    const metas = new Map((await syncMeta.all()).map((m) => [m.key, m]));
+    for (const v of await versions.list()) {
+      const m = metas.get(v.key);
+      if (v.reason === 'conflict' && me(v.hlc) && m && m.hlc && me(m.hlc)) await versions.remove(v.n);
+    }
+    localStorage.setItem('gitara-echo-clean', '1');
+  } catch {}
 }
 
 /** „Poveži Google nalog“: prijava, provera naloga, spajanje (nikad prepisivanje), prvo slanje. */

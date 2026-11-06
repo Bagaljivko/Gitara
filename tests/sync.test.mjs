@@ -242,3 +242,26 @@ test('a device joins an already-synced account with a big library (snapshot uplo
   const C = dev('C', drive); await C.sync();
   assert.equal([...C.data.keys()].filter((k) => k.startsWith('song:')).length, 41);
 });
+
+test('own upload echoed back by Drive while editing again is never a "conflict" (one phone, no other device)', async () => {
+  const drive = memDrive();
+  let t = 1000; const now = () => t;
+  const A = dev('A', drive, { now });
+  // kao na telefonu: sačuvaj skeniranu pesmu (poslato), pa odmah ispravi naslov — Drive tek tada javi prvo slanje
+  A.edit('song:s1', song(1, { title: 'IN MY LIFE' }));
+  await A.sync();
+  t = 2000; A.edit('song:s1', song(1, { title: 'In My Life' }));
+  await A.sync();
+  t = 3000; A.edit('song:s1', song(1, { title: 'In My Life', key: 'A' }));
+  await A.sync(); await A.sync();
+  assert.equal(A.versions.length, 0, `no previous versions from my own edits: ${A.versions.map((v) => v.value.title + ' ' + v.reason).join(', ')}`);
+  assert.equal(A.data.get('song:s1').key, 'A'); assert.equal(A.pending(), 0);
+  // a second device still sees only the latest, and a real conflict is still caught afterwards
+  const B = dev('B', drive, { now }); await B.sync();
+  assert.equal(B.data.get('song:s1').key, 'A'); assert.equal(B.versions.length, 0);
+  t = 4000; A.edit('song:s1', song(1, { title: 'A menja' }));
+  t = 5000; B.edit('song:s1', song(1, { title: 'B menja' }));
+  await A.sync(); await B.sync(); await A.sync();
+  assert.equal(A.data.get('song:s1').title, 'B menja');
+  assert.ok(A.versions.some((v) => v.value.title === 'A menja'), 'a real conflict is still kept');
+});
