@@ -1215,3 +1215,16 @@ body.stage-mode main { padding-left: max(16px, env(safe-area-inset-left)); paddi
 .yt-how { display: flex; align-items: center; gap: 12px; margin: 0; padding: 0 16px; color: var(--muted); font-size: .92rem; }
 .yt-how .yt-n { background: var(--surface-2); color: var(--text); }
 .yt-paste[hidden], .yt-q[hidden] { display: none; }
+
+/* v1.55.1 — predlog ritma u jednom redu (tekst pesme ostaje na prvom ekranu) */
+.sug-mini { padding: 6px 6px 6px 12px; }
+.sug-mini-row { display: flex; align-items: center; gap: 4px; min-height: 44px; }
+.sug-mini-main { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; background: none; border: 0; color: inherit; font: inherit; text-align: left; padding: 6px 0; cursor: pointer; }
+.sug-mini-k { flex-basis: 100%; font-size: .7rem; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: var(--accent); }
+.sug-mini-main b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.sug-chev { width: 18px; height: 18px; fill: currentColor; opacity: .6; align-self: center; transition: transform .15s; }
+.sug-mini-main.open .sug-chev { transform: rotate(180deg); }
+.sug-mini .pat-play { width: 40px; height: 40px; flex: none; }
+.sug-mini .btn.small { flex: none; }
+.sug-mini .sug-x { margin: 0; flex: none; }
+.sug-mini-body { padding: 4px 6px 6px 0; }

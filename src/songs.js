@@ -993,7 +993,7 @@ export async function renderSong(root, id, nav = null) {
     // lakša verzija (kapodaster): samo dugme „Lakša verzija“ gore — kartica je bila dupliran predlog iznad teksta
     if (!stored.recording && !hasStrum() && !(stored.skipped && stored.skipped.strum)) { // snimci iz „Samo sviraj“: bez predloga ritma
       const ss = stored.suggestStrum && patternById(stored.suggestStrum.id);
-      if (ss) items.push({ x: 'strum-skip', html: `<div class="sug-title">${t('sug.strumTitle')}: ${esc(patternName(ss))} <span class="small muted">${ss.sig}</span>
+      if (ss) items.push({ x: 'strum-skip', mini: ss, html: `<div class="sug-title">${t('sug.strumTitle')}: ${esc(patternName(ss))} <span class="small muted">${ss.sig}</span>
           <button class="icon-btn pat-play" data-sug="strum-play" aria-label="${t('pat.play')}"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button></div>
         ${patternHTML(ss, { compact: true })}
         ${stored.suggestStrum.reason ? `<p class="small muted">${esc(stored.suggestStrum.reason)}</p>` : ''}
@@ -1002,6 +1002,17 @@ export async function renderSong(root, id, nav = null) {
     if (!items.length) return '';
     // Samo jedan predlog odjednom; ✕ ga odbacuje i prikazuje sledeći
     const it = items[0];
+    if (it.mini) {
+      // Predlog ritma: jedan red (naziv, ▶, Primeni, ✕) — tekst pesme ostaje na prvom ekranu; obrazac i obrazloženje na dodir
+      const ss = it.mini;
+      const X = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z"/></svg>';
+      return `<div class="card sug-card sug-mini"><div class="sug-mini-row">
+        <button class="sug-mini-main" data-sug="strum-more" aria-expanded="false"><span class="sug-mini-k">${t('sug.strumTitle')}</span><b>${esc(patternName(ss))}</b> <span class="small muted">${ss.sig}</span><svg class="sug-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.4 8.6 12 13.2l4.6-4.6L18 10l-6 6-6-6z"/></svg></button>
+        <button class="icon-btn pat-play" data-sug="strum-play" aria-label="${t('pat.play')}"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
+        <button class="btn small primary" data-sug="strum-apply">${t('sug.apply')}</button>
+        <button class="icon-btn sug-x" data-sug="strum-skip" aria-label="${t('sug.dismiss')}" title="${t('sug.dismiss')}">${X}</button></div>
+        <div class="sug-mini-body" hidden>${patternHTML(ss, { compact: true })}${stored.suggestStrum.reason ? `<p class="small muted">${esc(stored.suggestStrum.reason)}</p>` : ''}</div></div>`;
+    }
     return `<div class="card sug-card"><div class="sug-head"><span>${t('sug.title')}${items.length > 1 ? ` <span class="muted">1/${items.length}</span>` : ''}</span>
       <button class="icon-btn sug-x" data-sug="${it.x}" aria-label="${t('sug.dismiss')}" title="${t('sug.dismiss')}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z"/></svg></button></div>
       <div class="sug-group">${it.html}</div></div>`;
@@ -1408,6 +1419,11 @@ export async function renderSong(root, id, nav = null) {
         const p = patternById(stored.suggestStrum && stored.suggestStrum.id);
         if (p) stored.strum = { id: p.id, sig: p.sig, steps: p.steps };
         return save().then(draw);
+      }
+      if (a === 'strum-more' || a === 'strum-play') {
+        const body = $('sSuggest').querySelector('.sug-mini-body'), main = $('sSuggest').querySelector('.sug-mini-main');
+        if (body) { const open = a === 'strum-play' ? true : body.hidden; body.hidden = !open; main.setAttribute('aria-expanded', String(open)); main.classList.toggle('open', open); }
+        if (a === 'strum-more') return;
       }
       if (a === 'strum-play') return playPattern(patternById(stored.suggestStrum.id), '#sSuggest');
     }
