@@ -1,6 +1,6 @@
 // Rad bez interneta: cela aplikacija se čuva u kešu i služi iz njega (uvek ista, usklađena verzija).
 // Nova verzija = novi broj u CACHE (scripts/update-sw.mjs). Aplikacija tada prikaže „Osveži“.
-const CACHE = "gitara-v79";
+const CACHE = "gitara-v80";
 const SHELL = [
   "./",
   "index.html",
@@ -45,6 +45,7 @@ const SHELL = [
   "src/pSpider.js",
   "src/pTab.js",
   "src/pdf.js",
+  "src/pdfTab.js",
   "src/pitchtrack.js",
   "src/practice.css",
   "src/practice.js",
@@ -99,6 +100,7 @@ const SHELL = [
   "src/tabText.js",
   "src/tabView.js",
   "src/tabs.js",
+  "src/textCase.js",
   "src/tuner.js",
   "src/tunerSettings.js",
   "src/tunerWave.js",
@@ -116,10 +118,19 @@ const SHELL = [
   "assets/headstock.webp"
 ];
 // Retko korišćeni veliki fajlovi (PDF): preuzimaju se u pozadini, posle instalacije, da ne usporavaju prvo otvaranje.
-const LAZY = ["vendor/jspdf.umd.min.js", "fonts/DejaVuSansMono.ttf", "fonts/DejaVuSansMono-Bold.ttf", "assets/guitar/40.mp3", "assets/guitar/41.mp3", "assets/guitar/42.mp3", "assets/guitar/43.mp3", "assets/guitar/44.mp3", "assets/guitar/45.mp3", "assets/guitar/46.mp3", "assets/guitar/47.mp3", "assets/guitar/48.mp3", "assets/guitar/49.mp3", "assets/guitar/50.mp3", "assets/guitar/51.mp3", "assets/guitar/52.mp3", "assets/guitar/53.mp3", "assets/guitar/54.mp3", "assets/guitar/55.mp3", "assets/guitar/56.mp3", "assets/guitar/57.mp3", "assets/guitar/58.mp3", "assets/guitar/59.mp3", "assets/guitar/60.mp3", "assets/guitar/61.mp3", "assets/guitar/62.mp3", "assets/guitar/63.mp3", "assets/guitar/64.mp3", "assets/guitar/65.mp3", "assets/guitar/66.mp3", "assets/guitar/67.mp3", "assets/guitar/68.mp3", "assets/guitar/69.mp3", "assets/guitar/70.mp3", "assets/guitar/71.mp3", "assets/guitar/72.mp3", "assets/guitar/73.mp3", "assets/guitar/74.mp3", "assets/guitar/75.mp3", "assets/guitar/76.mp3", "assets/guitar/77.mp3", "assets/guitar/78.mp3", "assets/guitar/79.mp3", "assets/guitar/80.mp3", "assets/guitar/81.mp3", "assets/guitar/82.mp3", "assets/guitar/83.mp3", "assets/guitar/84.mp3", "assets/guitar/85.mp3", "assets/guitar/86.mp3"];
+const LAZY = ["vendor/jspdf.umd.min.js", "vendor/pdfjs/pdf.min.mjs", "vendor/pdfjs/pdf.worker.min.mjs", "fonts/DejaVuSansMono.ttf", "fonts/DejaVuSansMono-Bold.ttf", "assets/guitar/40.mp3", "assets/guitar/41.mp3", "assets/guitar/42.mp3", "assets/guitar/43.mp3", "assets/guitar/44.mp3", "assets/guitar/45.mp3", "assets/guitar/46.mp3", "assets/guitar/47.mp3", "assets/guitar/48.mp3", "assets/guitar/49.mp3", "assets/guitar/50.mp3", "assets/guitar/51.mp3", "assets/guitar/52.mp3", "assets/guitar/53.mp3", "assets/guitar/54.mp3", "assets/guitar/55.mp3", "assets/guitar/56.mp3", "assets/guitar/57.mp3", "assets/guitar/58.mp3", "assets/guitar/59.mp3", "assets/guitar/60.mp3", "assets/guitar/61.mp3", "assets/guitar/62.mp3", "assets/guitar/63.mp3", "assets/guitar/64.mp3", "assets/guitar/65.mp3", "assets/guitar/66.mp3", "assets/guitar/67.mp3", "assets/guitar/68.mp3", "assets/guitar/69.mp3", "assets/guitar/70.mp3", "assets/guitar/71.mp3", "assets/guitar/72.mp3", "assets/guitar/73.mp3", "assets/guitar/74.mp3", "assets/guitar/75.mp3", "assets/guitar/76.mp3", "assets/guitar/77.mp3", "assets/guitar/78.mp3", "assets/guitar/79.mp3", "assets/guitar/80.mp3", "assets/guitar/81.mp3", "assets/guitar/82.mp3", "assets/guitar/83.mp3", "assets/guitar/84.mp3", "assets/guitar/85.mp3", "assets/guitar/86.mp3"];
 const fresh = (u) => new Request(u, { cache: "reload" }); // zaobiđi HTTP keš da se verzije ne pomešaju
 
 self.addEventListener("install", e => {
+  // Početna strana direktno iz keša, bez buđenja service worker-a (Chrome 123+): posle dužeg nekorišćenja telefon
+  // ugasi service worker, a njegovo ponovno pokretanje je bio beli ekran sa kružićem pre prvog prikaza.
+  // Samo tačna adresa aplikacije bez ?… (deljeni linkovi, „Popravi“ i sl. idu kroz fetch ispod).
+  try {
+    if (e.addRoutes && self.URLPattern) {
+      const scope = new URL(self.registration.scope);
+      e.addRoutes({ condition: { requestMode: "navigate", urlPattern: new URLPattern({ protocol: scope.protocol.slice(0, -1), hostname: scope.hostname, pathname: scope.pathname, search: "" }) }, source: { cacheName: CACHE } });
+    }
+  } catch (_) {}
   e.waitUntil((async () => {
     const c = await caches.open(CACHE);
     await c.addAll(SHELL.map(fresh));
@@ -129,30 +140,37 @@ self.addEventListener("install", e => {
   })());
 });
 self.addEventListener("message", e => { if (e.data === "SKIP_WAITING") self.skipWaiting(); });
+// Prenos velikih fajlova iz starog keša i brisanje starijih verzija — jednom, u pozadini, nikad ispred zahteva.
+let cleaning = null;
+const cleanup = () => cleaning || (cleaning = (async () => {
+  const keys = await caches.keys();
+  const c = await caches.open(CACHE);
+  for (const u of LAZY) {
+    if (await c.match(u)) continue;
+    for (const k of keys) { if (k === CACHE) continue; const r = await (await caches.open(k)).match(u); if (r) { await c.put(u, r); break; } }
+  }
+  // samo STARIJE verzije (novija koja se upravo instalira ostaje!)
+  const ver = (k) => { const m = /^gitara-v(\d+)$/.exec(k); return m ? +m[1] : -1; }, mine = ver(CACHE);
+  await Promise.all(keys.filter(k => k.startsWith("gitara-") && ver(k) < mine).map(k => caches.delete(k)));
+  await Promise.all(LAZY.map(async u => { if (!(await c.match(u))) await c.add(fresh(u)); })).catch(() => {});
+})().catch(() => {}));
 self.addEventListener("activate", e => {
-  e.waitUntil((async () => {
-    const keys = await caches.keys();
-    const c = await caches.open(CACHE);
-    // PDF fajlovi: prenesi iz starog keša ako postoje, ostalo preuzmi u pozadini
-    for (const u of LAZY) {
-      if (await c.match(u)) continue;
-      for (const k of keys) { if (k === CACHE) continue; const r = await (await caches.open(k)).match(u); if (r) { await c.put(u, r); break; } }
-    }
-    await Promise.all(keys.filter(k => k.startsWith("gitara-") && k !== CACHE).map(k => caches.delete(k)));
-    await self.clients.claim();
-    Promise.all(LAZY.map(async u => { if (!(await c.match(u))) await c.add(fresh(u)); })).catch(() => {});
-  })());
+  // Aktivacija mora biti trenutna: dok traje, pregledač drži sve zahteve (i ponovno učitavanje posle „Osveži“) —
+  // to je bio beli ekran sa kružićem posle ažuriranja. Zato ovde SAMO preuzimanje stranice; ostalo posle (fetch).
+  e.waitUntil(self.clients.claim());
 });
 self.addEventListener("fetch", e => {
   if (e.request.method !== "GET") return;
   const url = new URL(e.request.url);
   if (url.origin !== self.location.origin) return; // npr. Gemini API ide direktno na mrežu
+  if (!cleaning) e.waitUntil(new Promise(r => setTimeout(r, 2000)).then(cleanup)); // posle prvog prikaza, ne pre
   e.respondWith((async () => {
     const cache = await caches.open(CACHE);
     // Navigacija na samu aplikaciju → keširana početna strana; ostale stranice (npr. privacy.html) → svoj fajl
     const isPage = e.request.mode === "navigate" && !/\/privacy\.html$/.test(url.pathname);
     // ?v=… u adresi (dodaje se pri objavi) samo sprečava mešanje verzija u kešu pregledača — ovde je svejedno
-    const cached = await cache.match(isPage ? "./" : e.request, { ignoreSearch: true });
+    const cached = await cache.match(isPage ? "./" : e.request, { ignoreSearch: true })
+      || (LAZY.some(u => url.pathname.endsWith("/" + u)) ? await caches.match(e.request, { ignoreSearch: true }) : null); // još u starom kešu
     if (cached) return cached;
     try {
       const res = await fetch(e.request);

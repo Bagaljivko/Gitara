@@ -34,7 +34,7 @@ export async function buildReport() {
   const boots = bootLog();
   if (boots.length) {
     L.push('', w.boots);
-    for (const b of boots) L.push(`  ${iso(b.t)}  ${b.ms} ms  ${b.sw ? 'sw' : w.net}  ${b.nav || ''}${b.disc ? '  ' + w.disc : ''}`);
+    for (const b of boots) L.push(`  ${iso(b.t)}  ${b.ms} ms  ${b.sw ? 'sw' : w.net}  ${b.nav || ''}${b.html ? `  html ${b.html} ms` : ''}${b.swStart ? `  (sw ${b.swStart} ms)` : ''}${b.src ? '  ' + b.src : ''}${b.disc ? '  ' + w.disc : ''}`);
   }
   const log = diagLog();
   L.push('', log.length ? `${w.logged} (${log.length}):` : w.none);

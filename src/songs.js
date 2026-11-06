@@ -242,8 +242,13 @@ async function backupNudge(box, count) {
 
 // ---------------- Uvoz / deljenje ----------------
 async function importSongFile() {
-  const file = await pickFile('.gitara,.json,application/json,text/plain,application/octet-stream');
+  const file = await pickFile('.gitara,.json,.pdf,application/pdf,application/json,text/plain,application/octet-stream');
   if (!file) return false;
+  // PDF (note, tablatura, akordi): čita se bez AI, pa ekran za proveru; skeniran PDF ide na skeniranje
+  if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) {
+    if (file.size > 30 * 1024 * 1024) { await dialog({ title: t('import.invalidTitle'), body: t('import.tooBig') }); return false; }
+    return (await loadEditor()).importPdf(file);
+  }
   if (file.size > 2 * 1024 * 1024) { await dialog({ title: t('import.invalidTitle'), body: t('import.tooBig') }); return false; }
   const text = await file.text();
   // poslata set lista / pesma (.gitara): isti uvoz kao iz linka

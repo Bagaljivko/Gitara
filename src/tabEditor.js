@@ -40,7 +40,7 @@ export function renderTabEditor(root, song0, { isNew = false, scanned = false, i
     ${scanned && onType ? `<div class="tab-type"><span class="small muted">${t('tab.typeQ')}</span>
       <div class="seg-tabs" role="radiogroup"><button role="radio" data-kind="chords">${t('tab.typeChords')}</button><button role="radio" class="active" aria-checked="true" data-kind="tab">${t('tab.typeTab')}</button></div>
       <span class="small muted">${t('tab.typeHint')}</span></div>` : ''}
-    ${scanned && song.scanModel ? `<p class="scan-model small muted">${esc(t('edit.scanModel', { model: song.scanModel }))}</p>` : ''}
+    ${scanned && song.importedFrom === 'pdf' ? `<p class="scan-model small muted">${esc(t('pdf.sourceLine'))}</p>` : scanned && song.scanModel ? `<p class="scan-model small muted">${esc(t('edit.scanModel', { model: song.scanModel }))}</p>` : ''}
     ${images ? `<details class="card photo-ref"><summary>${t('edit.showPhoto')}</summary>${images.map((src, i) => `<img src="${src}" alt="${esc(t('scan.page', { n: i + 1 }))}">`).join('')}</details>` : ''}
     <div class="form tab-fields">
       <label>${t('tab.title')}<input id="eTitle" value="${esc(song.title)}" autocomplete="off"></label>
@@ -99,7 +99,7 @@ export function renderTabEditor(root, song0, { isNew = false, scanned = false, i
       const f = Math.round(Number(v));
       if (!(f >= 0 && f <= 24) || v.trim() === '') { toast(t('tab.badFret'), 'error'); return; }
       n.f = f;
-      if (tab.bars[bi].why === 'fret' || tab.bars[bi].why === 'scan') delete tab.bars[bi].why; // ispravljeno
+      if (tab.bars[bi].why === 'fret' || tab.bars[bi].why === 'scan' || tab.bars[bi].why === 'check') delete tab.bars[bi].why; // ispravljeno
     } else return;
     drawFlags(); drawTab();
   }
@@ -126,7 +126,7 @@ export function renderTabEditor(root, song0, { isNew = false, scanned = false, i
       key: clean.key, sections: [], tab: clean, transpose: 0,
     };
     if (bpm >= 30 && bpm <= 220) rec.bpm = bpm; else delete rec.bpm;
-    delete rec.scanModel; delete rec.sheetKind;
+    delete rec.scanModel; delete rec.sheetKind; delete rec.importedFrom;
     let msg = t('edit.saved');
     if (base) {
       // isti ID (napredak u Vežbama, set liste, folderi, podešavanja pesme) — menja se samo tablatura

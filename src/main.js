@@ -58,7 +58,8 @@ function bootDone() {
     const nav = performance.getEntriesByType('navigation')[0];
     const k = 'gitara-boots';
     const a = JSON.parse(localStorage.getItem(k) || '[]');
-    a.push({ t: Date.now(), ms: Math.round(performance.now()), sw: !!navigator.serviceWorker?.controller, nav: nav ? nav.type : '', disc: !!document.wasDiscarded });
+    a.push({ t: Date.now(), ms: Math.round(performance.now()), sw: !!navigator.serviceWorker?.controller, nav: nav ? nav.type : '', disc: !!document.wasDiscarded,
+      html: nav ? Math.round(nav.responseStart) : 0, swStart: nav && nav.workerStart ? Math.round(nav.responseStart - nav.workerStart) : 0, src: nav ? nav.deliveryType || '' : '' }); // html: ms do stizanja početne strane
     localStorage.setItem(k, JSON.stringify(a.slice(-12)));
   } catch {}
 }
@@ -178,6 +179,21 @@ async function routeInner() {
 }
 
 window.addEventListener('hashchange', route);
+// Otvaranje aplikacije dok već radi (ikonica, deljeni link): pregledač samo vrati otvorenu aplikaciju (launch_handler
+// „focus-existing“ u manifestu), bez ponovnog učitavanja i belog ekrana. Deljeni link se otvori ovde, na licu mesta.
+if ('launchQueue' in window) {
+  window.launchQueue.setConsumer((params) => {
+    try {
+      if (!params || !params.targetURL) return;
+      const u = new URL(params.targetURL);
+      const shared = /^#(pesma=|g=|d\/)/.test(u.hash) || /[?&]d=/.test(u.search);
+      if (!shared && !(u.hash && u.hash.startsWith('#/'))) return; // obična ikonica: ostani gde si bio
+      if (u.search === location.search && u.hash === location.hash) return; // prvo otvaranje — već prikazano
+      history.replaceState(history.state, '', u.pathname + u.search + u.hash);
+      route();
+    } catch {}
+  });
+}
 document.addEventListener('visibilitychange', () => {
   if (document.hidden && activeLive) views[activeLive].ctl.hide();
 });
@@ -192,7 +208,15 @@ updateOnline();
 // Nova verzija se preuzme u pozadini; traka „Osveži“ je primenjuje jednim dodirom.
 if ('serviceWorker' in navigator) {
   let updating = false;
-  navigator.serviceWorker.addEventListener('controllerchange', () => { if (updating) location.reload(); });
+  // ponovno učitavanje tek kad je nova verzija potpuno aktivna — inače stranica čeka aktivaciju (beo ekran)
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!updating) return;
+    const c = navigator.serviceWorker.controller;
+    if (!c || c.state === 'activated') { location.reload(); return; }
+    const go = () => { if (c.state === 'activated' || c.state === 'redundant') location.reload(); };
+    c.addEventListener('statechange', go);
+    setTimeout(() => location.reload(), 5000); // u svakom slučaju
+  });
   const offerUpdate = (w) => {
     const bar = document.getElementById('updateBar');
     if (!bar || !navigator.serviceWorker.controller) return;

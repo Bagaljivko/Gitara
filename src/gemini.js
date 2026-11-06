@@ -3,6 +3,7 @@ import { t } from './i18n.js';
 // Ključ se nikad ne nalazi u kodu; čuva se samo u IndexedDB na uređaju.
 import { settings } from './db.js';
 import { readSSE, looksStuck } from './streamRead.js';
+import { fixCaps } from './textCase.js';
 import { TAB_TEXT_PROMPT, TAB_TEXT_PAGE, TAB_TEXT_RANGE, TAB_TEXT_BARS, parseTabText } from './tabScanText.js';
 import { normalizeSong } from './songformat.js';
 import { parseAsciiTab } from './tabs.js';
@@ -69,7 +70,7 @@ PRAVILA:
 3. Ime akorda prepiši TAČNO kako je napisano na papiru — NE pretvaraj u drugu notaciju: "H" i "H7" ostaju H (ne piši ih kao B), "B" ostaje "B", "Fis", "Cis", "Gis", "Es", "As", "Des" ostaju tako napisani, kao i "F#", "C#", "Bb", "Eb". Samo zapis mola ujednači: "a" ili "am" za a-mol piši "Am", "E-" piši "Em", "fis" piši "Fism". Nastavke piši standardno: m, 7, maj7, m7, sus2, sus4, dim, aug, 6, add9, a bas posle kose crte (npr. "D/Fis" ili "D/F#", kako je napisano).
 4. Linije koje imaju samo akorde (uvod, prelaz) imaju "text": "".
 5. Podeli pesmu na delove ("sections") po strukturi: npr. "Uvod", "Strofa 1", "Refren", "Most", "Kraj". Ako je deo označen na slici (npr. "Ref.", "R:", "1."), koristi tu oznaku. Ako nema oznaka, koristi "Strofa 1", "Strofa 2"... i "Refren" za ponovljeni deo.
-6. "title" i "artist" (izvođač ili autor pesme) uzmi sa slike; ako ih nema, ostavi prazan string. "artist" nikad nije izdavač, sajt, autorska prava ni onaj ko je prepisao akorde. "key" je tonalitet ako je naznačen, inače ga proceni iz akorda (npr. "Am", "G"); piši ga istim imenovanjem kao akorde na papiru (npr. "Hm" ako papir koristi H).
+6. "title" i "artist" (izvođač ili autor pesme) uzmi sa slike; ako ih nema, ostavi prazan string. Piši ih normalnim velikim i malim slovima (npr. "In My Life", "John Lennon"), NIKAD sve velikim slovima, čak i kad su tako odštampani. "artist" nikad nije izdavač, sajt, autorska prava ni onaj ko je prepisao akorde. "key" je tonalitet ako je naznačen, inače ga proceni iz akorda (npr. "Am", "G"); piši ga istim imenovanjem kao akorde na papiru (npr. "Hm" ako papir koristi H).
 7. Ako neki deo ne može da se pročita, napiši najverovatniju reč; ne izostavljaj linije.
 9. NESIGURNA MESTA: ako neki akord ili reč nisi mogao pouzdano da pročitaš, napiši u tekstu/akordima svoju najbolju procenu i dodaj stavku u "uncertain": { "section": indeks dela (od 0), "line": indeks linije u tom delu (od 0), "kind": "chord" ili "word", "text": tačno ono što si upisao, "position": pozicija akorda ili početak reči u liniji, "suggestion": drugo najverovatnije čitanje }. Navedi samo zaista nesigurna mesta (najviše 15); ako ih nema, "uncertain" je prazan niz.
 10. TABLATURA: ako slika sadrži gitarsku tablaturu (šest linija sa brojevima pragova), prepiši je u polje "tab" tog dela kao ASCII tekst od TAČNO 6 redova razdvojenih sa \n, odozgo: e, B, G, D, A, E (visoka e gore). Svaki red počinje nazivom žice i znakom "|", taktovi se odvajaju sa "|", crtice "-" popunjavaju prazna mesta, a kolone moraju biti poravnate (ista nota u svim redovima je u istoj koloni). Primer jednog reda: "e|-----0-----|---------3-|". Tehnike piši posle broja: h, p, /, \\, b, ~. "tabSig" je takt ako je naznačen (npr. "3/4"), inače "4/4". Prag koji nisi pouzdano pročitao dodaj u "tabUnsure": { "string": 1–6 (1 = e gore), "column": indeks prvog znaka tog broja u redu, računajući od 0 od prvog znaka POSLE prve "|", "fret": upisan broj, "suggestion": drugi najverovatniji broj }.
@@ -142,7 +143,7 @@ PRAVILA:
 5. Barre: oznake kao "BV", "BVII", "CII", "1/2 BV", "½ CV" prepiši u "barre": [{ "label": tačno kako piše, "fret": broj praga (rimski broj pretvori u broj), "half": true za 1/2 ili ½ }] tog takta (i svakog takta dokle se proteže crta posle oznake).
 6. Ponavljanja: "repeatStart": true na taktu koji počinje znakom „|:“, "repeatEnd": true na taktu koji se završava znakom „:|“ ("times": broj prolaza, obično 2). Volte (1. i 2. završetak): "ending": 1 ili 2.
 7. "sig" je takt kompozicije (npr. "3/4"); ako se takt menja, stavi "sig" u takt gde počinje promena. "key" je tonalitet na početku (po predznacima i kraju: npr. "Em", "E", "Am"); ako se predznaci promene, stavi "key" u prvi takt novog tonaliteta (npr. "E"). "bpm" je tempo ako je odštampan (broj uz četvrtinu), inače 0.
-8. "title" je naslov kompozicije sa lista. "composer" je KOMPOZITOR (autor muzike) tačno kako je odštampan — obično desno iznad prvog sistema, npr. "Anonymous", "Trad.", "F. Tárrega", "J. S. Bach". NIKAD ne stavljaj izdavača, sajt, autorska prava, aranžera ni onoga ko je prepisao (npr. reči "arr.", "arranged by", "transcribed by", "edited by", "Music", "Publishing", "Edition", "©", adresa sajta) — njih upiši u "arranger" ili "publisher". Ako kompozitor nije odštampan, "composer" je prazan string (ne pogađaj).
+8. "title" je naslov kompozicije sa lista, normalnim velikim i malim slovima (npr. "Romance D'Amour"), nikad sve velikim slovima. "composer" je KOMPOZITOR (autor muzike) tačno kako je odštampan — obično desno iznad prvog sistema, npr. "Anonymous", "Trad.", "F. Tárrega", "J. S. Bach". NIKAD ne stavljaj izdavača, sajt, autorska prava, aranžera ni onoga ko je prepisao (npr. reči "arr.", "arranged by", "transcribed by", "edited by", "Music", "Publishing", "Edition", "©", adresa sajta) — njih upiši u "arranger" ili "publisher". Ako kompozitor nije odštampan, "composer" je prazan string (ne pogađaj).
 9. NESIGURNO: ako neki takt ne možeš pouzdano da pročitaš (mutan broj, nejasan ritam), prepiši najbolju procenu i dodaj { "bar": broj takta, "why": kratko objašnjenje na srpskom } u "unsure". Ne izmišljaj note koje ne vidiš.
 10. Ne prepisuj ništa osim kompozicije (bez imena izdavača, brojeva strana, reklama).
 
@@ -649,6 +650,7 @@ export async function scanSong(images, signal, onStatus, diag) {
   }
   // delovi sa tablaturom za koje Gemini nije siguran gde pripadaju (indeksi posle normalizacije su isti)
   song.unplacedTabs = unplaced.filter((i) => song.sections[i] && song.sections[i].tabs);
+  song.title = fixCaps(song.title); song.artist = fixCaps(song.artist); // nikad SVE VELIKIM jer je tako odštampano
   song.scanModel = res.model; // prikazuje se na „Proveri i ispravi“, ne čuva se u pesmi
   if (json.sheetKind === 'tab') song.sheetKind = 'tab'; // Gemini misli da je ovo TAB list (pitaj/pročitaj kao TAB)
   return song;
@@ -730,8 +732,8 @@ export async function scanTab(images, signal, onStatus, diag) {
     if (!j) return;
     anyAnswer = true;
     model = j.scanModel || model;
-    if (!out.composer) out.composer = cleanComposer(j.composer, j);
-    for (const k of ['title', 'key', 'sig']) if (!out[k] && typeof j[k] === 'string' && j[k].trim()) out[k] = j[k].trim();
+    if (!out.composer) out.composer = fixCaps(cleanComposer(j.composer, j));
+    for (const k of ['title', 'key', 'sig']) if (!out[k] && typeof j[k] === 'string' && j[k].trim()) out[k] = k === 'title' ? fixCaps(j[k].trim()) : j[k].trim();
     if (!out.bpm && Number(j.bpm) > 0) out.bpm = Number(j.bpm);
   };
   // napomene samo za taktove koji su zaista uzeti iz tog odgovora (npr. strana 2 ponovi takt 16 sa „?“ — taj red se

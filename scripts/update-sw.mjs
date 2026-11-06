@@ -8,7 +8,7 @@ const files = ['./', 'index.html', 'privacy.html', 'manifest.webmanifest', ...sr
   'assets/headstock.webp'];
 // vendor/jspdf + fonts/ su u LAZY listi u sw.js (preuzimaju se u pozadini)
 // Veliki fajlovi koji se preuzimaju u pozadini posle instalacije (PDF i snimci gitare)
-const lazy = ['vendor/jspdf.umd.min.js', 'fonts/DejaVuSansMono.ttf', 'fonts/DejaVuSansMono-Bold.ttf',
+const lazy = ['vendor/jspdf.umd.min.js', 'vendor/pdfjs/pdf.min.mjs', 'vendor/pdfjs/pdf.worker.min.mjs', 'fonts/DejaVuSansMono.ttf', 'fonts/DejaVuSansMono-Bold.ttf',
   ...readdirSync('assets/guitar').filter((f) => f.endsWith('.mp3')).sort((a, b) => parseInt(a) - parseInt(b)).map((f) => `assets/guitar/${f}`)];
 const m = sw.match(/const CACHE = "gitara-v(\d+)";/);
 const next = Number(m[1]) + 1;

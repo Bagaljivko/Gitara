@@ -19,7 +19,7 @@
 export const TAB_TEXT_PROMPT = `Ti si precizan prepisivač gitarskih tablatura. Na slici je list sa notnim sistemom i tablaturom (šest linija sa brojevima pragova). Prepiši SAMO brojeve iz tablature — notni sistem ne treba da čitaš.
 
 Vrati ISKLJUČIVO običan tekst (ne JSON, bez objašnjenja), ovim redom:
-NASLOV: naslov kompozicije
+NASLOV: naslov kompozicije, normalnim velikim i malim slovima (npr. In My Life), nikad sve velikim slovima
 KOMPOZITOR: kompozitor tačno kako je odštampan (npr. "Anonymous", "Trad.", "F. Tárrega"); NIKAD izdavač, sajt, aranžer ni onaj ko je prepisao; ako ga nema, ostavi prazno
 TAKT: takt na početku (npr. 3/4)
 TONALITET: tonalitet na početku (npr. Em)
@@ -43,6 +43,8 @@ export const TAB_TEXT_RANGE = (a, b) => `\n\nPREPIŠI SAMO TAKTOVE ${a}–${b} s
 
 const sigBeats = (sig) => { const m = /^(\d{1,2})\/(\d{1,2})$/.exec(String(sig || '').trim()); return m ? (Number(m[1]) * 4) / Number(m[2]) : 3; };
 const r3 = (x) => Math.round(x * 1000) / 1000;
+// 0,333 + 0,333 + 0,333 = 0,999 → 1 (triole i šesnaestine na tačnu mrežu)
+const grid = (x) => { for (const d of [12, 16]) { const r = Math.round(x * d) / d; if (Math.abs(r - x) < 0.004) return r3(r); } return r3(x); };
 
 /** Jedna kolona „6/0+1/7^4*0.5“ → { notes: [{s,f,finger}], dur } ili null. */
 function parseColumn(tok) {
@@ -133,9 +135,9 @@ export function parseTabText(text, { truncated = false, loop = false } = {}) {
     const each = free ? Math.max(0, total - given) / free : 0;
     let tpos = 0;
     const notes = [];
-    cols.forEach((c) => { const d = c.dur || each || total / cols.length; for (const x of c.notes) notes.push({ ...x, start: r3(tpos) }); tpos += d; });
+    cols.forEach((c) => { const d = c.dur || each || total / cols.length; for (const x of c.notes) notes.push({ ...x, start: grid(tpos) }); tpos += d; });
     // trajanje: do sledeće note na istoj žici, ili do kraja takta
-    const end = Math.max(total, r3(tpos));
+    const end = Math.max(total, grid(tpos));
     for (const x of notes) {
       const nextOn = notes.filter((y) => y.s === x.s && y.start > x.start).map((y) => y.start);
       x.len = r3((nextOn.length ? Math.min(...nextOn) : end) - x.start);

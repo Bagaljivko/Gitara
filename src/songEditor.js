@@ -2,8 +2,9 @@
 import { songs as db, newSongId, versions } from './db.js';
 import { findExisting } from './songIdentity.js';
 import { esc, toast, dialog, confirmDialog, pickFiles, closeXHTML } from './ui.js';
-import { textToSections, sectionsToText, songExtras, cleanUncertain } from './songformat.js';
-import { scanSong, scanTab, prepareImage, getApiKey, GeminiError } from './gemini.js';
+import { textToSections, sectionsToText, songExtras, cleanUncertain, isChordLine, normalizeSong } from './songformat.js';
+import { scanSong, scanTab, prepareImage, getApiKey, GeminiError, cleanComposer } from './gemini.js';
+import { fixCaps } from './textCase.js';
 import './tabText.js'; // tekstovi za izbor vrste (Akordi / TAB) — mali modul, ostatak TAB koda se učitava tek kad zatreba
 import { t } from './i18n.js';
 import { layoutTabs, tabToAscii } from './tabs.js';
@@ -26,22 +27,95 @@ export function newSongDraft() {
   location.hash = '#/uredi/novo';
 }
 
+// ---------------- Uvoz PDF-a ----------------
+/**
+ * PDF → pesma, bez AI kad god je moguće: nacrtana tablatura (MuseScore, Guitar Pro, LilyPond…), tablatura kao tekst
+ * (e|--7--|, „Skini PDF“), akordi iznad teksta. Skeniran PDF (samo slike) → strane kao fotografije na skeniranje.
+ * Uvek se otvara isti ekran za proveru pre čuvanja.
+ */
+export async function importPdf(file) {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-backdrop';
+  overlay.innerHTML = `<div class="modal scan-modal" role="dialog" aria-modal="true" aria-label="${t('pdf.reading')}">
+    <p class="scan-msg"><span class="spinner"></span> <span id="pdfText">${t('pdf.reading')}</span></p></div>`;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  let doc = null, res;
+  try {
+    const m = await import('./pdfTab.js');
+    const read = await m.readPdf(new Uint8Array(await file.arrayBuffer()));
+    doc = read.doc;
+    const tabRes = m.pdfToTabText(read.pages) || m.pdfAsciiTab(read.pages);
+    const previews = async () => (await m.renderPdfPages(doc, 4, 1000)).map((f) => URL.createObjectURL(f));
+    if (tabRes) {
+      const { parseTabText } = await import('./tabScanText.js');
+      const j = parseTabText(tabRes.text);
+      if (j) {
+        for (const n of tabRes.uneven) if (!j.unsure.some((u) => u.bar === n)) j.unsure.push({ bar: n, why: t('pdf.rhythmGuess') });
+        j.title = fixCaps(j.title); j.composer = fixCaps(cleanComposer(j.composer, j)); j.sig = j.sig || tabRes.sig || '4/4'; j.source = 'pdf';
+        const { fromScan } = await import('./tabSong.js');
+        const s = fromScan(j);
+        if (s) {
+          s.importedFrom = 'pdf';
+          s.__newId = newSongId();
+          drafts = { chords: null, tab: s }; draftImgs = null; draft = s;
+          draftImage = await previews().catch(() => null);
+          close();
+          location.hash = '#/uredi/sken';
+          return true;
+        }
+      }
+    }
+    const ch = m.pdfChordText(read.pages, isChordLine);
+    if (ch) {
+      const song = normalizeSong({ title: fixCaps(ch.title), artist: fixCaps(ch.artist), key: '', sections: textToSections(ch.text) });
+      song.importedFrom = 'pdf';
+      song.__original = snapshotOriginal(song);
+      song.__newId = newSongId();
+      drafts = { chords: song, tab: null }; draftImgs = null; draft = song;
+      draftImage = await previews().catch(() => null);
+      close();
+      location.hash = '#/uredi/sken';
+      return true;
+    }
+    // sken sačuvan kao PDF (samo slike): strane kao fotografije → obično skeniranje
+    overlay.querySelector('#pdfText').textContent = t('pdf.toImages');
+    res = await m.renderPdfPages(doc, MAX_PAGES, 1600);
+  } catch (e) {
+    close();
+    await dialog({ title: t('pdf.failedTitle'), body: t('pdf.failed') });
+    return false;
+  } finally { try { if (doc) doc.destroy(); } catch {} }
+  close();
+  if (!res || !res.length) { await dialog({ title: t('pdf.failedTitle'), body: t('pdf.empty') }); return false; }
+  await dialog({ title: t('pdf.scannedTitle'), body: t('pdf.scanned') });
+  if (!(await scanReady())) return false;
+  const pages = await collectPages(res);
+  if (pages) await runScan(pages);
+  return false;
+}
+
 // ---------------- Skeniranje ----------------
-export async function startScan() {
-  const key = await getApiKey();
-  if (!key) {
+/** Ključ i internet za Gemini: ako nešto fali, objasni i vrati false. */
+async function scanReady() {
+  if (!(await getApiKey())) {
     const go = await dialog({
       title: t('scan.needKeyTitle'),
       body: t('scan.needKeyBody'),
       buttons: [{ label: t('common.later'), value: false }, { label: t('scan.openSettings'), value: true, kind: 'primary' }],
     });
     if (go) location.hash = '#/podesavanja';
-    return;
+    return false;
   }
   if (navigator.onLine === false) {
     await dialog({ title: t('scan.offlineTitle'), body: t('scan.offlineBody') });
-    return;
+    return false;
   }
+  return true;
+}
+
+export async function startScan() {
+  if (!(await scanReady())) return;
   const how = await dialog({
     title: t('scan.title'),
     body: t('scan.howBody'),
@@ -400,7 +474,7 @@ export async function renderEditor(root, id) {
     ${scanned && drafts.chords === song && draftImgs ? `<div class="tab-type" style="display:flex;flex-direction:column;gap:6px;margin:4px 0 10px"><span class="small muted">${t('tab.typeQ')}</span>
       <div class="seg-tabs" role="radiogroup" style="align-self:flex-start"><button role="radio" class="active" aria-checked="true" data-kind="chords">${t('tab.typeChords')}</button><button role="radio" data-kind="tab">${t('tab.typeTab')}</button></div>
       <span class="small muted">${t('tab.typeHint')}</span></div>` : ''}
-    ${scanned ? `<p class="muted">${t('edit.scannedHint')}</p>${song.scanModel ? `<p class="scan-model small muted">${esc(t('edit.scanModel', { model: song.scanModel }))}</p>` : ''}` : ''}
+    ${scanned ? `<p class="muted">${t('edit.scannedHint')}</p>${song.importedFrom === 'pdf' ? `<p class="scan-model small muted">${esc(t('pdf.sourceLine'))}</p>` : song.scanModel ? `<p class="scan-model small muted">${esc(t('edit.scanModel', { model: song.scanModel }))}</p>` : ''}` : ''}
     ${draftImage && scanned ? `<details class="card photo-ref"><summary>${t('edit.showPhoto')}</summary>${[].concat(draftImage).map((src, i) => `<img src="${src}" alt="${esc(t('scan.page', { n: i + 1 }))}">`).join('')}</details>` : ''}
     <div class="form">
       <label>${t('edit.fTitle')}<input id="eTitle" value="${esc(song.title)}" placeholder="${t('edit.fTitlePh')}" autocomplete="off"></label>
@@ -592,7 +666,7 @@ export async function renderEditor(root, id) {
       rec0 = upgradeSong({ ...rec0, sections, key: keyText, cv: 0, keyN: undefined, keyAlt: undefined, namingAsk: false, keyAsk: false }, { naming: currentNaming(), keyText });
     }
     const newId = song.__newId;
-    delete rec0.__original; delete rec0.__rescanOf; delete rec0.__newId; delete rec0.sheetKind;
+    delete rec0.__original; delete rec0.__rescanOf; delete rec0.__newId; delete rec0.sheetKind; delete rec0.importedFrom; delete rec0.scanModel;
     let msg = t('edit.saved');
     if (isNew && !base) {
       rec0.id = newId || undefined;

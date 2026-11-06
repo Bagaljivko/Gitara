@@ -63,7 +63,7 @@ export function fromScan(json) {
       end: b.ending === 1 || b.ending === 2 ? b.ending : undefined, barre: b.barre,
     };
     if (badString) o.why = 'string'; else if (badFret) o.why = 'fret';
-    else if (unsure.has(num)) { o.why = 'scan'; o.note = unsure.get(num); }
+    else if (unsure.has(num)) { o.why = json.source === 'pdf' ? 'check' : 'scan'; o.note = unsure.get(num); } // PDF: bez AI, samo „treba proveriti“
     return o;
   });
   const tab = cleanTabSong({ sig: json.sig, key: json.key, bars });
