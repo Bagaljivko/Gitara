@@ -465,3 +465,18 @@ body.trk-open { overflow: hidden; }
   .spr-sheet { background: linear-gradient(180deg, rgba(245, 165, 36, .1), var(--surface) 45%), var(--surface); }
   .spr-sheet-bar .btn.primary { background: linear-gradient(135deg, var(--accent), #ff7a59); border-color: transparent; }
 }
+
+/* v1.59 — AMOLED: Vežbe skoro crne, boja igre samo na izabranom i dugmadima, bez jakih sjajeva */
+@supports (background: color-mix(in srgb, red 10%, blue)) {
+  .pr-wait { background: var(--surface); border-color: color-mix(in srgb, var(--gc) 14%, var(--line)); }
+  .pr-wait:has(#prWait:checked) { background: linear-gradient(135deg, color-mix(in srgb, var(--gc) 11%, var(--surface)), var(--surface) 60%); border-color: color-mix(in srgb, var(--gc) 30%, var(--line)); box-shadow: none; }
+  .pr-speeds { background: var(--surface); border-color: var(--line); }
+  .pr-sp.on { box-shadow: 0 1px 6px color-mix(in srgb, var(--gc) 22%, transparent); }
+  .pr-game #prGo.primary, .spr-whole { box-shadow: 0 3px 10px color-mix(in srgb, var(--gc) 16%, transparent); }
+  .pr-explain:not(.compact) { background: var(--surface); border-color: color-mix(in srgb, var(--gc) 14%, var(--line)); }
+  .spr-song { background: radial-gradient(90% 120% at 0% 0%, color-mix(in srgb, var(--gc) 9%, var(--surface)) 0%, var(--surface) 55%), var(--surface); border-color: color-mix(in srgb, var(--gc) 22%, var(--line)); box-shadow: none; }
+  .spr-rows { border-color: var(--line); }
+  .spr-row.next { background: linear-gradient(90deg, color-mix(in srgb, var(--gc) 8%, transparent), transparent 70%); }
+  .spr-go { background: color-mix(in srgb, var(--gc) 10%, transparent); border-color: color-mix(in srgb, var(--gc) 30%, var(--line)); }
+  .spr-sheet { background: var(--surface); }
+}

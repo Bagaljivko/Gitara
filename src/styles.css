@@ -1330,7 +1330,7 @@ body.stage-mode main { padding-left: max(16px, env(safe-area-inset-left)); paddi
 @supports (background: color-mix(in srgb, red 10%, blue)) {
   .grp-pop { background: linear-gradient(180deg, #23262d, var(--surface-2) 40%); }
   .grp-row.on { background: linear-gradient(90deg, rgba(245, 165, 36, .2), rgba(245, 165, 36, .06)); }
-  .grp-row.on .grp-ic { background: linear-gradient(135deg, #ffc04d, #f5a524 55%, #ff7a59); box-shadow: 0 2px 10px rgba(245, 165, 36, .4); }
+  .grp-row.on .grp-ic { background: linear-gradient(135deg, #ffcc33, #f59e0b 55%, #b45309); box-shadow: 0 2px 10px rgba(245, 158, 11, .4); }
   .grp-ic { background: linear-gradient(135deg, rgba(255, 255, 255, .09), rgba(255, 255, 255, .03)); }
   .lib-view .lib-title { background: linear-gradient(135deg, rgba(245, 165, 36, .12), var(--surface) 70%); }
 }
@@ -1340,18 +1340,16 @@ body.stage-mode main { padding-left: max(16px, env(safe-area-inset-left)); paddi
    Vežbe zadržavaju boju svake igre. Blagi prelivi na naslovima, karticama, dugmadima, panelima i menijima.
    Samo statični prelivi i blage senke (bez zamućivanja pozadine) — jeftino za slabije telefone.
    Ništa ovde ne važi na ekranu Tunera (body.tuner-screen). */
-:root { --sec: #f5a524; --sec2: #ff7a59; }
-.lib-view, .song-view, .setlist-view, .editor-view, .shared-view { --sec: #f5a524; --sec2: #ff7a59; }
-.chordrec-view, .cc-view { --sec: #5aa9ff; --sec2: #8b7bff; }
-.settings-view { --sec: #4fd1c5; --sec2: #5aa9ff; }
-.practice-view:not(.pr-game) { --sec: #b48cff; --sec2: #ff7cc3; }
+:root { --sec: #f59e0b; --sec2: #ffcc33; --sec-deep: #b45309; }
+/* v1.59: jedna boja za celu aplikaciju — zlatni preliv (ćilibar → zlato), nikad do bele (igre u Vežbama zadržavaju svoje boje) */
+.lib-view, .song-view, .setlist-view, .editor-view, .shared-view, .chordrec-view, .cc-view, .settings-view, .practice-view:not(.pr-game) { --sec: #f59e0b; --sec2: #ffcc33; --sec-deep: #b45309; }
 @supports (background: color-mix(in srgb, red 10%, blue)) {
   body:not(.tuner-screen) .view { --sec-soft: color-mix(in srgb, var(--sec) 14%, transparent); --sec-line: color-mix(in srgb, var(--sec) 32%, var(--line)); }
   /* naslovi ekrana: tekst sa prelivom u boji dela */
   body:not(.tuner-screen) :is(.lib-view, .chordrec-view, .settings-view, .cc-view, .setlist-view, .practice-view:not(.pr-game)) .view-head h1,
   body:not(.tuner-screen) .song-h1,
   body:not(.tuner-screen) .lib-view .lib-title #lGroupName {
-    background: linear-gradient(100deg, var(--text) 30%, color-mix(in srgb, var(--sec) 80%, var(--text)) 85%, var(--sec2));
+    background: linear-gradient(100deg, var(--sec) 0%, var(--sec2) 65%, var(--sec) 100%);
     -webkit-background-clip: text; background-clip: text; color: transparent;
   }
   /* kartice: blagi preliv i ivica u boji dela */
@@ -1362,10 +1360,10 @@ body.stage-mode main { padding-left: max(16px, env(safe-area-inset-left)); paddi
   /* glavno dugme: preliv u boji dela, blagi sjaj */
   body:not(.tuner-screen) :is(.lib-view, .song-view, .chordrec-view, .settings-view, .cc-view, .setlist-view, .editor-view, .shared-view) .btn.primary,
   body:not(.tuner-screen) :is(.modal, .sheet) .btn.primary {
-    background: linear-gradient(135deg, color-mix(in srgb, var(--sec) 100%, white 14%), var(--sec) 45%, color-mix(in srgb, var(--sec) 65%, var(--sec2)));
+    background: linear-gradient(135deg, var(--sec2), var(--sec) 55%, var(--sec-deep));
     border-color: transparent; box-shadow: 0 4px 16px color-mix(in srgb, var(--sec) 28%, transparent);
   }
-  body:not(.tuner-screen) :is(.modal, .sheet) .btn.primary { --sec: #f5a524; --sec2: #ff7a59; }
+  body:not(.tuner-screen) :is(.modal, .sheet) .btn.primary { --sec: #f59e0b; --sec2: #ffcc33; --sec-deep: #b45309; color: #1a1203; }
   /* izbori (segmenti, čipovi): izabrano sa prelivom */
   body:not(.tuner-screen) :is(.chordrec-view, .settings-view, .lib-view, .song-view, .setlist-view, .editor-view, .cc-view) .seg-tabs:not(.lib-tabs) button.active {
     background: linear-gradient(135deg, color-mix(in srgb, var(--sec) 26%, var(--surface-2)), color-mix(in srgb, var(--sec2) 14%, var(--surface-2)));
@@ -1373,7 +1371,7 @@ body.stage-mode main { padding-left: max(16px, env(safe-area-inset-left)); paddi
   }
   body:not(.tuner-screen) .chip.active { background: linear-gradient(135deg, color-mix(in srgb, var(--sec) 22%, transparent), color-mix(in srgb, var(--sec2) 10%, transparent)); }
   /* Pesme: dugme +, lista, oznake */
-  body:not(.tuner-screen) .lib-view #lAdd { background: linear-gradient(135deg, #ffc04d, #f5a524 45%, #ff7a59); box-shadow: 0 8px 24px rgba(245, 120, 60, .38); border: 0; }
+  body:not(.tuner-screen) .lib-view #lAdd { background: linear-gradient(135deg, var(--sec2), var(--sec) 55%, var(--sec-deep)); box-shadow: 0 8px 24px rgba(245, 158, 11, .35); border: 0; color: #1a1203; }
   body:not(.tuner-screen) .lib-view .lib-tabs button.active { border-image: linear-gradient(90deg, var(--sec), var(--sec2)) 1; }
   body:not(.tuner-screen) .lib-view .song-item:active { background: linear-gradient(90deg, var(--sec-soft), transparent 80%); }
   body:not(.tuner-screen) .lib-view .song-item .key, body:not(.tuner-screen) .song-view .key { color: color-mix(in srgb, var(--sec) 85%, white); }
@@ -1381,7 +1379,7 @@ body.stage-mode main { padding-left: max(16px, env(safe-area-inset-left)); paddi
   body:not(.tuner-screen) .song-view .sp-card { background: linear-gradient(120deg, color-mix(in srgb, var(--sec) 16%, var(--surface)), var(--surface) 65%); border-color: var(--sec-line); }
   body:not(.tuner-screen) .song-view .zoom-pill { background: linear-gradient(135deg, color-mix(in srgb, var(--sec) 12%, var(--surface-2)), var(--surface-2)); border-color: color-mix(in srgb, var(--sec) 25%, var(--line)); }
   /* Akordi: prepoznat akord i merači */
-  body:not(.tuner-screen) .chordrec-view .cr-name { background: linear-gradient(120deg, var(--text), color-mix(in srgb, var(--sec) 75%, var(--text)), var(--sec2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  body:not(.tuner-screen) .chordrec-view .cr-name { background: linear-gradient(120deg, var(--sec), var(--sec2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
   /* Podešavanja: otvoreni odeljak i izabrana opcija */
   body:not(.tuner-screen) .settings-view details[open] { border-color: var(--sec-line); }
   body:not(.tuner-screen) .settings-view .wake-opt.active b { color: color-mix(in srgb, var(--sec) 80%, white); }
@@ -1390,12 +1388,12 @@ body.stage-mode main { padding-left: max(16px, env(safe-area-inset-left)); paddi
   /* paneli i dijalozi (van Tunera): gornji preliv */
   body:not(.tuner-screen) .modal { background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 7%, var(--surface)), var(--surface) 38%); }
   body:not(.tuner-screen) .sheet { background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 7%, var(--surface)), var(--surface) 30%); }
-  body:not(.tuner-screen) .sheet-grip { background: linear-gradient(90deg, var(--accent), #ff7a59); opacity: .7; }
+  body:not(.tuner-screen) .sheet-grip { background: linear-gradient(90deg, #f59e0b, #ffcc33); opacity: .7; }
   /* ⋯ meni */
   body:not(.tuner-screen) .more-pop { background: linear-gradient(180deg, #23262d, var(--surface-2) 40%); }
   body:not(.tuner-screen) .more-item.on { background: linear-gradient(90deg, rgba(245, 165, 36, .16), transparent); }
   /* Vežbe — meni igara: naslov sa prelivom */
-  body:not(.tuner-screen) .practice-view .pr-hub-head h1 { background: linear-gradient(100deg, var(--text) 30%, #b48cff 70%, #ff7cc3); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  body:not(.tuner-screen) .practice-view .pr-hub-head h1 { background: linear-gradient(100deg, #f59e0b, #ffcc33 65%, #f59e0b); -webkit-background-clip: text; background-clip: text; color: transparent; }
 }
 
 /* v1.58 — setliste: ikonica u redu i prazno stanje */
@@ -1407,3 +1405,32 @@ body.stage-mode main { padding-left: max(16px, env(safe-area-inset-left)); paddi
 .sl-ico.big { width: 64px; height: 64px; border-radius: 20px; }
 .sl-ico.big svg { width: 32px; height: 32px; }
 .sl-empty-big b { font-size: 1.1rem; }
+
+/* v1.59 — AMOLED: aplikacija ostaje skoro potpuno crna; zlato samo na naslovima, dugmadima i izabranom.
+   Prelivi na površinama su jedva primetni (pokrivaju samo ugao), bez jakih sjajeva. */
+@supports (background: color-mix(in srgb, red 10%, blue)) {
+  body:not(.tuner-screen) .view { --sec-soft: color-mix(in srgb, var(--sec) 8%, transparent); --sec-line: color-mix(in srgb, var(--sec) 22%, var(--line)); }
+  body:not(.tuner-screen) :is(.lib-view, .song-view, .chordrec-view, .settings-view, .cc-view, .setlist-view, .editor-view, .shared-view) .card {
+    background: linear-gradient(160deg, color-mix(in srgb, var(--sec) 3.5%, var(--surface)), var(--surface) 40%);
+    border-color: color-mix(in srgb, var(--sec) 9%, var(--line));
+  }
+  body:not(.tuner-screen) :is(.lib-view, .song-view, .chordrec-view, .settings-view, .cc-view, .setlist-view, .editor-view, .shared-view) .btn.primary,
+  body:not(.tuner-screen) :is(.modal, .sheet) .btn.primary { box-shadow: 0 2px 8px color-mix(in srgb, var(--sec) 14%, transparent); }
+  body:not(.tuner-screen) :is(.chordrec-view, .settings-view, .lib-view, .song-view, .setlist-view, .editor-view, .cc-view) .seg-tabs:not(.lib-tabs) button.active {
+    background: linear-gradient(135deg, color-mix(in srgb, var(--sec) 13%, var(--surface-2)), color-mix(in srgb, var(--sec2) 5%, var(--surface-2)));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sec) 26%, transparent);
+  }
+  body:not(.tuner-screen) .chip.active { background: color-mix(in srgb, var(--sec) 11%, transparent); }
+  body:not(.tuner-screen) .lib-view #lAdd { box-shadow: 0 4px 12px rgba(245, 158, 11, .18); }
+  body:not(.tuner-screen) .song-view .sp-card { background: linear-gradient(120deg, color-mix(in srgb, var(--sec) 6%, var(--surface)), var(--surface) 50%); border-color: color-mix(in srgb, var(--sec) 18%, var(--line)); }
+  body:not(.tuner-screen) .song-view .zoom-pill { background: var(--surface-2); border-color: color-mix(in srgb, var(--sec) 14%, var(--line)); }
+  body:not(.tuner-screen) .setlist-pane-icon, body:not(.tuner-screen) .sl-ico { background: color-mix(in srgb, var(--sec) 12%, var(--surface-2)); }
+  body:not(.tuner-screen) .settings-view :is(.opt.on, .opt.active, .opt-card.on, .wake-opts .on, [aria-checked="true"]):not(input) { background: color-mix(in srgb, var(--sec) 7%, var(--surface)); border-color: var(--sec-line); }
+  body:not(.tuner-screen) .modal { background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 3%, var(--surface)), var(--surface) 25%); }
+  body:not(.tuner-screen) .sheet { background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 3%, var(--surface)), var(--surface) 20%); }
+  body:not(.tuner-screen) .more-pop, .grp-pop { background: var(--surface-2); }
+  .grp-row.on { background: rgba(245, 158, 11, .1); }
+  .grp-row.on .grp-ic { box-shadow: none; }
+  .lib-view .lib-title { background: var(--surface) !important; }
+  body:not(.tuner-screen) .lib-view .song-item:active { background: var(--sec-soft); }
+}
