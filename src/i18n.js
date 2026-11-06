@@ -106,6 +106,7 @@ const sr = {
   'lib.groupArtists': 'Izvođači',
   'lib.groupTab': 'TAB pesme',
   'lib.groupRecent': 'Nedavno otvorene',
+  'lib.groupsFolders': 'Folderi',
   'lib.groupsMine': 'Moji folderi',
   'lib.groupsMineEmpty': 'Napravi folder za svoje grupe — npr. „Za vežbu“ ili „Svadba“.',
   'song.editSub': 'Tekst, akordi, naslov, folderi',

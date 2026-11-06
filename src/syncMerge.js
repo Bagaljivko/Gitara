@@ -10,6 +10,7 @@ export function cleanPractice(p) {
     lastDay: typeof r.lastDay === 'string' && /^\d{4}-\d{1,2}-\d{1,2}$/.test(r.lastDay) ? r.lastDay : '',
     lastTempo: Math.max(0, Math.min(400, Math.round(Number(r.lastTempo) || 0))) || undefined,
     plays: Math.max(0, Math.round(Number(r.plays) || 0)),
+    ...(r.challenge === true ? { challenge: true } : {}), // „Izazov ✓“ (v1.57)
   } : null);
   const games = {}, songs = {};
   for (const [k, v] of Object.entries(p.games || {})) if (/^[a-z]{2,12}$/.test(k)) { const r = rec(v); if (r) games[k] = r; }
@@ -61,7 +62,7 @@ export function mergePractice(a, b) {
     if (!x) return y; if (!y) return x;
     const newer = day(y) > day(x) ? y : x;
     const bm = Math.max(x.bestMetric ?? -1, y.bestMetric ?? -1);
-    return { ...newer, best: Math.max(x.best || 0, y.best || 0), plays: Math.max(x.plays || 0, y.plays || 0), ...(bm >= 0 ? { bestMetric: bm } : {}) };
+    return { ...newer, best: Math.max(x.best || 0, y.best || 0), plays: Math.max(x.plays || 0, y.plays || 0), ...(bm >= 0 ? { bestMetric: bm } : {}), ...(x.challenge || y.challenge ? { challenge: true } : {}) };
   };
   const out = { v: 1, games: { ...(a.games || {}) }, songs: { ...(a.songs || {}) } };
   for (const [k, r] of Object.entries(b.games || {})) out.games[k] = one(out.games[k], r);

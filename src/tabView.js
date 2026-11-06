@@ -39,7 +39,8 @@ export function keyLabel(k) {
 const ORD = (n) => (n <= 3 ? t('tab.ord' + n) : t('tab.ordN', { n }));
 /** Ime dela za vežbu: „Takt 1–4“ ili „Drugi deo (E-dur)“. */
 export function partName(p) {
-  return p.kind === 'key' ? `${ORD(p.ord + 1)} (${keyLabel(p.key)})` : t('tab.bars', { a: p.from + 1, b: p.to + 1 });
+  if (p.kind === 'key') return `${ORD(p.ord + 1)} (${keyLabel(p.key)})`;
+  return p.from === p.to ? t('tab.bar', { n: p.from + 1 }) : t('tab.bars', { a: p.from + 1, b: p.to + 1 });
 }
 export const barreLabel = (br) => (br.half ? '½' : '') + 'B' + (ROMAN[br.fret] || br.fret);
 const stringNames = () => ['E', 'B', 'G', 'D', 'A', 'E'].map((x, i) => (i === 0 ? dn('E').toLowerCase() : dn(x)));

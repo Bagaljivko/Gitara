@@ -1297,3 +1297,40 @@ body.stage-mode main { padding-left: max(16px, env(safe-area-inset-left)); paddi
 .rp-feel { margin: 0 0 6px; }
 .rp-head { position: sticky; top: 0; z-index: 2; background: var(--surface); padding-bottom: 2px; }
 .rp-head .rp-opts { margin-bottom: 8px; }
+
+/* v1.57 — izbor grupe: padajući meni ispod naslova (umesto panela odozdo) */
+.lib-view .lib-title { border: 1px solid var(--line); background: var(--surface); border-radius: 14px; padding: 2px 8px 2px 12px; }
+.lib-view .lib-title[aria-expanded="true"] { border-color: var(--accent); }
+.lib-view .lib-title[aria-expanded="true"] .lib-chev { transform: rotate(180deg); }
+.lib-chev { transition: transform .15s; }
+.grp-backdrop { position: fixed; inset: 0; z-index: 70; background: rgba(0, 0, 0, .35); animation: fade .12s; }
+.grp-pop { position: fixed; width: min(340px, calc(100vw - 16px)); max-height: calc(100dvh - 160px); overflow-y: auto; overscroll-behavior: contain;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 18px; padding: 6px; box-shadow: 0 18px 50px rgba(0, 0, 0, .55), 0 2px 8px rgba(0, 0, 0, .3);
+  transform-origin: top left; animation: grp-in .16s cubic-bezier(.2, .8, .2, 1); }
+@keyframes grp-in { from { opacity: 0; transform: translateY(-6px) scale(.97); } to { opacity: 1; transform: none; } }
+.grp-row { gap: 12px; padding: 0 10px; min-height: 48px; border-radius: 12px; font-weight: 600; }
+.grp-row:hover { background: rgba(255, 255, 255, .04); }
+.grp-row.on { background: var(--accent-soft); color: var(--accent); }
+.grp-ic { width: 32px; height: 32px; flex: none; border-radius: 10px; background: rgba(255, 255, 255, .06); display: grid; place-items: center; }
+.grp-ic svg { width: 18px; height: 18px; fill: var(--muted); }
+.grp-row.on .grp-ic { background: var(--accent); } .grp-row.on .grp-ic svg { fill: var(--accent-ink, #111); }
+.grp-n { min-width: 22px; text-align: right; }
+.grp-ck svg { width: 20px; height: 20px; fill: var(--accent); display: block; }
+.grp-more { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 16px; margin-right: -4px; }
+.grp-more svg { width: 18px; height: 18px; fill: var(--muted); }
+.grp-more:hover { background: rgba(255, 255, 255, .06); }
+.grp-sep { height: 1px; background: var(--line); margin: 6px 10px; }
+.grp-head { margin: 8px 10px 2px; font-size: .7rem; letter-spacing: .09em; }
+.grp-add { color: var(--accent); }
+.grp-add .grp-ic { background: none; border: 1.5px dashed rgba(245, 165, 36, .55); }
+.grp-add .grp-ic svg { fill: var(--accent); }
+.grp-empty { margin: 2px 10px 6px; }
+
+/* v1.57 — meni foldera: prelivi */
+@supports (background: color-mix(in srgb, red 10%, blue)) {
+  .grp-pop { background: linear-gradient(180deg, #23262d, var(--surface-2) 40%); }
+  .grp-row.on { background: linear-gradient(90deg, rgba(245, 165, 36, .2), rgba(245, 165, 36, .06)); }
+  .grp-row.on .grp-ic { background: linear-gradient(135deg, #ffc04d, #f5a524 55%, #ff7a59); box-shadow: 0 2px 10px rgba(245, 165, 36, .4); }
+  .grp-ic { background: linear-gradient(135deg, rgba(255, 255, 255, .09), rgba(255, 255, 255, .03)); }
+  .lib-view .lib-title { background: linear-gradient(135deg, rgba(245, 165, 36, .12), var(--surface) 70%); }
+}

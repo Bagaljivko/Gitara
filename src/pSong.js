@@ -13,6 +13,7 @@ import { songs as db, settings } from './db.js';
 import { transposeSong } from './songformat.js';
 import { trackGame, chordItem, chordFingers } from './practiceTrack.js';
 import { checkChord } from './pChords.js';
+import { songPracticeUI } from './songPracticeUI.js';
 
 const MAX_PASSES = 6;
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -81,55 +82,51 @@ export async function createGame(api) {
   const startTempo = (p) => Math.min(songBpm, (stats()[String(p.i)] || {}).lastTempo || Math.max(40, Math.round((songBpm * 0.6) / 5) * 5));
   const label = (p, k) => (p.i === 'all' ? t('pr.pesma.whole') : (p.name ? sectionLabel(p.name) : t('pr.pesma.part', { n: k + 1 })));
 
-  function drawOpts() {
-    const st = stats();
-    api.opts.innerHTML = `
-      <div class="pr-song-head"><b>${esc(song.title)}</b>${song.artist ? `<span class="small muted">${esc(song.artist)}</span>` : ''}
-        <span class="small muted">${t('pr.pesma.songTempo', { bpm: songBpm })}${song.capo ? ' · ' + t('capo.title') + ' ' + song.capo : ''}</span>
-        <a class="small" href="#/vezbe/pesma">${t('pr.pesma.other')}</a></div>
-      <div class="pr-optlabel">${t('pr.pesma.whichPart')}</div>
-      <div class="pr-chips">${all.map((p, k) => {
-        const rec = st[String(p.i)] || {};
-        return `<button class="chip${p === part ? ' active' : ''}" data-part="${p.i}">${esc(label(p, k))}${k === hardest ? ` <span class="pr-hard">${t('pr.pesma.hardest')}</span>` : ''}${rec.best ? ` <small>${Math.round(rec.best)} · ${rec.lastTempo} BPM</small>` : ''}</button>`;
-      }).join('')}</div>
-      <p class="small muted center">${part.chords.map((c) => esc(dn(c.chord))).join(' · ')}</p>
-      <div class="center"><button class="btn small" id="prListenPart" aria-pressed="false">${listening ? '■ ' + t('pr.listenStop') : '♫ ' + t('pr.listen')}</button></div>
-      <div class="pr-optlabel">${t('pr.pesma.per')}</div>
-      <div class="seg-tabs" role="radiogroup">
-        <button role="radio" data-per="4" class="${per === 4 ? 'active' : ''}">${t('pr.pesma.perBar')}</button>
-        <button role="radio" data-per="2" class="${per === 2 ? 'active' : ''}">${t('pr.pesma.per2')}</button>
-      </div>`;
-  }
+  const grad = () => api.speed === 'grad';
+  const findPart = (id) => all.find((p) => String(p.i) === String(id));
   function choose(p) {
     part = p;
     try { localStorage.setItem(partKey, String(part.i)); } catch {}
-    api.setBpm(startTempo(part));
-    drawOpts();
+    if (grad()) api.setBpm(startTempo(part));
   }
-  // „Poslušaj“: izabrani deo jednom, u trenutnom tempu vežbe (zvuk gitare; staje čim igra uključi mikrofon)
-  let listening = null;
-  async function listenPart() {
-    if (listening) { listening.stop(); listening = null; drawOpts(); return; }
+  // „Poslušaj“: deo jednom, u trenutnom tempu vežbe (zvuk gitare; staje čim igra uključi mikrofon)
+  let listening = null, listenId = null;
+  async function listenPart(id) {
+    const was = listenId;
+    if (listening) { listening.stop(); listening = null; listenId = null; ui.draw(); if (String(was) === String(id)) return; }
+    const p = findPart(id); if (!p) return;
     const [sp, pl] = await Promise.all([import('./songPlay.js'), import('./songPlayer.js')]);
     const tl = sp.chordTimeline(song);
-    const pt = part.i === 'all' ? { from: 0, to: tl.total } : tl.parts.find((p) => p.si === part.i);
+    const pt = p.i === 'all' ? { from: 0, to: tl.total } : tl.parts.find((x) => x.si === p.i);
     if (!pt) return;
-    listening = pl.playOnce(tl, { bpm: api.bpm || songBpm, from: pt.from, to: pt.to, onEnd: () => { listening = null; drawOpts(); } });
-    drawOpts();
+    listenId = p.i;
+    listening = pl.playOnce(tl, { bpm: api.bpm || songBpm, from: pt.from, to: pt.to, onEnd: () => { listening = null; listenId = null; ui.draw(); } });
+    ui.draw();
   }
-  window.addEventListener('gitara-mic', () => { if (listening) { listening = null; drawOpts(); } });
+  window.addEventListener('gitara-mic', () => { if (listening) { listening = null; listenId = null; ui.draw(); } });
   api.onCleanup?.(() => { listening?.stop(); listening = null; });
-  drawOpts();
-  api.opts.addEventListener('click', (e) => {
-    if (e.target.closest('#prListenPart')) { listenPart(); return; }
-    const b = e.target.closest('[data-part]'), pb = e.target.closest('[data-per]');
-    if (b && !api.running) choose(all.find((p) => String(p.i) === b.dataset.part) || part);
-    if (pb) {
+  const ui = songPracticeUI({
+    api,
+    head: { title: song.title, artist: song.artist, meta: [t('pr.pesma.songTempo', { bpm: songBpm }), song.capo ? t('capo.title') + ' ' + song.capo : ''].filter(Boolean).join(' · ') },
+    groups: [{ rows: parts.map((p, k) => ({ id: p.i, label: label(p, k), sub: [...new Set(p.chords.map((c) => dn(c.chord)))].join(' · '), hard: k === hardest })) }],
+    wholeId: 'all',
+    recOf: (id) => stats()[String(id)],
+    listeningId: () => listenId,
+    onListen: listenPart,
+    onStart: (id) => { const p = findPart(id); if (!p) return; listening?.stop(); listening = null; listenId = null; choose(p); api.restart(); },
+    // jedan akord traje ceo takt ili pola takta
+    sheetExtra: () => `<div class="pr-optlabel">${t('pr.pesma.per')}</div><div class="seg-tabs" role="radiogroup">
+        <button role="radio" data-per="4" class="${per === 4 ? 'active' : ''}">${t('pr.pesma.perBar')}</button>
+        <button role="radio" data-per="2" class="${per === 2 ? 'active' : ''}">${t('pr.pesma.per2')}</button></div>`,
+    onSheetClick: (e) => {
+      const pb = e.target.closest('[data-per]');
+      if (!pb) return;
       per = +pb.dataset.per;
       try { localStorage.setItem('gitara-pr-pesma-per', String(per)); } catch {}
-      drawOpts();
-    }
+      pb.parentElement.querySelectorAll('[data-per]').forEach((x) => x.classList.toggle('active', x === pb));
+    },
   });
+  const drawOpts = () => ui.draw();
   api.stage.hidden = true;
 
   let passes = 0;
@@ -141,7 +138,7 @@ export async function createGame(api) {
       lagMs: 350 + 90 + 80,
       fingersOf: chordFingers,
       hintOf: (it) => t('pr.promena.hint', { c: it.label }),
-      extra: (st) => (st.clean && st.tempo >= songBpm
+      extra: (st) => (st.clean && (st.tempo >= songBpm || !grad())
         ? [...(part.i !== 'all' ? [{ id: 'nextPart', label: t('pr.pesma.nextPart'), primary: true }] : []), { id: 'whole', label: t('pr.pesma.whole'), primary: part.i === 'all' }]
         : []),
     };
@@ -149,7 +146,8 @@ export async function createGame(api) {
 
   return trackGame(api, {
     levels: [{ id: 'beg', label: t('pr.lvl.beg') }, { id: 'normal', label: t('pr.lvl.normal') }],
-    bpm: { start: startTempo(part), min: 40, max: songBpm, step: 5 },
+    bpm: { start: startTempo(part), min: 40, max: Math.round(songBpm * 1.35), step: 5, normal: songBpm, gradMax: songBpm },
+    noStart: true, // počinje se iz „Sviraj celu pesmu“ ili iz panela dela
     initialTempo: startTempo(part),
     firstBpm: startTempo(part),
     round() { passes = 0; return build(); },
@@ -166,15 +164,16 @@ export async function createGame(api) {
         }), 350),
       };
     },
-    // Normalno: prolaz za prolazom; posle čistog prolaza malo brže (do tempa pesme)
+    // Postepeno: prolaz za prolazom; posle čistog prolaza malo brže (do tempa pesme).
+    // Izabrana brzina (Sporo…Izazov): isti tempo, prolazi dok ne bude čisto.
     async onRoundEnd(st, round, ctl) {
       if (st.beginner) return false;
       passes++;
-      if ((st.clean && st.tempo >= songBpm) || passes >= MAX_PASSES) return false; // rezultat (i čuvanje) na kraju
+      if ((st.clean && (st.tempo >= songBpm || !grad())) || passes >= MAX_PASSES) return false; // rezultat (i čuvanje) na kraju
       await api.save({ score: st.score, tempo: st.tempo, accuracy: st.accuracy }, round.key);
-      const nb = st.clean ? Math.min(songBpm, st.tempo + 5) : st.tempo;
+      const nb = st.clean && grad() ? Math.min(songBpm, st.tempo + 5) : st.tempo;
       api.setBpm(nb);
-      ctl.track.pop(st.clean ? t('pr.pesma.faster', { bpm: nb }) : t('pr.pesma.again', { n: passes + 1 }), st.clean ? 'hit' : 'late');
+      ctl.track.pop(st.clean && nb > st.tempo ? t('pr.pesma.faster', { bpm: nb }) : t('pr.pesma.again', { n: passes + 1 }), st.clean ? 'hit' : 'late');
       await wait(1500);
       if (!api.running || !ctl.track) return true;
       await ctl.next(build());

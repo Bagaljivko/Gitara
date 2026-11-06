@@ -88,6 +88,7 @@ export async function saveResult(gameId, res, key = null) {
     const out = { best: Math.round(Math.max(rec.best || 0, Number(res.score) || 0)), streak, lastDay: day, lastTempo: Math.round(res.nextTempo || res.tempo || 0) || undefined, plays: (rec.plays || 0) + 1 };
     const bm = Math.max(rec.bestMetric ?? -1, res.metric != null ? Math.round(res.metric) : -1);
     if (bm >= 0) out.bestMetric = bm; // npr. Promena akorda: čistih promena u minuti
+    if (rec.challenge || res.challenge) out.challenge = true; // „Izazov“ (najveća brzina) odsviran sa 90+
     return out;
   };
   st.games[gameId] = upd(st.games[gameId]);
@@ -118,9 +119,10 @@ export async function renderPractice(root, parts = [], params = new URLSearchPar
 const daysText = (n) => t(n % 10 === 1 && n % 100 !== 11 ? 'pr.day1' : 'pr.dayN', { n });
 const starsHTML = (n) => `<span class="pr-stars" aria-label="${n}/3">${[0, 1, 2].map((i) => `<i class="${i < n ? 'on' : ''}">★</i>`).join('')}</span>`;
 function levelOf(id) {
-  let l = 'beg';
-  try { l = localStorage.getItem('gitara-pr-level-' + id) || 'beg'; } catch {}
-  return l === 'beg' ? t('pr.lvl.beg') : l === 'normal' ? t('pr.lvl.normal') : t('pr.lvl.n', { n: l });
+  let l = 'normal', sp = 'grad';
+  try { l = localStorage.getItem('gitara-pr-level-' + id) || 'normal'; sp = localStorage.getItem('gitara-pr-speed-' + id) || 'grad'; } catch {}
+  if (l === 'beg') return t('pr.wait.chip');
+  return (/^\d$/.test(l) ? t('pr.lvl.n', { n: l }) + ' · ' : '') + t('pr.speed.' + sp);
 }
 /** Najbolji rezultat kao kratak broj sa jedinicom (bez decimala). */
 function bestText(g, rec, st, sk = null) {
@@ -160,7 +162,7 @@ async function renderHub(root) {
             <span class="pr-name">${ico(g)}<b>${t('pr.g.' + g.id)}</b></span>
             <span class="pr-desc">${t('pr.d.' + g.id)}</span>
             <span class="pr-meta">${played
-              ? `${starsHTML(starsOf(rec.best || 0))}<b class="pr-num">${bestText(g, rec, st, g.id === 'skale' ? sk : null)}</b><span class="pr-lvchip">${levelOf(g.id)}</span>`
+              ? `${starsHTML(starsOf(rec.best || 0))}<b class="pr-num">${bestText(g, rec, st, g.id === 'skale' ? sk : null)}</b><span class="pr-lvchip">${levelOf(g.id)}</span>${rec.challenge ? `<span class="pr-chal" title="${esc(t('pr.speed.challengeDone'))}">${t('pr.speed.challenge')} ✓</span>` : ''}`
               : `<span class="pr-new">${t('pr.new')}</span>`}</span>
           </span>
         </a>`;
@@ -185,17 +187,22 @@ async function renderGame(root, game, args, params) {
     <div class="pr-meter" id="prMeter" aria-hidden="true"><span class="pr-lvl"><i></i></span><span class="pr-heard" id="prHeard">${t('pr.meter.idle')}</span></div>
     <div class="pr-stage" id="prStage"><p class="muted center">${t('common.loading')}</p></div>
     <div class="pr-fb" id="prFb" role="status" aria-live="polite">&nbsp;</div>
-    <div class="pr-level" id="prLevel" hidden></div>
-    <div class="pr-wait" id="prWaitBox" hidden>
-      <label class="switch"><input type="checkbox" id="prWait"><span class="switch-track"><span class="switch-thumb"></span></span><span>${t('pr.wait.label')}</span></label>
+    <div class="pr-head" id="prHead"></div>
+    <div class="pr-wait" id="prWaitBox">
+      <label class="switch"><input type="checkbox" id="prWait"><span class="switch-track"><span class="switch-thumb"></span></span><span>${t('pr.wait.beg')}</span></label>
       <small class="muted" id="prWaitHint"></small>
     </div>
-    <div class="pr-opts" id="prOpts"></div>
-    <div class="pr-tempo" id="prTempo">
-      <button class="btn round small" id="prSlower" aria-label="${t('pr.slower')}">−</button>
-      <span><b id="prBpm">90</b> <small id="prUnit">BPM</small></span>
-      <button class="btn round small" id="prFaster" aria-label="${t('pr.faster')}">+</button>
+    <div class="pr-level" id="prLevel" hidden></div>
+    <div class="pr-speed" id="prSpeed">
+      <div class="pr-optlabel">${t('pr.speed.label')}</div>
+      <div class="pr-speeds" id="prSpeeds" role="radiogroup"></div>
+      <div class="pr-tempo" id="prTempo">
+        <button class="btn round tiny" id="prSlower" aria-label="${t('pr.slower')}">−</button>
+        <span><b id="prBpm">90</b> <small id="prUnit">BPM</small></span>
+        <button class="btn round tiny" id="prFaster" aria-label="${t('pr.faster')}">+</button>
+      </div>
     </div>
+    <div class="pr-opts" id="prOpts"></div>
     <button class="btn primary big wide" id="prGo">${t('pr.start')}</button>
     <div class="card pr-result" id="prRes" hidden></div>
   </section>`;
@@ -206,21 +213,27 @@ async function renderGame(root, game, args, params) {
   const st = await loadStats();
   const rec = st.games[game.id] || {};
   let running = false, bpm = 90, gameObj = null, listener = null;
-  // Nivo: „Početnik“ (čeka na svaku notu, bez tempa) / „Normalno“ (+ viši nivoi igre). Prvi put: Početnik.
-  const LKEY = 'gitara-pr-level-' + game.id;
-  let level = (() => { try { return localStorage.getItem(LKEY) || 'beg'; } catch { return 'beg'; } })();
+  // Jedan prekidač „Čekaj me — početnik sam“ (umesto nivoa Početnik/Normalno): uključen = igra čeka na svaku
+  // notu/akord (Početnik: kraće, sa savetima, bez štoperice); isključen = uz metronom, brzina se bira ispod.
+  // Ritam ima i težinu ritma (1–4) — vidi se samo kad je prekidač isključen.
+  const LKEY = 'gitara-pr-level-' + game.id, L2KEY = 'gitara-pr-level2-' + game.id;
+  let level = (() => { try { return localStorage.getItem(LKEY) || 'normal'; } catch { return 'normal'; } })();
   const cleanups = new Set(), levelSubs = new Set();
-  // „Čekaj me“ (sve igre na stazi): pamti se po igri i nivou; Početnik ga uključuje sam, Normalno počinje bez njega
-  const WKEY = (lv) => `gitara-pr-wait-${game.id}-${lv}`;
-  const waitOf = (lv) => { try { const v = localStorage.getItem(WKEY(lv)); return v == null ? lv === 'beg' : v === '1'; } catch { return lv === 'beg'; } };
-  let waitOn = waitOf(level);
-  const syncTempo = () => { $('prTempo').hidden = !!gameObj?.noTempo || (waitOn && !gameObj?.tempoInBeg); };
+  const waitHint = () => { const k = `pr.wait.onHint.${game.id}`; return t(k) !== k ? t(k) : t('pr.wait.onHint'); };
+  const syncTempo = () => { $('prSpeed').hidden = !!gameObj?.noTempo || (level === 'beg' && !gameObj?.tempoInBeg); };
   function drawWait() {
-    if (!gameObj?.track) return;
-    $('prWaitBox').hidden = false;
-    $('prWait').checked = waitOn;
-    $('prWaitHint').textContent = t(waitOn ? 'pr.wait.onHint' : 'pr.wait.offHint');
+    const LV = gameObj?.levels || [];
+    $('prWaitBox').hidden = !LV.some((l) => l.id === 'beg');
+    $('prWait').checked = level === 'beg';
+    $('prWaitHint').textContent = level === 'beg' ? waitHint() : t('pr.wait.offHintShort');
+    const extra = LV.filter((l) => l.id !== 'beg');
+    $('prLevel').hidden = level === 'beg' || extra.length < 2;
   }
+  // Brzina: Sporo / Normalno / Brzo / Izazov (u odnosu na „normalan“ tempo igre ili pesme) ili Postepeno
+  // (počinje sporije i posle svakog čistog prolaza malo ubrza). Pamti se po igri; menja se i tokom igre.
+  const SPEEDS = [{ id: 'slow', f: 0.7 }, { id: 'normal', f: 1 }, { id: 'grad' }, { id: 'fast', f: 1.15 }, { id: 'challenge', f: 1.3 }];
+  const SKEY = 'gitara-pr-speed-' + game.id;
+  let speed = (() => { try { const v = localStorage.getItem(SKEY); return SPEEDS.some((x) => x.id === v) ? v : 'grad'; } catch { return 'grad'; } })();
   // Jačina ulaza + poslednja čuta nota: na svakom ekranu igre (da se odmah vidi da li mikrofon čuje gitaru)
   let lastHeard = null, meterAt = 0;
   function onLevel(ev) {
@@ -241,6 +254,7 @@ async function renderGame(root, game, args, params) {
   const api = {
     stage: $('prStage'),
     opts: $('prOpts'),
+    head: $('prHead'),
     args, params,
     stats: rec,
     allStats: st,
@@ -248,25 +262,38 @@ async function renderGame(root, game, args, params) {
     get bpm() { return bpm; },
     get level() { return level; },
     get listener() { return listener; },
-    /** „Čekaj me“ uključen (za ovu igru i nivo). */
-    get wait() { return waitOn; },
+    /** „Čekaj me — početnik sam“ uključen. */
+    get wait() { return level === 'beg'; },
     setWait(on) {
-      waitOn = !!on;
-      try { localStorage.setItem(WKEY(level), waitOn ? '1' : '0'); } catch {}
-      drawWait(); syncTempo();
-      gameObj?.onWait?.(waitOn);
+      if (!!on === (level === 'beg')) return;
+      if (on) { try { if (level !== 'beg') localStorage.setItem(L2KEY, level); } catch {} api.setLevel('beg'); }
+      else { let l = 'normal'; try { l = localStorage.getItem(L2KEY) || 'normal'; } catch {} api.setLevel(l === 'beg' ? 'normal' : l); }
+      gameObj?.onWait?.(level === 'beg');
     },
     setLevel(l) {
       level = l;
-      try { localStorage.setItem(LKEY, l); } catch {}
+      try { localStorage.setItem(LKEY, l); if (l !== 'beg') localStorage.setItem(L2KEY, l); } catch {}
       $('prLevel').querySelectorAll('[data-lv]').forEach((x) => x.classList.toggle('active', x.dataset.lv === l));
-      waitOn = waitOf(l);
       drawWait(); syncTempo();
       gameObj?.onLevel?.(l);
+    },
+    get speed() { return speed; },
+    /** Sledeća brzina posle dobrog prolaza (Sporo → Normalno → Brzo → Izazov); null = već Izazov / Postepeno. */
+    get nextSpeed() { const k = ['slow', 'normal', 'fast', 'challenge'].indexOf(speed); return k >= 0 && k < 3 ? ['slow', 'normal', 'fast', 'challenge'][k + 1] : null; },
+    speedLabel: (id) => t('pr.speed.' + (id || speed)),
+    setSpeed(id) {
+      if (!SPEEDS.some((x) => x.id === id)) return;
+      speed = id;
+      try { localStorage.setItem(SKEY, id); } catch {}
+      api.setBpm(tempoForSpeed(id));
+      drawSpeeds();
+      gameObj?.onSpeed?.(id);
     },
     /** Sačuvaj rezultat bez zaustavljanja (npr. svaki prolaz u „Delovi pesme“). */
     async save(res, key = null) { const fresh = await saveResult(game.id, { ...res, nextTempo: res.tempo }, key); Object.assign(rec, fresh.games[game.id]); Object.assign(st.songs, fresh.songs); },
     setBpm(v) { bpm = Math.round(Math.max(B.min, Math.min(B.max, v))); $('prBpm').textContent = B.fmt(bpm); },
+    /** Normalan tempo igre (ili pesme) — osnova za Sporo/Brzo/Izazov. */
+    get normalTempo() { return B.normal; },
     /** Puls metronoma na vrhu: beat = 0..beats-1 (null = osmina između) */
     pulse(beat, beats = 4, accent = false) {
       const p = $('prPulse');
@@ -305,9 +332,11 @@ async function renderGame(root, game, args, params) {
     /** Pokreni posebnu rundu (npr. podešavanje kašnjenja) sa istim gašenjem kao igra. */
     startCustom(fn) { return startRun(fn); },
     /** Kraj runde: rezultat 0–100, tempo, tačnost (0–1). key = [songId, deo] za „Delovi pesme“. */
-    async finish(res, key = null) {
+    async finish(res0, key = null) {
+      let res = res0;
       stopRun(false);
-      const nextTempo = res.score > 90 && !res.noTempoUp ? Math.max(B.min, Math.min(B.max, res.tempo + B.step * B.dir)) : res.tempo;
+      const nextTempo = speed === 'grad' && res.score > 90 && !res.noTempoUp ? Math.max(B.min, Math.min(B.gradMax ?? B.max, res.tempo + B.step * B.dir)) : res.tempo; // Postepeno: najviše do pravog tempa pesme
+      if (speed === 'challenge' && level !== 'beg' && res.score >= 90) res = { ...res, challenge: true };
       const prevBest = key ? ((st.songs[key[0]] || {})[key[1]] || {}).best || 0 : rec.best || 0;
       const fresh = await saveResult(game.id, { ...res, score: Math.round(res.score), nextTempo }, key);
       Object.assign(rec, fresh.games[game.id]); Object.assign(st.songs, fresh.songs);
@@ -325,26 +354,56 @@ async function renderGame(root, game, args, params) {
   // Objašnjenje (2–3 rečenice) i „Pogledaj demo“ — demo se pušta samo na dugme, nikad sam
   const explain = t('pr.x.' + game.id);
   if (explain !== 'pr.x.' + game.id || gameObj.demo) {
+    // Objašnjenje ceo tekst samo prvi put; posle toga mali red „ⓘ Kako se igra“ (otvara tekst) i „Demo“
+    const IKEY = 'gitara-pr-intro-' + game.id;
+    let seen = false;
+    try { seen = !!localStorage.getItem(IKEY); localStorage.setItem(IKEY, '1'); } catch {}
+    const hasText = explain !== 'pr.x.' + game.id;
+    const demoBtn = gameObj.demo ? `<button class="btn small pr-demo" id="prDemo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>${t('pr.demo')}</button>` : '';
     $('prExplain').hidden = false;
-    $('prExplain').innerHTML = `${explain !== 'pr.x.' + game.id ? `<p>${explain}</p>` : ''}${gameObj.demo ? `<button class="btn small pr-demo" id="prDemo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>${t('pr.demo')}</button>` : ''}`;
+    $('prExplain').classList.toggle('compact', seen);
+    $('prExplain').innerHTML = seen
+      ? `<div class="pr-ex-row">${hasText ? `<button class="pr-ex-how" id="prHow" aria-expanded="false"><span class="pr-ex-i">i</span>${t('pr.howTo')}</button>` : '<span></span>'}${demoBtn}</div>${hasText ? `<p id="prHowTxt" hidden>${explain}</p>` : ''}`
+      : `${hasText ? `<p>${explain}</p>` : ''}${demoBtn}`;
+    $('prHow')?.addEventListener('click', () => { const p = $('prHowTxt'); p.hidden = !p.hidden; $('prHow').setAttribute('aria-expanded', String(!p.hidden)); });
     $('prDemo')?.addEventListener('click', () => { if (!running) startRun(() => gameObj.demo()); });
   }
   if (gameObj.track) $('prPulse').hidden = true;
   const LV = gameObj.levels || [];
-  if (LV.length) {
-    if (!LV.some((l) => l.id === level)) level = LV[0].id;
-    $('prLevel').hidden = false;
-    $('prLevel').innerHTML = `<div class="pr-optlabel">${t('pr.lvl.label')}</div><div class="seg-tabs" role="radiogroup">${LV.map((l) => `<button role="radio" data-lv="${l.id}" class="${l.id === level ? 'active' : ''}">${esc(l.label)}</button>`).join('')}</div>`;
+  if (LV.length && !LV.some((l) => l.id === level)) level = LV.some((l) => l.id === 'normal') ? 'normal' : LV[0].id;
+  const extraLv = LV.filter((l) => l.id !== 'beg');
+  if (extraLv.length >= 2) { // Ritam: težina ritma 1–4 („Normalno“ = 1)
+    $('prLevel').innerHTML = `<div class="pr-optlabel">${t('pr.lvl.difficulty')}</div><div class="seg-tabs pr-diff" role="radiogroup">${extraLv.map((l) => `<button role="radio" data-lv="${l.id}" class="${l.id === level ? 'active' : ''}">${l.id === 'normal' ? '1' : esc(l.label)}</button>`).join('')}</div>`;
     $('prLevel').addEventListener('click', (e) => { const b = e.target.closest('[data-lv]'); if (b && !running) api.setLevel(b.dataset.lv); });
   }
   // Brzina: BPM (više = brže) ili npr. sekunde po noti (dir: -1 → manje = brže)
   const B = { start: 80, min: 40, max: 200, step: 5, dir: 1, fmt: (v) => String(v), unit: 'BPM', ...(gameObj.bpm || {}) };
+  if (!B.normal) B.normal = B.start;
   $('prUnit').textContent = B.unit;
-  api.setBpm(gameObj.initialTempo || rec.lastTempo || B.start);
-  if (gameObj.noTempo) $('prTempo').hidden = true;
+  function tempoForSpeed(id) {
+    const sp = SPEEDS.find((x) => x.id === id);
+    if (!sp || id === 'grad') return gameObj.initialTempo || rec.lastTempo || B.start;
+    const v = B.dir < 0 ? B.normal / sp.f : B.normal * sp.f; // sekunde po noti: brže = kraće
+    return Math.max(B.min, Math.min(B.max, Math.round(v / B.step) * B.step));
+  }
+  function drawSpeeds() {
+    $('prSpeeds').innerHTML = SPEEDS.map((x) => `<button role="radio" aria-checked="${x.id === speed}" class="pr-sp${x.id === speed ? ' on' : ''}" data-sp="${x.id}">${t('pr.speed.' + x.id)}</button>`).join('');
+  }
+  drawSpeeds();
+  api.setBpm(tempoForSpeed(speed));
   if (LV.length) api.setLevel(level); else { drawWait(); syncTempo(); }
-  $('prWait').addEventListener('change', (e) => { if (running) { e.target.checked = waitOn; return; } api.setWait(e.target.checked); });
+  $('prSpeeds').addEventListener('click', (e) => { const b = e.target.closest('[data-sp]'); if (b) api.setSpeed(b.dataset.sp); });
+  $('prWait').addEventListener('change', async (e) => {
+    if (running) { e.target.checked = level === 'beg'; return; }
+    const on = e.target.checked;
+    api.setWait(on);
+    // prvi put: kratko objašnjenje šta prekidač radi
+    let shown = false;
+    try { shown = !!localStorage.getItem('gitara-pr-waittip'); if (on) localStorage.setItem('gitara-pr-waittip', '1'); } catch {}
+    if (on && !shown) { const { dialog } = await import('./ui.js'); dialog({ title: t('pr.wait.tipTitle'), body: t('pr.wait.tip'), buttons: [{ label: t('common.ok'), value: true, kind: 'primary' }] }); }
+  });
   if (gameObj.noStart) $('prGo').hidden = true; // npr. izbor pesme pre igre
+  // fino podešavanje (mali −/+ uz broj): brzina ostaje izabrana, samo tempo malo drugačiji
   $('prSlower').addEventListener('click', () => api.setBpm(bpm - B.step * B.dir));
   $('prFaster').addEventListener('click', () => api.setBpm(bpm + B.step * B.dir));
 
@@ -362,11 +421,13 @@ async function renderGame(root, game, args, params) {
         ${(r.lines || []).map((l) => `<span><small>${esc(l.label)}</small><b>${esc(String(l.value))}</b></span>`).join('')}
       </div>
       ${r.nextTempo !== r.tempo ? `<p class="small pr-up">${t('pr.tempoUp', { bpm: B.fmt(r.nextTempo) + ' ' + B.unit })}</p>` : ''}
-      ${r.beginner && r.clean ? `<p class="pr-up">${t('pr.lvl.cleanNote')}</p><button class="btn primary big wide" id="prTryNormal">${t('pr.lvl.tryNormal')}</button>` : ''}
-      <button class="btn ${r.beginner && r.clean ? '' : 'primary'} big wide" id="prAgainFaster">${t(r.beginner ? 'pr.trk.again' : 'pr.againFaster')}</button>`;
-    box.querySelector('#prTryNormal')?.addEventListener('click', () => { box.hidden = true; api.setLevel('normal'); startRun(); });
+      ${r.beginner && r.clean ? `<p class="pr-up">${t('pr.wait.cleanNote')}</p><button class="btn primary big wide" id="prTryNormal">${t('pr.wait.tryOff')}</button>` : ''}
+      ${r.challenge ? `<p class="pr-up">${t('pr.speed.challengeDone')}</p>` : ''}
+      <button class="btn ${r.beginner && r.clean ? '' : 'primary'} big wide" id="prAgainFaster">${r.beginner || (speed !== 'grad' && !api.nextSpeed) ? t('pr.trk.again') : speed !== 'grad' ? t('pr.speed.try', { s: t('pr.speed.' + api.nextSpeed) }) : t('pr.againFaster')}</button>`;
+    box.querySelector('#prTryNormal')?.addEventListener('click', () => { box.hidden = true; api.setWait(false); startRun(); });
     box.querySelector('#prAgainFaster').addEventListener('click', () => {
-      if (r.nextTempo === r.tempo && !r.beginner) api.setBpm(bpm + B.step * B.dir);
+      if (!r.beginner && speed !== 'grad') { if (api.nextSpeed) api.setSpeed(api.nextSpeed); }
+      else if (r.nextTempo === r.tempo && !r.beginner) api.setBpm(bpm + B.step * B.dir);
       box.hidden = true;
       startRun();
     });

@@ -35,12 +35,13 @@ const HAND_SVG = `<svg viewBox="0 0 100 143" aria-hidden="true"><defs><linearGra
  * elementi iz „bazena“ koji se pomeraju samo preko CSS transform/opacity, iz jedne requestAnimationFrame petlje.
  * Bez čitanja rasporeda tokom runde, bez pravljenja elemenata po kadru, bez animiranih senki/blura.
  */
-export function createTrack({ t, onExit, lookBeats = 4.5, onInfo = null }) {
+export function createTrack({ t, onExit, lookBeats = 4.5, onInfo = null, speed = null }) {
   const el = document.createElement('div');
   el.className = 'trk';
   el.innerHTML = `
     <div class="trk-top">
       <button class="trk-x" aria-label="${t('pr.trk.exit')}">✕</button>${onInfo ? `<button class="trk-i" aria-label="${t('pr.info.what')}">i</button>` : ''}
+      ${speed ? `<button class="trk-speed" aria-label="${t('pr.speed.label')}"><small>${t('pr.speed.label')}</small><b>${speed.label()}</b></button>` : ''}
       <div class="trk-prog" aria-hidden="true"><i></i></div>
       <div class="trk-combo"><b>0</b><small>${t('pr.trk.combo')}</small></div>
       <div class="trk-meter" aria-hidden="true"><span class="pr-lvl"><i></i></span><span class="trk-heard"></span></div>
@@ -68,6 +69,8 @@ export function createTrack({ t, onExit, lookBeats = 4.5, onInfo = null }) {
   const exit = () => onExit?.();
   q('.trk-x').addEventListener('click', exit);
   q('.trk-i')?.addEventListener('click', () => onInfo?.());
+  // Brzina tokom igre: dodir menja Sporo → Normalno → Brzo → Izazov → Postepeno; prolaz kreće ispočetka u novoj brzini
+  q('.trk-speed')?.addEventListener('click', () => { const b = q('.trk-speed b'); b.textContent = speed.cycle(); });
   q('.trk-x2').addEventListener('click', exit);
 
   let items = [], grid = null, beatMs = 1000, raf = 0, combo = 0, maxCombo = 0, alive = true, sleeping = false, cur = null;
@@ -606,13 +609,16 @@ export async function roundResults({ api, track, t, stats, key = null, extra = [
   const info = await api.finish({ score: stats.score, tempo: stats.tempo, accuracy: stats.accuracy, metric: stats.metric ?? null, quiet: true, noTempoUp: stats.beginner }, key);
   if (!track) return { choice: 'back' };
   const stars = starsOf(stats.score);
-  const next = stats.beginner ? stats.tempo : info.nextTempo > stats.tempo ? info.nextTempo : stats.tempo + step;
-  // posle „Čekaj me“: bez tempa; „Probaj Normalno“ samo iz Početnika (u Normalnom: „Bez čekanja“)
-  const fromBeg = api.level === 'beg';
+  const fixed = api.speed && api.speed !== 'grad';
+  const next = stats.beginner ? stats.tempo : fixed ? stats.tempo : info.nextTempo > stats.tempo ? info.nextTempo : stats.tempo + step;
+  const fasterBtn = fixed
+    ? (api.nextSpeed ? [{ id: 'faster', label: t('pr.speed.try', { s: api.speedLabel(api.nextSpeed) }), primary: stars >= 2 }] : [])
+    : [{ id: 'faster', label: t('pr.trk.faster', { bpm: next }), primary: stars >= 2 }];
+  // posle „Čekaj me“: bez tempa; posle čistog prolaza nudi se „Sad bez čekanja“
   const buttons = stats.beginner
-    ? [...(stats.clean ? [fromBeg ? { id: 'tryNormal', label: t('pr.lvl.tryNormal'), primary: true } : { id: 'noWait', label: t('pr.wait.tryOff'), primary: true }] : []), ...extra.filter((b) => b.always), { id: 'again', label: t('pr.trk.again'), primary: !stats.clean }, { id: 'back', label: t('pr.trk.back') }]
+    ? [...(stats.clean ? [{ id: 'noWait', label: t('pr.wait.tryOff'), primary: true }] : []), ...extra.filter((b) => b.always), { id: 'again', label: t('pr.trk.again'), primary: !stats.clean }, { id: 'back', label: t('pr.trk.back') }]
     // uz „Sledeći deo“ / „Cela pesma“ (pravi tempo pesme je dostignut) nema „Brže“
-    : [...extra, ...(extra.length ? [] : [{ id: 'faster', label: t('pr.trk.faster', { bpm: next }), primary: stars >= 2 }]), { id: 'again', label: t('pr.trk.again'), primary: !extra.length && stars < 2 }, { id: 'back', label: t('pr.trk.back') }];
+    : [...extra, ...(extra.length ? [] : fasterBtn), { id: 'again', label: t('pr.trk.again'), primary: !extra.length && (stars < 2 || !fasterBtn.length) }, { id: 'back', label: t('pr.trk.back') }];
   // Zašto je rezultat ovakav: pogođeno, u ritmu / rano-kasno, promašeno, pogrešni pokušaji
   const lines = [{ label: t('pr.why.hit'), value: `${stats.hits}/${stats.n}` }];
   if (!stats.beginner) {
@@ -627,7 +633,7 @@ export async function roundResults({ api, track, t, stats, key = null, extra = [
   const choice = await track.results({
     title: stats.beginner ? t(stats.clean ? 'pr.lvl.cleanTitle' : 'pr.lvl.notCleanTitle') : t('pr.trk.res' + stars),
     stars, score: stats.score, lines,
-    note: [info.newBest ? t('pr.newBest') : '', stats.beginner && stats.clean ? t(fromBeg ? 'pr.lvl.cleanNote' : 'pr.wait.cleanNote') : ''].filter(Boolean).join(' '),
+    note: [info.newBest ? t('pr.newBest') : '', info.challenge ? t('pr.speed.challengeDone') : '', stats.beginner && stats.clean ? t('pr.wait.cleanNote') : ''].filter(Boolean).join(' '),
     buttons,
   });
   return { choice, next };
@@ -636,9 +642,9 @@ export async function roundResults({ api, track, t, stats, key = null, extra = [
 /** Zajednički odgovor na izbor posle rezultata. Vraća true ako je igra to sama obradila. */
 export function handleChoice(api, choice, next, close) {
   if (choice === 'back') { close(); return true; }
-  if (choice === 'tryNormal') { api.setLevel('normal'); api.restart(); return true; }
+  if (choice === 'tryNormal') { api.setWait(false); api.restart(); return true; }
   if (choice === 'noWait') { api.setWait(false); api.restart(); return true; }
-  if (choice === 'faster') { api.setBpm(next); api.restart(); return true; }
+  if (choice === 'faster') { if (api.speed && api.speed !== 'grad') { if (api.nextSpeed) api.setSpeed(api.nextSpeed); } else api.setBpm(next); api.restart(); return true; }
   if (choice === 'again') { api.restart(); return true; }
   return false;
 }
@@ -662,7 +668,17 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 export function trackGame(api, cfg) {
   const { t } = api;
   let track = null, runner = null, unsub = null, gen = 0;
-  const open = () => { if (track) track.reset(); else track = createTrack({ t, onExit: () => api.stop(), onInfo: cfg.onInfo ? () => cfg.onInfo(ctl) : null }); return track; };
+  const ORDER = ['slow', 'normal', 'grad', 'fast', 'challenge'];
+  const speedCtl = {
+    label: () => api.speedLabel(),
+    cycle() {
+      const nx = ORDER[(ORDER.indexOf(api.speed) + 1) % ORDER.length];
+      api.setSpeed(nx);
+      if (runner && track && api.running) { track.pop(t('pr.speed.now', { s: api.speedLabel() }), 'hit'); startRound(cfg.round(api.level, api.bpm), api.bpm); }
+      return api.speedLabel();
+    },
+  };
+  const open = () => { if (track) track.reset(); else track = createTrack({ t, onExit: () => api.stop(), onInfo: cfg.onInfo ? () => cfg.onInfo(ctl) : null, speed: api.wait || cfg.noTempo || !api.setSpeed ? null : speedCtl }); return track; };
   const close = () => { gen++; runner?.stop(); runner = null; track?.destroy(); track = null; };
   const ctl = {
     get track() { return track; },
@@ -732,7 +748,7 @@ export function trackGame(api, cfg) {
         });
         if (choice === 'back') { close(); return; }
         if (choice === 'replay') { api.startCustom(demo); return; }
-        if (api.level !== 'beg') api.setBpm(cfg.firstBpm || 50);
+        if (api.level !== 'beg' && (!api.speed || api.speed === 'grad')) api.setBpm(cfg.firstBpm || 50);
         api.restart();
       },
     });
@@ -744,6 +760,7 @@ export function trackGame(api, cfg) {
     bpm: cfg.bpm,
     initialTempo: cfg.initialTempo,
     noTempo: cfg.noTempo,
+    noStart: cfg.noStart,
     demo,
     start: play,
     onLevel: cfg.onLevel,

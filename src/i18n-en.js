@@ -97,6 +97,7 @@ export default {
   'lib.groupArtists': 'Artists',
   'lib.groupTab': 'TAB songs',
   'lib.groupRecent': 'Recently opened',
+  'lib.groupsFolders': 'Folders',
   'lib.groupsMine': 'My folders',
   'lib.groupsMineEmpty': 'Make a folder for your own groups — e.g. “Practice” or “Wedding gig”.',
   'song.editSub': 'Lyrics, chords, title, folders',

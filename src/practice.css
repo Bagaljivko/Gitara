@@ -367,3 +367,101 @@ body.trk-open { overflow: hidden; }
 .sk-lib-item small { color: var(--muted); line-height: 1.35; }
 @keyframes skIn { from { opacity: 0; transform: translate3d(0,6px,0); } }
 @media (prefers-reduced-motion: reduce) { .sk-sheet, .sk-sheet-wrap { transition: none; } .sk-hero, .sk-more, .sk-later-note { animation: none; } }
+
+/* v1.57 — jedan prekidač „Čekaj me — početnik sam“, brzina, kratko objašnjenje, merač samo tokom igre */
+.pr-game:not(.running) #prMeter { display: none; }
+.pr-wait { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; margin: 6px 0 10px; gap: 4px; }
+.pr-wait[hidden] { display: none; }
+.pr-wait .switch > span:last-child { font-weight: 700; }
+.pr-wait small { line-height: 1.35; }
+.pr-speed { margin: 4px 0 12px; }
+.pr-speed[hidden] { display: none; }
+.pr-speeds { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; margin: 6px 0 2px; }
+.pr-sp { appearance: none; min-height: 38px; padding: 0 14px; border-radius: 19px; border: 1px solid var(--line); background: var(--surface-2); color: var(--muted); font: 600 .9rem var(--sans); cursor: pointer; }
+.pr-sp.on { background: var(--gc, var(--accent)); border-color: var(--gc, var(--accent)); color: #111; }
+.pr-sp[data-sp="challenge"]:not(.on) { color: var(--text); }
+.pr-speed .pr-tempo { gap: 10px; margin: 4px 0 0; }
+.pr-speed .pr-tempo b { font-size: 1rem; }
+.btn.round.tiny { width: 30px; height: 30px; min-height: 30px; padding: 0; font-size: 1rem; }
+.pr-diff { margin-top: 6px; }
+.pr-explain.compact { background: none; border: 0; padding: 0 2px; margin: 2px 0 6px; gap: 6px; }
+.pr-ex-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.pr-ex-how { appearance: none; background: none; border: 0; color: var(--muted); font: 600 .9rem var(--sans); display: inline-flex; align-items: center; gap: 8px; cursor: pointer; padding: 6px 0; }
+.pr-ex-i { width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line); display: inline-grid; place-items: center; font: italic 700 .85rem/1 Georgia, serif; }
+.pr-explain.compact p { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+.pr-chal { font-size: .7rem; font-weight: 800; padding: 2px 8px; border-radius: 999px; color: #111; background: var(--gc); }
+.trk-speed { appearance: none; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); height: 40px; border-radius: 12px; padding: 0 10px; display: inline-flex; flex-direction: column; justify-content: center; line-height: 1.05; cursor: pointer; flex: none; }
+.trk-speed small { font-size: .6rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.trk-speed b { font-size: .85rem; }
+/* brzina: jedna traka (segmenti) umesto čipova u dva reda */
+.pr-speeds { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 3px; margin: 6px 0 4px; }
+.pr-sp { min-height: 38px; padding: 0 2px; border: 0; border-radius: 9px; background: none; font-size: .8rem; letter-spacing: -.01em; white-space: nowrap; }
+.pr-sp.on { background: var(--gc, var(--accent)); color: #111; }
+.pr-sp[data-sp="challenge"]:not(.on) { color: var(--muted); }
+/* Delovi pesme */
+.pr-head:empty { display: none; }
+.spr-song { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; margin: 4px 0 10px; }
+.spr-song-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.spr-song-t b { font-size: 1.1rem; }
+.spr-song-t span { color: var(--muted); }
+.spr-song-t small { color: var(--muted); font-size: .8rem; }
+.spr-change { flex: none; font-size: .85rem; font-weight: 700; color: var(--accent); text-decoration: none; padding-top: 3px; }
+.spr-whole { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 4px 0 18px; flex-wrap: wrap; }
+.spr-whole svg { width: 22px; height: 22px; fill: currentColor; }
+.spr-whole-prog { flex-basis: 100%; font-size: .75rem; opacity: .8; }
+.spr-whole-prog .spr-stars i { color: inherit; opacity: .35; } .spr-whole-prog .spr-stars i.on { opacity: 1; }
+.spr-sec-h { font-size: .75rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 2px 8px; }
+.spr-grp { font-weight: 700; margin: 12px 2px 6px; }
+.spr-rows { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--surface); }
+.spr-row { display: flex; align-items: center; gap: 8px; padding: 10px 6px 10px 14px; border-top: 1px solid var(--line); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.spr-row:first-child { border-top: 0; }
+.spr-row.next { background: rgba(245, 165, 36, .08); box-shadow: inset 3px 0 0 var(--accent); }
+.spr-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.spr-name { font-weight: 700; }
+.spr-sub { color: var(--muted); font-size: .82rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.spr-prog { font-size: .78rem; color: var(--muted); display: flex; gap: 8px; align-items: center; }
+.spr-stars i { font-style: normal; color: var(--line); } .spr-stars i.on { color: var(--accent); }
+.spr-none { opacity: .8; }
+.spr-next { font-size: .65rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: #111; background: var(--accent); border-radius: 6px; padding: 1px 6px; vertical-align: 2px; }
+.spr-listen { width: 40px; height: 40px; flex: none; border-radius: 20px; background: var(--surface-2); }
+.spr-listen svg { width: 18px; height: 18px; fill: var(--text); }
+.spr-listen.on svg { fill: var(--accent); }
+.spr-chev svg { width: 20px; height: 20px; fill: var(--muted); display: block; }
+.spr-sheet-sub { color: var(--muted); margin: -4px 4px 6px; }
+.spr-sheet-prog { margin: 0 4px 12px; font-size: .85rem; color: var(--muted); display: flex; gap: 8px; }
+.spr-sheet .seg-tabs { margin: 6px 0 12px; }
+.spr-sheet-bar { display: flex; gap: 10px; margin-top: 8px; }
+.spr-sheet-bar .btn { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 48px; }
+.spr-sheet-bar svg { width: 18px; height: 18px; fill: currentColor; }
+
+/* Delovi pesme: jasno „Vežbaj“ na svakom delu */
+.spr-sec-h small { display: block; text-transform: none; letter-spacing: 0; font-weight: 500; font-size: .85rem; margin-top: 2px; }
+.spr-how { margin-top: 22px; }
+.spr-go { flex: none; display: inline-flex; align-items: center; gap: 2px; height: 36px; padding: 0 6px 0 12px; border-radius: 18px; font-weight: 800; font-size: .88rem; background: var(--accent-soft); color: var(--accent); }
+.spr-go svg { width: 18px; height: 18px; fill: currentColor; }
+.spr-row.next .spr-go { background: var(--accent); color: #111; }
+.spr-listen { width: 36px; height: 36px; background: none; border: 1px solid var(--line); }
+.spr-listen svg { width: 17px; height: 17px; fill: var(--muted); }
+.spr-row { padding: 12px 10px 12px 14px; }
+.spr-chev { display: none; }
+
+/* v1.57 — izgled: blagi prelivi u boji igre (svaka igra ima svoju boju --gc) */
+@supports (background: color-mix(in srgb, red 10%, blue)) {
+  .pr-game { --gc-line: color-mix(in srgb, var(--gc) 40%, var(--line)); }
+  .pr-game .topbar .pr-gtitle b { background: linear-gradient(90deg, var(--text), color-mix(in srgb, var(--gc) 70%, var(--text))); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .pr-wait { background: linear-gradient(135deg, color-mix(in srgb, var(--gc) 9%, var(--surface)), var(--surface) 70%); border-color: color-mix(in srgb, var(--gc) 24%, var(--line)); }
+  .pr-wait:has(#prWait:checked) { background: linear-gradient(135deg, color-mix(in srgb, var(--gc) 26%, var(--surface)), color-mix(in srgb, var(--gc) 8%, var(--surface))); border-color: var(--gc-line); box-shadow: 0 0 18px color-mix(in srgb, var(--gc) 18%, transparent); }
+  .pr-speeds { background: linear-gradient(180deg, var(--surface), color-mix(in srgb, var(--gc) 6%, var(--surface))); border-color: color-mix(in srgb, var(--gc) 22%, var(--line)); }
+  .pr-sp.on { background: linear-gradient(135deg, color-mix(in srgb, var(--gc) 100%, white 12%), color-mix(in srgb, var(--gc) 75%, #ff5e8a)); box-shadow: 0 2px 10px color-mix(in srgb, var(--gc) 45%, transparent); }
+  .pr-sp[data-sp="challenge"].on { background: linear-gradient(135deg, #ff7a59, #ff3d7f); color: #fff; }
+  .pr-game #prGo.primary, .spr-whole { background: linear-gradient(135deg, color-mix(in srgb, var(--gc) 100%, white 10%), color-mix(in srgb, var(--gc) 70%, #ff5e8a)); border-color: transparent; box-shadow: 0 6px 22px color-mix(in srgb, var(--gc) 35%, transparent); }
+  .pr-explain:not(.compact) { background: linear-gradient(135deg, color-mix(in srgb, var(--gc) 10%, var(--surface)), var(--surface) 65%); border-color: color-mix(in srgb, var(--gc) 26%, var(--line)); }
+  .pr-ex-i { border-color: var(--gc-line); color: var(--gc); }
+  .spr-song { background: radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--gc) 26%, var(--surface)) 0%, var(--surface) 62%), var(--surface); border-color: var(--gc-line); box-shadow: 0 8px 26px color-mix(in srgb, var(--gc) 12%, transparent); }
+  .spr-rows { border-color: color-mix(in srgb, var(--gc) 20%, var(--line)); }
+  .spr-row.next { background: linear-gradient(90deg, color-mix(in srgb, var(--gc) 16%, transparent), transparent 75%); box-shadow: inset 3px 0 0 var(--gc); }
+  .spr-go { background: linear-gradient(135deg, color-mix(in srgb, var(--gc) 26%, transparent), color-mix(in srgb, var(--gc) 12%, transparent)); border: 1px solid var(--gc-line); color: color-mix(in srgb, var(--gc) 75%, white); }
+  .spr-row.next .spr-go { background: linear-gradient(135deg, var(--gc), color-mix(in srgb, var(--gc) 70%, #ff5e8a)); color: #111; border-color: transparent; }
+  .spr-sheet { background: linear-gradient(180deg, rgba(245, 165, 36, .1), var(--surface) 45%), var(--surface); }
+  .spr-sheet-bar .btn.primary { background: linear-gradient(135deg, var(--accent), #ff7a59); border-color: transparent; }
+}

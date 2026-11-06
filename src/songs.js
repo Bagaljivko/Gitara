@@ -63,7 +63,7 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
   const tab = params.get('tab') === 'sl' ? 'sl' : 'songs';
   root.innerHTML = `
   <section class="view lib-view">
-    <header class="view-head lib-head"><h1 class="lib-h1"><button class="lib-title" id="lGroup" aria-haspopup="dialog"><span id="lGroupName">${t('lib.title')}</span><svg class="lib-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.4 8.6 12 13.2l4.6-4.6L18 10l-6 6-6-6z"/></svg></button></h1>
+    <header class="view-head lib-head"><h1 class="lib-h1"><button class="lib-title" id="lGroup" aria-haspopup="menu" aria-expanded="false"><span id="lGroupName">${t('lib.title')}</span><svg class="lib-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.4 8.6 12 13.2l4.6-4.6L18 10l-6 6-6-6z"/></svg></button></h1>
       <div class="head-icons">
         <button class="icon-btn" id="lSearchBtn" aria-label="${t('lib.searchLabel')}" title="${t('lib.searchLabel')}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 3a7 7 0 0 1 5.6 11.2l4.6 4.6-1.4 1.4-4.6-4.6A7 7 0 1 1 10 3zm0 2a5 5 0 1 0 0 10 5 5 0 0 0 0-10z"/></svg></button>
         <button class="icon-btn" id="lSortBtn" aria-label="${t('lib.sortLabel')}" title="${t('lib.sortLabel')}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4 3 8h3v12h2V8h3L7 4zm10 16 4-4h-3V4h-2v12h-3l4 4z"/></svg></button>
@@ -100,7 +100,7 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
   let folders = await getFolders();
   // grupa: '' = sve, id foldera, 'artist:<ime>', 'auto:tab', 'auto:recent'
   let folderFilter = localStorageGet('gitara-folder') || '';
-  const validGroup = (g) => !g || g === 'auto:tab' || g === 'auto:recent' || (g.startsWith('artist:') ? all.some((s) => artistKey(s) === g.slice(7)) : folders.some((f) => f.id === g));
+  const validGroup = (g) => !g || g === 'auto:tab' || g === 'auto:recent' || folders.some((f) => f.id === g); // izvođači više nisu grupa (pretraga ih nalazi)
   if (!validGroup(folderFilter)) folderFilter = '';
 
   // Sekcije: Pesme / Setliste
@@ -125,7 +125,7 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
     $('lGroup').disabled = sl;
   };
   $('lGroup').addEventListener('click', async () => {
-    const r = await openGroupSheet({ all, folders, cur: folderFilter, inGroup });
+    const r = await openGroupSheet({ all, folders, cur: folderFilter, inGroup, anchor: $('lGroup') });
     if (!r) return;
     if (r.manage) {
       const res = await manageFolder(folders.find((f) => f.id === r.manage));
@@ -242,45 +242,59 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
 
 // ---------------- Grupe pesama (naslov „Sve pesme ▾“) ----------------
 const artistKey = (s) => String(s.artist || '').trim().toLowerCase();
+const GRP_ICONS = {
+  '': '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v10.6A4 4 0 1 0 14 17V7h4V3z"/></svg>',
+  'auto:recent': '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 10.4 3.5 2.1-1 1.7L11 13V7h2z"/></svg>',
+  'auto:tab': '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18v2H3zm0 4h18v2H3zm0 4h18v2H3zm0 4h18v2H3zM7 4h2v16H7zm8 0h2v16h-2z"/></svg>',
+  rec: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-3.1a7 7 0 0 0 6-6.9z"/></svg>',
+  folder: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8z"/></svg>',
+  plus: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></svg>',
+  check: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg>',
+  more: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>',
+};
 /**
- * Panel odozdo: Sve pesme, Izvođači (sami se slažu), TAB pesme, Nedavno otvorene, Moji snimci, moji folderi (⋯ =
- * preimenuj/obriši), + Novi folder. Vraća { g } | { manage: id } | { add: true } | null.
+ * Izbor grupe — padajući meni ispod naslova: Sve pesme, Nedavno otvorene, TAB pesme, Moji snimci, moji folderi
+ * (⋯ = preimenuj/obriši) i + Novi folder. Izvođači se ne nude (pretraga ih nalazi).
+ * Vraća { g } | { manage: id } | { add: true } | null.
  */
-function openGroupSheet({ all, folders, cur, inGroup }) {
+function openGroupSheet({ all, folders, cur, inGroup, anchor }) {
   return new Promise((resolve) => {
     const rec = new Set(Object.entries(openedMap()).sort((a, b) => b[1] - a[1]).slice(0, 30).map(([k]) => k));
     const n = (g) => all.filter((s) => inGroup(s, g, rec)).length;
-    const artists = new Map();
-    for (const s of all) { const k = artistKey(s); if (k && !(s.folders || []).some(isSystemFolder)) { const a = artists.get(k) || { name: s.artist.trim(), n: 0 }; a.n++; artists.set(k, a); } }
-    const arts = [...artists.entries()].sort((a, b) => b[1].n - a[1].n || a[1].name.localeCompare(b[1].name, 'sr'));
-    const row = (g, label, cnt, extra = '') => `<button class="grp-row${cur === g ? ' on' : ''}" data-g="${esc(g)}"><span class="grp-name">${esc(label)}</span><span class="grp-n">${cnt}</span>${extra}</button>`;
+    const row = (g, label, ic, cnt, extra = '') => `<button class="grp-row${cur === g ? ' on' : ''}" role="menuitemradio" aria-checked="${cur === g}" data-g="${esc(g)}">
+      <span class="grp-ic">${ic}</span><span class="grp-name">${esc(label)}</span>${cur === g ? `<span class="grp-ck">${GRP_ICONS.check}</span>` : `<span class="grp-n">${cnt}</span>`}${extra}</button>`;
     const own = folders.filter((f) => !isSystemFolder(f.id));
     const sys = folders.filter((f) => isSystemFolder(f.id));
-    const artOpen = cur.startsWith('artist:');
     const wrap = document.createElement('div');
-    wrap.className = 'modal-backdrop sheet-backdrop';
-    wrap.innerHTML = `<div class="sheet grp-sheet" role="dialog" aria-modal="true" aria-label="${t('lib.groups')}"><div class="sheet-grip"></div>
-      ${row('', t('lib.groupAll'), n(''))}
-      <div class="grp-head">${t('lib.groupsAuto')}</div>
-      ${arts.length ? `<button class="grp-row grp-toggle${artOpen ? ' open' : ''}" data-art><span class="grp-name">${t('lib.groupArtists')}</span><span class="grp-n">${arts.length}</span><svg class="grp-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.6 7.4 10 6l6 6-6 6-1.4-1.4L13.2 12z"/></svg></button>
-        <div class="grp-sub" ${artOpen ? '' : 'hidden'}>${arts.map(([k, a]) => row('artist:' + k, a.name, a.n)).join('')}</div>` : ''}
-      ${n('auto:tab') ? row('auto:tab', t('lib.groupTab'), n('auto:tab')) : ''}
-      ${rec.size ? row('auto:recent', t('lib.groupRecent'), n('auto:recent')) : ''}
-      ${sys.map((f) => row(f.id, folderLabel(f), n(f.id))).join('')}
-      <div class="grp-head">${t('lib.groupsMine')}</div>
-      ${own.map((f) => row(f.id, folderLabel(f), n(f.id), `<span class="grp-more" data-gm="${esc(f.id)}" role="button" aria-label="${esc(t('folder.manage', { name: folderLabel(f) }))}">⋯</span>`)).join('') || `<p class="small muted grp-empty">${t('lib.groupsMineEmpty')}</p>`}
-      <button class="grp-row grp-add" data-gadd><span class="grp-name">+ ${t('folder.new')}</span></button>
+    wrap.className = 'grp-backdrop';
+    wrap.innerHTML = `<div class="grp-pop" role="menu" aria-label="${t('lib.groups')}">
+      ${row('', t('lib.groupAll'), GRP_ICONS[''], n(''))}
+      ${rec.size ? row('auto:recent', t('lib.groupRecent'), GRP_ICONS['auto:recent'], n('auto:recent')) : ''}
+      ${n('auto:tab') ? row('auto:tab', t('lib.groupTab'), GRP_ICONS['auto:tab'], n('auto:tab')) : ''}
+      ${sys.map((f) => row(f.id, folderLabel(f), GRP_ICONS.rec, n(f.id))).join('')}
+      <div class="grp-sep"></div>
+      <div class="grp-head">${t('lib.groupsFolders')}</div>
+      ${own.map((f) => row(f.id, folderLabel(f), GRP_ICONS.folder, n(f.id), `<span class="grp-more" data-gm="${esc(f.id)}" role="button" aria-label="${esc(t('folder.manage', { name: folderLabel(f) }))}">${GRP_ICONS.more}</span>`)).join('') || `<p class="small muted grp-empty">${t('lib.groupsMineEmpty')}</p>`}
+      <button class="grp-row grp-add" data-gadd><span class="grp-ic">${GRP_ICONS.plus}</span><span class="grp-name">${t('folder.new')}</span></button>
     </div>`;
-    const done = (v) => { wrap.remove(); resolve(v); };
+    const pop = wrap.querySelector('.grp-pop');
+    // ispod naslova (ili gore levo ako nema naslova)
+    const r = anchor ? anchor.getBoundingClientRect() : { left: 12, bottom: 64 };
+    pop.style.left = Math.max(8, Math.min(r.left, innerWidth - 8 - Math.min(340, innerWidth - 16))) + 'px';
+    pop.style.top = (r.bottom + 8) + 'px';
+    const onKey = (e) => { if (e.key === 'Escape') done(null); };
+    const done = (v) => { document.removeEventListener('keydown', onKey); anchor?.setAttribute('aria-expanded', 'false'); wrap.remove(); resolve(v); };
     wrap.__close = () => done(null);
     wrap.addEventListener('click', (e) => {
       const m = e.target.closest('[data-gm]'); if (m) { e.stopPropagation(); return done({ manage: m.dataset.gm }); }
-      if (e.target.closest('[data-art]')) { const tg = wrap.querySelector('[data-art]'); tg.classList.toggle('open'); wrap.querySelector('.grp-sub').hidden = !tg.classList.contains('open'); return; }
       if (e.target.closest('[data-gadd]')) return done({ add: true });
-      const r = e.target.closest('[data-g]'); if (r) return done({ g: r.dataset.g });
-      if (!e.target.closest('.sheet')) done(null);
+      const rw = e.target.closest('[data-g]'); if (rw) return done({ g: rw.dataset.g });
+      if (!e.target.closest('.grp-pop')) done(null);
     });
+    document.addEventListener('keydown', onKey);
+    anchor?.setAttribute('aria-expanded', 'true');
     document.body.appendChild(wrap);
+    pop.querySelector('.grp-row.on')?.focus({ preventScroll: true });
   });
 }
 

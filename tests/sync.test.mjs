@@ -265,3 +265,13 @@ test('own upload echoed back by Drive while editing again is never a "conflict" 
   assert.equal(A.data.get('song:s1').title, 'B menja');
   assert.ok(A.versions.some((v) => v.value.title === 'A menja'), 'a real conflict is still kept');
 });
+
+test('practice: „Izazov“ badge survives cleaning and merging (either side)', async () => {
+  const { cleanPractice, mergePractice } = await import('../src/syncMerge.js');
+  const c = cleanPractice({ games: { ritam: { best: 95, plays: 2, lastDay: '2026-11-6', challenge: true }, pauk: { best: 40, challenge: 'yes' } } });
+  assert.equal(c.games.ritam.challenge, true);
+  assert.equal(c.games.pauk.challenge, undefined);
+  const m = mergePractice({ v: 1, games: { ritam: { best: 80, plays: 1, lastDay: '2026-11-7' } }, songs: {} }, c);
+  assert.equal(m.games.ritam.challenge, true);
+  assert.equal(m.games.ritam.best, 95);
+});
