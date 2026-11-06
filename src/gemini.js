@@ -733,8 +733,10 @@ export async function scanTab(images, signal, onStatus, diag) {
     if (!out.composer) out.composer = cleanComposer(j.composer, j);
     for (const k of ['title', 'key', 'sig']) if (!out[k] && typeof j[k] === 'string' && j[k].trim()) out[k] = j[k].trim();
     if (!out.bpm && Number(j.bpm) > 0) out.bpm = Number(j.bpm);
-    for (const u of Array.isArray(j.unsure) ? j.unsure : []) out.unsure.push(u);
   };
+  // napomene samo za taktove koji su zaista uzeti iz tog odgovora (npr. strana 2 ponovi takt 16 sa „?“ — taj red se
+  // ne uzima, pa ni njegova napomena ne sme da označi pravi takt 16 sa strane 1)
+  const unsureOf = (j, a, b) => { for (const u of (j && Array.isArray(j.unsure) ? j.unsure : [])) if (u && u.bar >= a && u.bar <= b) out.unsure.push(u); };
   for (let pi = 0; pi < list.length; pi++) {
     const img = list[pi], N = list.length, t0 = Date.now();
     const left = () => TAB_PAGE_MS - (Date.now() - t0);
@@ -768,6 +770,7 @@ export async function scanTab(images, signal, onStatus, diag) {
       }
     };
     take(j && j.bars, first, first + (counted || 80) - 1);
+    unsureOf(j, first, first + (counted || 80) - 1);
     let last = counted ? first + counted - 1 : Math.max(first - 1, ...have.keys());
     const missing = () => { const m = []; for (let n = first; n <= last; n++) if (!have.has(n)) m.push(n); return m; };
     // jedan dopunski zahtev za sve što fali (prekinut ili „lenj“ odgovor)
@@ -775,11 +778,11 @@ export async function scanTab(images, signal, onStatus, diag) {
       const m = missing(), a = m[0], b = m[m.length - 1];
       onStatus?.('range', a, b, pi + 1, N);
       const jj = await ask(TAB_TEXT_PROMPT + TAB_TEXT_PAGE(pi + 1, N, first) + TAB_TEXT_RANGE(a, b), b - a + 1);
-      if (jj) { meta(jj); take(jj.bars, a, b); }
+      if (jj) { meta(jj); take(jj.bars, a, b); unsureOf(jj, a, b); }
     } else if (!j && !counted) {
       // strana uopšte nije pročitana i ne zna se koliko taktova ima: još jedan pokušaj cele strane
       const jj = await ask(TAB_TEXT_PROMPT + TAB_TEXT_PAGE(pi + 1, N, next), 24);
-      meta(jj); take(jj && jj.bars, next, next + 79);
+      meta(jj); take(jj && jj.bars, next, next + 79); unsureOf(jj, next, next + 79);
       last = Math.max(last, ...have.keys());
     }
     // Muzička provera: takt koji Gemini označi „?“, sa nejasnim brojevima, dve note na istoj žici, trajanjima koja
