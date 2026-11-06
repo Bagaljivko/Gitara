@@ -1030,3 +1030,188 @@ body.stage-mode main { padding-left: max(16px, env(safe-area-inset-left)); paddi
 /* Pesma: delovi teksta ispod ekrana se ne raspoređuju i ne crtaju dok se ne priđe (brže otvaranje dugih pesama).
    Visina se pamti posle prvog prikaza (auto), pa skrol i automatsko pomeranje ostaju ravnomerni. */
 .song-view .lyrics > .sec { content-visibility: auto; contain-intrinsic-size: auto 260px; }
+/* ---- v1.55 Pesme: mirniji ekran ---- */
+.lib-head .head-icons { display: flex; gap: 2px; margin-right: -10px; }
+.lib-head .icon-btn.on { color: var(--accent); }
+/* Pesme / Setliste: tanke kartice sa podvlakom (ne veliki okvir) */
+.lib-view .seg-tabs.lib-tabs { display: flex; gap: 22px; background: none; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; padding: 0; margin: 4px 0 12px; }
+.lib-view .seg-tabs.lib-tabs button { flex: none; min-height: 42px; padding: 0 2px; border-radius: 0; background: none; font-size: 1rem; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.lib-view .seg-tabs.lib-tabs button.active { background: none; color: var(--text); border-bottom-color: var(--accent); }
+.lib-search { display: flex; align-items: center; gap: 4px; margin: 0 0 10px; }
+.lib-search input { flex: 1; min-width: 0; }
+/* folderi: jedan red koji se pomera prstom, bez sive trake za skrol */
+.chips { scrollbar-width: none; }
+.chips::-webkit-scrollbar { display: none; }
+.lib-view .chip { min-height: 38px; padding: 0 14px; font-size: .86rem; }
+.lib-view .chip.add { width: 38px; padding: 0; font-size: 1.2rem; line-height: 1; border-style: dashed; }
+/* „+“ dole desno (iznad menija) */
+.fab { position: fixed; right: max(16px, env(safe-area-inset-right)); bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 16px); z-index: 30; width: 60px; height: 60px; border-radius: 50%; border: 0; background: var(--accent); color: #121316; display: grid; place-items: center; box-shadow: 0 6px 18px rgba(0, 0, 0, .45), 0 0 0 1px rgba(255, 255, 255, .04); cursor: pointer; }
+.fab svg { width: 30px; height: 30px; fill: currentColor; }
+.fab:active { transform: scale(.94); }
+.fab[hidden] { display: none; }
+.lib-view .song-list { padding-bottom: 84px; } /* poslednja pesma se ne krije ispod „+“ */
+/* donji panel: tri načina dodavanja */
+.sheet-backdrop { align-items: flex-end; }
+.sheet { width: 100%; max-width: 520px; background: var(--surface); border: 1px solid var(--line); border-bottom: 0; border-radius: 20px 20px 0 0; padding: 8px 16px calc(16px + env(safe-area-inset-bottom)); animation: rise .18s ease-out; }
+.sheet-grip { width: 40px; height: 4px; border-radius: 2px; background: var(--line); margin: 4px auto 10px; }
+.sheet-title { font-size: 1.05rem; margin: 0 4px 8px; }
+.add-opt { appearance: none; display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; background: none; border: 0; border-radius: 14px; padding: 12px 6px; color: var(--text); font: inherit; cursor: pointer; }
+.add-opt:active { background: var(--surface-2); }
+.add-opt .add-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.add-opt .add-txt b { font-size: 1rem; }
+.add-ico { flex: none; width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; background: var(--surface-2); }
+.add-ico svg { width: 24px; height: 24px; fill: currentColor; }
+.add-ico.scan { background: var(--accent); color: #121316; }
+.add-ico.import { color: #7cc4ff; }
+.add-ico.new { color: #b9a4ff; }
+.welcome { margin: 4px 0 12px; }
+.welcome p { margin: 4px 0 6px; }
+.welcome .add-opt { padding: 10px 0; }
+/* meni u dijalogu: izbori jedan ispod drugog */
+.menu-dialog .modal-actions { flex-direction: column; align-items: stretch; }
+.menu-dialog .modal-actions .btn { justify-content: flex-start; text-align: left; }
+/* ---- v1.55 „Vežbaj ovu pesmu“ (kao kartice u Vežbama) ---- */
+.sp-card { --gc: var(--accent); display: grid; grid-template-columns: 64px minmax(0, 1fr) 20px; gap: 12px; align-items: center; margin: 10px 0 12px; padding: 10px 10px 10px 10px; border-radius: 18px; color: var(--text); text-decoration: none; background: var(--surface); border: 1px solid var(--line); transition: transform .12s; }
+@supports (background: color-mix(in srgb, red 10%, blue)) {
+  .sp-card { background: linear-gradient(120deg, color-mix(in srgb, var(--gc) 14%, var(--surface)), var(--surface) 65%); border-color: color-mix(in srgb, var(--gc) 34%, var(--line)); }
+  .sp-prev { border-color: color-mix(in srgb, var(--gc) 30%, transparent) !important; box-shadow: inset 0 0 14px color-mix(in srgb, var(--gc) 16%, transparent), 0 0 12px color-mix(in srgb, var(--gc) 12%, transparent); }
+  .sp-new { border-color: color-mix(in srgb, var(--gc) 55%, transparent) !important; box-shadow: 0 0 8px color-mix(in srgb, var(--gc) 28%, transparent); }
+}
+.sp-card:active { transform: scale(.98); }
+.sp-prev { width: 64px; height: 64px; border-radius: 14px; background: #050608; border: 1px solid var(--line); overflow: hidden; }
+.sp-prev svg { width: 100%; height: 100%; display: block; }
+.sp-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.sp-name { font-size: 1.05rem; }
+.sp-desc { font-size: .8rem; line-height: 1.3; color: var(--muted); }
+.sp-meta { display: flex; align-items: center; gap: 8px; min-height: 20px; }
+.sp-new { font-size: .68rem; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; color: var(--gc); border: 1px solid var(--gc); }
+.sp-stars { display: inline-flex; gap: 1px; font-size: .9rem; line-height: 1; }
+.sp-stars i { font-style: normal; color: var(--surface-2); -webkit-text-stroke: 1px #3a3e47; }
+.sp-stars i.on { color: var(--accent); -webkit-text-stroke: 0; text-shadow: 0 0 6px rgba(245, 165, 36, .5); }
+.sp-num { font-size: .85rem; }
+.sp-go { width: 20px; height: 20px; fill: var(--muted); }
+.sp-lines line { stroke: rgba(236, 238, 242, .2); stroke-width: 1.1; }
+.sp-hit { stroke: var(--gc); stroke-width: 2; opacity: .8; }
+.sp-slide text { fill: var(--gc); font: 700 9px var(--sans); text-anchor: middle; }
+.sp-slide { animation: spSlide 4.5s linear infinite; }
+@keyframes spSlide { from { transform: translateX(0); } to { transform: translateX(-36px); } }
+.sp-lyr { fill: rgba(236, 238, 242, .16); }
+.sp-lyr-on { fill: var(--gc); opacity: .85; transform-origin: 10px 0; animation: spFill 3s ease-in-out infinite; }
+@keyframes spFill { 0% { transform: scaleX(.05); } 70%, 100% { transform: scaleX(1); } }
+.sp-chips rect { fill: none; stroke: var(--gc); stroke-width: 1.6; opacity: .45; animation: spChip 3s steps(1) infinite; }
+.sp-chips rect:nth-child(2) { animation-delay: 1s; } .sp-chips rect:nth-child(3) { animation-delay: 2s; }
+@keyframes spChip { 0% { opacity: 1; fill: color-mix(in srgb, var(--gc) 25%, transparent); } 33%, 100% { opacity: .45; fill: none; } }
+@media (prefers-reduced-motion: reduce) { .sp-slide, .sp-lyr-on, .sp-chips rect { animation: none; } }
+/* ⋯ meni i veličina slova (umesto „Aa“) */
+.size-pop { position: fixed; left: 50%; transform: translateX(-50%); top: calc(env(safe-area-inset-top) + 64px); z-index: 40; width: min(92vw, 380px); display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 10px 30px rgba(0, 0, 0, .5); }
+.size-pop input { flex: 1; }
+.size-pop .big { font-size: 1.4rem; font-weight: 700; }
+.pinch-hint { position: fixed; left: 50%; top: 40%; transform: translate(-50%, -50%); z-index: 45; padding: 8px 16px; border-radius: 999px; background: rgba(0, 0, 0, .75); color: #fff; font: 700 1.1rem var(--sans); pointer-events: none; }
+/* TAB pesma: donja traka Pusti | Vežbaj | tempo */
+.tab-bar { flex-wrap: nowrap; }
+.tab-bar #tPlay { flex: none; }
+.tab-bar #tPractice { flex: none; }
+.bar-tempo { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; }
+.bar-tempo b { min-width: 2.2ch; text-align: center; font-variant-numeric: tabular-nums; }
+.bar-tempo .btn.round { width: 36px; height: 36px; min-height: 36px; }
+/* proveri taktove: jedan red, dodir otvara spisak */
+.tab-check { padding: 10px 14px; }
+.tab-check summary { display: flex; align-items: center; gap: 10px; cursor: pointer; list-style: none; }
+.tab-check summary::-webkit-details-marker { display: none; }
+.tab-check .tc-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 6px var(--accent); flex: none; }
+.tab-check .tc-more { margin-left: auto; color: var(--accent); font-weight: 700; font-size: .9rem; }
+.tab-check[open] .tc-more { display: none; }
+.tab-check[open] summary { margin-bottom: 6px; }
+.tab-view .tab-tap { margin: 0 0 6px; }
+/* pesma sa akordima: niža kartica (tekst pesme ostaje blizu vrha) */
+.sp-card.sp-compact { grid-template-columns: 44px minmax(0, 1fr) 20px; padding: 8px 10px; margin: 8px 0 10px; }
+.sp-compact .sp-prev { width: 44px; height: 44px; border-radius: 11px; }
+.sp-compact .sp-desc { display: none; }
+.sp-compact .sp-body { flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; }
+.sp-compact .sp-name { font-size: 1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* nekadašnji „Detalji“: skriveni u ekranu, otvaraju se iz „⋯“ kao panel odozdo */
+.song-view .song-details:not(.det-sheet) { display: none; }
+.song-details.det-sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 61; max-width: 560px; margin: 0 auto; max-height: 82dvh; overflow-y: auto; border-radius: 20px 20px 0 0; border: 1px solid var(--line); border-bottom: 0; background: var(--surface); padding: 14px 16px calc(18px + env(safe-area-inset-bottom)); animation: rise .18s ease-out; }
+.song-details.det-sheet > summary { display: none; }
+.det-sheet .det-title { font-size: 1.1rem; margin: 2px 40px 10px 0; }
+.det-sheet .det-close { position: absolute; top: 6px; right: 6px; }
+.det-backdrop { z-index: 60; }
+/* „− 🔍 +“: uz tekst pesme, gore desno; „lepi“ se za vrh ekrana dok se skroluje, ne zauzima mesto u tekstu */
+.zoom-wrap { position: sticky; top: calc(env(safe-area-inset-top) + 8px); height: 0; z-index: 7; display: flex; justify-content: flex-end; pointer-events: none; }
+.zoom-pill { pointer-events: auto; display: inline-flex; align-items: center; gap: 2px; height: 36px; padding: 0 2px; border-radius: 999px; background: rgba(24, 26, 30, .86); border: 1px solid var(--line); box-shadow: 0 4px 14px rgba(0, 0, 0, .4); backdrop-filter: blur(6px); }
+.zoom-pill button { appearance: none; width: 34px; height: 32px; border: 0; border-radius: 999px; background: none; color: var(--text); font: 700 1.2rem var(--sans); line-height: 1; cursor: pointer; }
+.zoom-pill button:active { background: var(--surface-2); }
+.zoom-pill svg { width: 16px; height: 16px; fill: var(--muted); }
+/* naslov = izbor grupe („Sve pesme ▾“) */
+.lib-h1 { margin: .4rem 0 .6rem; }
+.lib-title { appearance: none; display: inline-flex; align-items: center; gap: 4px; background: none; border: 0; padding: 0; margin: 0; color: var(--text); font: inherit; letter-spacing: inherit; cursor: pointer; max-width: 70vw; }
+.lib-title span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lib-chev { width: 26px; height: 26px; fill: var(--muted); flex: none; }
+.lib-title:disabled { cursor: default; }
+.lib-title:disabled .lib-chev { display: none; }
+/* panel sa grupama */
+.grp-sheet { max-height: 80dvh; overflow-y: auto; }
+.grp-row { appearance: none; display: flex; align-items: center; gap: 10px; width: 100%; background: none; border: 0; border-radius: 12px; padding: 12px 10px; color: var(--text); font: 600 1rem var(--sans); text-align: left; cursor: pointer; }
+.grp-row:active { background: var(--surface-2); }
+.grp-row.on { background: var(--accent-soft); color: var(--accent); }
+.grp-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.grp-n { color: var(--muted); font-weight: 600; font-size: .9rem; font-variant-numeric: tabular-nums; }
+.grp-more { width: 32px; text-align: center; color: var(--muted); font-size: 1.2rem; }
+.grp-chev { width: 20px; height: 20px; fill: var(--muted); transition: transform .15s; }
+.grp-toggle.open .grp-chev { transform: rotate(90deg); }
+.grp-sub { padding-left: 14px; border-left: 2px solid var(--line); margin-left: 12px; }
+.grp-sub .grp-row { padding: 9px 10px; font-weight: 500; }
+.grp-head { margin: 12px 10px 4px; font-size: .75rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.grp-add { color: var(--accent); }
+.grp-empty { margin: 4px 10px; }
+/* veliki „⋯“ meni ispod dugmeta, gore desno */
+.more-backdrop { align-items: flex-start; justify-content: flex-end; background: rgba(0, 0, 0, .45); padding: 0; }
+.more-pop { margin: calc(env(safe-area-inset-top) + 58px) 10px 0 0; width: min(88vw, 360px); background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 6px; box-shadow: 0 16px 40px rgba(0, 0, 0, .55); transform-origin: top right; animation: morePop .14s ease-out; }
+@keyframes morePop { from { opacity: 0; transform: scale(.92); } to { opacity: 1; transform: none; } }
+.more-item { appearance: none; display: flex; align-items: center; gap: 14px; width: 100%; min-height: 64px; padding: 10px 12px; background: none; border: 0; border-radius: 14px; color: var(--text); text-align: left; font: inherit; cursor: pointer; }
+.more-item:active { background: var(--surface-2); }
+.more-item + .more-item { border-top: 1px solid var(--line); border-radius: 0 0 14px 14px; }
+.more-ico { flex: none; width: 40px; height: 40px; border-radius: 12px; background: var(--surface-2); display: grid; place-items: center; }
+.more-ico svg { width: 22px; height: 22px; fill: var(--accent); }
+.more-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.more-txt b { font-size: 1.02rem; }
+.more-txt span { font-size: .82rem; color: var(--muted); line-height: 1.25; }
+.more-on { color: var(--accent); font-weight: 800; font-size: 1.1rem; }
+.more-item.on .more-ico { background: var(--accent-soft); }
+/* „Promeni“ u redu menija (povezan snimak) */
+.more-alt { flex: none; font-size: .82rem; font-weight: 700; color: var(--accent); padding: 8px 10px; border: 1px solid var(--line); border-radius: 999px; }
+/* izbor YouTube snimka */
+.yt-sheet { max-height: 86dvh; overflow-y: auto; }
+.yt-q { margin: 0 4px 10px; }
+.yt-results { display: flex; flex-direction: column; gap: 4px; min-height: 80px; }
+.yt-loading { display: flex; align-items: center; gap: 10px; padding: 18px 6px; color: var(--muted); }
+.yt-res { appearance: none; display: flex; gap: 12px; align-items: center; width: 100%; padding: 8px 6px; background: none; border: 0; border-radius: 12px; color: var(--text); text-align: left; font: inherit; cursor: pointer; }
+.yt-res:active { background: var(--surface-2); }
+.yt-thumb { position: relative; flex: none; width: 128px; height: 72px; border-radius: 10px; overflow: hidden; background: var(--surface-2); }
+.yt-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.yt-thumb i { position: absolute; right: 4px; bottom: 4px; font-style: normal; font-size: .72rem; font-weight: 700; padding: 1px 5px; border-radius: 5px; background: rgba(0, 0, 0, .8); color: #fff; }
+.yt-meta { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.yt-meta b { font-size: .92rem; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.yt-meta span { font-size: .8rem; color: var(--muted); }
+.yt-paste { display: flex; gap: 8px; margin-top: 12px; }
+.yt-paste input { flex: 1; min-width: 0; }
+/* izbor snimka bez pretrage: tri koraka */
+.yt-steps { display: flex; flex-direction: column; gap: 10px; padding: 4px 0 2px; }
+.yt-step { appearance: none; display: flex; align-items: center; gap: 12px; width: 100%; min-height: 60px; padding: 0 16px; border-radius: 16px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); font: 700 1.05rem var(--sans); cursor: pointer; }
+.yt-step svg { width: 28px; height: 28px; fill: currentColor; flex: none; }
+.yt-go { background: #e62117; border-color: #e62117; color: #fff; }
+.yt-clip.hot { border-color: var(--accent); background: var(--accent); color: #121316; box-shadow: 0 0 0 4px var(--accent-soft); }
+.yt-n { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font: 800 .8rem var(--sans); background: rgba(255, 255, 255, .18); flex: none; }
+.yt-how { display: flex; align-items: center; gap: 12px; margin: 0; padding: 0 16px; color: var(--muted); font-size: .92rem; }
+.yt-how .yt-n { background: var(--surface-2); color: var(--text); }
+.yt-paste[hidden] { display: none; }
+/* izbor snimka bez pretrage: tri koraka */
+.yt-steps { display: flex; flex-direction: column; gap: 10px; padding: 4px 0 2px; }
+.yt-step { appearance: none; display: flex; align-items: center; gap: 12px; width: 100%; min-height: 60px; padding: 0 16px; border-radius: 16px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); font: 700 1.05rem var(--sans); cursor: pointer; }
+.yt-step svg { width: 28px; height: 28px; fill: currentColor; flex: none; }
+.yt-go { background: #e62117; border-color: #e62117; color: #fff; }
+.yt-clip.hot { border-color: var(--accent); background: var(--accent); color: #121316; box-shadow: 0 0 0 4px var(--accent-soft); }
+.yt-n { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font: 800 .8rem var(--sans); background: rgba(255, 255, 255, .18); flex: none; }
+.yt-how { display: flex; align-items: center; gap: 12px; margin: 0; padding: 0 16px; color: var(--muted); font-size: .92rem; }
+.yt-how .yt-n { background: var(--surface-2); color: var(--text); }
+.yt-paste[hidden], .yt-q[hidden] { display: none; }

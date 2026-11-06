@@ -3,6 +3,8 @@
 // prečica za Vežbe → Delovi pesme, YouTube, Podeli, „Skini PDF“. Kapodaster i transpozicija se ne prikazuju.
 // Učitava se tek kad se otvori TAB pesma (ili njen pregled posle skeniranja).
 import { t, getLang } from './i18n.js';
+import { practiceCardHTML, fillPractice } from './songPracticeCard.js';
+import { MORE_ICON, moreMenu, attachPinch, versionTipOnce, zoomPillHTML, bindZoomPill, songMenuItems } from './songChrome.js';
 import { useTabTexts } from './tabText.js';
 import { esc, toast, dialog } from './ui.js';
 import { songs as db, settings } from './db.js';
@@ -168,7 +170,6 @@ export async function playBars(tab, bars, { bpm = 50, onNote, onEnd } = {}) {
 }
 
 // ---------------- Ekran TAB pesme ----------------
-const PR_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" d="M12 2.2c-4.9 0-8.6 2-8.6 5.6 0 4.6 4.2 10.2 8.6 14 4.4-3.8 8.6-9.4 8.6-14 0-3.6-3.7-5.6-8.6-5.6zM10 7.6v6.2l5.2-3.1z"/></svg>';
 const PLAY_SM = '<svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>';
 export const DEFAULT_TAB_BPM = 66;
 
@@ -177,6 +178,11 @@ export function tabMeta(song) {
   const info = barInfo(song.tab), keys = [];
   info.forEach((x, i) => { if (x.key && (!i || x.key !== info[i - 1].key)) keys.push(keyLabel(x.key)); });
   return [song.artist, t('tab.sig', { s: song.tab.sig }), keys.join(' → ')].filter(Boolean);
+}
+
+// „Dodirni takt…“: prva tri otvaranja TAB pesme, posle toga se zna
+function tapHintOnce() {
+  try { const n = Number(localStorage.getItem('gitara-taphint')) || 0; if (n >= 3) return false; localStorage.setItem('gitara-taphint', String(n + 1)); return true; } catch { return false; }
 }
 
 export async function renderTabSong(root, stored, nav, { ytRowHTML, shareSong, driveConnected }) {
@@ -190,8 +196,7 @@ export async function renderTabSong(root, stored, nav, { ytRowHTML, shareSong, d
     <header class="topbar">
       <a href="${backHref}" class="back" aria-label="${t('song.back')}">${nav ? esc(nav.backLabel) : t('song.backShort')}</a>
       <div class="topbar-actions">
-        <button class="btn small aa-btn" id="tAa" aria-label="${t('song.textSize')}">Aa</button>
-        <a class="btn small" href="#/uredi/${encodeURIComponent(id)}">${t('song.edit')}</a>
+        <button class="icon-btn" id="tMore" aria-haspopup="true" aria-label="${t('song.more')}" title="${t('song.more')}">${MORE_ICON}</button>
       </div>
     </header>
     ${nav ? `<div class="setlist-nav card">
@@ -200,23 +205,19 @@ export async function renderTabSong(root, stored, nav, { ytRowHTML, shareSong, d
       <a class="btn small ${nav.nextHref ? 'primary' : 'disabled'}" ${nav.nextHref ? `href="${nav.nextHref}"` : 'aria-disabled="true"'}>${t('sl.next')} ›</a>
     </div>` : ''}
     <div id="tHead"></div>
+    ${practiceCardHTML(id, 'tab')}
     <div id="tSug"></div>
-    <div class="ctl-row tab-ctl">
-      <div class="ctl" role="group" aria-label="${t('song.tempo')}">
-        <span class="ctl-label">${t('song.tempo')}</span>
-        <div class="ctl-step">
-          <button class="btn round small" id="tTempoDown" aria-label="${t('loop.slower')}">−</button>
-          <b class="ctl-val" id="tTempo">${bpm}</b>
-          <button class="btn round small" id="tTempoUp" aria-label="${t('loop.faster')}">+</button>
-        </div>
-        <span class="ctl-sub">BPM</span>
-      </div>
-      <p class="small muted tab-tap">${t('play.tapHint')}</p>
-    </div>
-    <details class="song-details" id="tDet"><summary><span>${t('song.details')}</span></summary><div id="tDetBody"></div></details>
+    ${tapHintOnce() ? `<p class="small muted tab-tap">${t('play.tapHint')}</p>` : ''}
+    ${zoomPillHTML()}
     <div class="tab-staff2" id="tStaff"></div>
-    <div class="scroll-bar" id="tScrollBar">
+    <div class="scroll-bar tab-bar" id="tScrollBar">
       <button class="btn small primary" id="tPlay">${PLAY_SM} ${t('play.open')}</button>
+      <a class="btn small" id="tPractice" href="#/vezbe/pesma/${encodeURIComponent(id)}">${t('song.practiceBtn')}</a>
+      <span class="bar-tempo" role="group" aria-label="${t('song.tempo')}">
+        <button class="btn round small" id="tTempoDown" aria-label="${t('loop.slower')}">−</button>
+        <b id="tTempo">${bpm}</b>
+        <button class="btn round small" id="tTempoUp" aria-label="${t('loop.faster')}">+</button>
+      </span>
     </div>
     <div class="song-actions">
       <button class="btn primary" id="tPdf"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z"/></svg> ${t('song.pdf')}</button>
@@ -228,28 +229,28 @@ export async function renderTabSong(root, stored, nav, { ytRowHTML, shareSong, d
 
   // ---- Naslov, prečica za vežbu (sa oznakom napretka), opis ----
   function drawHead() {
-    $('tHead').innerHTML = `<div class="song-title-row"><h1 class="song-h1">${esc(stored.title)} <span class="badge-sm tab-badge">${t('tab.badge')}</span></h1><a class="icon-btn pr-shortcut" href="#/vezbe/pesma/${encodeURIComponent(id)}" aria-label="${esc(t('pr.songShortcut'))}" title="${esc(t('pr.songShortcut'))}">${PR_ICON}</a></div>
+    $('tHead').innerHTML = `<div class="song-title-row"><h1 class="song-h1">${esc(stored.title)} <span class="badge-sm tab-badge">${t('tab.badge')}</span></h1></div>
       <p class="song-meta">${tabMeta(stored).map(esc).join(' · ')}</p>`;
+    // napredak vežbanja ove pesme na kartici „Vežbaj ovu pesmu“
     settings.get('practice', null).then((st) => {
       const rec = st && st.songs && st.songs[id];
-      const a = $('tHead')?.querySelector('.pr-shortcut');
-      if (!rec || !a || !Object.keys(rec).length) return;
+      if (!rec || !Object.keys(rec).length) return;
       const total = tabParts(stored.tab).filter((p) => p.kind === 'bars').length;
       const good = Object.entries(rec).filter(([k, r]) => k !== 'all' && r && r.best >= 80 && Number(k) < total).length;
-      const p = rec.all && rec.all.best >= 80 ? 1 : Math.min(1, good / total);
-      a.insertAdjacentHTML('beforeend', `<span class="pr-mark${p >= 1 ? ' done' : ''}" style="--p:${Math.round(p * 100)}" title="${esc(t('pr.songMark', { n: Math.min(good, total), total }))}"></span>`);
+      fillPractice(root.querySelector('.sp-card'), { good, total, played: true, done: !!(rec.all && rec.all.best >= 80) });
     }).catch(() => {});
   }
   // ---- Predlozi: taktovi koje treba proveriti (ništa se ne nagađa) ----
   function drawSug() {
     const fl = checkBars(stored.tab), info = barInfo(stored.tab);
-    $('tSug').innerHTML = fl.length ? `<div class="card sug-card tab-sug"><div class="sug-title">${t('tab.checkTitle', { n: fl.length })}</div>
+    // kratko: jedan red „N takt(ova) za proveru“; dodir otvara spisak (Pokaži / U redu je)
+    $('tSug').innerHTML = fl.length ? `<details class="card sug-card tab-sug tab-check"><summary><span class="tc-dot"></span><b>${t('tab.checkLine', { n: fl.length })}</b><span class="tc-more">${t('tab.show')}</span></summary>
       <p class="small muted">${t('tab.checkHint')}</p>
       ${fl.slice(0, 8).map((f) => `<div class="sug-item"><span class="sug-what"><b>${t('tab.bar', { n: f.bar + 1 })}</b> ${esc(t('tab.why.' + f.why, { sig: info[f.bar].sig }))}${f.note ? ` <span class="small muted">— ${esc(f.note)}</span>` : ''}</span>
-        <span class="sug-actions"><button class="btn small" data-show="${f.bar}">${t('tab.show')}</button><button class="btn small" data-okbar="${f.bar}">${t('tab.okBar')}</button></span></div>`).join('')}</div>` : '';
+        <span class="sug-actions"><button class="btn small" data-show="${f.bar}">${t('tab.show')}</button><button class="btn small" data-okbar="${f.bar}">${t('tab.okBar')}</button></span></div>`).join('')}</details>` : '';
   }
   // ---- Detalji: YouTube ----
-  function drawDet() { $('tDetBody').innerHTML = `<div class="det-sec">${ytRowHTML(stored)}</div>`; }
+
   // ---- Tablatura ----
   let lastW = 0;
   function drawTab() {
@@ -263,7 +264,7 @@ export async function renderTabSong(root, stored, nav, { ytRowHTML, shareSong, d
   const mark = (bi, cls, on) => barEl(bi)?.classList.toggle(cls, on);
   const flash = (bi) => { const e = barEl(bi); if (!e) return; e.scrollIntoView({ block: 'center', behavior: 'smooth' }); e.classList.remove('pulse'); void e.getBBox(); e.classList.add('pulse'); };
 
-  drawHead(); drawSug(); drawDet(); drawTab();
+  drawHead(); drawSug(); drawTab();
   if (!stored.seen) { stored.seen = true; save().catch(() => {}); }
 
   // ---- „Pusti“: cela pesma zvukom gitare (modul se učitava tek na dugme); tekuća nota i takt se ističu, ekran prati ----
@@ -302,7 +303,7 @@ export async function renderTabSong(root, stored, nav, { ytRowHTML, shareSong, d
   // ---- Tempo ----
   async function setBpm(v) {
     bpm = Math.max(30, Math.min(220, v));
-    $('tTempo').textContent = bpm;
+    if ($('tTempo')) $('tTempo').textContent = bpm;
     if (ui) { ui.destroy(); ui = null; markNow(-1); ensurePlayer(); } // nov tempo pesme: traka iznova (zaustavljena)
     stored.bpm = bpm;
     await save();
@@ -310,38 +311,29 @@ export async function renderTabSong(root, stored, nav, { ytRowHTML, shareSong, d
   $('tTempoDown').addEventListener('click', () => setBpm(bpm - 2));
   $('tTempoUp').addEventListener('click', () => setBpm(bpm + 2));
   // ---- Veličina ----
-  $('tAa').addEventListener('click', async () => {
-    zoom = zoom >= 1.4 ? 0.85 : Math.round((zoom + 0.15) * 100) / 100;
+  const setZoom = async (z) => {
+    zoom = Math.min(1.6, Math.max(0.8, Math.round(z * 10) / 10));
     if (zoom === 1) delete stored.zoom; else stored.zoom = zoom;
     drawTab(); await save();
+  };
+  // „⋯“: veličina slova (klizač), prethodne verzije; dva prsta = uvećanje
+  $('tMore').addEventListener('click', async () => {
+    const v = await moreMenu('song:' + id, songMenuItems(stored));
+    if (v && /^(listen|tutorial)/.test(v)) { (await import('./ytPick.js')).ytAction(v.split(':')[0], stored, save, { change: v.endsWith(':change') }); return; }
+    if (v === 'edit') location.hash = '#/uredi/' + encodeURIComponent(id);
   });
+  bindZoomPill(root, { get: () => zoom, apply: (z) => { zoom = z; drawTab(); }, save: () => setZoom(zoom), min: 0.8, max: 1.6 });
+  attachPinch($('tStaff'), { get: () => zoom, set: setZoom, min: 0.8, max: 1.6 });
+  versionTipOnce('song:' + id);
 
   // ---- Dodiri ----
   root.addEventListener('click', async (e) => {
-    const sh = e.target.closest('[data-show]'), ok = e.target.closest('[data-okbar]'), yb = e.target.closest('[data-yt]');
+    const sh = e.target.closest('[data-show]'), ok = e.target.closest('[data-okbar]');
     if (sh) { flash(+sh.dataset.show); return; }
     if (ok) { stored.tab.bars[+ok.dataset.okbar].ok = 1; await save(); drawSug(); drawTab(); return; }
-    if (yb) { await editYt(yb.dataset.yt); return; }
     const bar = e.target.closest('[data-bar]');
     if (bar && $('tStaff').contains(bar)) playFromBar(+bar.dataset.bar); // sviranje od tog takta
   });
-  async function editYt(kind) {
-    const cur = (stored.yt && stored.yt[kind]) || '';
-    const p = dialog({
-      title: t(kind === 'listen' ? 'yt.saveListen' : 'yt.saveTutorial'), html: true,
-      body: `<p class="small muted">${t('yt.saveHint')}</p><input id="ytInput" type="url" inputmode="url" placeholder="https://youtu.be/…" value="${esc(cur)}" autocomplete="off">`,
-      buttons: [...(cur ? [{ label: t('yt.remove'), value: 'remove', kind: 'danger' }] : []), { label: t('common.cancel'), value: null }, { label: t('common.save'), value: 'save', kind: 'primary' }],
-    });
-    const modal = [...document.querySelectorAll('.modal-backdrop')].pop();
-    let val = cur;
-    modal.querySelector('#ytInput').addEventListener('input', (ev) => (val = ev.target.value));
-    const r = await p;
-    if (r === 'remove') { delete stored.yt[kind]; if (!Object.keys(stored.yt).length) delete stored.yt; toast(t('yt.removed')); }
-    else if (r === 'save') { const u = cleanYoutubeUrl(val); if (!u) { toast(t('yt.bad'), 'error'); return; } stored.yt = { ...(stored.yt || {}), [kind]: u }; toast(t('yt.saved')); }
-    else return;
-    await save(); drawDet();
-  }
-
   // ---- PDF i deljenje ----
   $('tPdf').addEventListener('click', async () => {
     const btn = $('tPdf'), old = btn.innerHTML;

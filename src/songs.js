@@ -1,7 +1,9 @@
 // Tab "Pesme": biblioteka, prikaz pesme, deljenje i uvoz. Editor i skeniranje su u songEditor.js (učitava se po potrebi).
 const loadEditor = () => import('./songEditor.js');
 import { sectionLabel } from './sectionLabel.js';
-import { songs as db, versions } from './db.js';
+import { practiceCardHTML, fillPractice } from './songPracticeCard.js';
+import { MORE_ICON, moreMenu, attachPinch, versionTipOnce, openPanel, zoomPillHTML, bindZoomPill, songMenuItems } from './songChrome.js';
+import { songs as db } from './db.js';
 import { esc, toast, dialog, confirmDialog, pickFile, closeXHTML } from './ui.js';
 import { chordSVG, voicingCount, shapeNavHTML, onShapeSwipe } from './diagram.js';
 import { getVoicings } from './chords.js';
@@ -53,7 +55,7 @@ function libBadges(s) {
   if (s.type === 'tab') b.push('<span class="badge-sm tab-badge">TAB</span>');
   if (s.capo) b.push(`<span class="badge-sm" title="${esc(t('capo.title'))}">${esc(t('lib.badgeCapo', { n: s.capo }))}</span>`);
   if (s.tuning && s.tuning !== 'standard') b.push(`<span class="badge-sm">${esc(t('tuning.' + s.tuning))}</span>`);
-  if (s.hasTabs ?? (s.sections || []).some((x) => (x.tabs || []).length)) b.push(`<span class="badge-sm">${esc(t('lib.badgeTab'))}</span>`);
+  if (s.type !== 'tab' && (s.hasTabs ?? (s.sections || []).some((x) => (x.tabs || []).length))) b.push('<span class="badge-sm tab-badge">TAB</span>'); // isti izgled svuda
   return b.length ? ' ' + b.join(' ') : '';
 }
 export async function renderLibrary(root, params = new URLSearchParams()) {
@@ -61,23 +63,23 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
   const tab = params.get('tab') === 'sl' ? 'sl' : 'songs';
   root.innerHTML = `
   <section class="view lib-view">
-    <header class="view-head"><h1>${t('lib.title')}</h1></header>
-    <div class="seg-tabs" role="tablist">
+    <header class="view-head lib-head"><h1 class="lib-h1"><button class="lib-title" id="lGroup" aria-haspopup="dialog"><span id="lGroupName">${t('lib.title')}</span><svg class="lib-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.4 8.6 12 13.2l4.6-4.6L18 10l-6 6-6-6z"/></svg></button></h1>
+      <div class="head-icons">
+        <button class="icon-btn" id="lSearchBtn" aria-label="${t('lib.searchLabel')}" title="${t('lib.searchLabel')}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 3a7 7 0 0 1 5.6 11.2l4.6 4.6-1.4 1.4-4.6-4.6A7 7 0 1 1 10 3zm0 2a5 5 0 1 0 0 10 5 5 0 0 0 0-10z"/></svg></button>
+        <button class="icon-btn" id="lSortBtn" aria-label="${t('lib.sortLabel')}" title="${t('lib.sortLabel')}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4 3 8h3v12h2V8h3L7 4zm10 16 4-4h-3V4h-2v12h-3l4 4z"/></svg></button>
+      </div>
+    </header>
+    <div class="seg-tabs lib-tabs" role="tablist">
       <button role="tab" data-lt="songs" class="${tab === 'songs' ? 'active' : ''}">${t('lib.tabSongs')}</button>
       <button role="tab" data-lt="sl" class="${tab === 'sl' ? 'active' : ''}">${t('lib.tabSetlists')}</button>
     </div>
     <div id="lSlPane" ${tab === 'sl' ? '' : 'hidden'}></div>
     <div id="lSongsPane" ${tab === 'sl' ? 'hidden' : ''}>
-    <div class="lib-actions">
-      <button class="btn primary" id="lScan">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3 7.2 5H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3.2L15 3H9zm3 15a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-2a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/></svg>
-        ${t('lib.scanShort')}
-      </button>
-      <button class="btn" id="lImport" aria-label="${t('lib.import')}">${t('lib.importShort')}</button>
-      <button class="btn" id="lNew" aria-label="${t('lib.new')}">${t('lib.newShort')}</button>
+    <div class="lib-search" id="lSearchRow" hidden>
+      <input type="search" id="lSearch" placeholder="${t('lib.search')}" aria-label="${t('lib.searchLabel')}" enterkeyhint="search">
+      <button class="icon-btn" id="lSearchX" aria-label="${t('common.close')}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z"/></svg></button>
     </div>
-    <div class="lib-tools">
-      <input type="search" id="lSearch" placeholder="${t('lib.search')}" aria-label="${t('lib.searchLabel')}">
+    <div hidden>
       <select id="lSort" aria-label="${t('lib.sortLabel')}">
         <option value="new">${t('lib.sortNew')}</option>
         <option value="title">${t('lib.sortTitle')}</option>
@@ -85,18 +87,21 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
         <option value="recent">${t('lib.sortRecent')}</option>
       </select>
     </div>
-    <div class="chips" id="lFolders" role="group" aria-label="${t('folder.title')}"></div>
     <div id="lNudge"></div>
+    <div id="lWelcome"></div>
     <ul class="song-list" id="lList"></ul>
     </div>
+    <button class="fab" id="lAdd" aria-label="${t('lib.add')}" title="${t('lib.add')}" ${tab === 'sl' ? 'hidden' : ''}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></svg></button>
   </section>`;
   const $ = (id) => root.querySelector('#' + id);
   $('lSort').value = sortPref;
   await seedDemoSong(getLang()).catch(() => {});
   let all = await db.list(); // brzi indeks (bez akorda) — dovoljan za listu
   let folders = await getFolders();
+  // grupa: '' = sve, id foldera, 'artist:<ime>', 'auto:tab', 'auto:recent'
   let folderFilter = localStorageGet('gitara-folder') || '';
-  if (folderFilter && !folders.some((f) => f.id === folderFilter)) folderFilter = '';
+  const validGroup = (g) => !g || g === 'auto:tab' || g === 'auto:recent' || (g.startsWith('artist:') ? all.some((s) => artistKey(s) === g.slice(7)) : folders.some((f) => f.id === g));
+  if (!validGroup(folderFilter)) folderFilter = '';
 
   // Sekcije: Pesme / Setliste
   root.querySelectorAll('[data-lt]').forEach((b) => b.addEventListener('click', () => {
@@ -104,48 +109,59 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
     const sl = b.dataset.lt === 'sl';
     $('lSongsPane').hidden = sl;
     $('lSlPane').hidden = !sl;
+    $('lAdd').hidden = sl;
+    drawFolders();
     history.replaceState(null, '', sl ? '#/pesme?tab=sl' : '#/pesme');
     if (sl) renderSetlistsPane($('lSlPane'));
   }));
   if (tab === 'sl') renderSetlistsPane($('lSlPane'));
 
-  // Folderi kao „čipovi“ za filtriranje
+  // Grupa pesama u naslovu („Sve pesme ▾“): dodir otvara panel sa grupama (automatske + moji folderi)
+  const groupLabel = (g) => !g ? t('lib.groupAll') : g === 'auto:tab' ? t('lib.groupTab') : g === 'auto:recent' ? t('lib.groupRecent')
+    : g.startsWith('artist:') ? (all.find((s) => artistKey(s) === g.slice(7))?.artist || g.slice(7)) : folderLabel(folders.find((f) => f.id === g) || { name: '' });
   const drawFolders = () => {
-    $('lFolders').innerHTML = `<button class="chip ${folderFilter ? '' : 'active'}" data-f="">${t('folder.all')}</button>`
-      + folders.map((f) => `<button class="chip ${folderFilter === f.id ? 'active' : ''}" data-f="${esc(f.id)}">${esc(folderLabel(f))}${folderFilter === f.id && !isSystemFolder(f.id) ? ' <span class="chip-edit" aria-hidden="true">⋯</span>' : ''}</button>`).join('')
-      + `<button class="chip add" data-f="__new">${t('folder.add')}</button>`;
+    const sl = !$('lSlPane').hidden;
+    $('lGroupName').textContent = sl ? t('lib.tabSetlists') : groupLabel(folderFilter);
+    $('lGroup').disabled = sl;
   };
-  $('lFolders').addEventListener('click', async (e) => {
-    const b = e.target.closest('[data-f]');
-    if (!b) return;
-    const id = b.dataset.f;
-    if (id === '__new') {
+  $('lGroup').addEventListener('click', async () => {
+    const r = await openGroupSheet({ all, folders, cur: folderFilter, inGroup });
+    if (!r) return;
+    if (r.manage) {
+      const res = await manageFolder(folders.find((f) => f.id === r.manage));
+      folders = await getFolders();
+      if (res === 'deleted') { all = await db.list(); if (folderFilter === r.manage) folderFilter = ''; }
+    } else if (r.add) {
       const name = await askName(t('folder.new'));
       if (!name) return;
       const f = await addFolder(name);
       folders = await getFolders();
       folderFilter = f.id;
-    } else if (id && id === folderFilter) {
-      // Drugi dodir na izabrani folder: preimenuj / obriši
-      const r = await manageFolder(folders.find((f) => f.id === id));
-      folders = await getFolders();
-      if (r === 'deleted') { folderFilter = ''; all = await db.list(); }
-    } else folderFilter = id;
+    } else folderFilter = r.g;
     localStorageSet('gitara-folder', folderFilter);
     drawFolders();
     draw();
   });
+  const recentIds = () => { const op = openedMap(); return new Set(Object.keys(op).sort((x, y) => op[y] - op[x]).slice(0, 30)); };
+  function inGroup(s, g = folderFilter, rec = null) {
+    if (!g) return !(s.folders || []).some(isSystemFolder);
+    if (g === 'auto:tab') return s.type === 'tab' || !!s.hasTabs;
+    if (g === 'auto:recent') return (rec || recentIds()).has(s.id);
+    if (g.startsWith('artist:')) return artistKey(s) === g.slice(7);
+    return (s.folders || []).includes(g);
+  }
 
   const draw = () => {
     const q = fold($('lSearch').value);
     // snimci iz „Samo sviraj“ su samo u folderu „Moji snimci“ (ne u „Sve“)
-    let list = all.filter((s) => (folderFilter ? (s.folders || []).includes(folderFilter) : !(s.folders || []).some(isSystemFolder))).filter((s) => !q || folded(s).t.includes(q) || folded(s).a.includes(q) ||
+    const rec = folderFilter === 'auto:recent' ? recentIds() : null;
+    let list = all.filter((s) => inGroup(s, folderFilter, rec)).filter((s) => !q || folded(s).t.includes(q) || folded(s).a.includes(q) ||
       (s.find ?? '').includes(q));
     const sort = $('lSort').value;
     const cmp = (a, b) => String(a || '').localeCompare(String(b || ''), 'sr', { sensitivity: 'base' });
     if (sort === 'title') list.sort((a, b) => cmp(a.title, b.title));
     else if (sort === 'artist') list.sort((a, b) => cmp(a.artist, b.artist) || cmp(a.title, b.title));
-    else if (sort === 'recent') { const op = openedMap(); list.sort((a, b) => (op[b.id] || 0) - (op[a.id] || 0) || (b.updatedAt || 0) - (a.updatedAt || 0)); }
+    else if (sort === 'recent' || folderFilter === 'auto:recent') { const op = openedMap(); list.sort((a, b) => (op[b.id] || 0) - (op[a.id] || 0) || (b.updatedAt || 0) - (a.updatedAt || 0)); }
     else list.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
     if (!all.length || (!folderFilter && !q && all.every((s) => (s.folders || []).some(isSystemFolder)))) {
       $('lList').innerHTML = `<li class="empty">
@@ -159,7 +175,7 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
       <li class="song-item${s.id === selectedId ? ' selected' : ''}" data-id="${esc(s.id)}">
         <a href="#/pesma/${encodeURIComponent(s.id)}" class="song-link">
           <span class="song-title">${esc(s.title)}</span>
-          <span class="song-sub">${esc(s.artist || t('lib.unknownArtist'))}${((k) => (k ? ` · <span class="key">${esc(dn(k))}</span>` : ''))(libKey(s))}${libBadges(s)}</span>
+          <span class="song-sub">${[s.artist ? esc(s.artist) : '', ((k) => (k ? `<span class="key">${esc(dn(k))}</span>` : ''))(libKey(s))].filter(Boolean).join(' · ')}${libBadges(s)}</span>
         </a>
         <button class="icon-btn more-btn" data-more="${esc(s.id)}" aria-label="${esc(t('lib.songMenu', { title: s.title }))}">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm0 6a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm0 6a2 2 0 1 1 0-4 2 2 0 0 1 0 4z"/></svg>
@@ -194,23 +210,116 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
     toast(t('lib.deleted'));
     draw();
   });
-  $('lScan').addEventListener('click', () => loadEditor().then((m) => m.startScan()));
-  $('lImport').addEventListener('click', async () => { if (await importSongFile()) { all = await db.list(); draw(); } });
-  $('lNew').addEventListener('click', () => loadEditor().then((m) => m.newSongDraft()));
+  // „+“: jedan ulaz za dodavanje (Skeniraj / Uvezi / Nova) — i na kartici dobrodošlice
+  const addAction = async (k) => {
+    if (k === 'scan') loadEditor().then((m) => m.startScan());
+    else if (k === 'import') { if (await importSongFile()) { all = await db.list(); draw(); } }
+    else if (k === 'new') loadEditor().then((m) => m.newSongDraft());
+  };
+  $('lAdd').addEventListener('click', () => openAddSheet(addAction));
+  root.addEventListener('click', (e) => { const w = e.target.closest('[data-addk]'); if (w && root.contains(w)) addAction(w.dataset.addk); });
+  // pretraga: ikonica otvara polje (prazno polje se zatvara samo); redosled: kratak izbor
+  const openSearch = (on) => { $('lSearchRow').hidden = !on; $('lSearchBtn').classList.toggle('on', on); if (on) $('lSearch').focus(); else if ($('lSearch').value) { $('lSearch').value = ''; draw(); } };
+  $('lSearchBtn').addEventListener('click', () => openSearch($('lSearchRow').hidden));
+  $('lSearchX').addEventListener('click', () => openSearch(false));
+  $('lSortBtn').addEventListener('click', async () => {
+    const cur = $('lSort').value;
+    const opts = [...$('lSort').options].map((o) => ({ label: (o.value === cur ? '✓ ' : '') + o.textContent, value: o.value }));
+    const v = await dialog({ title: t('lib.sortLabel'), buttons: opts, className: 'menu-dialog' });
+    if (v && v !== cur) { $('lSort').value = v; $('lSort').dispatchEvent(new Event('change')); }
+  });
+  const drawWelcome = () => {
+    const mine = all.filter((x) => !x.demo).length;
+    $('lWelcome').innerHTML = mine ? '' : `<div class="welcome card"><b>${t('lib.welcomeTitle')}</b><p class="muted small">${t('lib.welcomeBody')}</p>${addOptionsHTML()}</div>`;
+  };
+  drawWelcome();
+  oneTimeCapsFix(all).then((n) => { if (n) db.list().then((l) => { all = l; draw(); }); }).catch(() => {});
   drawFolders();
   draw();
   backupNudge($('lNudge'), all.filter((x) => !x.demo).length);
 }
 
-// „Prethodna verzija“ (izgubljen sukob sa drugim uređajem, sadržaj pre ponovnog skeniranja): mala napomena ispod zaglavlja
-function showVersionNote(root, id) {
-  versions.list('song:' + id).then(async (l) => {
-    if (!l.length) return;
-    const { versionNote } = await import('./versionsView.js');
-    for (let i = 0; i < 20 && !root.querySelector('.topbar'); i++) await new Promise((r) => setTimeout(r, 100)); // posle iscrtavanja ekrana
-    const top = root.querySelector('.topbar');
-    if (top) versionNote(top, 'song:' + id);
-  }).catch(() => {});
+
+// ---------------- Grupe pesama (naslov „Sve pesme ▾“) ----------------
+const artistKey = (s) => String(s.artist || '').trim().toLowerCase();
+/**
+ * Panel odozdo: Sve pesme, Izvođači (sami se slažu), TAB pesme, Nedavno otvorene, Moji snimci, moji folderi (⋯ =
+ * preimenuj/obriši), + Novi folder. Vraća { g } | { manage: id } | { add: true } | null.
+ */
+function openGroupSheet({ all, folders, cur, inGroup }) {
+  return new Promise((resolve) => {
+    const rec = new Set(Object.entries(openedMap()).sort((a, b) => b[1] - a[1]).slice(0, 30).map(([k]) => k));
+    const n = (g) => all.filter((s) => inGroup(s, g, rec)).length;
+    const artists = new Map();
+    for (const s of all) { const k = artistKey(s); if (k && !(s.folders || []).some(isSystemFolder)) { const a = artists.get(k) || { name: s.artist.trim(), n: 0 }; a.n++; artists.set(k, a); } }
+    const arts = [...artists.entries()].sort((a, b) => b[1].n - a[1].n || a[1].name.localeCompare(b[1].name, 'sr'));
+    const row = (g, label, cnt, extra = '') => `<button class="grp-row${cur === g ? ' on' : ''}" data-g="${esc(g)}"><span class="grp-name">${esc(label)}</span><span class="grp-n">${cnt}</span>${extra}</button>`;
+    const own = folders.filter((f) => !isSystemFolder(f.id));
+    const sys = folders.filter((f) => isSystemFolder(f.id));
+    const artOpen = cur.startsWith('artist:');
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-backdrop sheet-backdrop';
+    wrap.innerHTML = `<div class="sheet grp-sheet" role="dialog" aria-modal="true" aria-label="${t('lib.groups')}"><div class="sheet-grip"></div>
+      ${row('', t('lib.groupAll'), n(''))}
+      <div class="grp-head">${t('lib.groupsAuto')}</div>
+      ${arts.length ? `<button class="grp-row grp-toggle${artOpen ? ' open' : ''}" data-art><span class="grp-name">${t('lib.groupArtists')}</span><span class="grp-n">${arts.length}</span><svg class="grp-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.6 7.4 10 6l6 6-6 6-1.4-1.4L13.2 12z"/></svg></button>
+        <div class="grp-sub" ${artOpen ? '' : 'hidden'}>${arts.map(([k, a]) => row('artist:' + k, a.name, a.n)).join('')}</div>` : ''}
+      ${n('auto:tab') ? row('auto:tab', t('lib.groupTab'), n('auto:tab')) : ''}
+      ${rec.size ? row('auto:recent', t('lib.groupRecent'), n('auto:recent')) : ''}
+      ${sys.map((f) => row(f.id, folderLabel(f), n(f.id))).join('')}
+      <div class="grp-head">${t('lib.groupsMine')}</div>
+      ${own.map((f) => row(f.id, folderLabel(f), n(f.id), `<span class="grp-more" data-gm="${esc(f.id)}" role="button" aria-label="${esc(t('folder.manage', { name: folderLabel(f) }))}">⋯</span>`)).join('') || `<p class="small muted grp-empty">${t('lib.groupsMineEmpty')}</p>`}
+      <button class="grp-row grp-add" data-gadd><span class="grp-name">+ ${t('folder.new')}</span></button>
+    </div>`;
+    const done = (v) => { wrap.remove(); resolve(v); };
+    wrap.__close = () => done(null);
+    wrap.addEventListener('click', (e) => {
+      const m = e.target.closest('[data-gm]'); if (m) { e.stopPropagation(); return done({ manage: m.dataset.gm }); }
+      if (e.target.closest('[data-art]')) { const tg = wrap.querySelector('[data-art]'); tg.classList.toggle('open'); wrap.querySelector('.grp-sub').hidden = !tg.classList.contains('open'); return; }
+      if (e.target.closest('[data-gadd]')) return done({ add: true });
+      const r = e.target.closest('[data-g]'); if (r) return done({ g: r.dataset.g });
+      if (!e.target.closest('.sheet')) done(null);
+    });
+    document.body.appendChild(wrap);
+  });
+}
+
+// ---------------- Dodavanje pesme („+“) ----------------
+const ADD_ICONS = {
+  scan: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3 7.2 5H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3.2L15 3H9zm3 15a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-2a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/></svg>',
+  import: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2h8l6 6v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm7 1.5V9h5.5L13 3.5zM11 12v4.2l-1.6-1.6L8 16l4 4 4-4-1.4-1.4-1.6 1.6V12h-2z"/></svg>',
+  new: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17.2V21h3.8l11-11-3.8-3.8-11 11zM20.7 7a1 1 0 0 0 0-1.4l-2.3-2.3a1 1 0 0 0-1.4 0l-1.8 1.8 3.8 3.8L20.7 7z"/></svg>',
+};
+const addOptionsHTML = (ids = false) => ['scan', 'import', 'new'].map((k) => `<button class="add-opt" data-addk="${k}"${ids ? ` id="${{ scan: 'lScan', import: 'lImport', new: 'lNew' }[k]}"` : ''}>
+  <span class="add-ico ${k}">${ADD_ICONS[k]}</span><span class="add-txt"><b>${t('lib.add.' + k)}</b><span class="small muted">${t('lib.add.' + k + 'Hint')}</span></span></button>`).join('');
+/** Donji panel sa tri načina dodavanja (zatvara se dodirom van njega, „nazad“ ili izborom). */
+function openAddSheet(onPick) {
+  const wrap = document.createElement('div');
+  wrap.className = 'modal-backdrop sheet-backdrop';
+  wrap.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="${t('lib.add')}"><div class="sheet-grip"></div><h2 class="sheet-title">${t('lib.add')}</h2>${addOptionsHTML(true)}</div>`;
+  const close = () => wrap.remove();
+  wrap.__close = close;
+  wrap.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-addk]');
+    if (b) { close(); onPick(b.dataset.addk); return; }
+    if (!e.target.closest('.sheet')) close();
+  });
+  document.body.appendChild(wrap);
+}
+/** Jednom: naslovi/izvođači sačuvani SVE VELIKIM SLOVIMA pre ispravke → normalno („IN MY LIFE“ → „In My Life“). */
+async function oneTimeCapsFix(all) {
+  if (localStorageGet('gitara-capsfix')) return 0;
+  const { fixCaps } = await import('./textCase.js');
+  let n = 0;
+  for (const x of all) {
+    if (x.demo || (fixCaps(x.title) === x.title && fixCaps(x.artist || '') === (x.artist || ''))) continue;
+    const s = await db.get(x.id);
+    if (!s) continue;
+    s.title = fixCaps(s.title); if (s.artist) s.artist = fixCaps(s.artist);
+    await db.put(s); n++;
+  }
+  localStorageSet('gitara-capsfix', '1');
+  return n;
 }
 
 // Podsetnik za rezervnu kopiju: posle 3+ pesama bez Google Drive-a; „Ne sada“ ga sakrije na 30 dana.
@@ -659,7 +768,7 @@ export async function renderSong(root, id, nav = null) {
   if (needsUpgrade(stored)) { stored = upgradeSong(stored); db.put(stored).catch(() => {}); }
   markOpened(stored.id); // za sortiranje „Nedavno otvorene“ (pamti se samo na uređaju, ne pokreće rezervnu kopiju)
   // TAB pesma (prebiranje): poseban ekran (tablatura), učitava se tek sada
-  showVersionNote(root, id);
+  versionTipOnce('song:' + id); // prethodne verzije: samo u „⋯“ (jednom kratko objašnjenje), bez trake iznad pesme
   if (localStorageGet('gitara-shares')) import('./shareService.js').then((m) => m.prewarmShare()).catch(() => {}); // „Podeli“ ne čeka Google
   if (stored.type === 'tab') return (await import('./tabView.js')).renderTabSong(root, stored, nav, { ytRowHTML, shareSong, driveConnected });
   let tp = stored.transpose || 0;
@@ -675,9 +784,7 @@ export async function renderSong(root, id, nav = null) {
     <header class="topbar">
       <a href="${backHref}" class="back" aria-label="${t('song.back')}">${nav ? esc(nav.backLabel) : t('song.backShort')}</a>
       <div class="topbar-actions">
-        <button class="btn small" id="sEasyTop" aria-pressed="false" aria-label="${t('sug.easyBtn')}"><span class="lbl-long">${t('sug.easyBtn')}</span><span class="lbl-short" aria-hidden="true">${t('sug.easyBtnShort')}</span></button>
-        <button class="btn small aa-btn" id="sAa" aria-haspopup="true" aria-expanded="false" aria-label="${t('song.textSize')}">Aa</button>
-        <a class="btn small" href="#/uredi/${encodeURIComponent(id)}">${t('song.edit')}</a>
+        <button class="icon-btn" id="sMore" aria-haspopup="true" aria-label="${t('song.more')}" title="${t('song.more')}">${MORE_ICON}</button>
       </div>
     </header>
     ${nav ? `<div class="setlist-nav card">
@@ -694,10 +801,12 @@ export async function renderSong(root, id, nav = null) {
     </div>
     <div id="sBody">
       <div id="sHead"></div>
+      ${stored.recording ? '' : practiceCardHTML(id, 'chords', { compact: true })}
       <div id="sAsk"></div>
       <div id="sSuggest"></div>
       <div id="sControls"></div>
       <details class="song-details" id="sDet"><summary><span>${t('song.details')}</span><span class="small muted" id="sDetSub"></span></summary><div id="sDetBody"></div></details>
+      ${zoomPillHTML()}
       <div class="lyrics" id="sLyrics" style="--zoom:${zoom}"></div>
     </div>
     <div class="scroll-bar" id="sScrollBar">
@@ -750,7 +859,7 @@ export async function renderSong(root, id, nav = null) {
   // Ekran pesme je podeljen na delove; menja se samo deo čiji se podaci promenili (brže na dugim pesmama)
   const drawHead = () => {
     // Naslov i (desno, u istom redu) prečica za vežbanje delova ove pesme
-    $('sHead').innerHTML = `<div class="song-title-row"><h1 class="song-h1">${esc(stored.title)}</h1><a class="icon-btn pr-shortcut" href="#/vezbe/pesma/${encodeURIComponent(stored.id)}" aria-label="${esc(t('pr.songShortcut'))}" title="${esc(t('pr.songShortcut'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" d="M12 2.2c-4.9 0-8.6 2-8.6 5.6 0 4.6 4.2 10.2 8.6 14 4.4-3.8 8.6-9.4 8.6-14 0-3.6-3.7-5.6-8.6-5.6zM10 7.6v6.2l5.2-3.1z"/></svg></a></div>
+    $('sHead').innerHTML = `<div class="song-title-row"><h1 class="song-h1">${esc(stored.title)}</h1></div>
       ${stored.recording ? `<button class="btn small fp-onneck" id="sFpReplay"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>${esc(t('song.playOnNeck'))}</button>` : ''}
       ${stored.artist || cleanTuning(stored.tuning) !== 'standard' ? `<p class="song-meta">${esc(stored.artist || '')}${cleanTuning(stored.tuning) !== 'standard'
         ? `${stored.artist ? ' · ' : ''}<button class="tuning-chip" id="sTune" title="${esc(t('tuning.tuneNow'))}">${esc(t('tuning.' + cleanTuning(stored.tuning)))} · ${esc(tuningNotes(stored.tuning))} ›</button>` : ''}</p>` : ''}`;
@@ -759,10 +868,11 @@ export async function renderSong(root, id, nav = null) {
     $('sFpReplay')?.addEventListener('click', () => import('./freeplay.js').then((m) => m.replaySong(stored)));
   };
   // Mala oznaka napretka pored ikonice vežbe: koliko delova pesme je dobro uvežbano (najbolje ≥ 80)
+  // napredak vežbanja ove pesme na kartici „Vežbaj ovu pesmu“: koliko delova je dobro uvežbano (najbolje ≥ 80)
   const drawPracticeMark = () => settings.get('practice', null).then((st) => {
     const rec = st && st.songs && st.songs[stored.id];
-    const a = $('sHead')?.querySelector('.pr-shortcut');
-    if (!rec || !a) return;
+    const card = root.querySelector('.sp-card');
+    if (!rec || !card || !Object.keys(rec).length) return;
     const seen = new Set();
     const total = (stored.sections || []).filter((sec) => {
       const ch = (sec.lines || []).flatMap((l) => (l.chords || []).map((c) => c.chord)).filter(Boolean);
@@ -770,14 +880,8 @@ export async function renderSong(root, id, nav = null) {
       if (!ch.length || seen.has(sig)) return false;
       seen.add(sig); return true;
     }).length;
-    if (!total) return;
     const good = Object.entries(rec).filter(([k, r]) => k !== 'all' && r && r.best >= 80).length;
-    const p = rec.all && rec.all.best >= 80 ? 1 : Math.min(1, good / total);
-    const played = Object.keys(rec).length;
-    if (!played) return;
-    a.querySelector('.pr-mark')?.remove();
-    a.insertAdjacentHTML('beforeend', `<span class="pr-mark${p >= 1 ? ' done' : ''}" style="--p:${Math.round(p * 100)}" title="${esc(t('pr.songMark', { n: Math.min(good, total), total }))}"></span>`);
-    a.setAttribute('aria-label', `${t('pr.songShortcut')} — ${t('pr.songMark', { n: Math.min(good, total), total })}`);
+    fillPractice(card, { good, total, played: true, done: !!(rec.all && rec.all.best >= 80) });
   }).catch(() => {});
   const drawAsk = () => { $('sAsk').innerHTML = askHTML(); };
   const drawControls = () => {
@@ -833,7 +937,7 @@ export async function renderSong(root, id, nav = null) {
       </div>
       ${prog.length ? `<div class="det-sec prog">${prog.map((p) => `<div class="prog-row"><span class="prog-name">${esc(p.name ? sectionLabel(p.name) : t('song.chordsFallback'))}</span><span class="prog-chords">${p.chords.map((c) => `<button class="ch" data-chord="${esc(c)}">${esc(dn(c))}</button>`).join('<span class="arrow">→</span>')}</span></div>`).join('')}</div>` : ''}
       ${chords.length ? `<div class="diagram-row" aria-label="${t('song.diagrams')}">${chords.map((c) => `<button class="diagram-btn" data-chord="${esc(c)}" aria-label="${esc(t('song.enlarge', { name: dn(c) }))}">${chordSVG(c, { voicing: (stored.shapes || {})[c] || 0 })}</button>`).join('')}</div>` : ''}
-      <div class="det-sec">${ytRowHTML(stored)}</div>`;
+`;
   };
   const drawLyrics = () => {
     const l = $('sLyrics');
@@ -850,13 +954,9 @@ export async function renderSong(root, id, nav = null) {
   const drawKeyChange = () => { closePlayer(); drawControls(); drawSuggest(); drawDetails(); drawLyrics(); };
   // „Detalji“: zatvoreni posle prvog pregleda pesme; pamti se poslednji izbor
   // tekst pesme je prvi: „Detalji“ zatvoreni, osim ako ih je korisnik sam ostavio otvorene
-  const detInit = localStorageGet('gitara-details') === '1';
-  $('sDet').open = detInit;
-  let detAuto = detInit; // prvo otvaranje je automatsko — ne pamti ga kao izbor korisnika
-  $('sDet').addEventListener('toggle', () => {
-    if (detAuto) { detAuto = false; } else localStorageSet('gitara-details', $('sDet').open ? '1' : '');
-    if ($('sDet').open && detDirty) drawDetails();
-  });
+  // „Akordi i ritam“ (nekadašnji „Detalji“): otvara se iz „⋯“ kao panel; crta se tek kada se otvori
+  $('sDet').open = false;
+  $('sDet').addEventListener('toggle', () => { if ($('sDet').open && detDirty) drawDetails(); });
   if (!stored.seen) { stored.seen = true; db.put(stored).catch(() => {}); }
   // Prilagodi veličinu slova širini ekrana (pa tek onda rasporedi tablature)
   function fitAndTabs(pre = null) {
@@ -1225,14 +1325,14 @@ export async function renderSong(root, id, nav = null) {
   const setCollapsed = (c) => { sbar.classList.toggle('collapsed', c); localStorageSet('gitara-scrollbar', c ? '1' : ''); $('sCollapse').setAttribute('aria-label', t(c ? 'scroll.expand' : 'scroll.collapse')); };
   setCollapsed(localStorageGet('gitara-scrollbar') === '1');
   $('sCollapse').addEventListener('click', (e) => { e.stopPropagation(); setCollapsed(!sbar.classList.contains('collapsed')); });
-  $('sEasyTop').addEventListener('click', async () => {
+  const toggleEasy = async () => {
     if (easyActive()) { await setCapo(0); toast(t('sug.easyOff')); return; }
     const e = easiestCapo(stored, tp);
     if (!e) { toast(t('sug.alreadyEasiest')); return; }
     stored.easyCapo = e.capo;
     await setCapo(e.capo);
     toast(t('sug.easyText', { n: e.capo, shapes: e.shapes.map((x) => dn(x)).join(', ') }));
-  });
+  };
   // ---- „Pusti“: pesma zvukom gitare (akordi po ritmu pesme, tonalitet, kapodaster); učitava se tek na dugme ----
   let playerUI = null, plTl = null, plCh = null, plLn = null;
   let plSung = [];
@@ -1350,15 +1450,21 @@ export async function renderSong(root, id, nav = null) {
   // čuva se tek kad se klizač pusti (dok se vuče, samo prikaz)
   const saveZoom = () => { if (zoom === 1) delete stored.zoom; else stored.zoom = zoom; return save(); };
   const aaPop = $('sAaPop');
-  const closeAa = () => { aaPop.hidden = true; $('sAa').setAttribute('aria-expanded', 'false'); document.removeEventListener('pointerdown', outsideAa, true); };
-  const outsideAa = (e) => { if (!aaPop.contains(e.target) && e.target !== $('sAa')) closeAa(); };
-  $('sAa').addEventListener('click', () => {
-    if (!aaPop.hidden) return closeAa();
-    syncAa();
-    aaPop.hidden = false;
-    $('sAa').setAttribute('aria-expanded', 'true');
-    document.addEventListener('pointerdown', outsideAa, true);
+  const closeAa = () => { aaPop.hidden = true; document.removeEventListener('pointerdown', outsideAa, true); };
+  const outsideAa = (e) => { if (!aaPop.contains(e.target)) closeAa(); };
+  // „⋯“: veličina slova (isti klizač kao ranije „Aa“), prethodne verzije; dva prsta = uvećanje teksta
+  $('sMore').addEventListener('click', async () => {
+    const v = await moreMenu('song:' + id, songMenuItems(stored, [
+      { value: 'easy', label: t('sug.easyBtn'), sub: easyActive() ? t('song.easyOnSub') : t('song.easySub'), icon: 'easy', on: easyActive() },
+      { value: 'details', label: t('song.detailsMenu'), sub: t('song.detailsSub'), icon: 'details' },
+    ]));
+    if (v && /^(listen|tutorial)/.test(v)) { (await import('./ytPick.js')).ytAction(v.split(':')[0], stored, save, { change: v.endsWith(':change') }); return; }
+    if (v === 'edit') { location.hash = '#/uredi/' + encodeURIComponent(id); return; }
+    if (v === 'easy') { await toggleEasy(); return; }
+    if (v === 'details') { openPanel($('sDet'), t('song.detailsMenu')); }
   });
+  bindZoomPill(root, { get: () => zoom, apply: (z) => setZoom(z), save: () => saveZoom(), min: 0.8, max: 1.8 });
+  attachPinch($('sLyrics'), { get: () => zoom, set: async (z) => { await setZoom(z); await saveZoom(); }, min: 0.8, max: 1.8 });
   $('sAaRange').addEventListener('input', (e) => setZoom(+e.target.value / 100));
   $('sAaRange').addEventListener('change', () => saveZoom());
 

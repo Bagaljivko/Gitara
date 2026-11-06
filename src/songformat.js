@@ -292,6 +292,18 @@ function cleanYt(raw) {
   return Object.keys(out).length ? out : null;
 }
 
+/** Keš YouTube pretrage po pesmi: { listen|tutorial: { q, v: [{ id, t, c, d }] } } — samo ID-jevi i tekst, bez adresa. */
+export function cleanYtFound(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const out = {};
+  for (const k of ['listen', 'tutorial']) {
+    const e = raw[k];
+    if (!e || typeof e !== 'object' || typeof e.q !== 'string' || !Array.isArray(e.v)) continue;
+    out[k] = { q: e.q.slice(0, 300), v: e.v.filter((x) => x && /^[\w-]{6,20}$/.test(x.id)).slice(0, 5).map((x) => ({ id: x.id, t: String(x.t || '').slice(0, 200), c: String(x.c || '').slice(0, 100), d: String(x.d || '').slice(0, 12) })) };
+  }
+  return Object.keys(out).length ? out : null;
+}
+
 /**
  * Stanje predloga (samo za ovaj uređaj i rezervnu kopiju, ne deli se):
  * uncertain — mesta koja Gemini nije pouzdano pročitao; easyCapo — primenjena „lakša verzija“;
@@ -324,6 +336,8 @@ export function songMeta(raw) {
     for (const k of ['easy', 'strum']) if (raw.skipped[k]) sk[k] = true;
     if (Object.keys(sk).length) out.skipped = sk;
   }
+  const yf = cleanYtFound(raw.ytFound);
+  if (yf) out.ytFound = yf; // keširani rezultati YouTube pretrage (da se ista pesma nikad ne traži dvaput)
   const rc = cleanRecording(raw.recording);
   if (rc) out.recording = rc; // „Moji snimci“: ponovo na vratu
   const ss = raw.suggestStrum;

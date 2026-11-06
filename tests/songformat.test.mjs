@@ -44,3 +44,12 @@ test('neispravan fajl daje poruku na srpskom', () => {
   assert.throws(() => parseSharedFile('{"app":"drugo","song":{"sections":[]}}'), SongFormatError);
   assert.throws(() => parseSharedFile('{"song":{"title":"x","sections":[]}}'), SongFormatError);
 });
+
+test('ytFound cache: kept in backup meta (ids + text only), never in shared extras', async () => {
+  const { cleanYtFound, songMeta, songExtras } = await import('../src/songformat.js');
+  const raw = { listen: { q: 'Ceca Zakuni se', v: [{ id: 'abcDEF12345', t: 'Snimak', c: 'Kanal', d: '3:05', thumb: 'javascript:x' }, { id: 'bad id"><', t: 'x' }] }, other: { q: 'x', v: [] } };
+  assert.deepEqual(cleanYtFound(raw), { listen: { q: 'Ceca Zakuni se', v: [{ id: 'abcDEF12345', t: 'Snimak', c: 'Kanal', d: '3:05' }] } });
+  assert.equal(cleanYtFound(null), null);
+  assert.ok(songMeta({ ytFound: raw }).ytFound);
+  assert.ok(!('ytFound' in songExtras({ ytFound: raw })));
+});
