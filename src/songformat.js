@@ -268,7 +268,7 @@ export function songExtras(raw) {
   const yt = cleanYt(raw.yt);
   if (yt) out.yt = yt;
   const ys = cleanYtSync(raw.ytSync);
-  if (ys && yt && yt.listen && youtubeId(yt.listen) === ys.v) out.ytSync = ys; // „Uz video“: samo za povezan video
+  if (ys && yt && youtubeId(alongUrl(yt)) === ys.v) out.ytSync = ys; // „Uz video“: samo za povezan video
   const bpm = Math.round(Number(raw.bpm) || 0);
   if (bpm >= 40 && bpm <= 220) out.bpm = bpm;
   const tuning = cleanTuning(raw.tuning);
@@ -293,6 +293,9 @@ export function youtubeId(u) {
   return m ? m[1] : '';
 }
 
+/** Video za „Uz video“: posebna zamena (along) ako je „Poslušaj“ snimak blokiran u aplikacijama, inače „Poslušaj“. */
+export const alongUrl = (yt) => (yt && (yt.along || yt.listen)) || '';
+
 /**
  * „Uz video“: tačke usklađivanja pesme sa videom — { v: id videa, a: [[sekunda, deo pesme 0–1], …] }.
  * Čuva se uz pesmu (rezervna kopija, sinhronizacija, deljenje); važi samo za taj video.
@@ -307,7 +310,7 @@ export function cleanYtSync(raw) {
 function cleanYt(raw) {
   if (!raw || typeof raw !== 'object') return null;
   const out = {};
-  for (const k of ['listen', 'tutorial']) { const u = cleanYoutubeUrl(raw[k]); if (u) out[k] = u; }
+  for (const k of ['listen', 'tutorial', 'along']) { const u = cleanYoutubeUrl(raw[k]); if (u) out[k] = u; } // along: zamena za „Uz video“
   return Object.keys(out).length ? out : null;
 }
 

@@ -6,7 +6,7 @@
 import { t } from './i18n.js';
 import { esc, toast, dialog } from './ui.js';
 import { keepAwake, allowSleep } from './wakelock.js';
-import { youtubeId } from './songformat.js';
+import { youtubeId, alongUrl } from './songformat.js';
 
 export const YT_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.6 7.2a2.6 2.6 0 0 0-1.8-1.8C18.2 5 12 5 12 5s-6.2 0-7.8.4A2.6 2.6 0 0 0 2.4 7.2 27 27 0 0 0 2 12a27 27 0 0 0 .4 4.8 2.6 2.6 0 0 0 1.8 1.8C5.8 19 12 19 12 19s6.2 0 7.8-.4a2.6 2.6 0 0 0 1.8-1.8A27 27 0 0 0 22 12a27 27 0 0 0-.4-4.8zM10 15V9l5.2 3z"/></svg>';
 const I = {
@@ -88,7 +88,7 @@ export function bindPlayAlong({ root, stored, save, content, beforeStart = () =>
   const btn = root.querySelector('#paBtn');
   const refresh = () => {
     if (!btn) return;
-    const on = !!youtubeId(stored.yt && stored.yt.listen);
+    const on = !!youtubeId(alongUrl(stored.yt));
     btn.classList.toggle('off', !on);
     btn.setAttribute('aria-label', t(on ? 'pa.start' : 'pa.link'));
   };
@@ -97,17 +97,22 @@ export function bindPlayAlong({ root, stored, save, content, beforeStart = () =>
     await ytAction('listen', stored, save, { change: true, open: false });
     refresh();
   }
-  btn?.addEventListener('click', () => {
-    if (!youtubeId(stored.yt && stored.yt.listen)) { link(); return; }
-    openStrip({ stored, save, content, beforeStart, relink: link });
+  const ctx = { stored, save, content, beforeStart, relink: link, refresh };
+  btn?.addEventListener('click', async () => {
+    const id = youtubeId(alongUrl(stored.yt));
+    if (!id) { link(); return; }
+    // već poznato da ovaj snimak ne sme u aplikaciji (npr. proveren iz menija) — odmah ponuda zamene, bez treptaja trake
+    if ((await import('./ytPick.js')).ytBlocked().includes(id)) { blockedFlow(ctx, id, 150); return; }
+    openStrip(ctx);
   });
   return { refresh, link, close: () => active?.close() };
 }
 
 // ---------------- Traka ----------------
-function openStrip({ stored, save, content, beforeStart, relink }) {
+function openStrip(ctx, { clock = false } = {}) {
+  const { stored, save, content, beforeStart } = ctx;
   if (active) active.close();
-  const id = youtubeId(stored.yt && stored.yt.listen);
+  const id = youtubeId(alongUrl(stored.yt));
   if (!id) return;
   try { beforeStart(); } catch {}
   window.dispatchEvent(new Event('gitara-mic')); // „Pusti“ i slični zvuci staju — svira video
@@ -116,7 +121,7 @@ function openStrip({ stored, save, content, beforeStart, relink }) {
   el.className = 'pa-strip';
   el.setAttribute('role', 'region');
   el.setAttribute('aria-label', t('pa.btn'));
-  el.innerHTML = `<div class="pa-vid"><div class="pa-player"></div><div class="pa-touch" aria-hidden="true"></div><div class="pa-tip"></div></div>
+  el.innerHTML = `<div class="pa-vid${clock ? ' pa-clock' : ''}"><div class="pa-player">${clock ? `<div class="pa-clockbox">${YT_ICON}<b>${esc(t('pa.clockTitle'))}</b><span>${esc(t('pa.clockHint'))}</span></div>` : ''}</div><div class="pa-touch" aria-hidden="true"></div><div class="pa-tip"></div></div>
 
     <div class="pa-ctl">
       <button class="pa-b" data-pa="back" type="button" aria-label="${esc(t('pa.back10'))}">${svg('back')}</button>
@@ -131,7 +136,7 @@ function openStrip({ stored, save, content, beforeStart, relink }) {
   keepPlace(() => { document.body.appendChild(el); document.body.classList.add('pa-on'); });
   keepAwake('playalong');
   const sz = () => { const r = q('.pa-vid').getBoundingClientRect(); return `${Math.round(r.width)}×${Math.round(r.height)}`; };
-  paLog('otvoren', { v: id, ekran: `${innerWidth}×${innerHeight}`, video: sz() });
+  paLog(clock ? 'otvoren (YouTube aplikacija)' : 'otvoren', { v: id, ekran: `${innerWidth}×${innerHeight}`, video: sz() });
 
   let player = null, ready = false, playing = false, dur = 0, raf = 0, closed = false;
   let anchors = fromStore(stored.ytSync, id);
@@ -162,7 +167,7 @@ function openStrip({ stored, save, content, beforeStart, relink }) {
   // Reklama: video je pokrenut (wantPlay), a pesma ne ide — YouTube tokom reklame javlja „ne svira“ (ili „svira“ uz
   // vreme koje stoji; viđeno na telefonu v1.63). Posle ~1,5 s traka se poveća, naš sloj za prevlačenje se skloni
   // (YouTube-ovo „Preskoči“ i ostalo se dodiruje direktno), komande posive. Kad vreme pesme krene, sve se vraća.
-  let adRaw = -1, adSince = 0, adMode = false, wantPlay = true;
+  let adRaw = -1, adSince = 0, adMode = false, wantPlay = !clock; // uz YouTube aplikaciju: čeka ▶ (nema reklama ovde)
   function adCheck() {
     const raw = player.getCurrentTime() || 0, n = performance.now(), st = player.getPlayerState();
     if (!wantPlay || st === 0) { adSince = n; adRaw = raw; if (adMode) setAd(false); return; } // pauzirao korisnik / kraj
@@ -178,7 +183,7 @@ function openStrip({ stored, save, content, beforeStart, relink }) {
   }
   function tick() {
     raf = requestAnimationFrame(tick);
-    if (ready) { try { adCheck(); } catch {} }
+    if (ready && !clock) { try { adCheck(); } catch {} }
     if (!ready || user || !dur || adMode) return;
     const target = Math.max(0, Math.min(document.documentElement.scrollHeight - window.innerHeight, yFor(posAt(now(), dur, anchors))));
     const d = target - window.scrollY;
@@ -264,20 +269,32 @@ function openStrip({ stored, save, content, beforeStart, relink }) {
   const api = { close };
   active = api;
 
+  const onReady = () => {
+    if (closed) return;
+    ready = true; dur = player.getDuration() || 0;
+    paLog('spreman', { trajanje: Math.round(dur), video: sz() });
+    if (!clock) { try { player.playVideo(); } catch {} }
+    raf = requestAnimationFrame(tick);
+    try { if (!clock && !localStorage.getItem('gitara-pa-tip')) { localStorage.setItem('gitara-pa-tip', '1'); toast(t('pa.tip')); } } catch {}
+  };
+  if (clock) {
+    // „Sviraj uz YouTube aplikaciju“: video svira u YouTube-u, pesma ide po satu (▶ kad pesma krene; −10/+10, prevlačenje
+    // i ispravke rade isto, i čuvaju se za taj video)
+    import('./ytPick.js').then((m) => m.videoSeconds(id)).then((secs) => {
+      if (closed) return;
+      player = new ClockPlayer(secs || 240);
+      player.cb = (st) => { playing = st === 1; paLog('stanje', { s: STATES[st] ?? st, sek: Math.round(player.getCurrentTime() * 10) / 10 }); lastRead = -1; setPlayIcon(); };
+      onReady();
+    });
+    return api;
+  }
   loadYT().then((YT) => {
     if (closed) return;
     player = new YT.Player(q('.pa-player'), {
       width: '100%', height: '100%', videoId: id,
       playerVars: { playsinline: 1, controls: 0, disablekb: 1, rel: 0, modestbranding: 1, fs: 0, iv_load_policy: 3, autoplay: 1, origin: location.origin },
       events: {
-        onReady: () => {
-          if (closed) return;
-          ready = true; dur = player.getDuration() || 0;
-          paLog('spreman', { trajanje: Math.round(dur), video: sz() });
-          try { player.playVideo(); } catch {}
-          raf = requestAnimationFrame(tick);
-          try { if (!localStorage.getItem('gitara-pa-tip')) { localStorage.setItem('gitara-pa-tip', '1'); toast(t('pa.tip')); } } catch {}
-        },
+        onReady,
         onStateChange: (e) => {
           playing = e.data === 1;
           if (playing) import('./ytPick.js').then((m) => m.markYtOk(id)).catch(() => {}); // svira u aplikaciji — zapamti
@@ -286,26 +303,76 @@ function openStrip({ stored, save, content, beforeStart, relink }) {
           lastRead = -1;
           setPlayIcon();
         },
-        onError: async (e) => {
+        onError: (e) => {
           const code = e && e.data;
-          const blocked = code === 101 || code === 150;
           paLog('greška', { kod: code, v: id, video: sz() });
           close();
-          if (blocked) (await import('./ytPick.js')).markYtBlocked(id);
-          // poruka + kod greške (da se zna tačan razlog); izbor: drugi video ili isti na YouTube-u
-          const v = await dialog({
-            title: t(blocked ? 'pa.blockedTitle' : 'pa.failedTitle'),
-            body: t(blocked ? 'pa.blocked' : code === 100 ? 'pa.gone' : 'pa.failed') + ` (${t('pa.code', { n: code })})`,
-            buttons: [{ label: t('pa.copyDiag'), value: 'diag' }, { label: t('pa.openYt'), value: 'yt' }, { label: t('pa.pickOther'), value: 'pick', kind: 'primary' }],
-          });
-          if (v === 'diag') copyDiag();
-          else if (v === 'yt') window.open(stored.yt.listen, '_blank', 'noopener');
-          else if (v === 'pick') relink();
+          blockedFlow(ctx, id, code);
         },
       },
     });
   }).catch((err) => { paLog('YouTube API se ne učitava', { r: String(err && err.message || err) }); close(); toast(t('pa.noNet'), 'error'); });
   return api;
+}
+
+/**
+ * Snimak ne može u aplikaciji (ili druga greška): sama potraži verziju iste pesme koja radi i ponudi je jednim
+ * dodirom („Koristi ovu“ — čuva se kao poseban video za „Uz video“, „Poslušaj“ ostaje). Uz to: „Sviraj uz YouTube
+ * aplikaciju“ (pesma ide po satu), „Izaberi drugi video“, „Kopiraj dijagnostiku“.
+ */
+async function blockedFlow(ctx, id, code) {
+  const { stored, save, relink, refresh } = ctx;
+  const yp = await import('./ytPick.js');
+  const blocked = code === 101 || code === 150;
+  if (blocked || code === 100) yp.markYtBlocked(id);
+  // dok traži: kratak panel sa kružićem (pretraga + tiha provera do 3 snimka)
+  const wait = document.createElement('div');
+  wait.className = 'modal-backdrop pa-wait';
+  wait.innerHTML = `<div class="modal" role="status"><p><span class="spinner"></span> ${esc(t('pa.searchingAlt'))}</p></div>`;
+  document.body.appendChild(wait);
+  let alt = null;
+  try { alt = await yp.findPlayable(stored, { exclude: [id, youtubeId(stored.yt && stored.yt.listen)] }); } catch {}
+  wait.remove();
+  paLog('zamena', { za: id, nađeno: alt ? alt.id : 'ništa' });
+  const why = t(blocked ? 'pa.blocked2' : code === 100 ? 'pa.gone' : 'pa.failed');
+  const v = await dialog({
+    title: t(blocked ? 'pa.blockedTitle' : 'pa.failedTitle'),
+    html: true,
+    body: `<p>${esc(why)} <span class="small muted">(${esc(t('pa.code', { n: code }))})</span></p>`
+      + (alt ? `<div class="pa-alt">${YT_ICON}<span><b>${esc(alt.title)}</b><small>${esc(alt.channel)}${alt.dur ? ' · ' + esc(alt.dur) : ''}</small></span></div><p class="small muted">${esc(t('pa.altFound'))}</p>`
+        : `<p class="small muted">${esc(t('pa.altNone'))}</p>`),
+    buttons: [
+      { label: t('pa.copyDiag'), value: 'diag' },
+      { label: t('pa.ytApp'), value: 'app' },
+      { label: t('pa.pickOther'), value: 'pick', ...(alt ? {} : { kind: 'primary' }) },
+      ...(alt ? [{ label: t('pa.useAlt'), value: 'alt', kind: 'primary' }] : []),
+    ],
+  });
+  if (v === 'diag') copyDiag();
+  else if (v === 'pick') relink();
+  else if (v === 'app') {
+    window.open(alongUrl(stored.yt), '_blank', 'noopener'); // YouTube aplikacija (Android: i podeljen ekran)
+    openStrip(ctx, { clock: true });
+  } else if (v === 'alt') {
+    stored.yt = { ...(stored.yt || {}), along: 'https://youtu.be/' + alt.id };
+    if (stored.ytSync && stored.ytSync.v !== alt.id) delete stored.ytSync;
+    await save();
+    refresh && refresh();
+    openStrip(ctx);
+  }
+}
+
+/** Sat sa istim „jezikom“ kao YouTube plejer — za „Sviraj uz YouTube aplikaciju“ (pesma ide po vremenu). */
+class ClockPlayer {
+  constructor(dur) { this.t = 0; this.st = 5; this.since = 0; this.dur = dur; this.cb = null; }
+  getCurrentTime() { return this.st === 1 ? Math.min(this.dur, this.t + (performance.now() - this.since) / 1000) : this.t; }
+  getPlayerState() { return this.st === 1 && this.getCurrentTime() >= this.dur ? 0 : this.st; }
+  playVideo() { if (this.st === 1) return; this.since = performance.now(); this.st = 1; this.cb && this.cb(1); }
+  pauseVideo() { if (this.st !== 1) return; this.t = this.getCurrentTime(); this.st = 2; this.cb && this.cb(2); }
+  seekTo(s) { this.t = Math.max(0, Math.min(this.dur, s)); this.since = performance.now(); }
+  getDuration() { return this.dur; }
+  getPlaybackRate() { return 1; }
+  destroy() {}
 }
 
 /** Ceo izveštaj dijagnostike (uređaj, greške, „Uz video“) u ostavu — da se pošalje. */

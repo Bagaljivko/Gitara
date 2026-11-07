@@ -195,7 +195,46 @@ export async function ytAction(kind, stored, save, { change = false, open = true
   });
   if (!url) return;
   stored.yt = { ...(stored.yt || {}), [kind]: url };
-  if (kind === 'listen' && stored.ytSync && stored.ytSync.v !== youtubeId(url)) delete stored.ytSync; // usklađivanje važi samo za stari video
+  if (kind === 'listen') {
+    delete stored.yt.along; // nov „Poslušaj“ snimak važi i za „Uz video“
+    if (stored.ytSync && stored.ytSync.v !== youtubeId(url)) delete stored.ytSync; // usklađivanje važi samo za stari video
+    // iz menija (bez provere pri izboru): tiha provera u pozadini — da „Uz video“ odmah zna ako ovaj snimak ne sme
+    const vid = youtubeId(url);
+    if (open && vid && !ytOk().includes(vid) && !ytBlocked().includes(vid)) {
+      import('./playAlong.js').then((m) => m.probeVideo(vid)).then((r) => { if (r === 'ok') markYtOk(vid); else if (r === 'blocked' || r === 'gone') markYtBlocked(vid); }).catch(() => {});
+    }
+  }
   await save();
   toast(t('yt.linked'));
+}
+
+/**
+ * „Uz video“: snimak ne sme u aplikaciji → potraži istu pesmu i vrati prvu verziju koja stvarno svira
+ * (pretraga samo dozvoljenih + tiha provera do 3 kandidata). null = nema (ili nema mreže/kvote).
+ */
+export async function findPlayable(song, { exclude = [] } = {}) {
+  if (quotaOut()) return null;
+  let list;
+  try { list = await searchYt(query(song, 'listen'), { embeddable: true }); }
+  catch (e) { if (e instanceof YtQuotaError) markQuota(); return null; }
+  const { probeVideo } = await import('./playAlong.js');
+  for (const v of list.filter((x) => !exclude.includes(x.id)).slice(0, 3)) {
+    if (ytOk().includes(v.id)) return v;
+    const r = await probeVideo(v.id, { timeout: 6000 });
+    if (r === 'ok') { markYtOk(v.id); return v; }
+    if (r === 'blocked' || r === 'gone') markYtBlocked(v.id);
+  }
+  return null;
+}
+
+/** Trajanje videa u sekundama (za „Sviraj uz YouTube aplikaciju“) — 1 jedinica kvote; 0 ako ne uspe. */
+export async function videoSeconds(id) {
+  try {
+    const key = globalThis.__gitaraYtKey || SHARE_API_KEY;
+    const r = await fetch(`${API}/videos?part=contentDetails&id=${encodeURIComponent(id)}&key=${encodeURIComponent(key)}`);
+    if (!r.ok) return 0;
+    const d = ((await r.json()).items || [])[0];
+    const m = /PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/.exec((d && d.contentDetails && d.contentDetails.duration) || '');
+    return m ? (+m[1] || 0) * 3600 + (+m[2] || 0) * 60 + (+m[3] || 0) : 0;
+  } catch { return 0; }
 }

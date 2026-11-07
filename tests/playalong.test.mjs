@@ -43,3 +43,16 @@ test('YouTube ID iz raznih adresa; usklađivanje se čuva samo za povezan video'
   assert.ok(songExtras({ yt, ytSync: { v: 'dQw4w9WgXcQ', a: [[1, 0.1]] } }).ytSync);
   assert.equal(songExtras({ yt, ytSync: { v: 'aaaaaaaaaaa', a: [[1, 0.1]] } }).ytSync, undefined);
 });
+
+test('v1.64: posebna zamena za „Uz video“ (along) — usklađivanje važi za nju, „Poslušaj“ ostaje', async () => {
+  const { alongUrl } = await import('../src/songformat.js');
+  const yt = { listen: 'https://youtu.be/AAAAAAAAAAA', along: 'https://youtu.be/BBBBBBBBBBB' };
+  assert.equal(alongUrl(yt), 'https://youtu.be/BBBBBBBBBBB');
+  assert.equal(alongUrl({ listen: 'https://youtu.be/AAAAAAAAAAA' }), 'https://youtu.be/AAAAAAAAAAA');
+  assert.equal(alongUrl(null), '');
+  const ex = songExtras({ yt, ytSync: { v: 'BBBBBBBBBBB', a: [[5, 0.1]] } });
+  assert.equal(ex.yt.along, 'https://youtu.be/BBBBBBBBBBB');
+  assert.equal(ex.yt.listen, 'https://youtu.be/AAAAAAAAAAA');
+  assert.ok(ex.ytSync);
+  assert.equal(songExtras({ yt, ytSync: { v: 'AAAAAAAAAAA', a: [[5, 0.1]] } }).ytSync, undefined);
+});

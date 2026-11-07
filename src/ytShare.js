@@ -26,12 +26,13 @@ export async function linkShared(params) {
   if (!songId) return;
   const song = await db.get(songId);
   if (!song) return;
-  const cur = song.yt && song.yt.listen;
+  const cur = song.yt && (song.yt.along || song.yt.listen);
   if (cur && youtubeId(cur) !== youtubeId(hit.url)) {
     const ok = await dialog({ title: t('pa.replaceTitle'), body: t('pa.replaceBody', { title: song.title }), buttons: [{ label: t('common.cancel'), value: false }, { label: t('pa.replace'), value: true, kind: 'primary' }] });
     if (!ok) return;
   }
   song.yt = { ...(song.yt || {}), listen: hit.url };
+  delete song.yt.along; // izabran nov video — važi i za „Uz video“
   if (song.ytSync && song.ytSync.v !== youtubeId(hit.url)) delete song.ytSync;
   await db.put(song);
   toast(t('pa.linkedTo', { title: song.title }));
