@@ -33,8 +33,8 @@ const CALIBRATE_MS = 1000;   // merenje buke u prostoriji na početku
 const ONSET_RATIO = 1.8;     // skok jačine koji se računa kao trzaj
 const ARM_MS = 300;          // posle trzaja ovoliko čekamo prvi jasan ton
 const SHOW_FRAMES = 2;       // dva saglasna očitavanja → kazaljka se pomera
-const ATTACK_MS = 130;      // prvih ~130 ms posle trzaja žica zvuči malo „visoko“ — ta očitavanja se preskaču, da kazaljka ne skoči
-const STABLE_MS = 100;       // ovoliko dugo stabilan ton → sme da se označi kao naštimovan
+const ATTACK_MS = 110;      // prvih ~110 ms posle trzaja žica zvuči malo „visoko“ — ta očitavanja se preskaču, da kazaljka ne skoči
+const STABLE_MS = 60;       // ovoliko dugo stabilan ton → zeleno (i žica gotova)
 const STABLE_CENTS = 20;     // dozvoljeno kolebanje visine dok se proverava stabilnost
 const JUMP_CENTS = 60;       // veći skok = nova nota (npr. druga žica)
 const UNSTABLE_MS = 500;     // prozor za proveru „klizanja“ (govor, pevanje)

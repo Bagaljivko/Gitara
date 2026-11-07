@@ -25,8 +25,8 @@ const STRINGS = [
 ];
 
 const IN_TUNE = 5;       // ±centi
-const HOLD_MS = 350;     // koliko dugo mora biti naštimovano da se žica označi kao gotova
-const DONE_AVG = 4;      // …i prosek za to vreme mora biti unutar ±4 centi (uho ne čuje razliku, a štimuje se znatno brže)
+const DONE_AVG = 4;      // žica je gotova čim je stabilan ton unutar ±4 centi (prosek poslednjih ~3 očitavanja) — bez čekanja
+const UNDO_CENTS = 10, UNDO_MS = 500; // označena žica koja posle jasno odstupa (preko ±10 c, pola sekunde) — oznaka se skida
 const LOST_MS = 500;     // kratak prekid (ruka dodirne žicu, žica se gasi) ne poništava ni kazaljku ni brojanje do „gotovo“
 const RANGE = 50;        // skala ±50 centi
 const LONG_PRESS = 450;  // ms za referentni ton
@@ -174,7 +174,10 @@ export function createTuner(root) {
   let shownCents = 0;     // izglađen položaj kazaljke
   let shownSid = -1;
   let shownCal = false;   // prikazana poruka „merim buku“
-  let okSince = 0, okSid = -1, okHist = [];
+  let okSince = 0, okSid = -1, okHist = [], offSince = 0, offSid = -1;
+  // jak znak „gotovo“: nota zeleno zasvetli i pulsira (bez teksta)
+  let flashT = 0;
+  const flashDone = () => { meter.classList.remove('just-done'); void meter.offsetWidth; meter.classList.add('just-done'); clearTimeout(flashT); flashT = setTimeout(() => meter.classList.remove('just-done'), 900); };
   let lastLocked = 0;
 
   settings.get('a4', 440).then((v) => { a4 = Number(v) || 440; tracker.a4 = a4; });
@@ -302,18 +305,24 @@ export function createTuner(root) {
       const lvl = Math.sqrt(e / (buf.length / 8));
       wave.set({ active: true, cents: shownCents, ok, level: Math.max(0.35, Math.min(1, 0.35 + Math.log10(Math.max(lvl, 1e-5) / 0.003) * 0.5)) });
       if (ok) {
-        // posle kratkog prekida iste žice brojanje se nastavlja (okSid ostaje); nova žica počinje ispočetka
+        // Čim je ton na mestu — žica je gotova (bez čekanja): prosek poslednjih ~3 očitavanja unutar ±4 c.
         if (okSid !== sid || !okSince) { okSid = sid; okSince = now; okHist = []; }
         okHist.push({ t: now, c: r.cents });
-        while (okHist.length && now - okHist[0].t > HOLD_MS) okHist.shift();
+        while (okHist.length && now - okHist[0].t > 70) okHist.shift();
         const avg = okHist.reduce((a, x) => a + x.c, 0) / okHist.length;
-        if (now - okSince >= HOLD_MS && Math.abs(avg) <= DONE_AVG && !done.has(sid)) {
+        if (Math.abs(avg) <= DONE_AVG && !done.has(sid)) {
           done.add(sid);
           applyDone();
           buzz(done.size === 6 ? BUZZ_ALL : BUZZ_STRING);
           drawProgress();
+          flashDone();
         }
       } else if (Math.abs(shownCents) > lim) okSince = 0;
+      // Označena žica koja posle jasno odstupa (preokrenut ključ) — oznaka se skida, da ne ostane pogrešna kvačica
+      if (done.has(sid) && r.stable && Math.abs(shownCents) > UNDO_CENTS) {
+        if (offSid !== sid || !offSince) { offSid = sid; offSince = now; }
+        else if (now - offSince >= UNDO_MS) { done.delete(sid); offSince = 0; applyDone(); drawProgress(); }
+      } else offSince = 0;
     } else if (meter.dataset.state !== 'idle' && now - lastLocked > LOST_MS) {
       idle();
     } else if (meter.dataset.state === 'idle') {
