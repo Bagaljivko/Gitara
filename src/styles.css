@@ -230,6 +230,7 @@ body.tuner-screen .nav { background: rgba(0, 0, 0, .97); }
 .ln .seg { display: inline-flex; flex-direction: column; white-space: pre; vertical-align: top; }
 .ln .cr { height: 1.35em; padding-right: .6ch; white-space: nowrap; }
 .ln .tx { white-space: pre; min-height: 1.35em; }
+.ln .tx0 { display: inline-block; vertical-align: top; white-space: pre; padding-top: 1.35em; min-width: .6ch; } /* reč bez akorda: mesto za red akorda iznad (širina bar kao prazan red akorda) */
 .ln.chords-only { display: flex; flex-wrap: wrap; gap: 0 1.5ch; }
 .ch { appearance: none; border: 0; background: none; padding: 0; margin: 0; font: inherit; font-weight: 700; color: var(--accent); cursor: pointer; line-height: inherit; }
 .prog .ch { font-family: var(--mono); padding: 4px 6px; border-radius: 8px; background: var(--accent-soft); }
@@ -1009,6 +1010,7 @@ body.stage-mode main { padding-left: max(16px, env(safe-area-inset-left)); paddi
 .stage-lyrics { --lyr-base: 1.15rem; font-family: var(--sans); color: #fff; padding-bottom: 0; margin-top: 14px; }
 .stage-lyrics .ln { line-height: 1.32; margin-bottom: .5em; }
 .stage-lyrics .ln .cr { height: 1.25em; line-height: 1.25em; padding-right: .45em; }
+.stage-lyrics .ln .tx0 { padding-top: 1.25em; min-width: .45em; }
 .stage-lyrics .ch { font-size: .86em; font-weight: 800; color: var(--accent); letter-spacing: .005em; }
 .stage-lyrics .ln.chords-only { gap: 0 1.1em; margin-bottom: .7em; }
 .stage-lyrics .sec { margin-bottom: 1.35em; }
@@ -1608,3 +1610,13 @@ button.cs-v { appearance: none; border: 0; background: none; padding: 4px 2px; c
 .nwrap.just-done .nnote { color: var(--ok); animation: tDone .9s ease-out; }
 .nwrap.just-done .nm-zone, .nwrap.just-done .nm-arc { animation: tDoneZone .9s ease-out; stroke: rgba(61, 214, 140, .8); }
 @media (prefers-reduced-motion: reduce) { .nwrap.just-done .nnote, .nwrap.just-done .nm-zone, .nwrap.just-done .nm-arc { animation: none; } }
+
+/* v1.66 — sitnice: Akordi (BETA kao tačka, natpisi u jednom redu), mirniji red „Pesme su samo na ovom telefonu“ */
+.seg-tabs.seg4 { grid-template-columns: 1.4fr 1.2fr .85fr .75fr; }
+.seg-tabs.seg4 button { font-size: .88rem; line-height: 1.2; white-space: nowrap; padding: 0 4px; position: relative; }
+.beta-dot { display: inline-block; width: 6px; height: 6px; margin-left: 4px; border-radius: 50%; background: #f59e0b; vertical-align: super; box-shadow: 0 0 0 2px rgba(245, 158, 11, .18); }
+@media (max-width: 359px) { .seg-tabs.seg4 button { font-size: .78rem; padding: 0 2px; } }
+.nudge-bar { border: 1px solid var(--line) !important; background: var(--surface) !important; padding: 2px 2px 2px 12px; margin: 0 0 8px; min-height: 40px; }
+.nudge-txt { font-size: .82rem; color: var(--muted); }
+.nudge-link { flex: none; color: #ffcc33; font-weight: 700; font-size: .86rem; text-decoration: none; white-space: nowrap; padding: 8px 4px; }
+.nudge-bar .icon-btn { width: 36px; height: 36px; }

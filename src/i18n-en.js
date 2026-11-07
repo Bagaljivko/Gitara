@@ -612,6 +612,8 @@ export default {
   'stage.scrollOff': "Auto-scroll: off",
   'sl.remove': 'Remove from setlist',
   'sl.noSongs': 'This setlist is empty — add songs.',
+  'sl.renameSub': 'Change the set list name',
+  'sl.deleteSub': 'The songs stay in your songbook',
   'sl.deleteTitle': 'Delete setlist?',
   'sl.deleteBody': 'Setlist “{name}” will be deleted. The songs stay in your library.',
   'sl.deleted': 'Setlist deleted.',

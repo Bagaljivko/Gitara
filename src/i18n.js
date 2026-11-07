@@ -640,6 +640,8 @@ const sr = {
   'stage.scrollOff': "Automatsko skrolovanje: isključeno",
   'sl.remove': 'Ukloni iz setliste',
   'sl.noSongs': 'Setlista je prazna — dodaj pesme.',
+  'sl.renameSub': 'Promeni naziv setliste',
+  'sl.deleteSub': 'Pesme ostaju u pesmarici',
   'sl.deleteTitle': 'Obrisati setlistu?',
   'sl.deleteBody': 'Setlista „{name}“ će biti obrisana. Pesme ostaju u biblioteci.',
   'sl.deleted': 'Setlista je obrisana.',

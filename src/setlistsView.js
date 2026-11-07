@@ -4,6 +4,7 @@ import { setWakeZone } from './wakelock.js';
 import { esc, toast, dialog, confirmDialog } from './ui.js';
 import { t, songsCount } from './i18n.js';
 import { srCompare } from './collate.js';
+import { MORE_ICON, moreMenu } from './songChrome.js';
 import {
   getFolders, addFolder, renameFolder, deleteFolder, setSongFolders, folderLabel, isSystemFolder,
   getSetlists, getSetlist, addSetlist, updateSetlist, deleteSetlist,
@@ -117,8 +118,7 @@ export async function renderSetlist(root, id) {
     <header class="topbar">
       <a href="#/pesme?tab=sl" class="back">${t('sl.backToList')}</a>
       <div class="topbar-actions">
-        <button class="btn small" id="slRename">${t('folder.rename')}</button>
-        <button class="btn small danger-text" id="slDelete">${t('common.delete')}</button>
+        <button class="icon-btn" id="slMore" aria-haspopup="true" aria-label="${t('song.more')}" title="${t('song.more')}">${MORE_ICON}</button>
       </div>
     </header>
     <div class="sl-hero">
@@ -247,18 +247,24 @@ export async function renderSetlist(root, id) {
     const b = $('slShare'); b.disabled = true;
     try { await (await import('./shareService.js')).shareSetlist({ ...((await getSetlist(id)) || sl), name: sl.name }); /* obrisane pesme se preskaču i to se kaže */ } catch { toast(t('share.failed'), 'error'); } finally { b.disabled = false; }
   });
-  $('slRename').addEventListener('click', async () => {
-    const n = await askName(t('folder.rename'), sl.name);
-    if (!n) return;
-    sl.name = n;
-    await updateSetlist(id, { name: n });
-    $('slTitle').textContent = n;
-  });
-  $('slDelete').addEventListener('click', async () => {
-    if (!(await confirmDialog(t('sl.deleteTitle'), t('sl.deleteBody', { name: sl.name }), t('common.delete'), 'danger'))) return;
-    await deleteSetlist(id);
-    toast(t('sl.deleted'));
-    location.hash = '#/pesme?tab=sl';
+  // „⋯“: Preimenuj / Obriši (isti meni kao kod pesme — nema stalno vidljivog dugmeta za brisanje)
+  $('slMore').addEventListener('click', async () => {
+    const v = await moreMenu(null, [
+      { value: 'rename', label: t('folder.rename'), sub: t('sl.renameSub'), icon: 'edit' },
+      { value: 'delete', label: t('common.delete'), sub: t('sl.deleteSub'), icon: 'trash' },
+    ]);
+    if (v === 'rename') {
+      const n = await askName(t('folder.rename'), sl.name);
+      if (!n) return;
+      sl.name = n;
+      await updateSetlist(id, { name: n });
+      $('slTitle').textContent = n;
+    } else if (v === 'delete') {
+      if (!(await confirmDialog(t('sl.deleteTitle'), t('sl.deleteBody', { name: sl.name }), t('common.delete'), 'danger'))) return;
+      await deleteSetlist(id);
+      toast(t('sl.deleted'));
+      location.hash = '#/pesme?tab=sl';
+    }
   });
 }
 

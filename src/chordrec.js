@@ -129,8 +129,8 @@ export function createChordRec(root) {
       <h1>${t('chords.title')}</h1>
     </header>
     <div class="seg-tabs seg3 seg4" role="tablist">
-      <button role="tab" class="active" data-pane="rec">${t('chords.tabRecognize')} <span class="badge">${t('chords.beta')}</span></button>
-      <button role="tab" data-pane="free">${t('chords.tabFree')} <span class="badge">${t('chords.beta')}</span></button>
+      <button role="tab" class="active" data-pane="rec">${t('chords.tabRecognize')}<i class="beta-dot" title="${t('chords.beta')}" aria-label="${t('chords.beta')}"></i></button>
+      <button role="tab" data-pane="free">${t('chords.tabFree')}<i class="beta-dot" title="${t('chords.beta')}" aria-label="${t('chords.beta')}"></i></button>
       <button role="tab" data-pane="dict">${t('chords.tabDict')}</button>
       <button role="tab" data-pane="rhythm">${t('chords.tabRhythm')}</button>
     </div>

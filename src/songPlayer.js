@@ -53,7 +53,7 @@ function css() {
 .pl-bar .pl-play.on{background:var(--accent);color:var(--accent-ink)}
 .ch.playing{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px;background:var(--accent-soft)}
 .ln.playing{background:linear-gradient(90deg,rgba(245,165,36,.08),transparent 70%);border-radius:6px}
-.seg.sung .tx{color:var(--accent);font-weight:700}`;
+.seg.sung .tx,.tx0.sung{color:var(--accent);font-weight:700}`;
   document.head.appendChild(st);
 }
 

@@ -349,7 +349,7 @@ async function backupNudge(box, count) {
   const ios = isIOS() && !isStandalone();
   box.innerHTML = `<div class="nudge-bar" role="note">
     <span class="nudge-txt">${t(ios ? 'nudge.shortIos' : 'nudge.short')}</span>
-    <a class="btn small primary" href="#/podesavanja">${t('nudge.drive')}</a>
+    <a class="nudge-link" href="#/podesavanja">${t('nudge.drive')} ›</a>
     <button class="icon-btn" data-n="later" aria-label="${t('nudge.later')}" title="${t('nudge.later')}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z"/></svg></button></div>`;
   box.addEventListener('click', async (e) => {
     const b = e.target.closest('[data-n]');
@@ -565,17 +565,20 @@ export function renderLineHTML(line, marks = []) {
     if (!target) target = chunks[chunks.length - 1];
     target.chords.push(c);
   }
-  // Grupisanje u reči (da se reč ne lomi između slogova)
+  // Grupisanje u reči (da se reč ne lomi između slogova). Reč bez akorda je jedan element (.tx0, sa praznim mestom
+  // za red akorda iznad) umesto četiri — pesma ima ~60 % manje elemenata, pa se brže otvara i uvećava.
+  const words = [];
+  chunks.forEach((ch, i) => { const prev = chunks[i - 1]; if (!prev || prev.text.endsWith(' ')) words.push([]); words[words.length - 1].push(ch); });
   let html = '<div class="ln">';
-  let open = false;
-  chunks.forEach((ch, i) => {
-    const prev = chunks[i - 1];
-    const newWord = !prev || prev.text.endsWith(' ');
-    if (newWord) { if (open) html += '</span>'; html += '<span class="w">'; open = true; }
-    const chordsHtml = ch.chords.map((c) => chordSpan(c.chord, chordMark(c))).join(' ');
-    html += `<span class="seg"><span class="cr">${chordsHtml}</span><span class="tx">${markText(ch.text, ch.start, ranges)}</span></span>`;
-  });
-  if (open) html += '</span>';
+  for (const w of words) {
+    if (!w.some((ch) => ch.chords.length)) { html += `<span class="tx0">${markText(w.map((ch) => ch.text).join(''), w[0].start, ranges)}</span>`; continue; }
+    html += '<span class="w">';
+    for (const ch of w) {
+      const chordsHtml = ch.chords.map((c) => chordSpan(c.chord, chordMark(c))).join(' ');
+      html += `<span class="seg"><span class="cr">${chordsHtml}</span><span class="tx">${markText(ch.text, ch.start, ranges)}</span></span>`;
+    }
+    html += '</span>';
+  }
   return html + '</div>';
 }
 
@@ -621,10 +624,11 @@ function lineCh(ln) {
     chs.forEach((c) => { w += c.textContent.length; });
     return w + Math.max(0, chs.length * 2 - 2) * 1.5; // razmak 1.5ch između stavki (akordi i razmaci)
   }
-  const segs = ln.querySelectorAll('.seg');
+  const segs = ln.querySelectorAll('.seg, .tx0');
   if (!segs.length) return (ln.textContent || '').length;
   let w = 0;
   segs.forEach((sg) => {
+    if (sg.classList.contains('tx0')) { w += sg.textContent.replace(ZW, '').length; return; }
     const ct = sg.firstElementChild.textContent.replace(ZW, '').length;
     const tt = sg.lastElementChild.textContent.replace(ZW, '').length;
     w += Math.max(tt, ct + 0.6); // akordi imaju .6ch razmaka desno
@@ -643,10 +647,11 @@ function linePx(ln, family, px, chScale) {
     const chs = [...ln.querySelectorAll('.ch')];
     return chs.reduce((w, c) => w + cw(c.textContent), 0) + Math.max(0, chs.length - 1) * px * 1.1;
   }
-  const segs = ln.querySelectorAll('.seg');
+  const segs = ln.querySelectorAll('.seg, .tx0');
   if (!segs.length) return tw(ln.textContent || '');
   let w = 0;
   segs.forEach((sg) => {
+    if (sg.classList.contains('tx0')) { w += tw(sg.textContent); return; }
     const chs = [...sg.firstElementChild.querySelectorAll('.ch')].map((c) => c.textContent).join(' ');
     w += Math.max(tw(sg.lastElementChild.textContent), chs ? cw(chs) + px * 0.45 : 0);
   });
@@ -1193,8 +1198,10 @@ export async function renderSong(root, id, nav = null) {
     clearTimeout(peekTimer);
     peekTimer = setTimeout(() => bar.classList.remove('peek'), 3500);
   });
+  let autoOpened = false; // traka je bila skupljena: otvara se dok se lista, posle se opet skupi
   function startScroll() {
     scrolling = true; last = 0; carry = 0;
+    const sb = $('sScrollBar'); if (sb && sb.classList.contains('collapsed')) { sb.classList.remove('collapsed'); autoOpened = true; }
     dimBar(true);
     $('sPlay').classList.add('playing');
     $('sPlay').innerHTML = '<svg viewBox="0 0 24 24"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>';
@@ -1206,6 +1213,7 @@ export async function renderSong(root, id, nav = null) {
     if (!scrolling) return;
     scrolling = false;
     dimBar(false);
+    if (autoOpened) { $('sScrollBar')?.classList.add('collapsed'); autoOpened = false; }
     cancelAnimationFrame(raf);
     allowSleep('autoscroll');
     const b = $('sPlay');
@@ -1335,8 +1343,9 @@ export async function renderSong(root, id, nav = null) {
   function syncEasyTop() { const b = $('sEasyTop'); if (b) { b.classList.toggle('on', easyActive()); b.setAttribute('aria-pressed', String(easyActive())); } }
   // Traka za automatsko skrolovanje: može da se skupi na samo dugme za pokretanje
   const sbar = $('sScrollBar');
-  const setCollapsed = (c) => { sbar.classList.toggle('collapsed', c); localStorageSet('gitara-scrollbar', c ? '1' : ''); $('sCollapse').setAttribute('aria-label', t(c ? 'scroll.expand' : 'scroll.collapse')); };
-  setCollapsed(localStorageGet('gitara-scrollbar') === '1');
+  const setCollapsed = (c, remember = true) => { sbar.classList.toggle('collapsed', c); if (remember) localStorageSet('gitara-scrollbar', c ? '1' : '0'); $('sCollapse').setAttribute('aria-label', t(c ? 'scroll.expand' : 'scroll.collapse')); };
+  // v1.66: podrazumevano samo ▶ (ne pokriva kraj pesme); ▶ otvara i brzinu, posle zaustavljanja se opet skupi
+  setCollapsed(localStorageGet('gitara-scrollbar') !== '0');
   $('sCollapse').addEventListener('click', (e) => { e.stopPropagation(); setCollapsed(!sbar.classList.contains('collapsed')); });
   const toggleEasy = async () => {
     if (easyActive()) { await setCapo(0); toast(t('sug.easyOff')); return; }
@@ -1359,16 +1368,18 @@ export async function renderSong(root, id, nav = null) {
     plCh = plLn ? plLn.querySelectorAll('.ch')[seg.ref.ci] : null;
     plLn?.classList.add('playing'); plCh?.classList.add('playing');
     // reči koje se pevaju uz ovaj akord: od njegovog dela reda do sledećeg akorda
-    const segs = plLn ? [...plLn.querySelectorAll('.seg')] : [], at = plCh ? segs.indexOf(plCh.closest('.seg')) : -1;
+    const segs = plLn ? [...plLn.querySelectorAll('.seg, .tx0')] : [], at = plCh ? segs.indexOf(plCh.closest('.seg')) : -1;
     if (at >= 0) for (let i = at; i < segs.length && (i === at || !segs[i].querySelector('.ch')); i++) { segs[i].classList.add('sung'); plSung.push(segs[i]); }
   }
-  function closePlayer() { if (!playerUI) return; playerUI.destroy(); playerUI = null; plMark(null); allowSleep('songplay'); }
+  let plOpened = false; // „Pusti“ živi u traci: skupljena traka se otvara dok svira, posle se opet skupi
+  function closePlayer() { if (!playerUI) return; playerUI.destroy(); playerUI = null; plMark(null); allowSleep('songplay'); if (plOpened) { $('sScrollBar')?.classList.add('collapsed'); plOpened = false; } }
   async function openPlayer() {
     if (playerUI) return playerUI;
     const [sp, pl] = await Promise.all([import('./songPlay.js'), import('./songPlayer.js')]);
     plTl = sp.chordTimeline(stored, { tp, capo });
     if (!plTl.events.length) { toast(t('pr.pesma.noChords'), 'error'); return null; }
     stopScroll();
+    if ($('sScrollBar').classList.contains('collapsed')) { $('sScrollBar').classList.remove('collapsed'); plOpened = true; }
     let lastSeg = -1;
     playerUI = pl.mountPlayerBar($('sScrollBar'), plTl, {
       bpm: await songBpm(), partLabel: (p) => (p.name ? sectionLabel(p.name) : t('song.chordsFallback')),
