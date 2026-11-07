@@ -64,5 +64,14 @@
       "platform": "webapp",
       "url": "https://bagaljivko.github.io/Gitara/manifest.webmanifest"
     }
-  ]
+  ],
+  "share_target": {
+    "action": "./?yt-share=1",
+    "method": "GET",
+    "params": {
+      "title": "st",
+      "text": "sx",
+      "url": "su"
+    }
+  }
 }

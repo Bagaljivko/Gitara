@@ -267,6 +267,8 @@ export function songExtras(raw) {
   if (strum) out.strum = strum;
   const yt = cleanYt(raw.yt);
   if (yt) out.yt = yt;
+  const ys = cleanYtSync(raw.ytSync);
+  if (ys && yt && yt.listen && youtubeId(yt.listen) === ys.v) out.ytSync = ys; // „Uz video“: samo za povezan video
   const bpm = Math.round(Number(raw.bpm) || 0);
   if (bpm >= 40 && bpm <= 220) out.bpm = bpm;
   const tuning = cleanTuning(raw.tuning);
@@ -283,6 +285,23 @@ export function cleanYoutubeUrl(u) {
   if (host !== 'youtube.com' && host !== 'youtu.be' && host !== 'youtube-nocookie.com') return '';
   url.protocol = 'https:';
   return url.toString().slice(0, 300);
+}
+
+/** ID YouTube videa (11 znakova) iz adrese (watch?v=, youtu.be/, embed/, shorts/, live/) ili '' */
+export function youtubeId(u) {
+  const m = /(?:[?&]v=|youtu\.be\/|\/embed\/|\/shorts\/|\/live\/)([\w-]{11})(?![\w-])/.exec(String(u || ''));
+  return m ? m[1] : '';
+}
+
+/**
+ * „Uz video“: tačke usklađivanja pesme sa videom — { v: id videa, a: [[sekunda, deo pesme 0–1], …] }.
+ * Čuva se uz pesmu (rezervna kopija, sinhronizacija, deljenje); važi samo za taj video.
+ */
+export function cleanYtSync(raw) {
+  if (!raw || typeof raw !== 'object' || !/^[\w-]{11}$/.test(raw.v) || !Array.isArray(raw.a)) return null;
+  const a = raw.a.filter((p) => Array.isArray(p) && Number.isFinite(+p[0]) && Number.isFinite(+p[1]) && +p[0] >= 0 && +p[0] < 36000 && +p[1] >= 0 && +p[1] <= 1)
+    .map((p) => [Math.round(+p[0] * 10) / 10, Math.round(+p[1] * 10000) / 10000]).sort((x, y) => x[0] - y[0]).slice(0, 40);
+  return a.length ? { v: raw.v, a } : null;
 }
 
 function cleanYt(raw) {

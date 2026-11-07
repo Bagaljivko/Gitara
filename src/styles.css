@@ -1459,3 +1459,57 @@ body.stage-mode main { padding-left: max(16px, env(safe-area-inset-left)); paddi
 .tour-bar .btn { flex: 1; min-height: 48px; }
 .tour-bar .tour-next { flex: 1.4; }
 .tour-bar .tour-skip[hidden] { display: none; }
+
+/* v1.61 — „Uz video“: dugme levo od lupe (isti stil kao lupa), skroluje se sa pesmom */
+.pa-row { display: flex; align-items: center; min-height: 36px; margin: 2px 0 8px; }
+.pa-btn { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 13px 0 10px; border-radius: 999px; font: 700 .88rem var(--sans); white-space: nowrap; cursor: pointer;
+  color: var(--text); background: var(--surface-2); border: 1px solid rgba(245, 158, 11, .3); -webkit-tap-highlight-color: transparent; }
+.pa-btn svg { width: 18px; height: 18px; fill: #f59e0b; flex: none; }
+.pa-btn:active { transform: scale(.97); }
+.pa-btn.off { color: #80848c; background: rgba(24, 26, 30, .86); border: 1px dashed #3a3d44; }
+.pa-btn.off svg { fill: #5f636b; }
+
+/* Traka sa videom: zakačena gore (~96 px), pesma počinje ispod nje; sve komande u traci */
+:root { --pa-h: 96px; }
+.pa-strip { position: fixed; z-index: 45; left: 0; right: 0; top: 0; height: calc(var(--pa-h) + env(safe-area-inset-top)); padding: calc(env(safe-area-inset-top) + 6px) 10px 6px;
+  display: flex; align-items: center; gap: 10px; background: #000; border-bottom: 1px solid rgba(245, 158, 11, .28); }
+.pa-vid { position: relative; flex: none; height: 100%; aspect-ratio: 16 / 9; border-radius: 8px; overflow: hidden; background: #111; }
+.pa-vid .pa-player, .pa-vid iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.pa-touch { position: absolute; inset: 0; z-index: 2; touch-action: none; cursor: ew-resize; }
+.pa-tip { position: absolute; left: 0; right: 0; bottom: 3px; z-index: 3; text-align: center; font: 800 12px var(--sans); color: #ffcc33; text-shadow: 0 1px 3px #000; pointer-events: none; font-variant-numeric: tabular-nums; }
+.pa-ctl { flex: 1; display: flex; align-items: center; justify-content: center; gap: 14px; min-width: 0; }
+.pa-b { appearance: none; border: 0; background: none; color: #a9adb5; width: 42px; height: 42px; display: grid; place-items: center; cursor: pointer; border-radius: 50%; -webkit-tap-highlight-color: transparent; }
+.pa-b svg { width: 28px; height: 28px; fill: currentColor; }
+.pa-b svg text { fill: currentColor; }
+.pa-b:active { background: var(--surface-2); }
+.pa-b.pa-play { width: 50px; height: 50px; background: #121316; border: 1.5px solid rgba(245, 158, 11, .7); color: #ffcc33; }
+.pa-b.pa-play svg { width: 24px; height: 24px; }
+.pa-x { appearance: none; flex: none; align-self: flex-start; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: #16181c; border: 1px solid #2a2d34; cursor: pointer; }
+.pa-x svg { width: 16px; height: 16px; fill: #c9ccd2; }
+body.pa-on { padding-top: calc(var(--pa-h) + env(safe-area-inset-top)); }
+body.pa-on .song-view > .topbar, body.pa-on .scroll-bar { display: none !important; }
+body.pa-on .zoom-wrap { top: calc(var(--pa-h) + env(safe-area-inset-top) + 8px); }
+@media (max-width: 359px) { .pa-ctl { gap: 6px; } .pa-b { width: 38px; height: 38px; } }
+
+/* Položen telefon: video i dugmad u koloni skroz levo; bočni meni se skloni dok svira video (✕ ga vraća) */
+@media (orientation: landscape) and (max-height: 520px) {
+  .pa-strip { right: auto; bottom: 0; height: auto; width: 26vw; flex-direction: column; align-items: stretch; justify-content: flex-start;
+    padding: calc(env(safe-area-inset-top) + 8px) 8px 8px calc(env(safe-area-inset-left) + 8px); border-bottom: 0; border-right: 1px solid rgba(245, 158, 11, .28); }
+  .pa-vid { height: auto; width: 100%; }
+  .pa-ctl { flex: none; gap: 4px; justify-content: space-between; padding-right: 0; }
+  .pa-b { width: 38px; height: 38px; } .pa-b.pa-play { width: 46px; height: 46px; }
+  .pa-x { position: absolute; right: 10px; bottom: 10px; align-self: auto; }
+  body.pa-on { padding-top: 0; padding-left: calc(26vw + env(safe-area-inset-left) + 4px); }
+  body.pa-on .nav { display: none; }
+  body.pa-on .zoom-wrap { top: calc(env(safe-area-inset-top) + 8px); }
+}
+/* Deljenje iz YouTube-a: izbor pesme */
+.yts-sheet { max-height: 86dvh; display: flex; flex-direction: column; }
+.yts-q { margin: 4px 0 8px; }
+.yts-list { overflow-y: auto; min-height: 120px; margin: 0 -4px; }
+.yts-row { appearance: none; display: flex; flex-direction: column; align-items: flex-start; gap: 1px; width: 100%; text-align: left; padding: 10px 8px; border: 0; border-bottom: 1px solid var(--line); background: none; color: var(--text); font: 600 1rem var(--sans); cursor: pointer; }
+.yts-row span { color: var(--muted); font-size: .85rem; font-weight: 500; }
+.yts-row:active { background: var(--surface-2); }
+/* Pretraga u izboru videa (može da se promeni i ponovi) */
+.yt-search { display: flex; gap: 8px; margin: 2px 0 10px; }
+.yt-search input { flex: 1; min-width: 0; }

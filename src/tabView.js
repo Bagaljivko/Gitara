@@ -5,6 +5,7 @@
 import { t, getLang } from './i18n.js';
 import { practiceCardHTML, fillPractice } from './songPracticeCard.js';
 import { MORE_ICON, moreMenu, attachPinch, versionTipOnce, zoomPillHTML, bindZoomPill, songMenuItems } from './songChrome.js';
+import { paButtonHTML, bindPlayAlong } from './playAlong.js';
 import { useTabTexts } from './tabText.js';
 import { esc, toast, dialog } from './ui.js';
 import { songs as db, settings } from './db.js';
@@ -210,6 +211,7 @@ export async function renderTabSong(root, stored, nav, { ytRowHTML, shareSong, d
     <div id="tSug"></div>
     ${tapHintOnce() ? `<p class="small muted tab-tap">${t('play.tapHint')}</p>` : ''}
     ${zoomPillHTML()}
+    ${paButtonHTML(stored)}
     <div class="tab-staff2" id="tStaff"></div>
     <div class="scroll-bar tab-bar" id="tScrollBar">
       <button class="btn small primary" id="tPlay">${PLAY_SM} ${t('play.open')}</button>
@@ -320,10 +322,12 @@ export async function renderTabSong(root, stored, nav, { ytRowHTML, shareSong, d
   // „⋯“: veličina slova (klizač), prethodne verzije; dva prsta = uvećanje
   $('tMore').addEventListener('click', async () => {
     const v = await moreMenu('song:' + id, songMenuItems(stored));
-    if (v && /^(listen|tutorial)/.test(v)) { (await import('./ytPick.js')).ytAction(v.split(':')[0], stored, save, { change: v.endsWith(':change') }); return; }
+    if (v && /^(listen|tutorial)/.test(v)) { (await import('./ytPick.js')).ytAction(v.split(':')[0], stored, save, { change: v.endsWith(':change') }).then(() => pa.refresh()); return; }
     if (v === 'edit') location.hash = '#/uredi/' + encodeURIComponent(id);
   });
   bindZoomPill(root, { get: () => zoom, apply: (z) => { zoom = z; drawTab(); }, save: () => setZoom(zoom), min: 0.8, max: 1.6 });
+  // „Uz video“: tablatura prati YouTube video
+  const pa = bindPlayAlong({ root, stored, save, content: () => $('tStaff') });
   attachPinch($('tStaff'), { get: () => zoom, set: setZoom, min: 0.8, max: 1.6 });
   versionTipOnce('song:' + id);
 

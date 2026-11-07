@@ -3,6 +3,7 @@ const loadEditor = () => import('./songEditor.js');
 import { sectionLabel } from './sectionLabel.js';
 import { practiceCardHTML, fillPractice } from './songPracticeCard.js';
 import { MORE_ICON, moreMenu, attachPinch, versionTipOnce, openPanel, zoomPillHTML, bindZoomPill, songMenuItems } from './songChrome.js';
+import { paButtonHTML, bindPlayAlong } from './playAlong.js';
 import { songs as db } from './db.js';
 import { esc, toast, dialog, confirmDialog, pickFile, closeXHTML } from './ui.js';
 import { chordSVG, voicingCount, shapeNavHTML, onShapeSwipe } from './diagram.js';
@@ -822,6 +823,7 @@ export async function renderSong(root, id, nav = null) {
       <div id="sControls"></div>
       <details class="song-details" id="sDet"><summary><span>${t('song.details')}</span><span class="small muted" id="sDetSub"></span></summary><div id="sDetBody"></div></details>
       ${zoomPillHTML()}
+      ${paButtonHTML(stored)}
       <div class="lyrics" id="sLyrics" style="--zoom:${zoom}"></div>
     </div>
     <div class="scroll-bar" id="sScrollBar">
@@ -1480,12 +1482,14 @@ export async function renderSong(root, id, nav = null) {
       { value: 'easy', label: t('sug.easyBtn'), sub: easyActive() ? t('song.easyOnSub') : t('song.easySub'), icon: 'easy', on: easyActive() },
       { value: 'details', label: t('song.detailsMenu'), sub: t('song.detailsSub'), icon: 'details' },
     ]));
-    if (v && /^(listen|tutorial)/.test(v)) { (await import('./ytPick.js')).ytAction(v.split(':')[0], stored, save, { change: v.endsWith(':change') }); return; }
+    if (v && /^(listen|tutorial)/.test(v)) { (await import('./ytPick.js')).ytAction(v.split(':')[0], stored, save, { change: v.endsWith(':change') }).then(() => pa.refresh()); return; }
     if (v === 'edit') { location.hash = '#/uredi/' + encodeURIComponent(id); return; }
     if (v === 'easy') { await toggleEasy(); return; }
     if (v === 'details') { openPanel($('sDet'), t('song.detailsMenu')); }
   });
   bindZoomPill(root, { get: () => zoom, apply: (z) => setZoom(z), save: () => saveZoom(), min: 0.8, max: 1.8 });
+  // „Uz video“: pesma prati YouTube video (automatsko listanje, petlja i „Pusti“ staju)
+  const pa = bindPlayAlong({ root, stored, save, content: () => $('sLyrics'), beforeStart: () => { stopScroll(); if (loopSec >= 0) $('sLoopStop')?.click(); loopMet?.stop(); } });
   attachPinch($('sLyrics'), { get: () => zoom, set: async (z) => { await setZoom(z); await saveZoom(); }, min: 0.8, max: 1.8 });
   $('sAaRange').addEventListener('input', (e) => setZoom(+e.target.value / 100));
   $('sAaRange').addEventListener('change', () => saveZoom());

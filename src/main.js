@@ -273,8 +273,12 @@ applyStaticText();
 // Jezik iz IndexedDB (npr. posle vraćanja iz rezervne kopije) ima prednost.
 settings.get('lang', null).then((v) => { if (v && v !== getLang()) setLang(v, { save: false }); }).catch(() => {});
 
+// Podeljeno iz YouTube aplikacije (Android, „Podeli“ → Gitara): izbor pesme uz koju ide video
+const ytShare = (() => { try { const p = new URLSearchParams(location.search); return p.get('yt-share') ? p : null; } catch { return null; } })();
+if (ytShare) { history.replaceState(null, '', location.pathname + '#/pesme'); }
 route();
-if (FIRST_RUN && !hasSharedSong()) setTimeout(() => import('./tour.js').then((m) => { if (!m.tourSeen()) m.startTour(); }).catch(() => {}), 600);
+if (ytShare) import('./ytShare.js').then((m) => m.linkShared(ytShare)).catch(() => {});
+if (FIRST_RUN && !hasSharedSong() && !ytShare) setTimeout(() => import('./tour.js').then((m) => { if (!m.tourSeen()) m.startTour(); }).catch(() => {}), 600);
 // Drive (automatska rezervna kopija) se učitava malo kasnije, kad se prvi ekran već prikaže.
 const idle = window.requestIdleCallback || ((f) => setTimeout(f, 1200));
 // Jednokratna konverzija postojećih pesama u novi zapis akorda (original ostaje netaknut)

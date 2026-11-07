@@ -17,7 +17,7 @@ const unpackTab = (o) => ({ sig: o && o.g, key: o && o.k, bars: (o && Array.isAr
 function pack(song) {
   if (song.type === 'tab') {
     const ex = songExtras(song);
-    return { v: 1, ty: 't', t: song.title, a: song.artist || undefined, k: song.key || undefined, y: ex.yt, b: ex.bpm, tb: packTab(song.tab) };
+    return { v: 1, ty: 't', t: song.title, a: song.artist || undefined, k: song.key || undefined, y: ex.yt, ys: ex.ytSync, b: ex.bpm, tb: packTab(song.tab) };
   }
   const ex = songExtras(song);
   const o = { v: 1, t: song.title, a: song.artist || undefined, k: song.key || undefined, s: song.sections.map((sec) => {
@@ -30,6 +30,7 @@ function pack(song) {
   if (ex.capo) o.c = ex.capo;
   if (ex.strum) o.p = ex.strum;
   if (ex.yt) o.y = ex.yt;
+  if (ex.ytSync) o.ys = ex.ytSync; // „Uz video“: usklađivanje putuje sa pesmom
   if (ex.tuning) o.u = ex.tuning;
   if (ex.bpm) o.b = ex.bpm;
   if (song.transpose) o.tr = song.transpose;
@@ -40,10 +41,10 @@ function pack(song) {
 }
 
 function unpack(o) {
-  if (o && o.v === 1 && o.ty === 't') return normalizeSong({ type: 'tab', title: o.t, artist: o.a, key: o.k, yt: o.y, bpm: o.b, tab: unpackTab(o.tb) });
+  if (o && o.v === 1 && o.ty === 't') return normalizeSong({ type: 'tab', title: o.t, artist: o.a, key: o.k, yt: o.y, ytSync: o.ys, bpm: o.b, tab: unpackTab(o.tb) });
   if (!o || o.v !== 1 || !Array.isArray(o.s)) throw new SongFormatError(t('link.bad'));
   const song = normalizeSong({
-    title: o.t, artist: o.a, key: o.k, capo: o.c, strum: o.p, yt: o.y, tuning: o.u, bpm: o.b, transpose: o.tr,
+    title: o.t, artist: o.a, key: o.k, capo: o.c, strum: o.p, yt: o.y, ytSync: o.ys, tuning: o.u, bpm: o.b, transpose: o.tr,
     sections: o.s.map((x) => ({
       name: x.n || '',
       strum: x.p,
