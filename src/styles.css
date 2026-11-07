@@ -1571,7 +1571,7 @@ button.cs-v { appearance: none; border: 0; background: none; padding: 4px 2px; c
 .pa-strip.pa-admode .pa-vid { flex-basis: 356px; }
 .pa-strip.pa-admode .pa-ctl > .pa-b { opacity: .15; filter: grayscale(1); pointer-events: none; }
 .pa-strip.pa-admode .pa-x { order: 2; align-self: center; }
-.pa-adbig { position: absolute; inset: 2px 0; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 0 10px; border-radius: 14px; text-align: center;
+.pa-adbig { appearance: none; cursor: pointer; width: 100%; position: absolute; inset: 2px 0; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 0 10px; border-radius: 14px; text-align: center;
   border: 1.5px solid rgba(245, 158, 11, .6); background: linear-gradient(rgba(245, 158, 11, .12), rgba(245, 158, 11, .12)), #0b0b0d; color: #ffcc33; font: 800 15px var(--sans); }
 .pa-adbig[hidden] { display: none; }
 .pa-adbig span { color: #eceef2; font-weight: 600; font-size: 13px; }

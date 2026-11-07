@@ -122,7 +122,7 @@ function openStrip({ stored, save, content, beforeStart, relink }) {
       <button class="pa-b" data-pa="back" type="button" aria-label="${esc(t('pa.back10'))}">${svg('back')}</button>
       <button class="pa-b pa-play" data-pa="play" type="button" aria-label="${esc(t('pa.play'))}">${svg('play')}</button>
       <button class="pa-b" data-pa="fwd" type="button" aria-label="${esc(t('pa.fwd10'))}">${svg('fwd')}</button>
-      <div class="pa-adbig" hidden role="status"><b>${esc(t('pa.adTitle'))}</b><span>${esc(t('pa.ad'))}</span></div>
+      <button class="pa-adbig" data-pa="adplay" type="button" hidden><b>${esc(t('pa.adTitle'))}</b><span>${esc(t('pa.ad'))}</span></button>
     </div>
     <button class="pa-x" data-pa="close" type="button" aria-label="${esc(t('pa.close'))}">${svg('x')}</button>`;
   const q = (s) => el.querySelector(s);
@@ -159,23 +159,22 @@ function openStrip({ stored, save, content, beforeStart, relink }) {
   const fNow = () => { const g = geo(); return g ? (window.scrollY + g.line - g.docTop) / g.h : 0; };
   const yFor = (f) => { const g = geo(); return g ? g.docTop + f * g.h - g.line : window.scrollY; };
 
-  // Reklama: YouTube javlja „svira“, a vreme pesme stoji → traka se privremeno poveća i naš sloj za prevlačenje se
-  // skloni, da se može dodirnuti YouTube-ovo „Preskoči“. Kad vreme krene, sve se vraća.
-  let adRaw = -1, adSince = 0, adMode = false;
+  // Reklama: video je pokrenut (wantPlay), a pesma ne ide — YouTube tokom reklame javlja „ne svira“ (ili „svira“ uz
+  // vreme koje stoji; viđeno na telefonu v1.63). Posle ~1,5 s traka se poveća, naš sloj za prevlačenje se skloni
+  // (YouTube-ovo „Preskoči“ i ostalo se dodiruje direktno), komande posive. Kad vreme pesme krene, sve se vraća.
+  let adRaw = -1, adSince = 0, adMode = false, wantPlay = true;
   function adCheck() {
-    const raw = player.getCurrentTime() || 0, n = performance.now();
-    if (!playing || raw !== adRaw) {
-      adRaw = raw; adSince = n;
-      if (adMode && playing) setAd(false);
-      return;
-    }
-    if (!adMode && n - adSince > 1800) setAd(true);
+    const raw = player.getCurrentTime() || 0, n = performance.now(), st = player.getPlayerState();
+    if (!wantPlay || st === 0) { adSince = n; adRaw = raw; if (adMode) setAd(false); return; } // pauzirao korisnik / kraj
+    if (st === 1 && raw !== adRaw) { adRaw = raw; adSince = n; if (adMode) setAd(false); return; } // pesma ide
+    if (!adMode && n - adSince > 1500) setAd(true);
   }
   function setAd(on) {
     adMode = on;
     el.classList.toggle('pa-admode', on);
     q('.pa-adbig').hidden = !on;
-    paLog(on ? 'reklama?' : 'reklama gotova', { sek: Math.round(now() * 10) / 10 });
+    let st = '?'; try { st = STATES[player.getPlayerState()] ?? player.getPlayerState(); } catch {}
+    paLog(on ? 'reklama?' : 'reklama gotova', { sek: Math.round(now() * 10) / 10, s: st });
   }
   function tick() {
     raf = requestAnimationFrame(tick);
@@ -216,7 +215,8 @@ function openStrip({ stored, save, content, beforeStart, relink }) {
     const k = b.dataset.pa;
     if (k === 'close') { close(); return; }
     if (!ready) return;
-    if (k === 'play') { if (playing) player.pauseVideo(); else player.playVideo(); }
+    if (k === 'play') { if (playing) { wantPlay = false; player.pauseVideo(); } else { wantPlay = true; player.playVideo(); } }
+    if (k === 'adplay') { wantPlay = true; player.playVideo(); } // ako telefon nije dao da video sam krene — dodir na natpis ga pokreće
     if (k === 'back' || k === 'fwd') seek(now() + (k === 'back' ? -10 : 10));
   });
   function seek(s) { s = Math.max(0, Math.min(dur ? dur - 0.5 : s, s)); player.seekTo(s, true); lastRead = -1; lastT = s; lastWall = performance.now(); }
@@ -239,7 +239,7 @@ function openStrip({ stored, save, content, beforeStart, relink }) {
   const endDrag = () => {
     if (!drag) return;
     if (drag.moved) { if (drag.target != null) seek(drag.target); }
-    else if (playing) player.pauseVideo(); else player.playVideo();
+    else if (playing) { wantPlay = false; player.pauseVideo(); } else { wantPlay = true; player.playVideo(); }
     drag = null; tip.textContent = '';
   };
   touch.addEventListener('pointerup', endDrag);
