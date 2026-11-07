@@ -21,11 +21,21 @@ export function practiceCardHTML(id, kind, { compact = false } = {}) {
     <svg class="sp-go" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.6 7.4 10 6l6 6-6 6-1.4-1.4L13.2 12z"/></svg>
   </a>`;
 }
+// Ikonica igre „Delovi pesme“ (list sa tekstom i notom) — ista kao u Vežbama
+const GAME_ICON = '<svg class="sp-line-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3" width="12.5" height="18" rx="2"/><path d="M6.5 8h6.5M6.5 11.5h6.5M6.5 15h3.5"/><path d="M20.5 8.5v9"/><circle cx="18.6" cy="17.6" r="2" class="f"/></svg>';
+
+/** v1.62: jedan tanak red ispod izvođača (umesto velike kartice): ikonica igre, „Vežbaj“, zvezdice i „2 od 4 dela“. */
+export function practiceLineHTML(id) {
+  return `<a class="sp-line" href="#/vezbe/pesma/${encodeURIComponent(id)}" aria-label="${esc(t('sp.title'))}">${GAME_ICON}<b>${t('sp.short')}</b><span class="sp-meta"></span>
+    <svg class="sp-go" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.6 7.4 10 6l6 6-6 6-1.4-1.4L13.2 12z"/></svg></a>`;
+}
 /** Napredak: { good, total, played } → zvezdice i „2 od 4 dela“; bez vežbanja ostaje NOVO. */
 export function fillPractice(card, { good = 0, total = 0, played = false, done = false } = {}) {
   const m = card && card.querySelector('.sp-meta');
   if (!m || !played || !total) return;
   const p = done ? 1 : Math.min(1, good / total);
   const n = p >= 1 ? 3 : p >= 0.5 ? 2 : p > 0 ? 1 : 0;
-  m.innerHTML = `${stars(n)}<b class="sp-num">${esc(t('sp.parts', { n: Math.min(good, total), total }))}</b>`;
+  // „od 1–4 dela“ / „od 5 delova“ (posle „od“: dela za 1–4, osim 11–14)
+  const few = total % 10 >= 1 && total % 10 <= 4 && !(total % 100 >= 11 && total % 100 <= 14);
+  m.innerHTML = `${stars(n)}<b class="sp-num">${esc(t(few ? 'sp.partsFew' : 'sp.parts', { n: Math.min(good, total), total }))}</b>`;
 }

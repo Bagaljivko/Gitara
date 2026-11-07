@@ -39,5 +39,12 @@ export async function buildReport() {
   const log = diagLog();
   L.push('', log.length ? `${w.logged} (${log.length}):` : w.none);
   for (const e of log) L.push(`  ${iso(e.t)}  ${e.k}${e.ms ? ' ' + e.ms + ' ms' : ''}${e.h ? ' ' + e.h : ''}${e.s ? ' @' + e.s : ''}${e.m ? '\n    ' + String(e.m).replace(/\n/g, '\n    ') : ''}`);
+  // „Uz video“ (YouTube): poslednji događaji plejera — šta je YouTube javio (kod greške, stanje, reklama)
+  let pa = [];
+  try { pa = JSON.parse(localStorage.getItem('gitara-pa-log') || '[]'); } catch {}
+  if (pa.length) {
+    L.push('', `Uz video (${pa.length}):`);
+    for (const x of pa.slice(-40)) { const { t: tt, e, ...rest } = x; L.push(`  ${iso(tt)}  ${e}${Object.keys(rest).length ? '  ' + Object.entries(rest).map(([k, v]) => `${k}=${v}`).join(' ') : ''}`); }
+  }
   return L.join('\n');
 }

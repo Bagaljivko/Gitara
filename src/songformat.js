@@ -318,7 +318,7 @@ export function cleanYtFound(raw) {
   for (const k of ['listen', 'tutorial']) {
     const e = raw[k];
     if (!e || typeof e !== 'object' || typeof e.q !== 'string' || !Array.isArray(e.v)) continue;
-    out[k] = { q: e.q.slice(0, 300), v: e.v.filter((x) => x && /^[\w-]{6,20}$/.test(x.id)).slice(0, 5).map((x) => ({ id: x.id, t: String(x.t || '').slice(0, 200), c: String(x.c || '').slice(0, 100), d: String(x.d || '').slice(0, 12) })) };
+    out[k] = { q: e.q.slice(0, 300), ...(e.e ? { e: 1 } : {}), v: e.v.filter((x) => x && /^[\w-]{6,20}$/.test(x.id)).slice(0, 5).map((x) => ({ id: x.id, t: String(x.t || '').slice(0, 200), c: String(x.c || '').slice(0, 100), d: String(x.d || '').slice(0, 12) })) };
   }
   return Object.keys(out).length ? out : null;
 }

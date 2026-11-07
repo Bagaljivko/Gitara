@@ -24,7 +24,7 @@ const FOLDER_NAME = 'Gitara';
 const BACKUP_NAME = 'gitara-backup.json';
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
 const BACKUP_DELAY = 4000; // ms posle izmene
-const BACKUP_SETTINGS = ['a4', 'geminiModel', 'geminiModelSel', 'lang', 'metBpm', 'folders', 'setlists', 'tunerRoom', 'tuning', 'wakeMode', 'wakeMinutes', 'noteNames', 'practice', 'freeplayRecs', 'skale', 'myRhythms']; // Gemini ključ se NIKAD ne šalje na Drive
+const BACKUP_SETTINGS = ['a4', 'geminiModel', 'geminiModelSel', 'lang', 'metBpm', 'folders', 'setlists', 'tunerRoom', 'tuning', 'wakeMode', 'wakeMinutes', 'noteNames', 'practice', 'freeplayRecs', 'skale', 'myRhythms', 'strumSuggest']; // Gemini ključ se NIKAD ne šalje na Drive
 
 export class DriveError extends Error {
   constructor(message, code = '') { super(message); this.code = code; }
@@ -423,6 +423,7 @@ async function parseBackup(f) {
     if (['songs', 'active', 'never'].includes(data.settings.wakeMode)) st.wakeMode = data.settings.wakeMode;
     if (['auto', 'sr', 'en'].includes(data.settings.noteNames)) st.noteNames = data.settings.noteNames;
     if ([5, 10, 20].includes(Number(data.settings.wakeMinutes))) st.wakeMinutes = Number(data.settings.wakeMinutes);
+    if (typeof data.settings.strumSuggest === 'boolean') st.strumSuggest = data.settings.strumSuggest; // Pesme → „Predlaži ritam“
     if (Array.isArray(data.settings.myRhythms)) { // „Moji ritmovi“ (sopstveni obrasci udaranja)
       const mr = data.settings.myRhythms.map((x) => { const c = x && cleanPattern(x); return c && typeof x.id === 'string' ? { id: x.id.slice(0, 40), name: c.name || '', sig: c.sig, steps: c.steps, ...(c.swing ? { swing: true } : {}) } : null; }).filter(Boolean).slice(-60);
       if (mr.length) st.myRhythms = mr;

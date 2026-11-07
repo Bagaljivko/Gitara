@@ -24,6 +24,7 @@ export async function renderSettings(root) {
   const tset = await loadTunerSettings();
   const wakeMode = WAKE_MODES.includes(await settings.get('wakeMode', 'songs')) ? await settings.get('wakeMode', 'songs') : 'songs';
   const wakeMin = WAKE_MINUTES.includes(Number(await settings.get('wakeMinutes', 10))) ? Number(await settings.get('wakeMinutes', 10)) : 10;
+  const strumOn = (await settings.get('strumSuggest', true)) !== false;
   root.innerHTML = `
   <section class="view settings-view">
     <header class="view-head"><h1>${t('set.title')}</h1>
@@ -41,6 +42,11 @@ export async function renderSettings(root) {
       <div class="wake-opts" role="radiogroup" aria-label="${t('nn.title')}">
         ${NOTE_NAMES.map((v) => `<button role="radio" class="wake-opt${noteNamesPref() === v ? ' active' : ''}" data-nn="${v}" aria-checked="${noteNamesPref() === v}"><b>${t('nn.' + v)}</b><span class="small muted">${t('nn.note_' + v)}</span></button>`).join('')}
       </div>
+    </div>
+
+    <div class="card" id="songsSetCard">
+      <h2>${t('set.songsTitle')}</h2>
+      <label class="switch set-switch"><input type="checkbox" id="strumSuggestSw"${strumOn ? ' checked' : ''}><span class="switch-track"><span class="switch-thumb"></span></span><span><b>${t('set.strumSuggest')}</b><small class="muted">${t('set.strumSuggestHint')}</small></span></label>
     </div>
 
     <div class="card">
@@ -153,6 +159,8 @@ export async function renderSettings(root) {
 
   // Skriveno: 5 dodira na verziju → dnevnik slušanja za Vežbe (šta igre čuju za svaku metu)
   let verTaps = 0, verT = 0;
+  // Pesme → „Predlaži ritam“ (isto se isključuje i preko „Ne predlaži više“ na samom predlogu)
+  $('strumSuggestSw').addEventListener('change', (e) => settings.set('strumSuggest', e.target.checked));
   $('aboutVer').addEventListener('click', async () => {
     verTaps++; clearTimeout(verT); verT = setTimeout(() => (verTaps = 0), 1500);
     if (verTaps < 5) return;
@@ -171,7 +179,7 @@ export async function renderSettings(root) {
   // Svaka celina podešavanja se otvara/zatvara dodirom na naslov; pamti se šta je otvoreno
   const openSet = (() => { try { return new Set(JSON.parse(localStorage.getItem('gitara-set-open') || '["lang"]')); } catch { return new Set(['lang']); } })();
   const saveOpen = () => { try { localStorage.setItem('gitara-set-open', JSON.stringify([...openSet])); } catch {} };
-  const groups = [['lang', 0], ['scan', 1], ['tuner', 2], ['screen', 3], ['drive', 4], ['shared', 5], ['file', 6], ['install', 7], ['diag', 8]];
+  const groups = [['lang', 0], ['songs', 1], ['scan', 2], ['tuner', 3], ['screen', 4], ['drive', 5], ['shared', 6], ['file', 7], ['install', 8], ['diag', 9]];
   const cards = [...root.querySelectorAll('.settings-view > .card')];
   groups.forEach(([key, idx]) => {
     const card = cards[idx];

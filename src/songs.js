@@ -1,7 +1,7 @@
 // Tab "Pesme": biblioteka, prikaz pesme, deljenje i uvoz. Editor i skeniranje su u songEditor.js (učitava se po potrebi).
 const loadEditor = () => import('./songEditor.js');
 import { sectionLabel } from './sectionLabel.js';
-import { practiceCardHTML, fillPractice } from './songPracticeCard.js';
+import { practiceLineHTML, fillPractice } from './songPracticeCard.js';
 import { MORE_ICON, moreMenu, attachPinch, versionTipOnce, openPanel, zoomPillHTML, bindZoomPill, songMenuItems } from './songChrome.js';
 import { paButtonHTML, bindPlayAlong } from './playAlong.js';
 import { songs as db } from './db.js';
@@ -791,6 +791,7 @@ export async function renderSong(root, id, nav = null) {
   let capo = stored.capo || 0;
   let zoom = Number(stored.zoom) || (Number(localStorageGet('gitara-font')) || 1);
   let speed = stored.scrollSpeed || 4;
+  let strumOn = (await settings.get('strumSuggest', true)) !== false; // predlozi ritma (Podešavanja → Pesme → „Predlaži ritam“)
   let loopSec = -1, loopMet = null, loopBpm = 90; // vežbanje jedne sekcije
   // Tempo pesme: sačuvan uz pesmu (ili, ako ga nema, opšti tempo metronoma)
   const songBpm = async () => Number(stored.bpm) || Number(await settings.get('metBpm', 90)) || 90;
@@ -817,7 +818,7 @@ export async function renderSong(root, id, nav = null) {
     </div>
     <div id="sBody">
       <div id="sHead"></div>
-      ${stored.recording ? '' : practiceCardHTML(id, 'chords', { compact: true })}
+      ${stored.recording ? '' : practiceLineHTML(id)}
       <div id="sAsk"></div>
       <div id="sSuggest"></div>
       <div id="sControls"></div>
@@ -888,7 +889,7 @@ export async function renderSong(root, id, nav = null) {
   // napredak vežbanja ove pesme na kartici „Vežbaj ovu pesmu“: koliko delova je dobro uvežbano (najbolje ≥ 80)
   const drawPracticeMark = () => settings.get('practice', null).then((st) => {
     const rec = st && st.songs && st.songs[stored.id];
-    const card = root.querySelector('.sp-card');
+    const card = root.querySelector('.sp-line');
     if (!rec || !card || !Object.keys(rec).length) return;
     const seen = new Set();
     const total = (stored.sections || []).filter((sec) => {
@@ -904,35 +905,26 @@ export async function renderSong(root, id, nav = null) {
   const drawControls = () => {
     const key = soundingKey();
     const shapesKey = capo ? keyAt(tp - capo) : '';
-    $('sControls').innerHTML = `<div class="ctl-row">
-      <div class="ctl ctl-key" role="group" aria-label="${t('song.key')}">
-        <span class="ctl-label">${t('song.key').replace(/:$/, '')}${tp ? ` <span class="ctl-delta">${tp > 0 ? '+' + tp : '−' + Math.abs(tp)}</span>` : ''}</span>
-        <div class="ctl-step">
-          <button class="btn round small" id="tDown" aria-label="${t('song.transposeDown')}">−</button>
-          <button class="key-btn" id="kOpen" aria-haspopup="dialog" aria-label="${esc(t('kw.open', { k: dn(key) || '?' }))}"><b>${esc(dn(key) || '–')}</b></button>
-          <button class="btn round small" id="tUp" aria-label="${t('song.transposeUp')}">+</button>
-        </div>
-        ${tp ? `<button class="ctl-link" id="tReset">${t('song.original')}</button>` : ''}
+    // v1.62: jedan tanak red — TON − G + | KAPO − bez + | − 90 BPM + (dodir na tonalitet otvara točak tonaliteta)
+    $('sControls').innerHTML = `<div class="ctl-slim">
+      <div class="cs-cell cs-key" role="group" aria-label="${t('song.key')}">
+        ${tp ? `<button class="cs-lab cs-reset" id="tReset" title="${esc(t('song.original'))}" aria-label="${esc(t('song.original'))}">↺ ${tp > 0 ? '+' + tp : '−' + Math.abs(tp)}</button>` : `<span class="cs-lab">${t('ctl.keyShort')}</span>`}
+        <button class="cs-b" id="tDown" aria-label="${t('song.transposeDown')}">−</button>
+        <button class="cs-v cs-k" id="kOpen" aria-haspopup="dialog" aria-label="${esc(t('kw.open', { k: dn(key) || '?' }))}">${esc(dn(key) || '–')}</button>
+        <button class="cs-b" id="tUp" aria-label="${t('song.transposeUp')}">+</button>
       </div>
-      <div class="ctl" role="group" aria-label="${t('capo.title')}">
-        <span class="ctl-label">${t('capo.title')}</span>
-        <div class="ctl-step">
-          <button class="btn round small" id="cDown" aria-label="${t('capo.down')}">−</button>
-          <b class="ctl-val">${capo || t('capo.none')}</b>
-          <button class="btn round small" id="cUp" aria-label="${t('capo.up')}">+</button>
-        </div>
-        ${capo && shapesKey ? `<span class="ctl-sub">${esc(t('capo.shapesShort', { k: dn(shapesKey) }))}</span>` : ''}
+      <div class="cs-cell" role="group" aria-label="${t('capo.title')}">
+        <span class="cs-lab">${t('ctl.capoShort')}</span>
+        <button class="cs-b" id="cDown" aria-label="${t('capo.down')}">−</button>
+        <b class="cs-v">${capo || t('capo.none')}</b>
+        <button class="cs-b" id="cUp" aria-label="${t('capo.up')}">+</button>
       </div>
-      <div class="ctl" role="group" aria-label="${t('song.tempo')}">
-        <span class="ctl-label">${t('song.tempo')}</span>
-        <div class="ctl-step">
-          <button class="btn round small" id="sTempoDown" aria-label="${t('loop.slower')}">−</button>
-          <b class="ctl-val" id="sTempo">${Number(stored.bpm) || '…'}</b>
-          <button class="btn round small" id="sTempoUp" aria-label="${t('loop.faster')}">+</button>
-        </div>
-        <span class="ctl-sub">BPM</span>
+      <div class="cs-cell" role="group" aria-label="${t('song.tempo')}">
+        <button class="cs-b" id="sTempoDown" aria-label="${t('loop.slower')}">−</button>
+        <b class="cs-v" id="sTempo">${Number(stored.bpm) || '…'}</b><span class="cs-unit">BPM</span>
+        <button class="cs-b" id="sTempoUp" aria-label="${t('loop.faster')}">+</button>
       </div>
-    </div>`;
+    </div>${capo && shapesKey ? `<p class="cs-note">${esc(t('capo.shapesShort', { k: dn(shapesKey) }))}</p>` : ''}`;
     if (!Number(stored.bpm)) songBpm().then((b) => { if ($('sTempo')) $('sTempo').textContent = b; });
     syncEasyTop();
   };
@@ -1009,7 +1001,7 @@ export async function renderSong(root, id, nav = null) {
           <button class="btn small" data-unc-skip="${i}">${t('sug.keep')}</button><button class="btn small primary" data-unc-apply="${i}">${esc(t('sug.changeTo', { x: x.suggestion }))}</button></div>`).join('')}` });
     }
     // lakša verzija (kapodaster): samo dugme „Lakša verzija“ gore — kartica je bila dupliran predlog iznad teksta
-    if (!stored.recording && !hasStrum() && !(stored.skipped && stored.skipped.strum)) { // snimci iz „Samo sviraj“: bez predloga ritma
+    if (strumOn && !stored.recording && !hasStrum() && !(stored.skipped && stored.skipped.strum)) { // snimci iz „Samo sviraj“: bez predloga ritma
       const ss = stored.suggestStrum && patternById(stored.suggestStrum.id);
       if (ss) items.push({ x: 'strum-skip', mini: ss, html: `<div class="sug-title">${t('sug.strumTitle')}: ${esc(patternName(ss))} <span class="small muted">${ss.sig}</span>
           <button class="icon-btn pat-play" data-sug="strum-play" aria-label="${t('pat.play')}"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button></div>
@@ -1024,10 +1016,11 @@ export async function renderSong(root, id, nav = null) {
       // Predlog ritma: jedan red (naziv, ▶, Primeni, ✕) — tekst pesme ostaje na prvom ekranu; obrazac i obrazloženje na dodir
       const ss = it.mini;
       const X = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z"/></svg>';
-      return `<div class="card sug-card sug-mini"><div class="sug-mini-row">
-        <button class="sug-mini-main" data-sug="strum-more" aria-expanded="false"><span class="sug-mini-k">${t('sug.strumTitle')}</span><b>${esc(patternName(ss))}</b> <span class="small muted">${ss.sig}</span><svg class="sug-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.4 8.6 12 13.2l4.6-4.6L18 10l-6 6-6-6z"/></svg></button>
+      // v1.62: tanak red — RITAM naziv ▶ Primeni ✕ (obrazac i obrazloženje na dodir naziva)
+      return `<div class="sug-card sug-mini sug-slim"><div class="sug-mini-row">
+        <button class="sug-mini-main" data-sug="strum-more" aria-expanded="false"><span class="sug-mini-k">${t('sug.strumShort')}</span><b>${esc(patternName(ss))}</b></button>
         <button class="icon-btn pat-play" data-sug="strum-play" aria-label="${t('pat.play')}"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
-        <button class="btn small primary" data-sug="strum-apply">${t('sug.apply')}</button>
+        <button class="sug-apply" data-sug="strum-apply">${t('sug.apply')}</button>
         <button class="icon-btn sug-x" data-sug="strum-skip" aria-label="${t('sug.dismiss')}" title="${t('sug.dismiss')}">${X}</button></div>
         <div class="sug-mini-body" hidden>${patternHTML(ss, { compact: true })}${stored.suggestStrum.reason ? `<p class="small muted">${esc(stored.suggestStrum.reason)}</p>` : ''}</div></div>`;
     }
@@ -1039,6 +1032,8 @@ export async function renderSong(root, id, nav = null) {
 
   async function loadStrumSuggestion() {
     if (stored.recording || hasStrum() || stored.suggestStrum || (stored.skipped && stored.skipped.strum) || strumLoading) return;
+    strumOn = (await settings.get('strumSuggest', true)) !== false; // Podešavanja → Pesme → „Predlaži ritam“ (isključeno: ni Gemini se ne pita)
+    if (!strumOn) { drawSuggest(); return; }
     strumLoading = true;
     drawSuggest();
     let res = null;
@@ -1420,7 +1415,12 @@ export async function renderSong(root, id, nav = null) {
       const a = sg.dataset.sug;
       stored.skipped = stored.skipped || {};
       if (a === 'unc-hide') { uncHidden = true; return drawSuggest(); }
-      if (a === 'strum-skip') { stopStrum(); stored.skipped.strum = true; return save().then(drawSuggest); }
+      if (a === 'strum-skip') {
+        stopStrum(); stored.skipped.strum = true;
+        // odmah tu: „Ne predlaži više“ = isključi predloge ritma za sve pesme (vraća se u Podešavanjima → Pesme)
+        toast(t('sug.strumHidden'), '', { label: t('sug.noMore'), onClick: async () => { await settings.set('strumSuggest', false); strumOn = false; toast(t('sug.noMoreDone')); } });
+        return save().then(drawSuggest);
+      }
       if (a === 'strum-apply') {
         stopStrum();
         const p = patternById(stored.suggestStrum && stored.suggestStrum.id);

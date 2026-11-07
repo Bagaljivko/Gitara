@@ -4,7 +4,7 @@
 // dalje istim ritmom; od dve tačke na dalje brzina se računa između njih. Tačke se čuvaju uz pesmu (ytSync).
 // Prevlačenje prstom preko videa levo-desno premotava (cela širina videa ≈ 60 s), dodir = pauza/pusti.
 import { t } from './i18n.js';
-import { esc, toast } from './ui.js';
+import { esc, toast, dialog } from './ui.js';
 import { keepAwake, allowSleep } from './wakelock.js';
 import { youtubeId } from './songformat.js';
 
@@ -44,6 +44,12 @@ export function addAnchor(list, time, f) {
   while (out.length > 40) out.splice(out.length > 2 ? 1 : 0, 1); // najstarije u sredini ne treba toliko
   return out;
 }
+// Dijagnostika „Uz video“ (samo na uređaju): šta je YouTube javio — za slanje kad nešto ne radi
+const PLK = 'gitara-pa-log';
+export function paLog(e, extra = {}) {
+  try { const a = JSON.parse(localStorage.getItem(PLK) || '[]'); a.push({ ...extra, t: Date.now(), e }); localStorage.setItem(PLK, JSON.stringify(a.slice(-80))); } catch {}
+}
+const STATES = { '-1': 'nije počeo', 0: 'kraj', 1: 'svira', 2: 'pauza', 3: 'učitava', 5: 'spreman' };
 const fromStore = (ys, id) => (ys && ys.v === id && Array.isArray(ys.a) ? ys.a.map(([t, f]) => ({ t, f })) : []);
 const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
@@ -111,10 +117,12 @@ function openStrip({ stored, save, content, beforeStart, relink }) {
   el.setAttribute('role', 'region');
   el.setAttribute('aria-label', t('pa.btn'));
   el.innerHTML = `<div class="pa-vid"><div class="pa-player"></div><div class="pa-touch" aria-hidden="true"></div><div class="pa-tip"></div></div>
+
     <div class="pa-ctl">
       <button class="pa-b" data-pa="back" type="button" aria-label="${esc(t('pa.back10'))}">${svg('back')}</button>
       <button class="pa-b pa-play" data-pa="play" type="button" aria-label="${esc(t('pa.play'))}">${svg('play')}</button>
       <button class="pa-b" data-pa="fwd" type="button" aria-label="${esc(t('pa.fwd10'))}">${svg('fwd')}</button>
+      <div class="pa-adbig" hidden role="status"><b>${esc(t('pa.adTitle'))}</b><span>${esc(t('pa.ad'))}</span></div>
     </div>
     <button class="pa-x" data-pa="close" type="button" aria-label="${esc(t('pa.close'))}">${svg('x')}</button>`;
   const q = (s) => el.querySelector(s);
@@ -122,6 +130,8 @@ function openStrip({ stored, save, content, beforeStart, relink }) {
   const keepPlace = (fn) => { const c = content(); const before = c ? c.getBoundingClientRect().top : 0; fn(); const after = c ? c.getBoundingClientRect().top : 0; if (c) window.scrollBy(0, after - before); };
   keepPlace(() => { document.body.appendChild(el); document.body.classList.add('pa-on'); });
   keepAwake('playalong');
+  const sz = () => { const r = q('.pa-vid').getBoundingClientRect(); return `${Math.round(r.width)}×${Math.round(r.height)}`; };
+  paLog('otvoren', { v: id, ekran: `${innerWidth}×${innerHeight}`, video: sz() });
 
   let player = null, ready = false, playing = false, dur = 0, raf = 0, closed = false;
   let anchors = fromStore(stored.ytSync, id);
@@ -149,9 +159,28 @@ function openStrip({ stored, save, content, beforeStart, relink }) {
   const fNow = () => { const g = geo(); return g ? (window.scrollY + g.line - g.docTop) / g.h : 0; };
   const yFor = (f) => { const g = geo(); return g ? g.docTop + f * g.h - g.line : window.scrollY; };
 
+  // Reklama: YouTube javlja „svira“, a vreme pesme stoji → traka se privremeno poveća i naš sloj za prevlačenje se
+  // skloni, da se može dodirnuti YouTube-ovo „Preskoči“. Kad vreme krene, sve se vraća.
+  let adRaw = -1, adSince = 0, adMode = false;
+  function adCheck() {
+    const raw = player.getCurrentTime() || 0, n = performance.now();
+    if (!playing || raw !== adRaw) {
+      adRaw = raw; adSince = n;
+      if (adMode && playing) setAd(false);
+      return;
+    }
+    if (!adMode && n - adSince > 1800) setAd(true);
+  }
+  function setAd(on) {
+    adMode = on;
+    el.classList.toggle('pa-admode', on);
+    q('.pa-adbig').hidden = !on;
+    paLog(on ? 'reklama?' : 'reklama gotova', { sek: Math.round(now() * 10) / 10 });
+  }
   function tick() {
     raf = requestAnimationFrame(tick);
-    if (!ready || user || !dur) return;
+    if (ready) { try { adCheck(); } catch {} }
+    if (!ready || user || !dur || adMode) return;
     const target = Math.max(0, Math.min(document.documentElement.scrollHeight - window.innerHeight, yFor(posAt(now(), dur, anchors))));
     const d = target - window.scrollY;
     if (Math.abs(d) < 0.6) return;
@@ -227,6 +256,7 @@ function openStrip({ stored, save, content, beforeStart, relink }) {
     document.removeEventListener('wheel', onWheel); window.removeEventListener('scroll', onScroll);
     window.removeEventListener('hashchange', onRoute);
     try { player && player.destroy(); } catch {}
+    paLog('zatvoren', { sek: ready ? Math.round(now() * 10) / 10 : 0 });
     keepPlace(() => { el.remove(); document.body.classList.remove('pa-on'); });
     allowSleep('playalong');
     if (active === api) active = null;
@@ -243,6 +273,7 @@ function openStrip({ stored, save, content, beforeStart, relink }) {
         onReady: () => {
           if (closed) return;
           ready = true; dur = player.getDuration() || 0;
+          paLog('spreman', { trajanje: Math.round(dur), video: sz() });
           try { player.playVideo(); } catch {}
           raf = requestAnimationFrame(tick);
           try { if (!localStorage.getItem('gitara-pa-tip')) { localStorage.setItem('gitara-pa-tip', '1'); toast(t('pa.tip')); } } catch {}
@@ -250,17 +281,36 @@ function openStrip({ stored, save, content, beforeStart, relink }) {
         onStateChange: (e) => {
           playing = e.data === 1;
           if (!dur) dur = player.getDuration() || 0;
+          paLog('stanje', { s: STATES[e.data] ?? e.data, sek: Math.round((player.getCurrentTime() || 0) * 10) / 10 });
           lastRead = -1;
           setPlayIcon();
         },
-        onError: (e) => {
-          const blocked = e.data === 101 || e.data === 150 || e.data === 100 || e.data === 2;
+        onError: async (e) => {
+          const code = e && e.data;
+          const blocked = code === 101 || code === 150;
+          paLog('greška', { kod: code, v: id, video: sz() });
           close();
-          toast(t(blocked ? 'pa.blocked' : 'pa.failed'), 'error');
-          if (blocked) relink();
+          if (blocked) (await import('./ytPick.js')).markYtBlocked(id);
+          // poruka + kod greške (da se zna tačan razlog); izbor: drugi video ili isti na YouTube-u
+          const v = await dialog({
+            title: t(blocked ? 'pa.blockedTitle' : 'pa.failedTitle'),
+            body: t(blocked ? 'pa.blocked' : code === 100 ? 'pa.gone' : 'pa.failed') + ` (${t('pa.code', { n: code })})`,
+            buttons: [{ label: t('pa.copyDiag'), value: 'diag' }, { label: t('pa.openYt'), value: 'yt' }, { label: t('pa.pickOther'), value: 'pick', kind: 'primary' }],
+          });
+          if (v === 'diag') copyDiag();
+          else if (v === 'yt') window.open(stored.yt.listen, '_blank', 'noopener');
+          else if (v === 'pick') relink();
         },
       },
     });
-  }).catch(() => { close(); toast(t('pa.noNet'), 'error'); });
+  }).catch((err) => { paLog('YouTube API se ne učitava', { r: String(err && err.message || err) }); close(); toast(t('pa.noNet'), 'error'); });
   return api;
+}
+
+/** Ceo izveštaj dijagnostike (uređaj, greške, „Uz video“) u ostavu — da se pošalje. */
+export async function copyDiag() {
+  const { buildReport } = await import('./diag.js');
+  const txt = await buildReport();
+  try { await navigator.clipboard.writeText(txt); toast(t('diag.copied')); }
+  catch { toast(t('diag.copyManual')); }
 }

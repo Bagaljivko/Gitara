@@ -1513,3 +1513,71 @@ body.pa-on .zoom-wrap { top: calc(var(--pa-h) + env(safe-area-inset-top) + 8px);
 /* Pretraga u izboru videa (može da se promeni i ponovi) */
 .yt-search { display: flex; gap: 8px; margin: 2px 0 10px; }
 .yt-search input { flex: 1; min-width: 0; }
+
+/* v1.62 — vrh pesme manji i mirniji */
+/* „Vežbaj“: jedan red ispod izvođača — ikonica igre „Delovi pesme“, zvezdice i napredak (nije zlatni kao naslov) */
+.sp-line { display: flex; align-items: center; gap: 7px; min-height: 30px; margin: 6px 0 4px; color: #e6e8ec; text-decoration: none; font: 700 .9rem var(--sans); -webkit-tap-highlight-color: transparent; }
+.sp-line:active { opacity: .75; }
+.sp-line-ico { width: 18px; height: 18px; flex: none; fill: none; stroke: #f5a524; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.sp-line-ico .f { fill: #f5a524; stroke: none; }
+.sp-line .sp-meta { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.sp-line .sp-stars { color: #f5b31f; font-size: .78rem; letter-spacing: 1px; }
+.sp-line .sp-stars i { font-style: normal; color: #3a3d44; } .sp-line .sp-stars i.on { color: #f5b31f; }
+.sp-line .sp-num { color: #9ea2aa; font-weight: 600; font-size: .84rem; white-space: nowrap; }
+.sp-line .sp-go { width: 18px; height: 18px; fill: #80848c; margin-left: auto; flex: none; }
+
+/* Tonalitet / kapodaster / tempo: jedan tanak red */
+.ctl-slim { display: grid; grid-template-columns: 1.12fr 1fr 1fr; height: 42px; margin: 8px 0; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); overflow: hidden; }
+.cs-cell { display: flex; align-items: center; justify-content: center; gap: 1px; min-width: 0; padding: 0 2px; border-left: 1px solid var(--line); }
+.cs-cell:first-child { border-left: 0; }
+.cs-lab { font: 700 .64rem var(--sans); color: #80848c; text-transform: uppercase; letter-spacing: .05em; margin-right: 2px; white-space: nowrap; }
+.cs-reset { appearance: none; border: 0; background: rgba(245, 158, 11, .12); color: #ffcc33; border-radius: 999px; padding: 3px 6px; cursor: pointer; text-transform: none; letter-spacing: 0; font-size: .7rem; }
+.cs-b { appearance: none; border: 0; background: none; color: #c9ccd2; width: 28px; height: 34px; font: 700 1.1rem var(--sans); border-radius: 8px; cursor: pointer; flex: none; -webkit-tap-highlight-color: transparent; }
+.cs-b:active { background: var(--surface-2); }
+.cs-v { font: 800 1rem var(--sans); min-width: 22px; text-align: center; color: var(--text); white-space: nowrap; }
+button.cs-v { appearance: none; border: 0; background: none; padding: 4px 2px; cursor: pointer; }
+.cs-k { color: #ffcc33; }
+.cs-unit { font: 700 .62rem var(--sans); color: #80848c; margin-left: 1px; }
+.cs-note { margin: -4px 2px 6px; font-size: .78rem; color: #9ea2aa; }
+@media (max-width: 359px) { .cs-lab:not(.cs-reset) { display: none; } .cs-unit { display: none; } .cs-b { width: 24px; } .ctl-slim { grid-template-columns: 1fr 1fr 1fr; } }
+
+/* Predlog ritma: tanak red — RITAM naziv ▶ Primeni ✕ */
+.sug-slim { margin: 6px 0 8px; padding: 0 2px 0 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.sug-slim .sug-mini-row { display: flex; align-items: center; gap: 4px; min-height: 38px; }
+.sug-slim .sug-mini-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 7px; appearance: none; border: 0; background: none; color: var(--text); padding: 0; cursor: pointer; text-align: left; }
+.sug-slim .sug-mini-k { flex: none; font: 700 .66rem var(--sans); color: #80848c; text-transform: uppercase; letter-spacing: .05em; }
+.sug-slim .sug-mini-main b { font: 700 .86rem var(--sans); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.sug-slim .pat-play { width: 32px; height: 32px; flex: none; }
+.sug-slim .pat-play svg { width: 18px; height: 18px; fill: #c9ccd2; }
+.sug-apply { appearance: none; flex: none; height: 28px; padding: 0 11px; border-radius: 999px; border: 1px solid rgba(245, 158, 11, .55); background: rgba(245, 158, 11, .1); color: #ffcc33; font: 700 .8rem var(--sans); cursor: pointer; }
+.sug-slim .sug-x { width: 32px; height: 32px; flex: none; }
+.sug-slim .sug-x svg { width: 16px; height: 16px; fill: #80848c; }
+.sug-slim .sug-mini-body { padding: 0 8px 10px 0; }
+
+/* Podešavanja → Pesme: prekidač sa objašnjenjem */
+.set-switch { display: flex; align-items: center; gap: 12px; cursor: pointer; }
+.set-switch > span:last-child { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.set-switch small { font-size: .82rem; line-height: 1.35; }
+.sug-slim.sug-mini { padding: 0 2px 0 10px; }
+.sug-slim .sug-mini-main { flex-wrap: nowrap; align-items: center; }
+.sug-slim .sug-mini-k { flex-basis: auto; letter-spacing: .05em; }
+
+/* „Uz video“: reklama — video na najmanjoj veličini koju YouTube traži (200 px visine, 356×200), komande sive ispod
+   jednog velikog natpisa; YouTube-ovo „Preskoči“ se dodiruje na samom videu. Kad pesma krene, sve se vraća. */
+.pa-strip.pa-admode { height: auto; flex-wrap: wrap; align-items: stretch; justify-content: center; }
+.pa-strip.pa-admode .pa-vid { flex: none; height: auto; width: 356px; max-width: 100%; margin: 0 auto; }
+.pa-strip.pa-admode .pa-touch { display: none; }
+.pa-strip.pa-admode .pa-ctl { order: 1; flex: 1 1 calc(100% - 44px); position: relative; min-height: 56px; }
+.pa-strip.pa-admode .pa-vid { flex-basis: 356px; }
+.pa-strip.pa-admode .pa-ctl > .pa-b { opacity: .15; filter: grayscale(1); pointer-events: none; }
+.pa-strip.pa-admode .pa-x { order: 2; align-self: center; }
+.pa-adbig { position: absolute; inset: 2px 0; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 0 10px; border-radius: 14px; text-align: center;
+  border: 1.5px solid rgba(245, 158, 11, .6); background: linear-gradient(rgba(245, 158, 11, .12), rgba(245, 158, 11, .12)), #0b0b0d; color: #ffcc33; font: 800 15px var(--sans); }
+.pa-adbig[hidden] { display: none; }
+.pa-adbig span { color: #eceef2; font-weight: 600; font-size: 13px; }
+@media (orientation: landscape) and (max-height: 520px) {
+  .pa-strip.pa-admode { width: calc(372px + env(safe-area-inset-left)); flex-wrap: nowrap; }
+  .pa-strip.pa-admode .pa-vid { width: 100%; flex: none; }
+  .pa-strip.pa-admode .pa-ctl { flex: none; }
+  .pa-strip.pa-admode .pa-x { order: 0; position: absolute; }
+}

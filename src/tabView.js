@@ -3,7 +3,7 @@
 // prečica za Vežbe → Delovi pesme, YouTube, Podeli, „Skini PDF“. Kapodaster i transpozicija se ne prikazuju.
 // Učitava se tek kad se otvori TAB pesma (ili njen pregled posle skeniranja).
 import { t, getLang } from './i18n.js';
-import { practiceCardHTML, fillPractice } from './songPracticeCard.js';
+import { practiceLineHTML, fillPractice } from './songPracticeCard.js';
 import { MORE_ICON, moreMenu, attachPinch, versionTipOnce, zoomPillHTML, bindZoomPill, songMenuItems } from './songChrome.js';
 import { paButtonHTML, bindPlayAlong } from './playAlong.js';
 import { useTabTexts } from './tabText.js';
@@ -207,7 +207,7 @@ export async function renderTabSong(root, stored, nav, { ytRowHTML, shareSong, d
       <a class="btn small ${nav.nextHref ? 'primary' : 'disabled'}" ${nav.nextHref ? `href="${nav.nextHref}"` : 'aria-disabled="true"'}>${t('sl.next')} ›</a>
     </div>` : ''}
     <div id="tHead"></div>
-    ${practiceCardHTML(id, 'tab')}
+    ${practiceLineHTML(id)}
     <div id="tSug"></div>
     ${tapHintOnce() ? `<p class="small muted tab-tap">${t('play.tapHint')}</p>` : ''}
     ${zoomPillHTML()}
@@ -240,7 +240,7 @@ export async function renderTabSong(root, stored, nav, { ytRowHTML, shareSong, d
       if (!rec || !Object.keys(rec).length) return;
       const total = tabParts(stored.tab).filter((p) => p.kind === 'bars').length;
       const good = Object.entries(rec).filter(([k, r]) => k !== 'all' && r && r.best >= 80 && Number(k) < total).length;
-      fillPractice(root.querySelector('.sp-card'), { good, total, played: true, done: !!(rec.all && rec.all.best >= 80) });
+      fillPractice(root.querySelector('.sp-line'), { good, total, played: true, done: !!(rec.all && rec.all.best >= 80) });
     }).catch(() => {});
   }
   // ---- Predlozi: taktovi koje treba proveriti (ništa se ne nagađa) ----

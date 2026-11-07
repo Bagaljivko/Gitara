@@ -23,18 +23,24 @@ const markQuota = () => { try { localStorage.setItem(QK, ptDay()); } catch {} };
 const openSearch = (song, kind) => window.open(ytSearchUrl(song, kind), '_blank', 'noopener');
 export class YtQuotaError extends Error {}
 const thumbOf = (id) => `https://i.ytimg.com/vi/${id}/mqdefault.jpg`;
+// Snimci za koje je YouTube javio da ne smeju u drugim aplikacijama (pamti se na uređaju, da se više ne nude)
+const BK = 'gitara-yt-blocked';
+export const ytBlocked = () => { try { return JSON.parse(localStorage.getItem(BK) || '[]'); } catch { return []; } };
+export const markYtBlocked = (id) => { try { localStorage.setItem(BK, JSON.stringify([...new Set([id, ...ytBlocked()])].slice(0, 200))); } catch {} };
 
 /** Pretraga (5 rezultata) + trajanje. Baca YtQuotaError kad je dnevna kvota potrošena, inače grešku ako API nije dostupan. */
-export async function searchYt(q, { signal } = {}) {
+export async function searchYt(q, { signal, embeddable = false } = {}) {
   const key = globalThis.__gitaraYtKey || SHARE_API_KEY;
-  const r = await fetch(`${API}/search?part=snippet&type=video&maxResults=5&q=${encodeURIComponent(q)}&key=${encodeURIComponent(key)}`, { signal });
+  // „Uz video“: samo snimci koje vlasnik dozvoljava da se puštaju u drugim aplikacijama (mnoge izdavačke kuće to brane)
+  const emb = embeddable ? '&videoEmbeddable=true&videoSyndicated=true' : '';
+  const r = await fetch(`${API}/search?part=snippet&type=video&maxResults=${embeddable ? 8 : 5}${emb}&q=${encodeURIComponent(q)}&key=${encodeURIComponent(key)}`, { signal });
   if (!r.ok) {
     let reason = '';
     try { reason = ((await r.json()).error.errors || [])[0].reason || ''; } catch {}
     if (r.status === 429 || /quota|dailyLimit|rateLimit/i.test(reason)) throw new YtQuotaError(reason || String(r.status));
     throw new Error('yt ' + r.status);
   }
-  const items = ((await r.json()).items || []).filter((x) => x.id && x.id.videoId);
+  const items = ((await r.json()).items || []).filter((x) => x.id && x.id.videoId && !(embeddable && ytBlocked().includes(x.id.videoId))).slice(0, 5);
   const out = items.map((x) => ({ id: x.id.videoId, title: unesc(x.snippet.title || ''), channel: unesc(x.snippet.channelTitle || ''), dur: '' }));
   try { // trajanje (jeftino; ako ne uspe, bez trajanja)
     const d = await fetch(`${API}/videos?part=contentDetails&id=${out.map((x) => x.id).join(',')}&key=${encodeURIComponent(key)}`, { signal });
@@ -89,7 +95,7 @@ export function pickVideo(song, kind, { cached = null, onFound = null, open = tr
       ctrl.abort(); ctrl = new AbortController();
       wrap.querySelector('.yt-search input').blur();
       box.innerHTML = `<div class="yt-loading"><span class="spinner"></span> ${esc(t('yt.searching'))}</div>`;
-      run(searchYt(qq, { signal: ctrl.signal }).then((list) => { if (onFound) onFound(list, qq); return list; }));
+      run(searchYt(qq, { signal: ctrl.signal, embeddable: !open }).then((list) => { if (onFound) onFound(list, qq); return list; }));
     });
     const run = (p) => p.then((list) => {
       box.innerHTML = list.length ? list.map((v) => `<button class="yt-res" data-vid="${esc(v.id)}">
@@ -115,7 +121,7 @@ export function pickVideo(song, kind, { cached = null, onFound = null, open = tr
       document.addEventListener('visibilitychange', back);
       ctrl.signal.addEventListener('abort', () => document.removeEventListener('visibilitychange', back));
     });
-    run(noSearch ? Promise.reject(new Error('no-search')) : cached ? Promise.resolve(cached) : searchYt(query(song, kind), { signal: ctrl.signal }).then((list) => { if (onFound) onFound(list); return list; }));
+    run(noSearch ? Promise.reject(new Error('no-search')) : cached ? Promise.resolve(cached) : searchYt(query(song, kind), { signal: ctrl.signal, embeddable: !open }).then((list) => { if (onFound) onFound(list); return list; }));
   });
 }
 
@@ -125,14 +131,15 @@ export async function ytAction(kind, stored, save, { change = false, open = true
   if (cur && !change) { window.open(cur, '_blank', 'noopener'); return; }
   const q = query(stored, kind);
   const hit = stored.ytFound && stored.ytFound[kind];
-  const cached = hit && hit.q === q ? hit.v.map((v) => ({ id: v.id, title: v.t, channel: v.c, dur: v.d })) : null;
+  const okHit = hit && hit.q === q && (open || hit.e) ? hit.v.filter((v) => open || !ytBlocked().includes(v.id)) : null;
+  const cached = okHit && okHit.length ? okHit.map((v) => ({ id: v.id, title: v.t, channel: v.c, dur: v.d })) : null;
   // kvota već potrošena danas: bez pretrage, odmah YouTube (sinhrono, u istom dodiru)
   // („Uz video“: bez napuštanja aplikacije — panel sa „Otvori YouTube“ + „Nalepi link“)
   if (!cached && quotaOut() && open) { openSearch(stored, kind); return; }
   const url = await pickVideo(stored, kind, {
     cached, open, noSearch: !cached && quotaOut(),
     onFound: (list, qq = q) => {
-      stored.ytFound = { ...(stored.ytFound || {}), [kind]: { q: qq, v: list.map((v) => ({ id: v.id, t: v.title, c: v.channel, d: v.dur })) } };
+      stored.ytFound = { ...(stored.ytFound || {}), [kind]: { q: qq, ...(open ? {} : { e: 1 }), v: list.map((v) => ({ id: v.id, t: v.title, c: v.channel, d: v.dur })) } };
       Promise.resolve(save()).catch(() => {});
     },
   });
