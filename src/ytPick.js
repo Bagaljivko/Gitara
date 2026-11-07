@@ -27,6 +27,17 @@ const thumbOf = (id) => `https://i.ytimg.com/vi/${id}/mqdefault.jpg`;
 const BK = 'gitara-yt-blocked';
 export const ytBlocked = () => { try { return JSON.parse(localStorage.getItem(BK) || '[]'); } catch { return []; } };
 export const markYtBlocked = (id) => { try { localStorage.setItem(BK, JSON.stringify([...new Set([id, ...ytBlocked()])].slice(0, 200))); } catch {} };
+// …i oni za koje je provereno da sviraju u aplikaciji (bez ponovne provere)
+const OK = 'gitara-yt-ok';
+export const ytOk = () => { try { return JSON.parse(localStorage.getItem(OK) || '[]'); } catch { return []; } };
+export const markYtOk = (id) => { try { localStorage.setItem(OK, JSON.stringify([...new Set([id, ...ytOk()])].slice(0, 300))); } catch {} };
+// Zemlja korisnika (za snimke blokirane po zemljama): iz jezika pregledača (sr-RS → RS), inače po vremenskoj zoni
+function userCountry() {
+  for (const l of navigator.languages || [navigator.language || '']) { const m = /-([A-Z]{2})\b/.exec(l || ''); if (m) return m[1]; }
+  const tz = (Intl.DateTimeFormat().resolvedOptions().timeZone || '');
+  return { 'Europe/Belgrade': 'RS', 'Europe/Zagreb': 'HR', 'Europe/Sarajevo': 'BA', 'Europe/Podgorica': 'ME', 'Europe/Skopje': 'MK', 'Europe/Ljubljana': 'SI', 'Europe/Vienna': 'AT', 'Europe/Berlin': 'DE', 'Europe/Zurich': 'CH' }[tz] || '';
+}
+const regionBlocked = (rr, c) => !!(rr && c && ((Array.isArray(rr.blocked) && rr.blocked.includes(c)) || (Array.isArray(rr.allowed) && !rr.allowed.includes(c))));
 
 /** Pretraga (5 rezultata) + trajanje. Baca YtQuotaError kad je dnevna kvota potrošena, inače grešku ako API nije dostupan. */
 export async function searchYt(q, { signal, embeddable = false } = {}) {
@@ -40,13 +51,21 @@ export async function searchYt(q, { signal, embeddable = false } = {}) {
     if (r.status === 429 || /quota|dailyLimit|rateLimit/i.test(reason)) throw new YtQuotaError(reason || String(r.status));
     throw new Error('yt ' + r.status);
   }
-  const items = ((await r.json()).items || []).filter((x) => x.id && x.id.videoId && !(embeddable && ytBlocked().includes(x.id.videoId))).slice(0, 5);
-  const out = items.map((x) => ({ id: x.id.videoId, title: unesc(x.snippet.title || ''), channel: unesc(x.snippet.channelTitle || ''), dur: '' }));
-  try { // trajanje (jeftino; ako ne uspe, bez trajanja)
-    const d = await fetch(`${API}/videos?part=contentDetails&id=${out.map((x) => x.id).join(',')}&key=${encodeURIComponent(key)}`, { signal });
-    if (d.ok) for (const v of (await d.json()).items || []) { const o = out.find((x) => x.id === v.id); if (o) o.dur = isoDur(v.contentDetails && v.contentDetails.duration); }
+  const items = ((await r.json()).items || []).filter((x) => x.id && x.id.videoId && !(embeddable && ytBlocked().includes(x.id.videoId)));
+  let out = items.map((x) => ({ id: x.id.videoId, title: unesc(x.snippet.title || ''), channel: unesc(x.snippet.channelTitle || ''), dur: '' }));
+  try { // trajanje + (za „Uz video“) da li sme van YouTube-a i da li je blokiran u našoj zemlji — isti, jeftin zahtev
+    const d = await fetch(`${API}/videos?part=contentDetails${embeddable ? ',status' : ''}&id=${out.map((x) => x.id).join(',')}&key=${encodeURIComponent(key)}`, { signal });
+    if (d.ok) {
+      const c = embeddable ? userCountry() : '';
+      for (const v of (await d.json()).items || []) {
+        const o = out.find((x) => x.id === v.id); if (!o) continue;
+        o.dur = isoDur(v.contentDetails && v.contentDetails.duration);
+        if (embeddable && ((v.status && v.status.embeddable === false) || regionBlocked(v.contentDetails && v.contentDetails.regionRestriction, c))) { o.bad = true; markYtBlocked(o.id); }
+      }
+    }
   } catch {}
-  return out;
+  out = out.filter((x) => !x.bad);
+  return out.slice(0, 5).map(({ bad, ...x }) => x);
 }
 
 /**
@@ -66,10 +85,40 @@ export function pickVideo(song, kind, { cached = null, onFound = null, open = tr
       <div class="yt-paste"><input type="url" inputmode="url" placeholder="${esc(t('yt.pastePh'))}" autocomplete="off"><button class="btn small primary" data-paste>${esc(t('common.save'))}</button></div>
     </div>`;
     const done = (url) => { ctrl.abort(); wrap.remove(); resolve(url); };
+    // „Uz video“: pre povezivanja video se tiho proba (nevidljiv plejer, bez zvuka, ~1 s). Ne sme u aplikaciji →
+    // red se označi i lista ostaje otvorena; nikad se ne poveže video koji neće da svira.
+    let checking = false;
+    async function checkAndLink(row, id, url) {
+      if (checking) return;
+      if (ytOk().includes(id)) return done(url);
+      if (ytBlocked().includes(id)) { markRow(row, 'bad'); toast(t('yt.cantEmbedToast'), 'error'); return; }
+      checking = true;
+      markRow(row, 'checking');
+      const { probeVideo } = await import('./playAlong.js');
+      const res = await probeVideo(id);
+      checking = false;
+      if (res === 'blocked' || res === 'gone') { markYtBlocked(id); markRow(row, 'bad'); toast(t(res === 'gone' ? 'pa.gone' : 'yt.cantEmbedToast'), 'error'); return; }
+      if (res === 'ok') markYtOk(id);
+      done(url);
+    }
+    function markRow(row, state) {
+      if (!row) return;
+      row.classList.toggle('checking', state === 'checking');
+      row.classList.toggle('bad', state === 'bad');
+      row.disabled = state === 'bad';
+      let tag = row.querySelector('.yt-state');
+      if (!tag) { tag = document.createElement('span'); tag.className = 'yt-state'; row.querySelector('.yt-meta').appendChild(tag); }
+      tag.innerHTML = state === 'checking' ? `<span class="spinner"></span> ${esc(t('yt.checking'))}` : esc(t('yt.cantEmbed'));
+    }
     wrap.__close = () => done(null);
     wrap.addEventListener('click', (e) => {
       const r = e.target.closest('[data-vid]');
-      if (r) { const url = 'https://youtu.be/' + r.dataset.vid; if (open) window.open(url, '_blank', 'noopener'); return done(url); }
+      if (r) {
+        const url = 'https://youtu.be/' + r.dataset.vid;
+        if (open) { window.open(url, '_blank', 'noopener'); return done(url); }
+        checkAndLink(r, r.dataset.vid, url);
+        return;
+      }
       if (e.target.closest('[data-open-search]')) { window.open(ytSearchUrl(song, kind), '_blank', 'noopener'); return; }
       if (e.target.closest('[data-clip]')) {
         // „Nalepi link“: jedan dodir čita kopirani link (bez kucanja); ako pregledač ne da, polje za ručno lepljenje
@@ -81,6 +130,7 @@ export function pickVideo(song, kind, { cached = null, onFound = null, open = tr
       if (e.target.closest('[data-paste]')) {
         const u = cleanYoutubeUrl(wrap.querySelector('.yt-paste input').value);
         if (!u) { toast(t('yt.bad'), 'error'); return; }
+        if (!open && youtubeId(u)) { checkAndLink(null, youtubeId(u), u); return; }
         return done(u);
       }
       if (!e.target.closest('.sheet')) done(null);

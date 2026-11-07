@@ -280,6 +280,7 @@ function openStrip({ stored, save, content, beforeStart, relink }) {
         },
         onStateChange: (e) => {
           playing = e.data === 1;
+          if (playing) import('./ytPick.js').then((m) => m.markYtOk(id)).catch(() => {}); // svira u aplikaciji — zapamti
           if (!dur) dur = player.getDuration() || 0;
           paLog('stanje', { s: STATES[e.data] ?? e.data, sek: Math.round((player.getCurrentTime() || 0) * 10) / 10 });
           lastRead = -1;
@@ -313,4 +314,41 @@ export async function copyDiag() {
   const txt = await buildReport();
   try { await navigator.clipboard.writeText(txt); toast(t('diag.copied')); }
   catch { toast(t('diag.copyManual')); }
+}
+
+/**
+ * Tiha provera: da li video sme da svira u aplikaciji. Nevidljiv plejer bez zvuka pokuša da ga pusti (~1 s).
+ * 'ok' = krenuo (i reklama se računa), 'blocked' = vlasnik ne da (101/150), 'gone' = ne postoji (100/2), 'unknown' = bez odgovora.
+ */
+export async function probeVideo(id, { timeout = 8000 } = {}) {
+  let YT;
+  try { YT = await loadYT(); } catch { return 'unknown'; }
+  return new Promise((resolve) => {
+    const box = document.createElement('div');
+    box.className = 'pa-probe';
+    box.setAttribute('aria-hidden', 'true');
+    box.innerHTML = '<div></div>';
+    document.body.appendChild(box);
+    let p = null, fin = false;
+    const end = (r, extra = {}) => {
+      if (fin) return; fin = true;
+      clearTimeout(tm);
+      try { p && p.destroy(); } catch {}
+      box.remove();
+      paLog('provera', { v: id, rez: r, ...extra });
+      resolve(r);
+    };
+    const tm = setTimeout(() => end('unknown'), timeout);
+    try {
+      p = new YT.Player(box.firstChild, {
+        width: 200, height: 200, videoId: id,
+        playerVars: { playsinline: 1, controls: 0, mute: 1, autoplay: 1, disablekb: 1, rel: 0, fs: 0, iv_load_policy: 3, origin: location.origin },
+        events: {
+          onReady: () => { try { p.mute(); p.playVideo(); } catch {} },
+          onStateChange: (e) => { if (e.data === 1) end('ok'); },
+          onError: (e) => end(e.data === 101 || e.data === 150 ? 'blocked' : e.data === 100 || e.data === 2 ? 'gone' : 'unknown', { kod: e.data }),
+        },
+      });
+    } catch { end('unknown'); }
+  });
 }

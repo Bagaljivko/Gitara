@@ -1581,3 +1581,11 @@ button.cs-v { appearance: none; border: 0; background: none; padding: 4px 2px; c
   .pa-strip.pa-admode .pa-ctl { flex: none; }
   .pa-strip.pa-admode .pa-x { order: 0; position: absolute; }
 }
+
+/* v1.63 — provera videa pre povezivanja („Uz video“) */
+.pa-probe { position: fixed; left: 0; bottom: 0; width: 200px; height: 200px; opacity: .01; pointer-events: none; z-index: -1; overflow: hidden; }
+.yt-res.checking { opacity: .75; }
+.yt-res.bad { opacity: .45; cursor: default; }
+.yt-state { display: flex; align-items: center; gap: 6px; margin-top: 3px; font-size: .78rem; font-weight: 700; color: #ffcc33; }
+.yt-res.bad .yt-state { color: #ff8a80; }
+.yt-state .spinner { width: 12px; height: 12px; }
