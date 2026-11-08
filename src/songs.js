@@ -436,8 +436,7 @@ async function backupNudge(box, count) {
       return;
     }
     if (b.dataset.n === 'export') {
-      const r = await exportAll();
-      if (r === 'downloaded') toast(t('set.backupDownloaded'));
+      await (await import('./backups.js')).saveBackup('full'); // v1.71: cela aplikacija (Drive i/ili fajl)
       await settings.set('backupNudge', { ...st, exportedAt: Date.now() });
     } else await settings.set('backupNudge', { ...st, snoozedAt: Date.now() });
     box.innerHTML = '';

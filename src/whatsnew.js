@@ -5,6 +5,12 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '1.71', date: '2026-11-08', items: [
+    { i: '🛡', sr: ['Rezervne kopije — jednostavno', '„Cela aplikacija“ (sve, i Gemini ključ) i „Samo pesme“ — na Google Drive-u, same se pronađu pri vraćanju.'], en: ['Backups — simple', '“Whole app” (everything, including the Gemini key) and “Songs only” — on Google Drive, found by themselves when restoring.'] },
+    { i: '🔑', sr: ['Vrati ključ sa Google naloga', 'Ključ je nestao? Jedan dodir u kartici Gemini ključ ga vraća.'], en: ['Restore key from Google account', 'Key gone? One tap in the Gemini key card brings it back.'] },
+    { i: '❔', sr: ['Proveri ključ kaže šta je', 'Dnevni limit, Google zauzet ili loš ključ — i šta (ne) treba da uradiš.'], en: ['Check key tells you what it is', 'Daily limit, Google busy or a bad key — and what you do (or don’t) need to do.'] },
+    { i: '✨', sr: ['Uvod samo pri otvaranju', 'MARLI ekran se više ne prikazuje pri povlačenju nadole.'], en: ['Intro only on open', 'The MARLI screen no longer shows on pull-to-refresh.'] },
+  ] },
   { v: '1.70', date: '2026-11-08', items: [
     { i: '💻', sr: ['MARLI na računaru', 'Poveži isti Google nalog — pesme, set liste i Gemini ključ stižu sami.'], en: ['MARLI on your computer', 'Connect the same Google account — songs, setlists and your Gemini key arrive by themselves.'] },
     { i: '≡', sr: ['Biblioteka na računaru', 'Tabela, više pesama odjednom, folderi i set liste prevlačenjem, brzo uređivanje.'], en: ['Library on your computer', 'Table, many songs at once, folders and setlists by drag and drop, quick edit.'] },

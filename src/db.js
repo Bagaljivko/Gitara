@@ -235,6 +235,7 @@ export const settings = {
   get: (key, def) => tx('settings', 'readonly', (s) => s.get(key)).then((v) => (v === undefined ? def : v)),
   set: (key, val) => setWithSync(key, val, false).then(() => { changed('settings-changed', key); }),
   remove: (key) => setWithSync(key, undefined, true).then(() => { if (SYNCED_SETTING(key)) changed('settings-changed', key); }),
+  keys: () => tx('settings', 'readonly', (s) => s.getAllKeys()), // v1.71: rezervna kopija cele aplikacije
 };
 
 // ---- Prethodna verzija (izgubljena strana sukoba, ponovni sken…): do 5 po stavci, ukupno do 300 ----

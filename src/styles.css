@@ -1828,3 +1828,47 @@ body.desk-lib-mode main { max-width: none; padding-left: 0; padding-right: 0; }
 .key-lost > b { display: block; margin-bottom: 2px; }
 .key-lost .btn { margin-top: 8px; }
 .key-lost .gdx { margin-bottom: 0; }
+
+/* v1.71: Rezervne kopije — dve pločice: „Cela aplikacija“ (zlatna) i „Samo pesme“ (neutralna) */
+.bk-conn { display: flex; align-items: flex-start; gap: 8px; margin: 2px 0 12px; color: var(--muted); font-size: .88rem; line-height: 1.4; }
+.bk-dot { flex: none; width: 8px; height: 8px; margin-top: 6px; border-radius: 50%; background: var(--muted); }
+.bk-dot.ok { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+.bk-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 330px), 1fr)); }
+.bk-tile { position: relative; padding: 16px; border-radius: 18px; border: 1px solid var(--line); background: var(--surface-2); overflow: hidden; }
+.bk-tile.bk-full { border-color: rgba(245,165,36,.55); background: radial-gradient(120% 90% at 100% 0%, rgba(245,165,36,.16), transparent 60%), linear-gradient(180deg, rgba(245,165,36,.07), rgba(245,165,36,.02)); }
+.bk-top { display: flex; align-items: center; gap: 12px; }
+.bk-top > div { flex: 1; min-width: 0; }
+.bk-top b { display: block; font-size: 1.08rem; }
+.bk-top small { display: block; color: var(--muted); font-size: .82rem; line-height: 1.35; margin-top: 2px; }
+.bk-ico { flex: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 14px; background: rgba(255,255,255,.06); }
+.bk-ico svg { width: 24px; height: 24px; fill: var(--muted); }
+.bk-full .bk-ico { background: linear-gradient(135deg, #ffcc33, #f59e0b); box-shadow: 0 6px 18px rgba(245,165,36,.35); }
+.bk-full .bk-ico svg { fill: #1a1205; }
+.bk-tag { flex: none; align-self: flex-start; font-size: .64rem; font-weight: 800; letter-spacing: .1em; padding: 3px 8px; border-radius: 999px; background: rgba(245,165,36,.16); color: var(--accent); }
+.bk-songs .bk-tag { background: rgba(255,255,255,.07); color: var(--muted); }
+.bk-chips { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 0; padding: 0; }
+.bk-chips li { display: inline-flex; align-items: baseline; gap: 6px; padding: 4px 10px; border-radius: 999px; background: rgba(255,255,255,.05); border: 1px solid var(--line); font-size: .8rem; color: var(--muted); }
+.bk-chips li b { color: var(--text); font-weight: 700; }
+.bk-full .bk-chips li b { color: var(--accent); }
+.bk-chips li.no b { color: var(--muted); }
+.bk-state { margin: 12px 0 0; font-size: .84rem; color: var(--muted); }
+.bk-state.ok { color: var(--ok); }
+.bk-state.warn::before { content: ''; display: inline-block; width: 7px; height: 7px; margin-right: 7px; border-radius: 50%; background: var(--accent); vertical-align: middle; }
+.bk-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+.bk-actions .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; min-width: 0; padding-inline: 10px; text-align: center; line-height: 1.15; }
+.bk-actions .btn svg { width: 20px; height: 20px; fill: currentColor; flex: none; }
+@media (max-width: 380px) { .bk-actions .btn svg { display: none; } }
+.bk-actions .btn.busy { opacity: .6; }
+.bk-more { margin: 10px 0 0; text-align: center; font-size: .84rem; color: var(--muted); }
+.bk-more .link-btn { color: var(--muted); text-decoration: underline; text-underline-offset: 3px; }
+.bk-warn { display: flex; align-items: center; gap: 8px; margin: 12px 0 0; padding-top: 10px; border-top: 1px dashed rgba(245,165,36,.3); font-size: .8rem; color: var(--accent); }
+.bk-warn svg { width: 14px; height: 14px; fill: currentColor; flex: none; }
+.sync-bk-note { margin-top: 10px; }
+/* dijalog: šta je u kopiji */
+.bk-sum { margin: 4px 0 10px; padding: 12px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface-2); }
+.bk-sum-h { display: flex; align-items: center; gap: 10px; }
+.bk-sum-h b { display: block; } .bk-sum-h small { display: block; color: var(--muted); font-size: .8rem; word-break: break-word; }
+.bk-sum-ico { flex: none; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: rgba(245,165,36,.14); }
+.bk-sum-ico svg { width: 20px; height: 20px; fill: var(--accent); }
+.bk-sum .bk-chips { margin-top: 10px; }
+.bk-sum .bk-chips li b { color: var(--accent); }

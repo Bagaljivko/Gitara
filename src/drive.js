@@ -24,7 +24,7 @@ const FOLDER_NAME = 'Gitara';
 const BACKUP_NAME = 'gitara-backup.json';
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
 const BACKUP_DELAY = 4000; // ms posle izmene
-const BACKUP_SETTINGS = ['a4', 'geminiModel', 'geminiModelSel', 'lang', 'metBpm', 'folders', 'setlists', 'tunerRoom', 'tuning', 'wakeMode', 'wakeMinutes', 'noteNames', 'practice', 'freeplayRecs', 'skale', 'myRhythms', 'strumSuggest']; // Gemini ključ se NIKAD ne šalje na Drive
+export const BACKUP_SETTINGS = ['a4', 'geminiModel', 'geminiModelSel', 'lang', 'metBpm', 'folders', 'setlists', 'tunerRoom', 'tuning', 'wakeMode', 'wakeMinutes', 'noteNames', 'practice', 'freeplayRecs', 'skale', 'myRhythms', 'strumSuggest']; // Gemini ključ se NIKAD ne šalje na Drive
 
 export class DriveError extends Error {
   constructor(message, code = '') { super(message); this.code = code; }
@@ -354,6 +354,13 @@ function cleanFreeplayRecs(list) { // stari zapis (pre v1.37): pri otvaranju „
 }
 
 
+/** v1.71: pesme za rezervnu kopiju (isti oblik kao ranije) + oznake obrisanih. */
+export async function backupSongs() {
+  const all = await db.all();
+  return all.map((sg) => ({ id: sg.id, title: sg.title, artist: sg.artist, key: sg.key, sections: sg.sections, transpose: sg.transpose || 0, createdAt: sg.createdAt, updatedAt: sg.updatedAt, ...songExtras(sg), ...songMeta(sg), folders: sg.folders || [] }));
+}
+export const backupDeleted = () => db.deleted();
+
 async function buildBackup() {
   const all = await db.all();
   const s = {};
@@ -402,7 +409,11 @@ async function parseBackup(f) {
   const res = await api(`${API}/files/${f.id}?alt=media`);
   let data;
   try { data = await res.json(); } catch { throw new DriveError(t('drive.e.corrupt'), 'format'); }
-  if (!data || data.app !== 'gitara' || !Array.isArray(data.songs)) throw new DriveError(t('drive.e.notBackup'), 'format');
+  return parseBackupData(data, Date.parse(f.modifiedTime) || 0);
+}
+/** v1.71: proverava i čisti sadržaj kopije (stari „gitara“ fajlovi i novi „marli“ — cela aplikacija ili samo pesme). */
+export function parseBackupData(data, modified = 0) {
+  if (!data || (data.app !== 'gitara' && data.app !== 'marli') || !Array.isArray(data.songs)) throw new DriveError(t('drive.e.notBackup'), 'format');
   const songs = [];
   for (const s of data.songs) {
     try {
@@ -445,14 +456,47 @@ async function parseBackup(f) {
   }
   const deleted = {};
   if (data.deleted && typeof data.deleted === 'object') for (const [id, at] of Object.entries(data.deleted)) if (id.length <= 80 && Number(at) > 0) deleted[id] = Number(at);
-  return { songs, deleted, settings: st, modified: Date.parse(f.modifiedTime) || 0 };
+  return { songs, deleted, settings: st, modified: modified || Date.parse(data.exportedAt) || 0 };
 }
+
+// ---------------- v1.71: „Cela aplikacija“ i „Samo pesme“ na Drive-u (folder „Gitara“) ----------------
+export const BK_FULL = 'MARLI – cela aplikacija.json';
+export const BK_SONGS = 'MARLI – pesme.json';
+/** Sačuvaj (zameni) kopiju pod tim imenom. Vraća vreme izmene. Poziva se iz dodira (može da traži dozvolu). */
+export async function saveNamed(name, json) {
+  await shareToken({ interactive: !(state.token && state.tokenFile && Date.now() < state.tokenExp) });
+  const folder = await ensureFolder();
+  const files = await findFiles(`name='${q(name)}' and '${folder}' in parents and trashed=false`);
+  const r = await uploadFile({ id: files[0] && files[0].id, name, mime: 'application/json', blob: new Blob([json], { type: 'application/json' }), parents: [folder] });
+  return Date.parse(r.modifiedTime) || Date.now();
+}
+/** Najnovija kopija pod tim imenom: { data, modified } ili null. */
+export async function readNamed(name) {
+  if (!(state.token && Date.now() < state.tokenExp)) await shareToken({ interactive: true });
+  const files = await findFiles(`name='${q(name)}' and trashed=false`);
+  if (!files.length) return null;
+  const res = await api(`${API}/files/${files[0].id}?alt=media`);
+  let data;
+  try { data = await res.json(); } catch { throw new DriveError(t('drive.e.corrupt'), 'format'); }
+  return { data, modified: Date.parse(files[0].modifiedTime) || 0 };
+}
+/** Bez ikakvog prozora: kada je kopija pod tim imenom poslednji put sačuvana. { modified } | null (nema je) | undefined (ne zna se). */
+export async function peekNamed(name) {
+  try {
+    if (navigator.onLine === false) return undefined;
+    if (!(await shareTokenQuiet()) && !(await syncTokenStored())) return undefined;
+    const files = await findFiles(`name='${q(name)}' and trashed=false`);
+    return files.length ? { modified: Date.parse(files[0].modifiedTime) || 0 } : null;
+  } catch { return undefined; }
+}
+/** Stara automatska kopija (gitara-backup.json) kao sirovi podaci, ili null. */
+export async function readOldNamed() { return readNamed(BACKUP_NAME); }
 
 /** Vraća pesme. mode: 'replace' (zameni sve) | 'merge' (spoji po ID-u). Vraća broj dodatih (ili ažuriranih) pesama.
  *  Nikad ne pravi drugu kopiju iste pesme i ne vraća obrisane (oznake brisanja i ovde i u kopiji). */
-export async function applyRestore(backup, mode) {
+export async function applyRestore(backup, mode, { revive = false } = {}) {
   if (mode === 'replace') await db.clear();
-  const r = await mergeSongs(backup.songs, { deleted: backup.deleted || {} });
+  const r = await mergeSongs(backup.songs, revive ? { revive: true } : { deleted: backup.deleted || {} });
   const added = r.added + (mode === 'merge' ? r.updated : 0);
   for (const [k, v] of Object.entries(backup.settings || {})) {
     if (k === 'lang') await setLang(v); // jezik se primenjuje odmah

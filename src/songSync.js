@@ -6,7 +6,7 @@ import { songs as db, newSongId } from './db.js';
 import { contentKey } from './songIdentity.js';
 
 /** Vraća { added, updated, skipped }. `deleted` = oznake brisanja iz kopije ({ id: vreme }). */
-export async function mergeSongs(list, { deleted = {} } = {}) {
+export async function mergeSongs(list, { deleted = {}, revive = false } = {}) { // revive (v1.71): vraćanje iz kopije vraća i ranije obrisane
   await db.markDeleted(deleted);
   const tombs = await db.deleted();
   const local = await db.all();
@@ -17,7 +17,7 @@ export async function mergeSongs(list, { deleted = {} } = {}) {
   for (const s0 of list) {
     const s = { ...s0, id: s0.id || newSongId(), createdAt: s0.createdAt || now, updatedAt: s0.updatedAt || s0.createdAt || now };
     const tomb = tombs[s.id];
-    if (tomb && s.updatedAt <= tomb) { skipped++; continue; }
+    if (tomb && s.updatedAt <= tomb && !revive) { skipped++; continue; }
     const cur = byId.get(s.id);
     if (cur) {
       if (s.updatedAt > (cur.updatedAt || 0)) { if (await db.put({ ...cur, ...s })) { updated++; byId.set(s.id, { ...cur, ...s }); } }

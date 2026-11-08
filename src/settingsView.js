@@ -2,7 +2,6 @@
 import { settings, songs as db } from './db.js';
 import { testKey, diagnose, explain, GeminiError, cleanModelName, AUTO, getModelSetting, listModels } from './gemini.js';
 import { esc, toast, confirmDialog, pickFile, dialog } from './ui.js';
-import { exportAll } from './songs.js';
 import { parseBackup, SongFormatError } from './songformat.js';
 import { APP_VERSION } from './version.js';
 import { tunerSettingsHTML, bindTunerSettings, loadTunerSettings } from './tunerSettings.js';
@@ -48,6 +47,8 @@ export async function renderSettings(root) {
     <div class="card" id="songsSetCard">
       <h2>${t('set.songsTitle')}</h2>
       <label class="switch set-switch"><input type="checkbox" id="strumSuggestSw"${strumOn ? ' checked' : ''}><span class="switch-track"><span class="switch-thumb"></span></span><span><b>${t('set.strumSuggest')}</b><small class="muted">${t('set.strumSuggestHint')}</small></span></label>
+      <a class="btn wide cc-open" href="#/provera">${t('cc.open')}</a>
+      <p class="muted small">${t('cc.openNote')}</p>
     </div>
 
     <div class="card">
@@ -121,15 +122,32 @@ export async function renderSettings(root) {
       <ul class="shared-list" id="sharedList"></ul>
     </div>
 
-    <div class="card">
-      <h2>${t('set.fileBackupTitle')}</h2>
-      <p class="muted small" id="fbNote">${t('set.fileBackupNote')}</p>
-      <div class="row wrap">
-        <button class="btn" id="bExport">${t('set.exportAll')}</button>
-        <button class="btn" id="bImport">${t('set.importBackup')}</button>
+    <div class="card" id="bkCard">
+      <h2>${t('bk.title')}</h2>
+      <p class="bk-conn" id="bkConn"></p>
+      <div class="bk-grid">
+        <section class="bk-tile bk-full" aria-labelledby="bkFullH">
+          <div class="bk-top"><span class="bk-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 3 6v6c0 5 3.8 9.4 9 10 5.2-.6 9-5 9-10V6l-9-4zm-1.2 14.2-3.5-3.5 1.4-1.4 2.1 2.1 4.9-4.9 1.4 1.4z"/></svg></span><div><b id="bkFullH">${t('bk.fullTitle')}</b><small>${t('bk.fullSub')}</small></div><span class="bk-tag">${t('bk.fullTag')}</span></div>
+          <ul class="bk-chips" id="bkFullChips"></ul>
+          <p class="bk-state" id="bkFullState"></p>
+          <div class="bk-actions">
+            <button class="btn primary" id="bkFullSave"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.4 10.2A7 7 0 0 0 6.1 8.1 5 5 0 0 0 6.5 18H11v-4.2l-1.6 1.6L8 14l4-4 4 4-1.4 1.4-1.6-1.6V18h5.5a4 4 0 0 0 .9-7.8z"/></svg><span>${t('bk.fullSave')}</span></button>
+            <button class="btn" id="bkFullRestore"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.4 10.2A7 7 0 0 0 6.1 8.1 5 5 0 0 0 6.5 18h12a4 4 0 0 0 .9-7.8zM12 16.5l-4-4 1.4-1.4 1.6 1.6V8h2v4.7l1.6-1.6 1.4 1.4z"/></svg><span>${t('bk.fullRestore')}</span></button>
+          </div>
+          <p class="bk-more"><button type="button" class="link-btn" data-bkf="full:save">${t('bk.fileSave')}</button> · <button type="button" class="link-btn" data-bkf="full:open">${t('bk.fileOpen')}</button></p>
+          <p class="bk-warn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 9V7a5 5 0 0 0-10 0v2H5v13h14V9zm-8-2a3 3 0 0 1 6 0v2H9z"/></svg><span>${t('bk.fullWarn')}</span></p>
+        </section>
+        <section class="bk-tile bk-songs" aria-labelledby="bkSongsH">
+          <div class="bk-top"><span class="bk-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v10.6A4 4 0 1 0 14 17V7h4V3h-6z"/></svg></span><div><b id="bkSongsH">${t('bk.songsTitle')}</b><small>${t('bk.songsSub')}</small></div><span class="bk-tag">${t('bk.songsTag')}</span></div>
+          <ul class="bk-chips" id="bkSongsChips"></ul>
+          <p class="bk-state" id="bkSongsState"></p>
+          <div class="bk-actions">
+            <button class="btn" id="bkSongsSave"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.4 10.2A7 7 0 0 0 6.1 8.1 5 5 0 0 0 6.5 18H11v-4.2l-1.6 1.6L8 14l4-4 4 4-1.4 1.4-1.6-1.6V18h5.5a4 4 0 0 0 .9-7.8z"/></svg><span>${t('bk.songsSave')}</span></button>
+            <button class="btn" id="bkSongsRestore"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.4 10.2A7 7 0 0 0 6.1 8.1 5 5 0 0 0 6.5 18h12a4 4 0 0 0 .9-7.8zM12 16.5l-4-4 1.4-1.4 1.6 1.6V8h2v4.7l1.6-1.6 1.4 1.4z"/></svg><span>${t('bk.songsRestore')}</span></button>
+          </div>
+          <p class="bk-more"><button type="button" class="link-btn" data-bkf="songs:save">${t('bk.fileSave')}</button> · <button type="button" class="link-btn" data-bkf="songs:open">${t('bk.fileOpen')}</button></p>
+        </section>
       </div>
-      <a class="btn wide cc-open" href="#/provera">${t('cc.open')}</a>
-      <p class="muted small">${t('cc.openNote')}</p>
     </div>
 
     <div class="card" id="installCard" ${isStandalone() ? 'hidden' : ''}>
@@ -182,7 +200,6 @@ export async function renderSettings(root) {
   // Pesme → „Predlaži ritam“ (isto se isključuje i preko „Ne predlaži više“ na samom predlogu)
   $('strumSuggestSw').addEventListener('change', (e) => settings.set('strumSuggest', e.target.checked));
   // v1.70: „Šta je novo“ (zlatna tačka dok se ne pogleda)
-  import('./sync.js').then((Y) => { if (Y.syncState().on && $('fbNote')) $('fbNote').textContent = t('set.fileBackupNoteSync'); }).catch(() => {});
   import('./whatsnew.js').then((W) => { if (W.unseen()) $('aboutNew')?.insertAdjacentHTML('beforeend', '<i class="wn-dot" aria-hidden="true"></i>'); });
   $('aboutNew').addEventListener('click', async () => (await import('./whatsnew.js')).showWhatsNew());
   // O aplikaciji: dodir na naslov (ili ikonicu) ponovo pušta uvodnu animaciju
@@ -459,15 +476,43 @@ export async function renderSettings(root) {
 
   bindTunerSettings($('tsetBox'), tset); // isto kao panel na tuneru
 
-  $('bExport').addEventListener('click', async () => {
-    const n = await db.count();
-    if (!n) { toast(t('set.nothingToExport')); return; }
-    const r = await exportAll();
-    if (r === 'downloaded') toast(t('set.backupDownloaded'));
-    settings.set('backupNudge', { ...((await settings.get('backupNudge', null)) || {}), exportedAt: Date.now() });
+  // v1.71: Rezervne kopije — „Cela aplikacija“ (sve, i ključ) i „Samo pesme“. Drive radi sam; fajl je dodatna mogućnost.
+  const chip = (k, v, ok) => `<li class="${ok === false ? 'no' : ''}"><span>${esc(k)}</span><b>${esc(String(v))}</b></li>`;
+  const drawBk = async () => {
+    const B = await import('./backups.js');
+    const c = await B.counts(), on = await B.isConnected(), L = B.lastBackups();
+    if (!$('bkCard')) return;
+    const em = (syncState().email || '');
+    $('bkConn').innerHTML = on ? `<span class="bk-dot ok"></span>${esc(t('bk.connOn', { email: em || t('drive.account') }))}` : `<span class="bk-dot"></span>${esc(t('bk.connOff'))}`;
+    $('bkFullChips').innerHTML = chip(t('bk.cSongs'), c.songs) + chip(t('bk.cSets'), c.sets) + chip(t('bk.cKey'), c.key ? '✓' : '—', c.key) + chip(t('bk.cPractice'), c.practice ? '✓' : '—', c.practice) + chip(t('bk.cSettings'), '✓');
+    $('bkSongsChips').innerHTML = chip(t('bk.cSongs'), c.songs) + chip(t('bk.cFolders'), c.folders);
+    for (const [kind, id] of [['full', 'bkFullState'], ['songs', 'bkSongsState']]) {
+      const el = $(id); if (!el) continue;
+      const local = L[kind] ? t('bk.last', { date: formatDate(L[kind].at), where: t(L[kind].where === 'drive' ? 'bk.whereDrive' : 'bk.whereFile') }) : '';
+      const show = (cls, txt) => { el.className = 'bk-state ' + cls; el.textContent = txt; };
+      show(L[kind] ? 'ok' : 'warn', local || t('bk.never'));
+      if (on) B.onDrive(kind).then((d) => { if (d) show('ok', t('bk.onDriveAt', { date: formatDate(d.modified) })); else if (d === null && !(L[kind] && L[kind].where === 'file')) show('warn', t('bk.noneYet')); }).catch(() => {});
+    }
+  };
+  drawBk();
+  const bk = (id, fn) => $(id).addEventListener('click', async (e) => {
+    const b = e.currentTarget; b.disabled = true; b.classList.add('busy');
+    try { const B = await import('./backups.js'); await B[fn[0]](fn[1]); }
+    catch (err) { toast((err && err.message) || t('common.error'), 'error'); }
+    finally { b.disabled = false; b.classList.remove('busy'); drawBk(); }
   });
-  // v1.70: prvo traži kopiju na Google Drive-u, fajl sa uređaja je druga mogućnost
-  $('bImport').addEventListener('click', async () => { (await import('./restore.js')).restoreBackup(); });
+  bk('bkFullSave', ['saveBackup', 'full']); bk('bkSongsSave', ['saveBackup', 'songs']);
+  bk('bkFullRestore', ['restoreFull']); bk('bkSongsRestore', ['restoreSongs']);
+  $('bkCard').addEventListener('click', async (e) => {
+    const l = e.target.closest('[data-bkf]'); if (!l) return;
+    const [kind, act] = l.dataset.bkf.split(':'); const B = await import('./backups.js');
+    try {
+      if (act === 'save') await B.saveFile(kind);
+      else if (kind === 'full') await B.restoreFull({ from: 'file' });
+      else await B.restoreSongs({ from: 'file' });
+    } catch (err) { toast((err && err.message) || t('common.error'), 'error'); }
+    drawBk();
+  });
 
   // ---- Google Drive ----
   const driveCard = $('driveCard');
@@ -493,29 +538,7 @@ export async function renderSettings(root) {
         </div>
         <button class="btn danger-text" data-d="syncOff">${t('sync.off')}</button>`;
     const syncMsg = `<p class="status ${driveMsgCls}" role="status">${esc(driveMsg)}</p>`;
-    if (!d.connected) {
-      driveCard.innerHTML = `${syncHtml}${syncMsg}
-        <h3 class="sync-h">${t('drive.fileTitle')}</h3>
-        <p class="muted small">${t('drive.intro')}</p>
-        <button class="btn wide" data-d="connect">${t('drive.connect')}</button>`;
-      return;
-    }
-    const status = d.busy ? t('drive.busy')
-      : d.needsReconnect ? t('drive.expiredStatus')
-      : d.pending ? (d.lastError || t('drive.pending'))
-      : '';
-    driveCard.innerHTML = `${syncHtml}${syncMsg}
-      <h3 class="sync-h">${t('drive.fileTitle')}</h3>
-      <p class="drive-account">${t('drive.connected')} <b>${esc(d.email || t('drive.account'))}</b></p>
-      <p class="small">${t('drive.last')} <b>${d.lastBackup ? esc(formatDate(d.lastBackup)) : t('drive.never')}</b></p>
-      ${d.needsReconnect ? `<button class="btn primary wide" data-d="reconnect">${t('drive.reconnect')}</button>` : ''}
-      <div class="row wrap">
-        <button class="btn" data-d="backup" ${d.busy ? 'disabled' : ''}>${t('drive.backupNow')}</button>
-        <button class="btn" data-d="restore" ${d.busy ? 'disabled' : ''}>${t('drive.restore')}</button>
-      </div>
-      ${status ? `<p class="status ${d.needsReconnect || (d.pending && d.lastError) ? 'err' : ''}" role="status">${esc(status)}</p>` : ''}
-      <p class="muted small">${y.on ? t('drive.autoOffSync') : t('drive.auto')}</p>
-      <button class="btn danger-text" data-d="disconnect">${t('drive.disconnect')}</button>`;
+    driveCard.innerHTML = `${syncHtml}${syncMsg}<p class="muted small sync-bk-note">${t('bk.syncNote')}</p>`; // v1.71: kopije su u „Rezervne kopije“
   };
   const setDriveMsg = (m, cls = '') => { driveMsg = m; driveMsgCls = cls; drawDrive(); };
   const driveErr = (e) => (e instanceof DriveError || (e && e.user) ? e.message : t('common.error'));
