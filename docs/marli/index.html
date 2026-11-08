@@ -1,0 +1,411 @@
+<!doctype html>
+<html lang="sr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<meta name="robots" content="noindex">
+<title>MARLI — predlozi (ikonica, uvodna animacija, O aplikaciji)</title>
+<style>
+  /* Iste boje, fontovi i efekti kao u aplikaciji (src/styles.css): AMOLED crna, kartice, zlatna, sjaj talasa tunera */
+  :root {
+    --bg: #000; --surface: #0f1013; --surface-2: #181a1e; --line: #262930; --text: #eceef2; --muted: #9aa1ad;
+    --accent: #f5a524; --accent-soft: rgba(245, 165, 36, .14); --ok: #3dd68c; --sec: #f59e0b; --sec2: #ffcc33; --sec-deep: #b45309;
+    --mono: ui-monospace, 'SF Mono', 'Menlo', 'Roboto Mono', 'DejaVu Sans Mono', 'Consolas', monospace;
+    --sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); line-height: 1.45; }
+  main { max-width: 1120px; margin: 0 auto; padding: calc(env(safe-area-inset-top) + 16px) 16px 64px; }
+  h1 { font-size: 1.9rem; margin: .2rem 0 .3rem; letter-spacing: -.01em; background: linear-gradient(100deg, var(--sec) 0%, var(--sec2) 65%, var(--sec) 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  h2 { font-size: 1.25rem; margin: 2.2rem 0 .3rem; }
+  h3 { font-size: 1.05rem; margin: 0 0 .6rem; display: flex; align-items: baseline; gap: 10px; }
+  p { margin: .4rem 0; }
+  .muted { color: var(--muted); }
+  .small { font-size: .85rem; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px; }
+  .tag { display: inline-grid; place-items: center; min-width: 30px; height: 30px; padding: 0 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-weight: 800; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 16px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); font: 600 .95rem var(--sans); cursor: pointer; }
+  .btn.primary { border: 0; color: #1a1203; background: linear-gradient(135deg, var(--sec2), var(--sec) 55%, var(--sec-deep)); box-shadow: 0 6px 18px rgba(245, 158, 11, .3); }
+  .btn:active { transform: scale(.97); }
+  .acr b { color: var(--accent); }
+  .grid { display: grid; gap: 16px; }
+  @media (min-width: 900px) { .grid.two { grid-template-columns: 1fr 1fr; } }
+
+  /* ---- ikonice ---- */
+  .ico-card .sizes { display: flex; align-items: flex-end; gap: 18px; flex-wrap: wrap; }
+  .ico-card figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .ico-card figcaption { font-size: .75rem; color: var(--muted); }
+  .ico { display: block; }
+  .ico svg { display: block; width: 100%; height: 100%; }
+  .s512 { width: min(256px, 62vw); aspect-ratio: 1; }   /* 512 prikazan u pola veličine (na telefonu manje) */
+  .s192 { width: 96px; aspect-ratio: 1; }               /* 192 prikazan u pola (oštrina kao na ekranu telefona) */
+  .s60 { width: 60px; aspect-ratio: 1; }
+  .crop-circle { border-radius: 50%; overflow: hidden; }
+  .crop-squircle { border-radius: 22.5%; overflow: hidden; }
+  .crop-square { border-radius: 4px; overflow: hidden; outline: 1px solid var(--line); }
+  .home { margin-top: 14px; padding: 18px 14px 14px; border-radius: 20px; background: radial-gradient(120% 90% at 30% 0%, #1d2a3a 0%, #0c1118 55%, #07090c 100%); display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px 8px; justify-items: center; }
+  .home .app { display: flex; flex-direction: column; align-items: center; gap: 5px; width: 72px; }
+  .home .app span { font-size: 11px; color: #e8ecf2; text-shadow: 0 1px 2px #000; white-space: nowrap; }
+  .home .dummy { width: 60px; height: 60px; border-radius: 22.5%; background: linear-gradient(135deg, #3a4b63, #22303f); opacity: .55; }
+  .home .dummy.c { border-radius: 50%; }
+  .home-label { font-size: .75rem; color: var(--muted); margin-top: 6px; text-align: center; }
+
+  /* ---- uvodna animacija ---- */
+  .phone { width: min(300px, 82vw); aspect-ratio: 9 / 19.5; margin: 0 auto; border-radius: 34px; background: #000; border: 1px solid #2a2d33; box-shadow: 0 0 0 6px #0b0c0e, 0 18px 40px rgba(0,0,0,.6); position: relative; overflow: hidden; }
+  .phone .stage { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; }
+  .anim-card .row { display: flex; gap: 10px; justify-content: center; margin-top: 14px; flex-wrap: wrap; }
+  .words { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 .38em; padding: 0 18px; font-size: 15px; color: var(--muted); letter-spacing: .01em; min-height: 46px; text-align: center; }
+  .words span { opacity: 0; transform: translateY(6px); display: inline-block; }
+  .words span i { font-style: normal; color: var(--accent); font-weight: 800; text-shadow: 0 0 10px rgba(245, 165, 36, .85); }
+  .play .words span { animation: wordIn .32s cubic-bezier(.2, .8, .2, 1) forwards; }
+  .play .words span:nth-child(1) { animation-delay: var(--w0); }
+  .play .words span:nth-child(2) { animation-delay: calc(var(--w0) + .14s); }
+  .play .words span:nth-child(3) { animation-delay: calc(var(--w0) + .28s); }
+  .play .words span:nth-child(4) { animation-delay: calc(var(--w0) + .42s); }
+  .play .words span:nth-child(5) { animation-delay: calc(var(--w0) + .56s); }
+  @keyframes wordIn { to { opacity: 1; transform: none; } }
+  .timeline { height: 3px; border-radius: 2px; background: var(--surface-2); margin: 12px auto 0; width: min(300px, 82vw); overflow: hidden; }
+  .timeline b { display: block; height: 100%; width: 0; background: var(--accent); }
+  .play + .timeline b, .phone.play ~ .timeline b { animation: tl 2.4s linear forwards; }
+  @keyframes tl { to { width: 100%; } }
+
+  /* animacija 1: žica se smiri, pa ispiše ime */
+  .a1 .name path { stroke-dasharray: 1; stroke-dashoffset: 1; }
+  .play.a1 .name path { animation: draw .55s cubic-bezier(.5, 0, .3, 1) forwards; }
+  .play.a1 .name path:nth-of-type(2) { animation-delay: .78s; } .play.a1 .name path:nth-of-type(1) { animation-delay: .7s; }
+  .play.a1 .name path:nth-of-type(3) { animation-delay: .86s; } .play.a1 .name path:nth-of-type(4) { animation-delay: .94s; }
+  .play.a1 .name path:nth-of-type(5) { animation-delay: 1.02s; }
+  @keyframes draw { to { stroke-dashoffset: 0; } }
+  .a1 .string { opacity: 1; }
+  .play.a1 .string { animation: stringOut .5s ease-in .75s forwards; }
+  @keyframes stringOut { to { opacity: 0; } }
+  .play.a1 .flash { animation: flash .6s ease-out 1.35s both; }
+  @keyframes flash { 0% { opacity: 0; } 30% { opacity: .38; } 100% { opacity: 0; } }
+
+  /* animacija 2: naštimovano — talas pozeleni, ime izraste iz žice */
+  .a2 .rise { transform: translateY(70px); opacity: 0; }
+  .play.a2 .rise { animation: rise .6s cubic-bezier(.2, .9, .25, 1.15) 1s forwards; }
+  @keyframes rise { 60% { opacity: 1; } to { transform: none; opacity: 1; } }
+  .a2 .uline { transform-origin: 50% 50%; }
+  .play.a2 .uline { animation: shrink .55s cubic-bezier(.5, 0, .2, 1) 1.05s forwards; }
+  @keyframes shrink { to { transform: scaleX(.62); } }
+  .play.a2 .okring { animation: okRing .7s ease-out .82s both; }
+  @keyframes okRing { 0% { opacity: 0; r: 6; } 25% { opacity: .9; } 100% { opacity: 0; r: 120; } }
+  @media (prefers-reduced-motion: reduce) { .note-rm { display: block !important; } }
+
+  /* ---- O aplikaciji ---- */
+  .about-mock { max-width: 420px; margin: 0 auto; }
+  .about-mock .set-card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 18px 16px; text-align: center; }
+  .about-mock .set-head { display: flex; justify-content: space-between; align-items: center; text-align: left; margin: -2px 0 14px; }
+  .about-mock .set-head b { font-size: 1.05rem; }
+  .about-mock .a-ico { width: 88px; height: 88px; margin: 4px auto 10px; border-radius: 22.5%; overflow: hidden; box-shadow: 0 0 0 1px var(--line), 0 10px 30px rgba(245, 165, 36, .14); cursor: pointer; }
+  .about-mock .a-title { font-size: 2rem; font-weight: 900; letter-spacing: .14em; margin: 2px 0 2px; background: linear-gradient(100deg, var(--sec) 0%, var(--sec2) 65%, var(--sec) 100%); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 0 10px rgba(245, 165, 36, .35)); cursor: pointer; }
+  .about-mock .a-acr { font-size: .95rem; color: var(--text); }
+  .about-mock .a-acr b { color: var(--accent); font-weight: 800; }
+  .about-mock .a-tr { font-size: .8rem; color: var(--muted); font-style: italic; margin-top: 2px; }
+  .about-mock .a-ver { margin-top: 12px; font-size: .85rem; color: var(--muted); }
+  .about-mock .a-hint { margin-top: 10px; font-size: .75rem; color: #6d737d; }
+  .chev { color: var(--muted); }
+  .lang-tag { display: inline-block; font-size: .72rem; font-weight: 700; letter-spacing: .06em; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; margin-bottom: 8px; }
+  .sticky-nav { position: sticky; top: 0; z-index: 5; background: rgba(0,0,0,.86); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); margin: 0 -16px; padding: 8px 16px; display: flex; gap: 8px; overflow-x: auto; }
+  .sticky-nav a { color: var(--text); text-decoration: none; font-size: .88rem; font-weight: 600; padding: 6px 12px; border-radius: 999px; background: var(--surface-2); white-space: nowrap; }
+  footer { margin-top: 40px; font-size: .8rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <p class="muted small" style="margin:0">Faza 1 — samo predlozi, aplikacija se ne menja</p>
+  <h1>MARLI</h1>
+  <p class="acr"><b>M</b>alo <b>A</b>korda, <b>R</b>itma, <b>L</b>jubavi, <b>I</b>nspiracije</p>
+  <p class="muted small">Izaberi ikonicu (A–D) i uvodnu animaciju (1 ili 2), npr. „ikonica B, animacija 2“.</p>
+  <nav class="sticky-nav"><a href="#ikonice">Ikonica</a><a href="#animacija">Uvodna animacija</a><a href="#oaplikaciji">O aplikaciji</a></nav>
+
+  <h2 id="ikonice">1. Ikonica</h2>
+  <p class="muted small">Svaka u tri veličine: velika (512), srednja (192) i mala kao na početnom ekranu telefona (60 px). Pa isečena u krug (Android) i u zaobljen kvadrat (iPhone). Ime „MARLI“ mora da se pročita i na maloj.</p>
+  <div class="grid two" id="icoGrid"></div>
+
+  <h3 style="margin-top:22px">Sve četiri na početnom ekranu telefona (60 px)</h3>
+  <div class="grid two">
+    <div><div class="home" id="homeIos"></div><p class="home-label">iPhone (zaobljen kvadrat)</p></div>
+    <div><div class="home" id="homeAndroid"></div><p class="home-label">Android (krug)</p></div>
+  </div>
+
+  <h2 id="animacija">2. Uvodna animacija</h2>
+  <p class="muted small">Oko 2,4 s, na AMOLED crnoj, u stilu tunera. Na pravom telefonu: dodir preskače animaciju; ako je u sistemu uključeno „smanji pokrete“, nema animacije — samo ovaj ekran oko 1,5 s.</p>
+  <p class="muted small note-rm" style="display:none">Na ovom uređaju je uključeno „smanji pokrete“ — ovde se animacije ipak puštaju, da bi mogle da se pregledaju.</p>
+  <div class="grid two">
+    <div class="card anim-card">
+      <h3><span class="tag">1</span> Žica se smiri i ispiše ime</h3>
+      <p class="muted small">Žica zatreperi (kao na tuneru), umiri se, i istim sjajnim potezom napiše MARLI. Zatim reč po reč, sa istaknutim M, A, R, L, I.</p>
+      <div class="phone a1" id="ph1"></div>
+      <div class="timeline"><b></b></div>
+      <div class="row"><button class="btn primary" data-replay="1">↻ Pusti ponovo</button></div>
+    </div>
+    <div class="card anim-card">
+      <h3><span class="tag">2</span> Naštimovano</h3>
+      <p class="muted small">Talas klizi narandžasto kao neštimovana žica, „uštimuje se“ i pozeleni, a ime izraste iz žice koja ostaje kao zlatna linija ispod. Zatim reč po reč.</p>
+      <div class="phone a2" id="ph2"></div>
+      <div class="timeline"><b></b></div>
+      <div class="row"><button class="btn primary" data-replay="2">↻ Pusti ponovo</button></div>
+    </div>
+  </div>
+
+  <h2 id="oaplikaciji">3. Podešavanja → O aplikaciji</h2>
+  <p class="muted small">Na dnu Podešavanja, umesto sadašnjeg reda „Gitara · verzija…“. Dodir na naslov ponovo pušta uvodnu animaciju. Ikonica u primeru: <b id="aboutIcoName">A</b> (biće izabrana).</p>
+  <div class="grid two">
+    <div class="about-mock">
+      <span class="lang-tag">SRPSKI</span>
+      <div class="set-card">
+        <div class="set-head"><b>O aplikaciji</b><span class="chev">⌄</span></div>
+        <div class="a-ico" data-ab="sr"></div>
+        <div class="a-title">MARLI</div>
+        <div class="a-acr"><b>M</b>alo <b>A</b>korda, <b>R</b>itma, <b>L</b>jubavi, <b>I</b>nspiracije</div>
+        <div class="a-ver">verzija 1.69.0</div>
+        <div class="a-hint">Dodirni naslov za uvodnu animaciju</div>
+      </div>
+    </div>
+    <div class="about-mock">
+      <span class="lang-tag">ENGLISH</span>
+      <div class="set-card">
+        <div class="set-head"><b>About</b><span class="chev">⌄</span></div>
+        <div class="a-ico" data-ab="en"></div>
+        <div class="a-title">MARLI</div>
+        <div class="a-acr"><b>M</b>alo <b>A</b>korda, <b>R</b>itma, <b>L</b>jubavi, <b>I</b>nspiracije</div>
+        <div class="a-tr">A little chords, rhythm, love and inspiration</div>
+        <div class="a-ver">version 1.69.0</div>
+        <div class="a-hint">Tap the title to replay the intro</div>
+      </div>
+    </div>
+  </div>
+  <p class="muted small" style="text-align:center;margin-top:10px">Promeni ikonicu u primeru: <button class="btn" data-ab-ico="A">A</button> <button class="btn" data-ab-ico="B">B</button> <button class="btn" data-ab-ico="C">C</button> <button class="btn" data-ab-ico="D">D</button></p>
+
+  <footer>Ova stranica je samo predlog (docs/marli/). Ime aplikacije, adresa, pesme i podešavanja se ne menjaju dok ne izabereš.</footer>
+</main>
+
+<script>
+// ------------------------------------------------------------------------------------------------
+// Zajedničko: sjaj kao talas tunera (mekani sjaj 3 px + svetlo jezgro), boje aplikacije
+// ------------------------------------------------------------------------------------------------
+const GOLD = '#f5a524', CORE = '#ffd27a', GREEN = '#3dd68c';
+let uid = 0;
+const glowDefs = (id, blur = 9) => `<filter id="${id}" filterUnits="userSpaceOnUse" x="-200" y="-200" width="1000" height="1000"><feGaussianBlur stdDeviation="${blur}" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>`;
+
+// „MARLI“ jednim potezom (monoline), slova visine 100, sa razmakom; ukupno 340 × 100
+const LETTERS = [
+  'M0,100 L0,0 L35,62 L70,0 L70,100',
+  'M92,100 L124,0 L156,100 M104,64 L144,64',
+  'M178,100 L178,0 L214,0 Q244,0 244,27 Q244,54 214,54 L178,54 M210,54 L244,100',
+  'M266,0 L266,100 L316,100',
+  'M340,0 L340,100',
+];
+const lettersG = (attrs = '') => LETTERS.map((d) => `<path d="${d}" pathLength="1" ${attrs}/>`).join('');
+
+// talas kao na tuneru: sin² obvojnica × sinus
+function wavePath(x0, x1, y, amp, waves = 2, phase = 0, step = 4) {
+  let d = '';
+  for (let x = x0; x <= x1; x += step) {
+    const k = (x - x0) / (x1 - x0), env = Math.sin(Math.PI * k);
+    const yy = y + env * env * amp * Math.sin(k * Math.PI * 2 * waves + phase);
+    d += (x === x0 ? 'M' : 'L') + x.toFixed(1) + ',' + yy.toFixed(1);
+  }
+  return d;
+}
+
+// ------------------------------------------------------------------------------------------------
+// Ikonice (512 × 512, bez zaobljenja — zaobljenje/krug radi sistem)
+// ------------------------------------------------------------------------------------------------
+const ICONS = {
+  A: {
+    name: 'Žica ispisuje ime',
+    note: 'Žica preko cele ikonice, slova MARLI su izvučena iz nje istim sjajnim potezom.',
+    svg(id) {
+      const g = 'g' + id;
+      const left = wavePath(24, 66, 372, 12, 1), right = wavePath(446, 488, 372, 12, 1, Math.PI);
+      return `<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg"><defs>${glowDefs(g, 10)}
+        <linearGradient id="lg${id}" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="512" y2="0"><stop offset="0" stop-color="#f59e0b"/><stop offset=".6" stop-color="#ffcc33"/><stop offset="1" stop-color="#f59e0b"/></linearGradient></defs>
+        <rect width="512" height="512" fill="#000"/>
+        <g fill="none" stroke-linecap="round" stroke-linejoin="round" filter="url(#${g})">
+          <path d="${left}" stroke="${GOLD}" stroke-width="7" opacity=".9"/><path d="${right}" stroke="${GOLD}" stroke-width="7" opacity=".9"/>
+          <g transform="translate(66 196) scale(1.12 1.76)" stroke="url(#lg${id})" stroke-width="15">${LETTERS.map((d) => `<path d="${d}"/>`).join('')}</g>
+          <line x1="66" y1="372" x2="446" y2="372" stroke="${GOLD}" stroke-width="7"/>
+        </g>
+        <g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke="${CORE}" opacity=".9">
+          <g transform="translate(66 196) scale(1.12 1.76)" stroke-width="4.5">${LETTERS.map((d) => `<path d="${d}"/>`).join('')}</g>
+        </g></svg>`;
+    },
+  },
+  B: {
+    name: 'Glava gitare',
+    note: 'Glava gitare sa šest sjajnih čivija i žicama, ime krupno ispod.',
+    svg(id) {
+      const g = 'g' + id;
+      const ys = [104, 168, 232], posts = [...ys.map((y) => [212, y]), ...ys.map((y) => [300, y])];
+      const nutX = [228, 239, 250, 262, 273, 284];
+      const order = [2, 1, 0, 3, 4, 5]; // niže čivije = spoljne žice
+      const strings = order.map((pi, i) => `<line x1="${posts[pi][0]}" y1="${posts[pi][1]}" x2="${nutX[i]}" y2="318"/>`).join('');
+      return `<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg"><defs>${glowDefs(g, 9)}
+        <linearGradient id="lg${id}" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="512" y2="0"><stop offset="0" stop-color="#f59e0b"/><stop offset=".6" stop-color="#ffcc33"/><stop offset="1" stop-color="#f59e0b"/></linearGradient></defs>
+        <rect width="512" height="512" fill="#000"/>
+        <path d="M206 322 L180 96 Q178 58 214 52 L298 52 Q334 58 332 96 L306 322 Z" fill="#181a1e" stroke="#2f333b" stroke-width="4"/>
+        <g stroke="#6b5a3a" stroke-width="7" stroke-linecap="round">${ys.map((y) => `<line x1="150" y1="${y}" x2="212" y2="${y}"/><line x1="300" y1="${y}" x2="362" y2="${y}"/>`).join('')}</g>
+        <g fill="#2a2d33">${posts.map(([x, y]) => `<circle cx="${x}" cy="${y}" r="7"/>`).join('')}</g>
+        <g stroke="${CORE}" stroke-width="3" filter="url(#${g})">${strings}</g>
+        <rect x="206" y="314" width="100" height="12" rx="4" fill="#e9e1cf" opacity=".9"/>
+        <g fill="${GOLD}" filter="url(#${g})">${ys.map((y) => `<ellipse cx="136" cy="${y}" rx="22" ry="17"/><ellipse cx="376" cy="${y}" rx="22" ry="17"/>`).join('')}</g>
+        <text x="256" y="440" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif" font-weight="900" font-size="112" letter-spacing="6" fill="url(#lg${id})" filter="url(#${g})">MARLI</text>
+        </svg>`;
+    },
+  },
+  C: {
+    name: 'Veliko M od žice',
+    note: 'Veliko „M“ od žice koja treperi, ime ispod. Najjači znak, ime je manje.',
+    svg(id) {
+      const g = 'g' + id;
+      // M od četiri treperava segmenta žice
+      const seg = (x0, y0, x1, y1, amp, waves) => {
+        const L = Math.hypot(x1 - x0, y1 - y0), nx = -(y1 - y0) / L, ny = (x1 - x0) / L; let d = '';
+        for (let i = 0; i <= 60; i++) { const k = i / 60, env = Math.sin(Math.PI * k), w = env * env * amp * Math.sin(k * Math.PI * 2 * waves);
+          d += (i ? 'L' : 'M') + (x0 + (x1 - x0) * k + nx * w).toFixed(1) + ',' + (y0 + (y1 - y0) * k + ny * w).toFixed(1); }
+        return d;
+      };
+      const M = [seg(118, 330, 118, 92, 9, 2), seg(118, 92, 256, 262, 12, 1.5), seg(256, 262, 394, 92, 12, 1.5), seg(394, 92, 394, 330, 9, 2)];
+      return `<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg"><defs>${glowDefs(g, 11)}
+        <linearGradient id="lg${id}" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="512" y2="0"><stop offset="0" stop-color="#f59e0b"/><stop offset=".6" stop-color="#ffcc33"/><stop offset="1" stop-color="#f59e0b"/></linearGradient></defs>
+        <rect width="512" height="512" fill="#000"/>
+        <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <g stroke="${GOLD}" stroke-width="16" filter="url(#${g})">${M.map((d) => `<path d="${d}"/>`).join('')}</g>
+          <g stroke="${CORE}" stroke-width="5">${M.map((d) => `<path d="${d}"/>`).join('')}</g>
+        </g>
+        <circle cx="118" cy="92" r="12" fill="${CORE}"/><circle cx="394" cy="92" r="12" fill="${CORE}"/>
+        <text x="256" y="440" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif" font-weight="800" font-size="88" letter-spacing="14" fill="#eceef2">MARLI</text>
+        </svg>`;
+    },
+  },
+  D: {
+    name: 'Ekvilajzer',
+    note: 'Stubići zvuka (kao ekvilajzer) i ime koje izranja iz njih.',
+    svg(id) {
+      const g = 'g' + id;
+      const H = [38, 70, 112, 88, 136, 96, 120, 74, 50, 30];
+      const bars = H.map((h, i) => `<rect x="${62 + i * 40}" y="${452 - h}" width="28" height="${h}" rx="7"/>`).join('');
+      return `<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg"><defs>${glowDefs(g, 9)}
+        <linearGradient id="bar${id}" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#b45309"/><stop offset=".55" stop-color="#f59e0b"/><stop offset="1" stop-color="#ffcc33"/></linearGradient>
+        <linearGradient id="txt${id}" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#f59e0b"/><stop offset=".5" stop-color="#ffd27a"/><stop offset="1" stop-color="#fff3d6"/></linearGradient></defs>
+        <rect width="512" height="512" fill="#000"/>
+        <g fill="url(#bar${id})" filter="url(#${g})">${bars}</g>
+        <path d="${wavePath(52, 460, 262, 18, 3)}" fill="none" stroke="${GOLD}" stroke-width="5" opacity=".55" filter="url(#${g})"/>
+        <text x="256" y="236" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif" font-weight="900" font-size="120" letter-spacing="4" fill="url(#txt${id})" filter="url(#${g})">MARLI</text>
+        </svg>`;
+    },
+  },
+};
+const icon = (k) => ICONS[k].svg(++uid);
+
+// karte ikonica
+const grid = document.getElementById('icoGrid');
+for (const k of Object.keys(ICONS)) {
+  const c = document.createElement('div');
+  c.className = 'card ico-card';
+  c.id = 'ico' + k;
+  c.innerHTML = `<h3><span class="tag">${k}</span> ${ICONS[k].name}</h3><p class="muted small">${ICONS[k].note}</p>
+    <div class="sizes">
+      <figure><div class="ico s512 crop-square">${icon(k)}</div><figcaption>512</figcaption></figure>
+      <figure><div class="ico s192 crop-square">${icon(k)}</div><figcaption>192</figcaption></figure>
+      <figure><div class="ico s60 crop-square">${icon(k)}</div><figcaption>60 px</figcaption></figure>
+    </div>
+    <div class="sizes" style="margin-top:14px">
+      <figure><div class="ico s192 crop-circle">${icon(k)}</div><figcaption>krug (Android)</figcaption></figure>
+      <figure><div class="ico s192 crop-squircle">${icon(k)}</div><figcaption>zaobljen kvadrat (iPhone)</figcaption></figure>
+      <figure><div class="ico s60 crop-circle">${icon(k)}</div><figcaption>60 krug</figcaption></figure>
+      <figure><div class="ico s60 crop-squircle">${icon(k)}</div><figcaption>60 kvadrat</figcaption></figure>
+    </div>`;
+  grid.appendChild(c);
+}
+// početni ekran
+const home = (el, cls) => {
+  const d = (n) => Array.from({ length: n }, (_, i) => `<div class="app"><div class="dummy ${cls === 'crop-circle' ? 'c' : ''}"></div><span>Aplikacija</span></div>`).join('');
+  el.innerHTML = d(2) + Object.keys(ICONS).map((k) => `<div class="app"><div class="ico s60 ${cls}">${icon(k)}</div><span>MARLI ${k}</span></div>`).join('') + d(2);
+};
+home(document.getElementById('homeIos'), 'crop-squircle');
+home(document.getElementById('homeAndroid'), 'crop-circle');
+
+// ------------------------------------------------------------------------------------------------
+// Uvodne animacije (samo SVG + CSS; žica treperi preko SVG <animate>, radi i u Safariju)
+// ------------------------------------------------------------------------------------------------
+const WORDS = `<div class="words" style="--w0:1.45s"><span><i>M</i>alo</span><span><i>A</i>korda,</span><span><i>R</i>itma,</span><span><i>L</i>jubavi,</span><span><i>I</i>nspiracije</span></div>`;
+
+function anim1() {
+  const id = ++uid, g = 'g' + id;
+  // treperenje koje se smiruje: amplituda opada, znak se smenjuje
+  const amps = [34, -28, 22, -17, 12, -8, 5, -3, 1.5, 0];
+  const vals = amps.map((a) => wavePath(20, 300, 100, a, 2)).join(';');
+  return `<div class="stage">
+    <svg viewBox="0 0 320 200" width="100%" style="max-width:290px;overflow:visible" aria-label="MARLI">
+      <defs>${glowDefs(g, 5)}<linearGradient id="lg${id}" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="512" y2="0"><stop offset="0" stop-color="#f59e0b"/><stop offset=".6" stop-color="#ffcc33"/><stop offset="1" stop-color="#f59e0b"/></linearGradient></defs>
+      <g class="string" fill="none" stroke-linecap="round" filter="url(#${g})">
+        <path stroke="${GOLD}" stroke-width="3" d="${wavePath(20, 300, 100, 34, 2)}"><animate attributeName="d" dur="0.95s" fill="freeze" values="${vals}" calcMode="spline" keyTimes="${amps.map((_, i) => (i / (amps.length - 1)).toFixed(3)).join(';')}" keySplines="${amps.slice(1).map(() => '.45 0 .55 1').join(';')}"/></path>
+        <path stroke="${CORE}" stroke-width="1.4" d="${wavePath(20, 300, 100, 34, 2)}"><animate attributeName="d" dur="0.95s" fill="freeze" values="${vals}"/></path>
+      </g>
+      <g class="name" transform="translate(57 64) scale(.6 .72)" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <g filter="url(#${g})" stroke="url(#lg${id})" stroke-width="13">${lettersG()}</g>
+      </g>
+      <g class="name" transform="translate(57 64) scale(.6 .72)" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <g stroke="${CORE}" stroke-width="4">${lettersG()}</g>
+      </g>
+      <ellipse class="flash" cx="160" cy="100" rx="120" ry="40" fill="#f5a524" opacity="0" style="filter:blur(26px)"/>
+    </svg>
+    ${WORDS}</div>`;
+}
+
+function anim2() {
+  const id = ++uid, g = 'g' + id;
+  // talas klizi (neštimovano), amplituda opada i boja ide narandžasta → zelena; posle 0,9 s ravna linija
+  const N = 12, vals = [], cols = [];
+  for (let i = 0; i <= N; i++) { const k = i / N; vals.push(wavePath(20, 300, 140, 26 * (1 - k) * (1 - k), 2, k * Math.PI * 5)); }
+  return `<div class="stage">
+    <svg viewBox="0 0 320 200" width="100%" style="max-width:290px;overflow:visible" aria-label="MARLI">
+      <defs>${glowDefs(g, 5)}<linearGradient id="lg${id}" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="512" y2="0"><stop offset="0" stop-color="#f59e0b"/><stop offset=".6" stop-color="#ffcc33"/><stop offset="1" stop-color="#f59e0b"/></linearGradient>
+        <clipPath id="cp${id}"><rect x="0" y="0" width="320" height="136"/></clipPath></defs>
+      <circle class="okring" cx="160" cy="140" r="6" fill="none" stroke="${GREEN}" stroke-width="2" opacity="0"/>
+      <g clip-path="url(#cp${id})">
+        <text class="rise" x="160" y="128" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif" font-weight="900" font-size="68" letter-spacing="8" fill="url(#lg${id})" filter="url(#${g})">MARLI</text>
+      </g>
+      <g class="uline" fill="none" stroke-linecap="round" filter="url(#${g})">
+        <path stroke-width="3" d="${vals[0]}" stroke="${GOLD}">
+          <animate attributeName="d" dur="0.9s" fill="freeze" values="${vals.join(';')}"/>
+          <animate attributeName="stroke" dur="1.5s" fill="freeze" values="#ff6b5b;${GOLD};${GOLD};${GREEN};${GREEN};${GOLD}" keyTimes="0;.25;.5;.6;.8;1"/>
+        </path>
+        <path stroke-width="1.3" d="${vals[0]}" stroke="#fff" opacity=".8"><animate attributeName="d" dur="0.9s" fill="freeze" values="${vals.join(';')}"/></path>
+      </g>
+    </svg>
+    ${WORDS}</div>`;
+}
+
+function play(n) {
+  const ph = document.getElementById('ph' + n);
+  ph.classList.remove('play');
+  ph.innerHTML = n === 1 ? anim1() : anim2();
+  const tl = ph.parentElement.querySelector('.timeline b'); tl.style.animation = 'none'; void tl.offsetWidth; tl.style.animation = '';
+  void ph.offsetWidth;
+  ph.classList.add('play');
+  ph.querySelector('svg')?.setCurrentTime?.(0);
+}
+document.querySelectorAll('[data-replay]').forEach((b) => b.addEventListener('click', () => play(+b.dataset.replay)));
+// pusti kad se vidi na ekranu
+const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting && !e.target.dataset.played) { e.target.dataset.played = '1'; play(+e.target.id.slice(2)); } }), { threshold: .5 });
+io.observe(document.getElementById('ph1')); io.observe(document.getElementById('ph2'));
+document.querySelectorAll('.timeline').forEach((t) => { /* traka vremena prati .play */ });
+
+// O aplikaciji: ikonica po izboru; dodir na naslov/ikonicu = animacija 1 (primer)
+function setAboutIcon(k) {
+  document.querySelectorAll('[data-ab]').forEach((el) => { el.innerHTML = icon(k); });
+  document.getElementById('aboutIcoName').textContent = k;
+}
+setAboutIcon('A');
+document.querySelectorAll('[data-ab-ico]').forEach((b) => b.addEventListener('click', () => setAboutIcon(b.dataset.abIco)));
+document.querySelectorAll('.about-mock .a-title, .about-mock .a-ico').forEach((el) => el.addEventListener('click', () => { document.getElementById('ph1').scrollIntoView({ behavior: 'smooth', block: 'center' }); setTimeout(() => play(1), 450); }));
+</script>
+</body>
+</html>
