@@ -190,6 +190,9 @@ async function requestToken({ interactive, need = 'file', hint = '', pick = fals
     opts.scope = need === 'sync' ? SCOPE : SCOPE_FILE;
     opts.include_granted_scopes = true;
     try { client.requestAccessToken(opts); } catch (e) { pendingToken = null; reject(new DriveError(t('drive.e.auth'), 'auth')); }
+    // v1.74.1: tihi pokušaj (bez dodira) — Google na telefonu ponekad ne odgovori nikad (ni ključ ni greška); posle 20 s
+    // odustani, pa sinhronizacija pokaže „Poveži“ umesto beskonačnog „Sinhronizacija…“
+    if (!interactive) setTimeout(() => { if (pendingToken && pendingToken.resolve === resolve) { pendingToken = null; reject(new DriveError(t('drive.e.auth'), 'auth')); } }, 20000);
   });
   state.token = resp.access_token;
   state.tokenExp = Date.now() + (Number(resp.expires_in) || 3600) * 1000 - 60000;
@@ -262,7 +265,12 @@ export async function readOldBackup() {
 }
 
 // ---------------- Drive REST ----------------
-async function api(url, opts = {}, retry = true) {
+// v1.74.1: tačan razlog Google-ove greške (ranije je svaka 403 poruka sa rečju „quota“/„limit“ — npr. pun Drive ili
+// pomoć sa linkom ka „limits“ — prijavljena kao „privremeno ograničio“). Pravo ograničenje (429 / rateLimit) se tiho
+// ponovi do 3 puta sa rastućim čekanjem pre nego što se korisniku išta kaže.
+const RATE_RE = /^(userRateLimitExceeded|rateLimitExceeded|sharingRateLimitExceeded|RESOURCE_EXHAUSTED)$/;
+const sleepMs = (ms) => new Promise((r) => setTimeout(r, ms));
+async function api(url, opts = {}, retry = true, attempt = 0) {
   if (navigator.onLine === false) throw new DriveError(t('drive.e.noNet'), 'offline');
   const token = await getToken();
   let res;
@@ -273,18 +281,24 @@ async function api(url, opts = {}, retry = true) {
   }
   if (res.status === 401 && retry) {
     state.token = ''; state.tokenExp = 0;
-    return api(url, opts, false);
+    return api(url, opts, false, attempt);
   }
   if (!res.ok) {
-    let msg = '';
-    try { const j = await res.json(); msg = (j.error && (j.error.message || '')) + ' ' + JSON.stringify((j.error && j.error.errors) || ''); } catch {}
-    if (res.status === 401) { state.needsReconnect = true; emit(); showReconnectBanner(); throw new DriveError(t('drive.e.expired'), 'reconnect'); }
-    if (res.status === 403 && /rate|quota|limit/i.test(msg)) throw new DriveError(t('drive.e.rate'), 'rate');
-    if (res.status === 403 && /storage|space/i.test(msg)) throw new DriveError(t('drive.e.storage'), 'storage');
-    if (res.status === 403) throw Object.assign(new DriveError(t('drive.e.forbidden'), 'denied'), { reason: msg });
-    if (res.status === 404) throw new DriveError(t('drive.e.notFound'), 'notfound');
-    if (res.status >= 500) throw new DriveError(t('drive.e.server'), 'server');
-    throw new DriveError(msg.trim() ? t('drive.e.httpMsg', { msg: msg.trim().slice(0, 120) }) : t('drive.e.http'), 'http');
+    let msg = '', reason = '';
+    try { const j = await res.json(); const e = j.error || {}; msg = e.message || ''; reason = (e.errors && e.errors[0] && e.errors[0].reason) || e.status || ''; } catch {}
+    const why = { reason: `${res.status} ${reason} ${msg}`.trim().slice(0, 160) };
+    if (res.status === 401) { state.needsReconnect = true; emit(); showReconnectBanner(); throw Object.assign(new DriveError(t('drive.e.expired'), 'reconnect'), why); }
+    const rate = res.status === 429 || (res.status === 403 && RATE_RE.test(reason));
+    if ((rate || res.status >= 500) && attempt < 3 && !(opts.body instanceof ReadableStream)) {
+      await sleepMs(1000 * 2 ** attempt * (0.5 + Math.random()));
+      return api(url, opts, retry, attempt + 1);
+    }
+    if (rate) throw Object.assign(new DriveError(t('drive.e.rate'), 'rate'), why);
+    if (res.status === 403 && /storageQuotaExceeded|quotaExceeded/i.test(reason)) throw Object.assign(new DriveError(t('drive.e.storage'), 'storage'), why);
+    if (res.status === 403) throw Object.assign(new DriveError(t('drive.e.forbidden'), 'denied'), why);
+    if (res.status === 404) throw Object.assign(new DriveError(t('drive.e.notFound'), 'notfound'), why);
+    if (res.status >= 500) throw Object.assign(new DriveError(t('drive.e.server'), 'server'), why);
+    throw Object.assign(new DriveError(msg.trim() ? t('drive.e.httpMsg', { msg: msg.trim().slice(0, 120) }) : t('drive.e.http'), 'http'), why);
   }
   return res;
 }

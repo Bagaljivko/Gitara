@@ -317,7 +317,6 @@ idle(() => import('./keys.js').then((m) => m.initKeys()).catch(() => {}));
 // v1.70: „Šta je novo“ — zlatna tačka na Podešavanjima posle ažuriranja
 idle(() => import('./whatsnew.js').then((m) => m.navDot()).catch(() => {}));
 idle(() => import('./activity.js').then((m) => m.startActivity()).catch(() => {})); // v1.73: svirano / vežbano
-setTimeout(() => import('./whatsnew.js').then((m) => m.iconTip()).catch(() => {}), 4000); // v1.73: jednom — nova ikonica (samo instalirana aplikacija)
 // v1.70.1: jednom — „Prenesi ključ na moje uređaje“ uključeno i model „Automatski“ (i na već instaliranim; stari ručni izbor modela se ne vraća preko sinhronizacije)
 idle(async () => {
   try { if (localStorage.getItem('marli-def1701') || (navigator.webdriver && !localStorage.getItem('marli-def-test'))) return; } catch { return; } // testovi biraju model namerno

@@ -10,14 +10,17 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const fileName = (key) => 'g-' + key.replace(/[^\w.:-]/g, '_').slice(0, 120) + '.gz';
 
 /** getToken(force) → Promise<string>; fetchFn za testove. */
-export function createDrive(getToken, { fetchFn = (...a) => fetch(...a), tries = 5, baseDelay = 800 } = {}) {
+export function createDrive(getToken, { fetchFn = (...a) => fetch(...a), tries = 5, baseDelay = 800, timeoutMs = 60000 } = {}) {
   async function call(url, opts = {}, { okStatus = [] } = {}) {
     let forced = false;
     for (let attempt = 0; ; attempt++) {
       const token = await getToken(forced);
       let res;
-      try { res = await fetchFn(url, { ...opts, headers: { ...(opts.headers || {}), Authorization: `Bearer ${token}` } }); }
-      catch { throw new SyncError('network', 'OFFLINE'); }
+      const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+      const tm = ctrl && setTimeout(() => ctrl.abort(), timeoutMs);
+      try { res = await fetchFn(url, { ...opts, ...(ctrl ? { signal: ctrl.signal } : {}), headers: { ...(opts.headers || {}), Authorization: `Bearer ${token}` } }); }
+      catch { throw ctrl && ctrl.signal.aborted ? new SyncError('timeout', 'RETRY') : new SyncError('network', 'OFFLINE'); }
+      finally { clearTimeout(tm); }
       if (res.ok || okStatus.includes(res.status)) return res;
       let reason = '', msg = '';
       try { const j = await res.json(); const e = j.error || {}; msg = e.message || ''; reason = (e.errors && e.errors[0] && e.errors[0].reason) || e.status || ''; } catch {}

@@ -66,17 +66,3 @@ export function navDot() {
   if (a && !a.querySelector('.wn-dot')) a.insertAdjacentHTML('beforeend', '<i class="wn-dot" aria-hidden="true"></i>');
 }
 
-// v1.73: jednom, samo u instaliranoj aplikaciji — kako se dobija nova ikonica (telefon je menja sam ili posle ponovnog dodavanja)
-export async function iconTip() {
-  try {
-    if (localStorage.getItem('marli-icontip')) return;
-    if (navigator.webdriver && !localStorage.getItem('marli-icontip-test')) return;
-    const { isStandalone, isIOS, isComputer } = await import('./install.js');
-    if (!isStandalone()) return;
-    localStorage.setItem('marli-icontip', '1');
-    const how = isIOS() ? 'icon.ios' : isComputer() ? 'icon.pc' : 'icon.android';
-    await dialog({ title: t('icon.title'), html: true, className: 'icon-tip',
-      body: `<div class="it-ico"><img src="icons/marli-192.png" alt="" width="72" height="72"></div><p>${esc(t(how))}</p><p class="muted small">${esc(t('icon.safe'))}</p>`,
-      buttons: [{ label: t('common.ok'), value: true, kind: 'primary' }] });
-  } catch {}
-}

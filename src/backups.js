@@ -22,7 +22,7 @@ const songsN = (n) => songsCount(n);
 export const lastBackups = () => { try { return JSON.parse(localStorage.getItem(LAST) || '{}') || {}; } catch { return {}; } };
 const noteLast = (kind, where) => { try { const o = lastBackups(); o[kind] = { at: Date.now(), where }; localStorage.setItem(LAST, JSON.stringify(o)); } catch {} };
 // greške sa Drive-om idu u dijagnostiku (Podešavanja → Dijagnostika → Kopiraj izveštaj)
-function logErr(what, e) { try { const L = JSON.parse(localStorage.getItem('gitara-diag') || '[]'); L.push({ t: Date.now(), k: 'backup', m: `${what}: ${(e && (e.code || e.name)) || ''} ${(e && e.message) || e}`.slice(0, 300) }); localStorage.setItem('gitara-diag', JSON.stringify(L.slice(-60))); } catch {} }
+function logErr(what, e) { try { const L = JSON.parse(localStorage.getItem('gitara-diag') || '[]'); L.push({ t: Date.now(), k: 'backup', m: `${what}: ${(e && (e.code || e.name)) || ''} ${(e && e.message) || e}${e && e.reason ? ' [' + e.reason + ']' : ''}`.slice(0, 400) }); localStorage.setItem('gitara-diag', JSON.stringify(L.slice(-60))); } catch {} }
 const driveName = async (kind) => { const d = await import('./drive.js'); return kind === 'full' ? d.BK_FULL : d.BK_SONGS; };
 
 export async function isConnected() {

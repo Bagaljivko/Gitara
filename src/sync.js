@@ -47,8 +47,11 @@ const call = (msg, reply) => new Promise((resolve) => { const id = 'c' + ++seq; 
 async function handle(m) {
   if (m.t === 'needToken') {
     let value = null;
-    try { value = await (await import('./drive.js')).syncToken({ force: m.force, hint: st.email }); } // uvek nalog sinhronizacije
-    catch (e) { value = { offline: e && e.code === 'offline' }; if (!value.offline) setStatus('connect'); }
+    try {
+      const p = (await import('./drive.js')).syncToken({ force: m.force, hint: st.email }); // uvek nalog sinhronizacije
+      value = await Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(Object.assign(new Error('token timeout'), { code: 'timeout' })), 30000))]);
+    }
+    catch (e) { value = { offline: e && e.code === 'offline' }; if (!value.offline) { setStatus('connect'); logSync('token', e); } }
     port && port.send({ t: 'token', id: m.id, value });
     return;
   }
@@ -114,8 +117,11 @@ function runNow() {
   lastRun = Date.now();
   startWorker().send({ t: 'sync' });
 }
+// v1.74.1: zašto sinhronizacija ne uspeva — u dijagnostiku (kratko, bez ključeva i sadržaja)
+function logSync(what, e) { try { const L = JSON.parse(localStorage.getItem('gitara-diag') || '[]'); L.push({ t: Date.now(), k: 'sync', m: `${what}: ${(e && (e.code || e.name)) || ''} ${(e && (e.msg || e.message)) || ''}`.slice(0, 200) }); localStorage.setItem('gitara-diag', JSON.stringify(L.slice(-60))); } catch {} }
 function done(m) {
   if (m.code === 'PAUSED') return;
+  if (!m.ok) logSync('sync', m);
   syncMeta.pending().then((n) => { st.pending = n; emit(); }).catch(() => {});
   if (m.ok) {
     failures = 0;

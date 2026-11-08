@@ -275,3 +275,12 @@ test('practice: „Izazov“ badge survives cleaning and merging (either side)',
   assert.equal(m.games.ritam.challenge, true);
   assert.equal(m.games.ritam.best, 95);
 });
+
+test('v1.74.1: a Drive request that never answers ends with RETRY (no endless "Sinhronizacija…")', async () => {
+  const { createDrive } = await import('../src/syncDrive.js');
+  const hang = (url, opts) => new Promise((_, rej) => opts.signal.addEventListener('abort', () => rej(new Error('aborted'))));
+  const d = createDrive(async () => 'tok', { fetchFn: hang, timeoutMs: 50 });
+  const t0 = Date.now();
+  await assert.rejects(d.about(), (e) => e.code === 'RETRY');
+  assert.ok(Date.now() - t0 < 2000);
+});
