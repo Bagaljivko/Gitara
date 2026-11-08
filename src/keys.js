@@ -23,15 +23,17 @@ function zoomStep(sv, d) { sv.querySelector(`.zoom-pill [data-zoom="${d > 0 ? 1 
 
 function openSearch() {
   const go = () => { const row = document.getElementById('lSearchRow'); if (row && row.hidden) document.getElementById('lSearchBtn')?.click(); else document.getElementById('lSearch')?.focus(); };
+  const box = document.getElementById('lSearch');
+  if (box && !document.getElementById('lSearchBtn')) { box.focus(); box.select(); return; } // v1.70: računar — polje je uvek vidljivo
   if (document.getElementById('lSearchBtn')) return go();
   location.hash = '#/pesme';
-  let n = 0; const tick = () => { if (document.getElementById('lSearchBtn')) go(); else if (++n < 40) setTimeout(tick, 50); }; tick();
+  let n = 0; const tick = () => { const b2 = document.getElementById('lSearch'); if (document.getElementById('lSearchBtn')) go(); else if (b2 && document.querySelector('.desk-lib')) b2.focus(); else if (++n < 40) setTimeout(tick, 50); }; tick();
 }
 
 function nextSong(d) {
-  const items = [...document.querySelectorAll('.two-pane .pane-list .song-item[data-id]')];
+  const items = [...document.querySelectorAll('.two-pane .pane-list .song-item[data-id], .desk-lib .dk-row[data-id]')];
   if (!items.length) return false;
-  const cur = items.findIndex((li) => li.classList.contains('selected'));
+  const cur = items.findIndex((li) => li.classList.contains('selected') || li.classList.contains('cur'));
   const k = cur < 0 ? (d > 0 ? 0 : items.length - 1) : cur + d;
   if (k < 0 || k >= items.length) return true;
   location.hash = '#/pesma/' + encodeURIComponent(items[k].dataset.id);

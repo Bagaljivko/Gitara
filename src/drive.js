@@ -225,6 +225,13 @@ export async function syncToken({ interactive = false, force = false, hint = '',
   await requestToken({ interactive, need: 'sync', hint, pick });
   return { token: state.token, exp: state.tokenExp };
 }
+/** v1.70: sinhronizacioni ključ bez ikakvog Google zahteva — samo već sačuvan važeći ključ ili dugotrajna dozvola; inače null. */
+export async function syncTokenStored() {
+  await initDrive().catch(() => {});
+  if (state.token && state.tokenSync && Date.now() < state.tokenExp) return { token: state.token, exp: state.tokenExp };
+  if (await refreshQuiet('sync').catch(() => false)) return { token: state.token, exp: state.tokenExp };
+  return null;
+}
 // ---------------- Deljenje (shareService.js) ----------------
 /** Token za fajlove koje aplikacija pravi (drive.file) — traži se tek pri prvom deljenju. interactive: iz dodira. */
 export async function shareToken({ interactive = false } = {}) {
@@ -501,7 +508,7 @@ export function formatDate(ts) {
 export async function connect() {
   if (navigator.onLine === false) throw new DriveError(t('drive.e.offline'), 'offline');
   state.email = state.email || '';
-  await requestToken({ interactive: true });
+  await requestToken({ interactive: true, need: 'sync' }); // v1.70: oba ovlašćenja odjednom — posle toga se sinhronizacija uključuje bez novog prozora
   const about = await (await api(`${API}/about?fields=user(emailAddress,displayName)`)).json();
   state.email = (about.user && about.user.emailAddress) || '';
   state.connected = true;

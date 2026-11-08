@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="sr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<title>MARLI — Novosti</title>
+<link rel="icon" type="image/png" sizes="32x32" href="../../icons/favicon-32.png">
+<style>
+  :root { --bg: #000; --surface: #0f1013; --surface-2: #181a1e; --line: #262930; --text: #eceef2; --muted: #9aa1ad; --accent: #f5a524; --accent-soft: rgba(245,165,36,.14); --ok: #3dd68c; --sec: #f59e0b; --sec2: #ffcc33;
+    --sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); line-height: 1.5; }
+  main { max-width: 860px; margin: 0 auto; padding: calc(env(safe-area-inset-top) + 18px) 16px 64px; }
+  header { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+  header img { width: 48px; height: 48px; border-radius: 22.5%; box-shadow: 0 0 0 1px var(--line), 0 8px 24px rgba(245,165,36,.18); }
+  .gold { background: linear-gradient(100deg, var(--sec) 0%, var(--sec2) 65%, var(--sec) 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  h1 { margin: 0; font-size: 1.8rem; letter-spacing: .12em; font-weight: 900; }
+  .acr { font-size: .9rem; } .acr b { color: var(--accent); }
+  .lang { margin-left: auto; display: flex; gap: 6px; }
+  .lang a { color: var(--muted); text-decoration: none; font-size: .8rem; font-weight: 700; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); }
+  .lang a.on { color: var(--accent); border-color: var(--accent); }
+  .ver { margin-top: 28px; }
+  .ver > h2 { display: flex; align-items: baseline; gap: 10px; margin: 0 0 10px; font-size: 1.35rem; }
+  .ver > h2 .tag { font-size: .85rem; padding: 2px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
+  .ver > h2 small { color: var(--muted); font-weight: 400; font-size: .85rem; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px; margin-bottom: 14px; }
+  .card h3 { margin: 0 0 6px; font-size: 1.08rem; }
+  .card p { margin: .35rem 0; color: var(--muted); }
+  .card ol, .card ul { margin: .4rem 0 .4rem 1.2rem; padding: 0; color: var(--text); }
+  .card li { margin: .2rem 0; }
+  .shot { display: block; max-width: 100%; border-radius: 12px; border: 1px solid var(--line); margin: 10px 0 2px; }
+  .shot.phone { max-width: 300px; }
+  .k { font-size: .78rem; color: var(--accent); font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+  kbd { font: 600 .78rem ui-monospace, Menlo, monospace; padding: 1px 6px; border-radius: 5px; background: var(--surface-2); border: 1px solid var(--line); color: var(--accent); }
+  .imp li::marker { color: var(--ok); }
+  [data-en] { display: none; } body.en [data-sr] { display: none; } body.en [data-en] { display: revert; }
+  footer { margin-top: 40px; color: var(--muted); font-size: .8rem; }
+</style>
+</head>
+<body>
+<main>
+  <header><img src="../../icons/icon-192.png" alt=""><div><h1 class="gold">MARLI</h1>
+    <div class="acr" data-sr><b>M</b>elodija, <b>A</b>kordi, <b>R</b>itam, <b>L</b>jubav, <b>I</b>nspiracija</div>
+    <div class="acr" data-en><b>M</b>elody, <b>A</b>ccords, <b>R</b>hythm, <b>L</b>ove, <b>I</b>nspiration</div></div>
+    <nav class="lang"><a href="?lang=sr" id="lSr">SR</a><a href="?lang=en" id="lEn">EN</a></nav></header>
+  <p class="muted" data-sr style="color:var(--muted)">Šta je novo u aplikaciji — sa snimcima ekrana i kratkim uputstvom.</p>
+  <p class="muted" data-en style="color:var(--muted)">What's new in the app — with screenshots and short how-tos.</p>
+
+  <section class="ver" id="v1.70">
+    <h2><span class="tag">1.70</span> <span data-sr>MARLI na računaru</span><span data-en>MARLI on your computer</span> <small>8. 11. 2026.</small></h2>
+
+    <div class="card">
+      <div class="k" data-sr>Novo</div><div class="k" data-en>New</div>
+      <h3 data-sr>Poveži isti Google nalog — sve stiže samo</h3><h3 data-en>Connect the same Google account — everything arrives by itself</h3>
+      <p data-sr>Na računaru otvori aplikaciju i poveži isti Google nalog kao na telefonu. Pesme, set liste, podešavanja i Gemini ključ stižu sami i ostaju usklađeni.</p>
+      <p data-en>Open the app on your computer and connect the same Google account as on your phone. Songs, setlists, settings and your Gemini key arrive by themselves and stay in sync.</p>
+      <ol data-sr><li>Na računaru otvori <b>bagaljivko.github.io/Gitara</b> (Chrome ili Edge).</li><li>Klikni <b>Poveži Google nalog</b> (pojavi se sam, ili dole levo).</li><li>Sačekaj „Sve je stiglo ✓“.</li></ol>
+      <ol data-en><li>On your computer open <b>bagaljivko.github.io/Gitara</b> (Chrome or Edge).</li><li>Click <b>Connect Google account</b> (it appears by itself, or bottom left).</li><li>Wait for “Everything is here ✓”.</li></ol>
+      <img class="shot" src="img/povezi.png" alt="">
+    </div>
+
+    <div class="card">
+      <div class="k" data-sr>Novo</div><div class="k" data-en>New</div>
+      <h3 data-sr>Biblioteka na računaru</h3><h3 data-en>Library on your computer</h3>
+      <p data-sr>Na širokom ekranu „Pesme“ postaje upravljač biblioteke: levo folderi i set liste, u sredini tabela, desno otvorena pesma.</p>
+      <p data-en>On a wide screen “Songs” becomes a library manager: folders and setlists on the left, a table in the middle, the open song on the right.</p>
+      <ul data-sr><li><kbd>Shift</kbd>/<kbd>Ctrl</kbd> + klik — više pesama; traka sa radnjama: premesti u folder, dodaj u set listu, nova set lista od izabranih, promeni ton, obriši.</li><li>Prevuci pesme na folder ili set listu levo.</li><li><kbd>E</kbd> — brzo uređivanje (naslov, izvođač, kapo, BPM, YouTube link, folderi).</li><li><kbd>F2</kbd> ili dupli klik — preimenuj folder; desni klik — meni.</li><li>Provera: „Bez videa“, „Bez ritma“, „Mogući duplikati“.</li></ul>
+      <ul data-en><li><kbd>Shift</kbd>/<kbd>Ctrl</kbd> + click — many songs; action bar: move to folder, add to setlist, new setlist from selection, change key, delete.</li><li>Drag songs onto a folder or setlist on the left.</li><li><kbd>E</kbd> — quick edit (title, artist, capo, BPM, YouTube link, folders).</li><li><kbd>F2</kbd> or double click — rename a folder; right click — menu.</li><li>Check: “No video”, “No rhythm”, “Possible duplicates”.</li></ul>
+      <img class="shot" src="img/biblioteka.png" alt="">
+      <img class="shot" src="img/biblioteka-pesma.png" alt="">
+    </div>
+
+    <div class="card">
+      <div class="k" data-sr>Novo</div><div class="k" data-en>New</div>
+      <h3 data-sr>Više PDF-ova odjednom</h3><h3 data-en>Many PDFs at once</h3>
+      <p data-sr>Prevuci ili izaberi više PDF-ova. PDF sa pravim tekstom postaje pesma odmah, bez AI. Skenirani PDF ide preko besplatnog Gemini-ja — pre početka vidiš koliko; ako se dnevni limit potroši, ostatak čeka i nastavlja se sam (najkasnije sutra).</p>
+      <p data-en>Drag in or choose several PDFs. A PDF with real text becomes a song right away, no AI. Scanned PDFs go through free Gemini — you see how many before starting; if the daily limit runs out, the rest wait and continue by themselves (tomorrow at the latest).</p>
+      <img class="shot phone" src="img/pdf.png" alt="">
+    </div>
+
+    <div class="card">
+      <div class="k" data-sr>Novo</div><div class="k" data-en>New</div>
+      <h3 data-sr>Dobrodošao nazad — oporavak posle brisanja podataka</h3><h3 data-en>Welcome back — recovery after clearing data</h3>
+      <p data-sr>Ako se podaci pregledača obrišu (ili je telefon nov), aplikacija nudi „Dobrodošao nazad?“: poveži isti Google nalog i sve se vraća — i Gemini ključ. „Vrati rezervnu kopiju“ prvo sama traži kopiju na Google Drive-u.</p>
+      <p data-en>If the browser data is cleared (or the phone is new), the app offers “Welcome back?”: connect the same Google account and everything comes back — including the Gemini key. “Restore a backup” first looks for the backup on Google Drive by itself.</p>
+      <img class="shot phone" src="img/oporavak.png" alt="">
+    </div>
+
+    <div class="card">
+      <div class="k" data-sr>Poboljšano</div><div class="k" data-en>Improved</div>
+      <ul class="imp" data-sr><li>Povezivanje Google naloga uključuje sinhronizaciju na svakom uređaju (isključuje se u Podešavanjima).</li><li>Na telefonu: „MARLI i na računaru“ u Podešavanjima i u „Podeli MARLI“.</li><li>„Šta je novo“ u Podešavanja → O aplikaciji (zlatna tačka posle ažuriranja).</li><li>Set lista: <kbd>Alt</kbd>+<kbd>↑</kbd>/<kbd>↓</kbd> pomera pesmu, <kbd>Del</kbd> je izbacuje.</li></ul>
+      <ul class="imp" data-en><li>Connecting your Google account turns on sync on every device (you can turn it off in Settings).</li><li>On the phone: “MARLI on your computer too” in Settings and in “Share MARLI”.</li><li>“What's new” in Settings → About (gold dot after an update).</li><li>Setlist: <kbd>Alt</kbd>+<kbd>↑</kbd>/<kbd>↓</kbd> moves a song, <kbd>Del</kbd> removes it.</li></ul>
+      <img class="shot phone" src="img/na-racunaru.png" alt="">
+    </div>
+  </section>
+
+  <section class="ver" id="v1.69">
+    <h2><span class="tag">1.69</span> <span data-sr>Gitara je sada MARLI</span><span data-en>Gitara is now MARLI</span></h2>
+    <div class="card"><p data-sr>Novo ime, nova ikonica (glava gitare iz tunera) i uvodna animacija. Adresa, pesme i podešavanja su ostali isti.</p><p data-en>New name, new icon (the headstock from the tuner) and intro. The address, songs and settings stay the same.</p>
+      <p data-sr><b style="color:var(--text)">iPhone:</b> novo ime i ikonica se vide kad se aplikacija ukloni sa početnog ekrana i ponovo doda (pesme ostaju). <b style="color:var(--text)">Android:</b> obično se promene sami.</p>
+      <p data-en><b style="color:var(--text)">iPhone:</b> the new name and icon show after removing the app from the home screen and adding it again (songs stay). <b style="color:var(--text)">Android:</b> they usually update by themselves.</p></div>
+  </section>
+  <footer><span data-sr>MARLI · bagaljivko.github.io/Gitara</span><span data-en>MARLI · bagaljivko.github.io/Gitara</span></footer>
+</main>
+<script>
+  const en = new URLSearchParams(location.search).get('lang') === 'en';
+  document.body.classList.toggle('en', en); document.documentElement.lang = en ? 'en' : 'sr';
+  document.getElementById(en ? 'lEn' : 'lSr').classList.add('on');
+  if (en) document.title = 'MARLI — What\'s new';
+</script>
+</body>
+</html>

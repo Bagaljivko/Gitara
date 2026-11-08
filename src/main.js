@@ -45,6 +45,7 @@ async function liveView(name) {
 // Tablet u položenom režimu: lista i pesma jedna pored druge
 const TWO_PANE = window.matchMedia('(min-width: 900px) and (min-height: 600px) and (orientation: landscape)');
 TWO_PANE.addEventListener('change', () => { app.querySelector(':scope > .page')?.remove(); route(); });
+import('./libDesk.js').then((D) => D.DESK.addEventListener('change', () => { if (document.body.classList.contains('two-pane-mode')) { app.querySelector(':scope > .page')?.remove(); route(); } })).catch(() => {});
 
 // ---- Zaštita od praznog ekrana ----
 // index.html beleži greške pre pokretanja i prikazuje „Pokušaj ponovo / Popravi aplikaciju“ ako se aplikacija
@@ -109,7 +110,7 @@ async function routeInner() {
   if (activeLive && activeLive !== tab) { views[activeLive].ctl.hide(); }
   app.querySelectorAll(':scope > .live').forEach((el) => (el.hidden = true));
   if (!(TWO_PANE.matches && (page === 'pesme' || page === 'pesma'))) app.querySelector(':scope > .page')?.remove();
-  if (tab !== 'pesme') document.body.classList.remove('two-pane-mode');
+  if (tab !== 'pesme') document.body.classList.remove('two-pane-mode', 'desk-lib-mode');
 
   if (tab === 'tuner' || tab === 'akordi') {
     const name = page === 'akordi' ? 'akordi' : 'tuner';
@@ -144,6 +145,34 @@ async function routeInner() {
     // Tablet položeno: dva panela — lista pesama levo, izabrana pesma desno
     const twoPane = TWO_PANE.matches && (page === 'pesme' || page === 'pesma') && params.get('tab') !== 'sl';
     document.body.classList.toggle('two-pane-mode', twoPane);
+    // v1.70: računar (širok ekran + miš) — upravljač biblioteke: folderi/set liste levo, tabela, pesma desno
+    const desk = twoPane && (await import('./libDesk.js')).DESK.matches;
+    document.body.classList.toggle('desk-lib-mode', desk);
+    if (desk) {
+      const D = await import('./libDesk.js');
+      const S = await loadSongs();
+      if (routeId !== myRoute) return;
+      let tp = app.querySelector(':scope > .page.two-pane.desk-lib');
+      if (!tp) {
+        app.querySelector(':scope > .page')?.remove();
+        tp = document.createElement('div');
+        tp.className = 'page two-pane desk-lib';
+        tp.innerHTML = '<aside class="pane-side"></aside><div class="pane-list"></div><div class="pane-song"></div>';
+        app.appendChild(tp);
+        const refresh = () => D.deskReload();
+        await D.renderDeskLibrary(tp.querySelector('.pane-side'), tp.querySelector('.pane-list'), tp.querySelector('.pane-song'), params, {
+          add: () => S.openAddDesk(refresh),
+          emptyState: (a, b) => S.deskEmptyState(a, b, refresh),
+        });
+      }
+      D.markOpen(page === 'pesma' ? dec : null);
+      const right = document.createElement('div');
+      tp.querySelector('.pane-song').replaceWith(right);
+      right.className = 'pane-song';
+      D.setSongPane(right);
+      if (page === 'pesma') await renderSong(right, dec, await setlistNav(params));
+      return;
+    }
     if (twoPane) {
       setSelectedSong(page === 'pesma' ? dec : null);
       let tp = app.querySelector(':scope > .page.two-pane');
@@ -283,6 +312,10 @@ if (FIRST_RUN && !hasSharedSong() && !ytShare) setTimeout(() => import('./tour.j
 const idle = window.requestIdleCallback || ((f) => setTimeout(f, 1200));
 // v1.68: tastatura i miš (računar): prečice, Ctrl + točkić, „?“ = spisak prečica
 idle(() => import('./keys.js').then((m) => m.initKeys()).catch(() => {}));
+// v1.70: „Šta je novo“ — zlatna tačka na Podešavanjima posle ažuriranja
+idle(() => import('./whatsnew.js').then((m) => m.navDot()).catch(() => {}));
+// v1.70: nedovršen red PDF-ova (npr. Gemini dnevni limit) se nastavlja sam
+idle(() => { try { if (localStorage.getItem('marli-pdf-queue') && localStorage.getItem('marli-pdf-queue') !== '[]') import('./pdfQueue.js').then((m) => m.resumePdfQueue()); } catch {} });
 // Jednokratna konverzija postojećih pesama u novi zapis akorda (original ostaje netaknut)
 // Radi se samo dok ima šta da se prebaci: posle uspešnog prolaza se pamti, da se pri svakom
 // pokretanju ne čita cela biblioteka (na sporom telefonu to je pola sekunde zauzetog ekrana).

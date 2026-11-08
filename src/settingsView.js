@@ -105,6 +105,7 @@ export async function renderSettings(root) {
       ${'wakeLock' in navigator ? '' : `<p class="small muted">${t('wake.unsupported')}</p>`}
     </div>
 
+    ${isComputer() ? '' : `<div class="desk-note" id="deskNote"><h2>💻 ${t('pc.title')}</h2><p class="muted small">${t('pc.body', { url: esc(appUrl().replace(/^https?:\/\//, '').replace(/\/$/, '')) })}</p><p class="small" id="deskNoteSync"></p><button class="btn small" id="deskNoteSend">${t('pc.send')}</button></div>`}
     <div class="card drive-card" id="driveCard"></div>
 
     <div class="card" id="sharedCard">
@@ -149,6 +150,7 @@ export async function renderSettings(root) {
       <button type="button" class="about-name" id="aboutName" aria-label="${t('about.replay')}">MARLI</button>
       <p class="about-acr">${t('about.acr')}</p>
       <p class="about-ver" id="aboutVer">${t('about.version', { v: APP_VERSION })}</p>
+      <button type="button" class="btn small wn-btn" id="aboutNew">${t('wn.btn', { v: APP_VERSION.split('.').slice(0, 2).join('.') })} ›</button>
       <p class="about-off">${t('about.offline')}</p>
       <p class="about-hint">${t('about.hint')}</p>
     </div>
@@ -172,6 +174,9 @@ export async function renderSettings(root) {
   let verTaps = 0, verT = 0;
   // Pesme → „Predlaži ritam“ (isto se isključuje i preko „Ne predlaži više“ na samom predlogu)
   $('strumSuggestSw').addEventListener('change', (e) => settings.set('strumSuggest', e.target.checked));
+  // v1.70: „Šta je novo“ (zlatna tačka dok se ne pogleda)
+  import('./whatsnew.js').then((W) => { if (W.unseen()) $('aboutNew')?.insertAdjacentHTML('beforeend', '<i class="wn-dot" aria-hidden="true"></i>'); });
+  $('aboutNew').addEventListener('click', async () => (await import('./whatsnew.js')).showWhatsNew());
   // O aplikaciji: dodir na naslov (ili ikonicu) ponovo pušta uvodnu animaciju
   const replayIntro = () => { if (window.__marliIntro) window.__marliIntro(true); };
   $('aboutName').addEventListener('click', replayIntro);
@@ -245,6 +250,17 @@ export async function renderSettings(root) {
     clearDiag(); $('diagOut').hidden = true; diagSum(); toast(t('diag.cleared'));
   });
 
+  // ---- v1.70: „MARLI i na računaru“ (telefon/tablet): stanje sinhronizacije + pošalji link sebi ----
+  if ($('deskNote')) {
+    const drawNote = async () => {
+      const on = !!(((await settings.get('syncCfg', null)) || {}).on), el = $('deskNoteSync'); if (!el) return;
+      el.innerHTML = on ? `<span class="ok-txt">✓ ${esc(t('pc.syncOn'))}</span>` : `${esc(t('pc.syncOff'))} <button class="btn small primary" id="deskNoteOn">${esc(t('sync.offerBtn'))}</button>`;
+      $('deskNoteOn')?.addEventListener('click', async () => { try { const { connectSync } = await import('./sync.js'); await connectSync(); } catch (e) { if (e && e.code !== 'cancelled') toast((e && e.message) || t('common.error'), 'error'); } drawNote(); });
+    };
+    drawNote();
+    $('deskNoteSend').addEventListener('click', async () => { const ss = await import('./shareService.js'); if (canShareNative()) await ss.shareApp(appUrl()); else await ss.copyAppLink(appUrl()); });
+  }
+
   // ---- Podeli aplikaciju: QR kod koji drugi telefon skenira kamerom ----
   $('bShareApp').addEventListener('click', async () => {
     const url = appUrl();
@@ -256,7 +272,8 @@ export async function renderSettings(root) {
       className: 'qr-modal',
       body: `<div class="qr-box">${qrSVG(url, { label: t('appShare.qrLabel') })}</div>
         <p class="qr-hint">${esc(t('appShare.hint'))}</p>
-        <p class="qr-url">${esc(url)}</p>`,
+        <p class="qr-url">${esc(url)}</p>
+        <div class="desk-note-sm"><b>💻 ${esc(t('pc.shareTitle'))}</b> ${esc(t('pc.shareBody'))}</div>`,
       buttons: [
         ...(canShare ? [{ label: t('appShare.send'), value: 'share' }] : []),
         { label: t('appShare.copy'), value: 'copy' },
@@ -407,19 +424,8 @@ export async function renderSettings(root) {
     if (r === 'downloaded') toast(t('set.backupDownloaded'));
     settings.set('backupNudge', { ...((await settings.get('backupNudge', null)) || {}), exportedAt: Date.now() });
   });
-  $('bImport').addEventListener('click', async () => {
-    const file = await pickFile('.json,application/json,text/plain');
-    if (!file) return;
-    try {
-      const list = parseBackup(await file.text());
-      const { mergeSongs } = await import('./songSync.js');
-      const r = await mergeSongs(list);
-      const added = r.added + r.updated;
-      toast(added ? t('set.restored', { n: added }) : t('set.allExist'));
-    } catch (e) {
-      await dialog({ title: t('import.invalidTitle'), body: e instanceof SongFormatError ? e.message : t('set.cantRead') });
-    }
-  });
+  // v1.70: prvo traži kopiju na Google Drive-u, fajl sa uređaja je druga mogućnost
+  $('bImport').addEventListener('click', async () => { (await import('./restore.js')).restoreBackup(); });
 
   // ---- Google Drive ----
   const driveCard = $('driveCard');
@@ -493,7 +499,7 @@ export async function renderSettings(root) {
       setDriveMsg('');
     } else if (a === 'connect') {
       setDriveMsg(t('drive.connecting'));
-      try { await driveConnect(); setDriveMsg(t('drive.okConnected'), 'ok'); }
+      try { await driveConnect(); try { await connectSync(); } catch {} setDriveMsg(t('drive.okConnected'), 'ok'); } // v1.70: sinhronizacija uključena podrazumevano
       catch (err) { setDriveMsg(driveErr(err), 'err'); }
     } else if (a === 'reconnect') {
       try { await driveReconnect(); setDriveMsg(t('drive.okReconnected'), 'ok'); }
