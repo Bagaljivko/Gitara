@@ -56,7 +56,7 @@
   .phone { container-type: inline-size; width: min(300px, 82vw); aspect-ratio: 9 / 19.5; margin: 0 auto; border-radius: 34px; background: #000; border: 1px solid #2a2d33; box-shadow: 0 0 0 6px #0b0c0e, 0 18px 40px rgba(0,0,0,.6); position: relative; overflow: hidden; }
   .phone .stage { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; }
   .anim-card .row { display: flex; gap: 10px; justify-content: center; margin-top: 14px; flex-wrap: wrap; }
-  .words { display: flex; flex-wrap: nowrap; white-space: nowrap; justify-content: center; gap: 0 .32em; padding: 0; width: 100%; font-size: 4.55cqw; color: var(--muted); letter-spacing: 0; min-height: 1.6em; text-align: center; }
+  .words { display: flex; flex-wrap: nowrap; white-space: nowrap; justify-content: center; gap: 0 .32em; padding: 0; width: 100%; font-size: 12px; font-size: 4.55cqw; color: var(--muted); letter-spacing: 0; min-height: 1.6em; text-align: center; }
   .words span { opacity: 0; transform: translateY(6px); display: inline-block; }
   .words span i { font-style: normal; color: var(--accent); font-weight: 800; text-shadow: 0 0 10px rgba(245, 165, 36, .85); }
   .play .words span { animation: wordIn .32s cubic-bezier(.2, .8, .2, 1) forwards; }
@@ -517,10 +517,22 @@ function anim5() {
     ${words(1.5)}</div>`;
 }
 const ANIMS = { 1: () => anim1(), 2: () => anim2(), 3: anim3, 4: anim4, 5: anim5 };
+// Rečenica ispod imena: uvek jedan red — meri se i smanjuje dok ne stane u širinu ekrana (radi u svakom pregledaču)
+function fitWords(root) {
+  root.querySelectorAll('.words').forEach((w) => {
+    const box = w.parentElement.clientWidth * 0.92;
+    w.style.display = 'inline-flex'; w.style.width = 'auto';
+    let fs = 17; w.style.fontSize = fs + 'px';
+    while (w.scrollWidth > box && fs > 7) { fs -= 0.25; w.style.fontSize = fs + 'px'; }
+    w.style.display = ''; w.style.width = '';
+  });
+}
+addEventListener('resize', () => document.querySelectorAll('.phone').forEach(fitWords));
 function play(n) {
   const ph = document.getElementById('ph' + n);
   ph.classList.remove('play');
   ph.innerHTML = ANIMS[n]();
+  fitWords(ph);
   const tl = ph.parentElement.querySelector('.timeline b'); tl.style.animation = 'none'; void tl.offsetWidth; tl.style.animation = '';
   void ph.offsetWidth;
   ph.classList.add('play');
