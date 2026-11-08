@@ -117,8 +117,10 @@
   @keyframes silDraw { to { stroke-dashoffset: 0; } }
   @keyframes silFill { to { fill-opacity: 1; } }
   .a4 .kn, .a4b .kn { fill: rgba(255, 255, 255, 0); stroke: rgba(255, 255, 255, .5); stroke-width: 3; stroke-linejoin: round; }
-  .a4b .kn { stroke: rgba(245, 165, 36, .5); }
-  .play.a4 .kn, .play.a4b .kn { animation: knTune .38s ease-out forwards; }
+  .a4b .kn { fill: #120d09; stroke: #f5a524; stroke-width: 7; }
+  .play.a4b .kn { animation: knTuneLine .38s ease-out forwards; }
+  @keyframes knTuneLine { 0% { fill: #120d09; stroke: #f5a524; } 40% { fill: rgba(245, 150, 30, .45); stroke: #ffb347; } 100% { fill: rgba(40, 190, 105, .35); stroke: #6ff0aa; } }
+  .play.a4 .kn { animation: knTune .38s ease-out forwards; }
   @keyframes knTune { 0% { fill: rgba(255,255,255,0); } 40% { fill: rgba(245, 150, 30, .6); stroke: #f5a524; stroke-width: 5; } 100% { fill: rgba(40, 190, 105, .82); stroke: #6ff0aa; stroke-width: 4; } }
   .a4 .nm, .a4b .nm { opacity: 0; transform: translateY(18px); }
   .play.a4 .nm, .play.a4b .nm { animation: rise .55s cubic-bezier(.2, .9, .25, 1.1) 1.15s forwards; }
@@ -237,7 +239,7 @@
   </div>
 
   <h2 id="oaplikaciji">3. Podešavanja → O aplikaciji</h2>
-  <p class="muted small">Na dnu Podešavanja, umesto sadašnjeg reda „Gitara · verzija…“. Dodir na naslov ponovo pušta uvodnu animaciju. Ikonica u primeru: <b id="aboutIcoName">B</b> (izabrana).</p>
+  <p class="muted small">Na dnu Podešavanja, umesto sadašnjeg reda „Gitara · verzija…“. Dodir na naslov ponovo pušta uvodnu animaciju. Ikonica u primeru: <b id="aboutIcoName">B2</b> (izabrana, uz animaciju 4).</p>
   <div class="grid two">
     <div class="about-mock">
       <span class="lang-tag">SRPSKI</span>
@@ -263,7 +265,7 @@
       </div>
     </div>
   </div>
-  <p class="muted small" style="text-align:center;margin-top:10px">Promeni ikonicu u primeru: <button class="btn" data-ab-ico="A">A</button> <button class="btn" data-ab-ico="B">B</button> <button class="btn" data-ab-ico="C">C</button> <button class="btn" data-ab-ico="D">D</button></p>
+  <p class="muted small" style="text-align:center;margin-top:10px">Promeni ikonicu u primeru: <button class="btn" data-ab-ico="A">A</button> <button class="btn" data-ab-ico="B">B</button> <button class="btn" data-ab-ico="C">C</button> <button class="btn" data-ab-ico="D">D</button> <button class="btn" data-ab-ico="B2">B2</button></p>
 
   <footer>Ova stranica je samo predlog (docs/marli/). Ime aplikacije, adresa, pesme i podešavanja se ne menjaju dok ne izabereš.</footer>
 </main>
@@ -274,7 +276,8 @@
 // ------------------------------------------------------------------------------------------------
 const GOLD = '#f5a524', CORE = '#ffd27a', GREEN = '#3dd68c';
 let uid = 0;
-const glowDefs = (id, blur = 9) => `<filter id="${id}" filterUnits="userSpaceOnUse" x="-3000" y="-3000" width="9000" height="9000"><feGaussianBlur stdDeviation="${blur}" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>`;
+// Sjaj: oblast filtera mora biti tačno onolika koliko crtež treba — prevelika oblast na ekranu 3× (telefon) prelazi granicu pregledača i element nestane
+const glowDefs = (id, blur = 9, [rx, ry, rw, rh] = [-120, -120, 760, 760]) => `<filter id="${id}" filterUnits="userSpaceOnUse" x="${rx}" y="${ry}" width="${rw}" height="${rh}"><feGaussianBlur stdDeviation="${blur}" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>`;
 
 // „MARLI“ jednim potezom (monoline), slova visine 100, sa razmakom; ukupno 340 × 100
 const LETTERS = [
@@ -309,12 +312,35 @@ const HS_POSTS = HS_POST.map(([x, y]) => `<circle cx="${x}" cy="${y}" r="26"/>`)
 // Detaljna silueta glave gitare iz tunera: obris drveta, šest ključeva sa osovinama, klinovi sa podloškama, žice, sedlo, vrat
 const HS_POSTS2 = HS_POST.map(([x, y]) => `<circle cx="${x}" cy="${y}" r="40" fill="#0d0d0f" stroke="#9aa1ad" stroke-width="6"/><circle cx="${x}" cy="${y}" r="17" fill="#c9ced6"/>`).join('');
 const HS_SHAFTS = HS.knobs.map((k) => { const left = k.cx < 463, x0 = left ? k.cx + 40 : 686, x1 = left ? 240 : k.cx - 40; return `<rect x="${Math.min(x0, x1)}" y="${k.cy - 12}" width="${Math.abs(x1 - x0)}" height="24" rx="6"/>`; }).join('');
+// Ključ kao crtež (ne „dugme“): obris, unutrašnji obris, srednji greben, dve linije oboda, kragna i prstenovi na osovini
+function knobArt(k, { cls = false, i = 0 } = {}) {
+  const P = k.pts.split(' ').map((q) => q.split(',').map(Number));
+  const xs = P.map((q) => q[0]), ys = P.map((q) => q[1]);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+  const left = k.cx < 463, outer = left ? minX : maxX, inner = left ? maxX : minX, dir = left ? 1 : -1, h = (maxY - minY) / 2;
+  const inset = P.map(([x, y]) => `${(k.cx + (x - k.cx) * 0.74).toFixed(1)},${(k.cy + (y - k.cy) * 0.7).toFixed(1)}`).join(' ');
+  const rim = (o) => `M${outer + dir * o},${k.cy - h * 0.62} Q${outer + dir * (o - 16)},${k.cy} ${outer + dir * o},${k.cy + h * 0.62}`;
+  const kc = cls ? ' class="kn"' : '', dl = cls ? ` style="animation-delay:${(0.42 + i * 0.11).toFixed(2)}s"` : '';
+  const c0 = inner - dir * 6, c1 = inner + dir * 26, sh1 = left ? 240 : 686;
+  return `<g class="knob-art" transform="translate(${inner} ${k.cy}) scale(1.16) translate(${-inner} ${-k.cy})">
+    <rect x="${Math.min(c1, sh1)}" y="${k.cy - 11}" width="${Math.abs(sh1 - c1)}" height="22" rx="5" fill="#15161a" stroke="${GOLD}" stroke-width="4"/>
+    <line x1="${c1 + dir * 14}" y1="${k.cy - 14}" x2="${c1 + dir * 14}" y2="${k.cy + 14}" stroke="${GOLD}" stroke-width="4"/>
+    <rect x="${Math.min(c0, c1)}" y="${k.cy - 24}" width="${Math.abs(c1 - c0)}" height="48" rx="7" fill="#15161a" stroke="${GOLD}" stroke-width="5"/>
+    <line x1="${(c0 + c1) / 2}" y1="${k.cy - 24}" x2="${(c0 + c1) / 2}" y2="${k.cy + 24}" stroke="${GOLD}" stroke-width="3" opacity=".8"/>
+    <polygon${kc}${dl} points="${k.pts}" fill="#120d09" stroke="${GOLD}" stroke-width="7" stroke-linejoin="round"/>
+    <polygon points="${inset}" fill="none" stroke="${CORE}" stroke-width="3.5" stroke-linejoin="round" opacity=".75"/>
+    <line x1="${inner - dir * 18}" y1="${k.cy}" x2="${outer + dir * 30}" y2="${k.cy}" stroke="${CORE}" stroke-width="4" stroke-linecap="round" opacity=".85"/>
+    <path d="${rim(16)}" fill="none" stroke="${CORE}" stroke-width="3.5" stroke-linecap="round" opacity=".8"/>
+    <path d="${rim(30)}" fill="none" stroke="${GOLD}" stroke-width="3" stroke-linecap="round" opacity=".6"/>
+    <path d="M${inner - dir * 30},${k.cy - h * 0.55} L${k.cx},${k.cy - h * 0.72}" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity=".3"/>
+  </g>`;
+}
+const glowPhoto = (id, blur) => glowDefs(id, blur, [-400, -400, 1800, 2100]);
 function hsDetail(id, g, { cls = false } = {}) {
   const c = (n) => (cls ? ` class="${n}"` : '');
   const grain = [400, 445, 485, 525].map((x, i) => `<path d="M${x},${90 + i * 14} C${x - 8},420 ${x + 10},700 ${x - 4},1000" />`).join('');
   return `<polygon${c('hsil')} pathLength="1" points="${HS.sil}" fill="url(#wd${id})" stroke="${GOLD}" stroke-width="9" stroke-linejoin="round" filter="url(#${g})"/>
     <g${c('hstr')} fill="none" stroke="#3a2418" stroke-width="5" opacity=".9">${grain}</g>
-    <g${c('hstr')} fill="#7a808a" stroke="#c9ced6" stroke-width="3">${HS_SHAFTS}</g>
     <g${c('hstr')}>${HS_POSTS2}</g>
     <g${c('hstr')} stroke="${CORE}" stroke-width="5" filter="url(#${g})">${HS_STRINGS}</g>
     <rect${c('hstr')} x="334" y="1026" width="262" height="30" rx="8" fill="#efe6d2"/>
@@ -342,18 +368,18 @@ const ICONS = {
   },
   B: {
     name: 'Glava gitare (silueta iz tunera)',
-    note: 'Detaljna silueta glave gitare iz tunera: obris, ključevi, klinovi, žice i sedlo; ključevi zlatno sijaju. Ime krupno ispod.',
+    note: 'Detaljna silueta glave gitare iz tunera: obris sa ključevima (svaki sa unutrašnjim obrisom, grebenom, obodom i kragnom), klinovi, žice i sedlo. Ime krupno ispod.',
     svg(id) {
       const g = 'g' + id, k = 0.3, tx = 256 - HS.W * k / 2, ty = 10;
       const knobs = HS.knobs.map((kn) => `<polygon points="${kn.pts}"/>`).join('');
-      return `<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg"><defs>${glowDefs(g, 8)}
+      return `<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg"><defs>${glowDefs(g, 8)}${glowPhoto(g + 'p', 24)}
         <linearGradient id="lg${id}" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="512" y2="0"><stop offset="0" stop-color="#f59e0b"/><stop offset=".6" stop-color="#ffcc33"/><stop offset="1" stop-color="#f59e0b"/></linearGradient>
         <linearGradient id="wd${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a2216"/><stop offset="1" stop-color="#1a0f09"/></linearGradient>
         <clipPath id="cl${id}"><rect x="0" y="0" width="${HS.W}" height="1135"/></clipPath></defs>
         <rect width="512" height="512" fill="#000"/>
         <g transform="translate(${tx.toFixed(1)} ${ty}) scale(${k})" clip-path="url(#cl${id})">
-          ${hsDetail(id, g)}
-          <g fill="${GOLD}" stroke="${CORE}" stroke-width="6" filter="url(#${g})">${knobs}</g>
+          ${hsDetail(id, g + 'p')}
+          <g filter="url(#${g}p)">${HS.knobs.map((kn) => knobArt(kn)).join('')}</g>
         </g>
         <text x="256" y="460" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif" font-weight="900" font-size="104" letter-spacing="6" fill="url(#lg${id})" filter="url(#${g})">MARLI</text>
         </svg>`;
@@ -365,14 +391,14 @@ const ICONS = {
     svg(id) {
       const g = 'g' + id, k = 0.3, tx = 256 - HS.W * k / 2, ty = 12;
       const knobs = HS.knobs.map((kn) => `<polygon points="${kn.pts}"/>`).join('');
-      return `<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><defs>${glowDefs(g, 9)}
+      return `<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><defs>${glowDefs(g, 9)}${glowPhoto(g + 'p', 28)}
         <linearGradient id="lg${id}" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="512" y2="0"><stop offset="0" stop-color="#f59e0b"/><stop offset=".6" stop-color="#ffcc33"/><stop offset="1" stop-color="#f59e0b"/></linearGradient>
         <linearGradient id="fade${id}" x1="0" y1="0" x2="0" y2="1"><stop offset=".72" stop-color="#fff"/><stop offset="1" stop-color="#000"/></linearGradient>
         <mask id="mk${id}"><rect width="${HS.W}" height="${HS.H}" fill="url(#fade${id})"/></mask></defs>
         <rect width="512" height="512" fill="#000"/>
         <g transform="translate(${tx.toFixed(1)} ${ty}) scale(${k})">
           <image href="${HS.img}" xlink:href="${HS.img}" width="${HS.W}" height="${HS.H}" mask="url(#mk${id})"/>
-          <g fill="rgba(245,150,30,.6)" stroke="${GOLD}" stroke-width="7" filter="url(#${g})">${knobs}</g>
+          <g fill="rgba(245,150,30,.6)" stroke="${GOLD}" stroke-width="7" filter="url(#${g}p)">${knobs}</g>
         </g>
         <text x="256" y="452" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif" font-weight="900" font-size="104" letter-spacing="6" fill="url(#lg${id})" filter="url(#${g})">MARLI</text>
         </svg>`;
@@ -534,18 +560,18 @@ function headstockAnim(photo) {
   const knobs = HS.knobs.map((kn) => `<polygon class="kn" points="${kn.pts}" style="animation-delay:${(0.42 + order.indexOf(kn.id) * 0.11).toFixed(2)}s"/>`).join('');
   const art = photo
     ? `<image class="hsimg" href="${HS.img}" xlink:href="${HS.img}" width="${HS.W}" height="${HS.H}" mask="url(#mk${id})"/>`
-    : hsDetail(id, g, { cls: true });
+    : hsDetail(id, g + 'p', { cls: true });
   return `<div class="stage">
     <svg viewBox="0 0 320 310" width="100%" style="max-width:290px;overflow:visible" aria-label="MARLI" xmlns:xlink="http://www.w3.org/1999/xlink">
-      <defs>${glowDefs(g, 4)}<linearGradient id="lg${id}" gradientUnits="userSpaceOnUse" x1="60" y1="0" x2="260" y2="0"><stop offset="0" stop-color="#f59e0b"/><stop offset=".6" stop-color="#ffcc33"/><stop offset="1" stop-color="#f59e0b"/></linearGradient>
-        <filter id="kg${id}" filterUnits="userSpaceOnUse" x="-200" y="-200" width="1400" height="1600"><feGaussianBlur stdDeviation="22" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+      <defs>${glowDefs(g, 4)}${glowPhoto(g + 'p', 20)}<linearGradient id="lg${id}" gradientUnits="userSpaceOnUse" x1="60" y1="0" x2="260" y2="0"><stop offset="0" stop-color="#f59e0b"/><stop offset=".6" stop-color="#ffcc33"/><stop offset="1" stop-color="#f59e0b"/></linearGradient>
+        <filter id="kg${id}" filterUnits="userSpaceOnUse" x="-400" y="-400" width="1800" height="2100"><feGaussianBlur stdDeviation="22" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
         <linearGradient id="wd${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a2216"/><stop offset="1" stop-color="#1a0f09"/></linearGradient>
         <linearGradient id="fade${id}" x1="0" y1="0" x2="0" y2="1"><stop offset=".7" stop-color="#fff"/><stop offset="1" stop-color="#000"/></linearGradient>
         <mask id="mk${id}"><rect width="${HS.W}" height="${HS.H}" fill="url(#fade${id})"/></mask>
         <clipPath id="cl${id}"><rect x="0" y="0" width="${HS.W}" height="1135"/></clipPath></defs>
       <g transform="translate(${tx.toFixed(1)} ${ty}) scale(${k})" clip-path="${photo ? '' : `url(#cl${id})`}">
         ${art}
-        <g class="kns" filter="url(#kg${id})">${knobs}</g>
+        ${photo ? `<g class="kns" filter="url(#kg${id})">${knobs}</g>` : `<g filter="url(#${g}p)">${HS.knobs.map((kn) => knobArt(kn, { cls: true, i: order.indexOf(kn.id) })).join('')}</g>`}
       </g>
       <text class="nm" x="160" y="284" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif" font-weight="900" font-size="58" letter-spacing="3" fill="url(#lg${id})" filter="url(#${g})">MARLI</text>
     </svg>
@@ -629,7 +655,7 @@ function setAboutIcon(k) {
   document.querySelectorAll('[data-ab]').forEach((el) => { el.innerHTML = icon(k); });
   document.getElementById('aboutIcoName').textContent = k;
 }
-setAboutIcon('B'); // izabrana: B
+setAboutIcon('B2'); // izabrana: B2 (fotografija iz tunera) + animacija 4
 document.querySelectorAll('[data-ab-ico]').forEach((b) => b.addEventListener('click', () => setAboutIcon(b.dataset.abIco)));
 document.querySelectorAll('.about-mock .a-title, .about-mock .a-ico').forEach((el) => el.addEventListener('click', () => { document.getElementById('ph1').scrollIntoView({ behavior: 'smooth', block: 'center' }); setTimeout(() => play(1), 450); }));
 </script>
