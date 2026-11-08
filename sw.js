@@ -1,6 +1,6 @@
 // Rad bez interneta: cela aplikacija se čuva u kešu i služi iz njega (uvek ista, usklađena verzija).
 // Nova verzija = novi broj u CACHE (scripts/update-sw.mjs). Aplikacija tada prikaže „Osveži“.
-const CACHE = "gitara-v101";
+const CACHE = "gitara-v103";
 const SHELL = [
   "./",
   "index.html",
@@ -34,6 +34,7 @@ const SHELL = [
   "src/keyWheel.js",
   "src/keys.js",
   "src/ks.js",
+  "src/libDesk.js",
   "src/lzstring.js",
   "src/main.js",
   "src/music.js",
@@ -47,6 +48,7 @@ const SHELL = [
   "src/pSpider.js",
   "src/pTab.js",
   "src/pdf.js",
+  "src/pdfQueue.js",
   "src/pdfTab.js",
   "src/pitchtrack.js",
   "src/playAlong.js",
@@ -60,6 +62,7 @@ const SHELL = [
   "src/practiceTrack.js",
   "src/qr.js",
   "src/recTools.js",
+  "src/restore.js",
   "src/rhythm.js",
   "src/rhythmPicker.js",
   "src/rhythmView.js",
@@ -118,6 +121,7 @@ const SHELL = [
   "src/version.js",
   "src/versionsView.js",
   "src/wakelock.js",
+  "src/whatsnew.js",
   "src/ytPick.js",
   "src/ytShare.js",
   "icons/icon-192.png",
@@ -125,6 +129,7 @@ const SHELL = [
   "icons/icon-maskable-192.png",
   "icons/icon-maskable-512.png",
   "icons/apple-touch-icon.png",
+  "icons/favicon-32.png",
   "assets/headstock.webp"
 ];
 // Retko korišćeni veliki fajlovi (PDF): preuzimaju se u pozadini, posle instalacije, da ne usporavaju prvo otvaranje.
@@ -173,6 +178,7 @@ self.addEventListener("fetch", e => {
   if (e.request.method !== "GET") return;
   const url = new URL(e.request.url);
   if (url.origin !== self.location.origin) return; // npr. Gemini API ide direktno na mrežu
+  if (url.pathname.includes("/docs/")) return; // predlozi/dokumentacija (npr. docs/marli/) — ne aplikacija, uvek sa mreže
   if (!cleaning) e.waitUntil(new Promise(r => setTimeout(r, 2000)).then(cleanup)); // posle prvog prikaza, ne pre
   e.respondWith((async () => {
     const cache = await caches.open(CACHE);

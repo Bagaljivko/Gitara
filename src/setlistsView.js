@@ -144,7 +144,7 @@ export async function renderSetlist(root, id) {
     $('slList').innerHTML = ids.length ? ids.map((sid, i) => {
       const s = byId.get(sid);
       // dodir na pesmu = ta pesma sa „‹ Prethodna / Sledeća ›“ kroz set (umesto posebnog dugmeta „Pesma po pesma“)
-      return `<li class="sl-item" data-id="${esc(sid)}">
+      return `<li class="sl-item" data-id="${esc(sid)}" tabindex="0">
         <span class="sl-num" aria-hidden="true">${i + 1}</span>
         <a class="sl-title" href="#/pesma/${encodeURIComponent(sid)}?sl=${encodeURIComponent(id)}&i=${i}"><b>${esc(s.title)}</b>${s.artist ? `<small>${esc(s.artist)}</small>` : ''}</a>
         <button class="sl-handle drag" data-move="${i}" aria-label="${esc(t('sl.dragLabel', { title: s.title }))}">${ICON.grip}</button>
@@ -161,7 +161,13 @@ export async function renderSetlist(root, id) {
   });
   // Tastatura (i čitač ekrana): strelice gore/dole na ručici pomeraju pesmu
   $('slList').addEventListener('keydown', async (e) => {
-    const h = e.target.closest('[data-move]');
+    // v1.70: ručica ili ceo red (Alt + ↑/↓); Delete/Backspace izbacuje pesmu iz liste
+    const row = e.target.closest('.sl-item'), h = e.target.closest('[data-move]') || (row && e.altKey ? row.querySelector('[data-move]') : null);
+    if (row && (e.key === 'Delete' || e.key === 'Backspace') && !e.target.closest('input, textarea')) {
+      const i = +(row.querySelector('[data-move]') || {}).dataset?.move;
+      if (Number.isInteger(i)) { e.preventDefault(); ids.splice(i, 1); draw(); $('slList').querySelector(`[data-move="${Math.min(i, ids.length - 1)}"]`)?.focus(); await save(); }
+      return;
+    }
     if (!h || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
     e.preventDefault();
     const i = +h.dataset.move, k = e.key === 'ArrowUp' ? i - 1 : i + 1;

@@ -120,8 +120,8 @@ function done(m) {
   if (m.ok) {
     failures = 0;
     setStatus(m.newer ? 'newer' : 'synced');
-    if (firstRun) firstSummary().catch(() => {});
-    if (!migrated && !st.migrating) migrateOnce();
+    if (firstRun) (async () => { if (!migrated && !st.migrating) await migrateOnce(); await firstSummary(); })().catch(() => {});
+    else if (!migrated && !st.migrating) migrateOnce();
   } else {
     if (m.code === 'OFFLINE') setStatus('offline');
     else if (m.code === 'AUTH') setStatus('connect');
@@ -145,16 +145,22 @@ function localChange(e) {
 }
 
 // v1.68: prva sinhronizacija posle „Poveži“ — skuplja šta je stiglo, pa jedan kratak rezime
-let firstRun = null;
+let firstRun = null, lastMigrated = 0;
 async function firstSummary() {
   const k = firstRun; firstRun = null;
-  const songsN = [...k].filter((x) => x.startsWith('song:')).length, setsN = [...k].filter((x) => x.startsWith('set:')).length;
+  const songsN = [...k].filter((x) => x.startsWith('song:')).length + lastMigrated, setsN = [...k].filter((x) => x.startsWith('set:')).length;
+  lastMigrated = 0;
   const parts = [];
   if (songsN) parts.push(t('sw.gotSongs', { n: songsN }));
   if (setsN) parts.push(t('sw.gotSets', { n: setsN }));
   if (k.has('secret')) parts.push(t('sw.gotKey'));
   if ([...k].some((x) => x.startsWith('pref:') || x === 'practice' || x === 'skale' || x.startsWith('folder:'))) parts.push(t('sw.gotPrefs'));
-  if (parts.length) { await dialog({ title: t('sw.doneTitle'), body: t('sw.doneBody', { list: parts.join(', ') }), buttons: [{ label: t('common.ok'), value: true, kind: 'primary' }] }); return; }
+  if (parts.length) {
+    // ključ nije stigao i nema ga ni ovde: kratko uputstvo (stari ključ je i dalje u Google AI Studio)
+    const noKey = !k.has('secret') && !(await settings.get('geminiKey', ''));
+    await dialog({ title: t('sw.doneTitle'), body: t('sw.doneBody', { list: parts.join(', ') }) + (noKey ? ' ' + t('sw.noKey') : ''), buttons: [{ label: t('common.ok'), value: true, kind: 'primary' }] });
+    return;
+  }
   // ništa nije stiglo: na nalogu još nema podataka (drugi uređaj nema uključenu sinhronizaciju)
   const mine = (await (await import('./db.js')).songs.count().catch(() => 0));
   if (!mine) await dialog({ title: t('sw.emptyTitle'), body: t('sw.emptyBody', { email: st.email || '' }), buttons: [{ label: t('common.ok'), value: true, kind: 'primary' }] });
@@ -315,7 +321,9 @@ export async function connectSync({ pick = false } = {}) {
 async function connectInner(pick) {
   const drive = await import('./drive.js');
   const prev = { ...lsGet(), ...((await settings.get(CFG, null)) || {}) };
-  const tk = await drive.syncToken({ interactive: true, pick, hint: pick ? '' : prev.email || '' });
+  let tk = null;
+  if (!pick) { try { tk = await drive.syncTokenStored(); } catch {} } // već sačuvan ključ sa oba ovlašćenja: bez novog Google prozora (bez tihog Google zahteva — on bi preskočio „Dozvoli“ i dugotrajnu dozvolu)
+  if (!tk || !tk.token) tk = await drive.syncToken({ interactive: true, pick, hint: pick ? '' : prev.email || '' });
   startWorker().send({ t: 'setToken', token: tk.token, exp: tk.exp });
   const ab = await call({ t: 'about' }, 'about');
   if (ab.error || !ab.value || !ab.value.id) throw Object.assign(new Error(t(ab.error === 'OFFLINE' ? 'sync.offline' : 'sync.e.account')), { user: true });
@@ -382,7 +390,8 @@ async function migrateOnce() {
       const s = {};
       for (const k of keep) if (backup.settings && backup.settings[k] !== undefined) s[k] = backup.settings[k];
       const n = await drive.applyRestore({ ...backup, settings: s }, 'merge');
-      if (n) toast(t('sync.migrated', { n }));
+      lastMigrated = n || 0;
+      if (n && !firstRun) toast(t('sync.migrated', { n }));
     }
     await settings.set('syncMigrated', true);
     await saveCfg({ migrated: true });

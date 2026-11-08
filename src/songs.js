@@ -5,7 +5,7 @@ import { practiceLineHTML, fillPractice } from './songPracticeCard.js';
 import { MORE_ICON, moreMenu, attachPinch, versionTipOnce, openPanel, zoomPillHTML, bindZoomPill, songMenuItems } from './songChrome.js';
 import { paButtonHTML, bindPlayAlong } from './playAlong.js';
 import { songs as db } from './db.js';
-import { esc, toast, dialog, confirmDialog, pickFile, closeXHTML } from './ui.js';
+import { esc, toast, dialog, confirmDialog, pickFile, pickFiles, closeXHTML } from './ui.js';
 import { chordSVG, voicingCount, shapeNavHTML, onShapeSwipe } from './diagram.js';
 import { getVoicings } from './chords.js';
 import { stopGroup } from './synth.js';
@@ -216,6 +216,7 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
   const addAction = async (k) => {
     if (k === 'scan') loadEditor().then((m) => m.startScan());
     else if (k === 'import') { if (await importSongFile()) { all = await db.list(); draw(); } }
+    else if (k === 'backup') { if (await (await import('./restore.js')).restoreBackup()) { all = await db.list(); draw(); drawWelcome(); } }
     else if (k === 'new') loadEditor().then((m) => m.newSongDraft());
   };
   $('lAdd').addEventListener('click', () => openAddSheet(addAction));
@@ -303,12 +304,34 @@ function openGroupSheet({ all, folders, cur, inGroup, anchor }) {
 
 // ---------------- Dodavanje pesme („+“) ----------------
 const ADD_ICONS = {
+  backup: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 3a9 9 0 0 0-9 9H1l3.9 3.9L9 12H6a7 7 0 1 1 2.1 5l-1.4 1.4A9 9 0 1 0 13 3zm-1 5v5l4.3 2.5.7-1.2-3.5-2.1V8z"/></svg>',
   scan: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3 7.2 5H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3.2L15 3H9zm3 15a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-2a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/></svg>',
   import: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2h8l6 6v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm7 1.5V9h5.5L13 3.5zM11 12v4.2l-1.6-1.6L8 16l4 4 4-4-1.4-1.4-1.6 1.6V12h-2z"/></svg>',
   new: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17.2V21h3.8l11-11-3.8-3.8-11 11zM20.7 7a1 1 0 0 0 0-1.4l-2.3-2.3a1 1 0 0 0-1.4 0l-1.8 1.8 3.8 3.8L20.7 7z"/></svg>',
 };
-const addOptionsHTML = (ids = false) => ['scan', 'import', 'new'].map((k) => `<button class="add-opt" data-addk="${k}"${ids ? ` id="${{ scan: 'lScan', import: 'lImport', new: 'lNew' }[k]}"` : ''}>
+const addOptionsHTML = (ids = false) => ['scan', 'import', 'backup', 'new'].map((k) => `<button class="add-opt" data-addk="${k}"${ids ? ` id="${{ scan: 'lScan', import: 'lImport', backup: 'lBackup', new: 'lNew' }[k]}"` : ''}>
   <span class="add-ico ${k}">${ADD_ICONS[k]}</span><span class="add-txt"><b>${t('lib.add.' + k)}</b><span class="small muted">${t('lib.add.' + k + 'Hint')}</span></span></button>`).join('');
+/** v1.70 (računar, upravljač biblioteke): „+ Dodaj pesme“ i prazna biblioteka — isti izbori kao u listi pesama. */
+export function openAddDesk(onDone) {
+  openAddSheet(async (k) => {
+    if (k === 'scan') loadEditor().then((m) => m.startScan());
+    else if (k === 'import') { if (await importSongFile()) onDone?.(); }
+    else if (k === 'backup') { if (await (await import('./restore.js')).restoreBackup()) onDone?.(); }
+    else if (k === 'new') loadEditor().then((m) => m.newSongDraft());
+  });
+}
+export function deskEmptyState(syncBox, addBox, onDone) {
+  syncWelcome(syncBox);
+  addBox.innerHTML = `<div class="welcome card"><b>${t('lib.welcomeTitle')}</b><p class="muted small">${t('lib.welcomeBody')}</p>${addOptionsHTML()}</div>`;
+  addBox.addEventListener('click', async (e) => {
+    const w = e.target.closest('[data-addk]'); if (!w) return;
+    const k = w.dataset.addk;
+    if (k === 'scan') loadEditor().then((m) => m.startScan());
+    else if (k === 'import') { if (await importSongFile()) onDone?.(); }
+    else if (k === 'backup') { if (await (await import('./restore.js')).restoreBackup()) onDone?.(); }
+    else if (k === 'new') loadEditor().then((m) => m.newSongDraft());
+  });
+}
 /** Donji panel sa tri načina dodavanja (zatvara se dodirom van njega, „nazad“ ili izborom). */
 function openAddSheet(onPick) {
   const wrap = document.createElement('div');
@@ -348,7 +371,8 @@ async function syncWelcome(box) {
   if (!box || ((await settings.get('syncCfg', null)) || {}).on) return;
   box.innerHTML = `<div class="sync-welcome card"><div class="sw-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v10H4zm-2 12h20v2H2zM6 8v6h12V8z"/></svg></div>
     <div class="sw-txt"><b>${t('sw.title')}</b><p class="muted small">${t('sw.body')}</p>
-    <button class="btn primary" id="swGo">${t('sw.btn')}</button><p class="muted small sw-note">${t('sw.note')}</p></div></div>`;
+    <button class="btn primary" id="swGo">${t('sw.btn')}</button><p class="muted small sw-note">${t('sw.note')} <button type="button" class="link-btn" id="swFile">${t('sw.fromFile')}</button></p></div></div>`;
+  box.querySelector('#swFile').addEventListener('click', async () => { if (await (await import('./restore.js')).restoreFromFile()) dispatchEvent(new HashChangeEvent('hashchange')); });
   box.querySelector('#swGo').addEventListener('click', async (e) => {
     e.currentTarget.disabled = true;
     try { const { connectSync } = await import('./sync.js'); if (await connectSync()) box.innerHTML = `<p class="muted small sw-wait">${t('sw.waiting')}</p>`; }
@@ -366,6 +390,9 @@ export async function importDropped(files) {
   if (!list.length) return false;
   const imgs = list.filter((f) => /^image\//.test(f.type) || /\.(jpe?g|png|webp|heic|heif)$/i.test(f.name));
   if (imgs.length) { (await loadEditor()).scanFiles(imgs); return false; }
+  // v1.70: više PDF-ova odjednom → red (sa tekstom odmah, skenirani preko Gemini-ja; upozorenje pre početka)
+  const pdfs = list.filter((x) => x.type === 'application/pdf' || /\.pdf$/i.test(x.name));
+  if (pdfs.length > 1) { (await import('./pdfQueue.js')).importPdfs(pdfs); return false; }
   const f = list.find((x) => /\.(gitara|json|pdf|txt)$/i.test(x.name) || /pdf|json|text/.test(x.type));
   if (!f) { toast(t('drop.unknown'), 'error'); return false; }
   const ok = await importSongFile(f);
@@ -374,7 +401,22 @@ export async function importDropped(files) {
 }
 
 const NUDGE_MIN = 3, NUDGE_SNOOZE = 30 * 864e5;
+/** v1.70: Drive rezervna kopija je povezana, a sinhronizacija nije — jednom ponudi „Uključi“ (ključ i podešavanja na svim uređajima). */
+async function syncOffer(box) {
+  if (!(await driveConnected()) || ((await settings.get('syncCfg', null)) || {}).on || localStorageGet('marli-syncoffer')) return false;
+  box.innerHTML = `<div class="nudge-bar" role="note"><span class="nudge-txt">${t('sync.offer')}</span>
+    <button type="button" class="nudge-link" data-s="on">${t('sync.offerBtn')} ›</button>
+    <button class="icon-btn" data-s="x" aria-label="${t('nudge.later')}" title="${t('nudge.later')}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z"/></svg></button></div>`;
+  box.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-s]'); if (!b) return;
+    localStorageSet('marli-syncoffer', '1');
+    if (b.dataset.s === 'on') { try { const { connectSync } = await import('./sync.js'); await connectSync(); } catch (err) { if (err && err.code !== 'cancelled') toast((err && err.message) || t('common.error'), 'error'); } }
+    box.innerHTML = '';
+  });
+  return true;
+}
 async function backupNudge(box, count) {
+  if (await syncOffer(box)) return;
   if (count < NUDGE_MIN || (await driveConnected()) || ((await settings.get('syncCfg', null)) || {}).on) return;
   const st = (await settings.get('backupNudge', null)) || {};
   if (st.snoozedAt && Date.now() - st.snoozedAt < NUDGE_SNOOZE) return;
@@ -383,11 +425,16 @@ async function backupNudge(box, count) {
   const ios = isIOS() && !isStandalone();
   box.innerHTML = `<div class="nudge-bar" role="note">
     <span class="nudge-txt">${t(ios ? 'nudge.shortIos' : 'nudge.short')}</span>
-    <a class="nudge-link" href="#/podesavanja">${t('nudge.drive')} ›</a>
+    <button type="button" class="nudge-link" data-n="connect">${t('nudge.drive')} ›</button>
     <button class="icon-btn" data-n="later" aria-label="${t('nudge.later')}" title="${t('nudge.later')}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z"/></svg></button></div>`;
   box.addEventListener('click', async (e) => {
     const b = e.target.closest('[data-n]');
     if (!b) return;
+    if (b.dataset.n === 'connect') {
+      try { const { connectSync } = await import('./sync.js'); if (await connectSync()) box.innerHTML = ''; }
+      catch (err) { if (err && err.code !== 'cancelled') toast((err && err.message) || t('common.error'), 'error'); }
+      return;
+    }
     if (b.dataset.n === 'export') {
       const r = await exportAll();
       if (r === 'downloaded') toast(t('set.backupDownloaded'));
@@ -399,7 +446,13 @@ async function backupNudge(box, count) {
 
 // ---------------- Uvoz / deljenje ----------------
 async function importSongFile(given = null) {
-  const file = given || await pickFile('.gitara,.json,.pdf,application/pdf,application/json,text/plain,application/octet-stream');
+  let file = given;
+  if (!file) {
+    const picked = await pickFiles('.gitara,.json,.pdf,application/pdf,application/json,text/plain,application/octet-stream');
+    const pdfs = picked.filter((x) => x.type === 'application/pdf' || /\.pdf$/i.test(x.name));
+    if (pdfs.length > 1) { (await import('./pdfQueue.js')).importPdfs(pdfs); return false; }
+    file = picked[0];
+  }
   if (!file) return false;
   // PDF (note, tablatura, akordi): čita se bez AI, pa ekran za proveru; skeniran PDF ide na skeniranje
   if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) {

@@ -20,7 +20,7 @@ const W = {
 export async function buildReport() {
   const w = W[getLang()] || W.sr;
   const L = [];
-  L.push(`Gitara ${APP_VERSION} · ${getLang()} · ${iso(Date.now())}`);
+  L.push(`MARLI ${APP_VERSION} · ${getLang()} · ${iso(Date.now())}`);
   try { L.push(`${w.cache}: ${(await caches.keys()).filter((k) => k.startsWith('gitara-')).join(', ') || '—'} · SW: ${navigator.serviceWorker?.controller ? w.yes : w.no}`); } catch {}
   const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
   L.push(`${w.inst}: ${standalone ? w.yes : w.no} · ${w.screen} ${screen.width}×${screen.height} @${devicePixelRatio} · RAM ${navigator.deviceMemory ?? '?'} GB · ${w.cores} ${navigator.hardwareConcurrency ?? '?'}`);

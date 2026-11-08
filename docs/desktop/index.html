@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="sr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<meta name="robots" content="noindex">
+<title>MARLI — predlozi za sledeću verziju (računar, biblioteka, oporavak)</title>
+<link rel="icon" type="image/png" href="../../icons/favicon-32.png">
+<style>
+  /* Isti izgled kao aplikacija MARLI: AMOLED crna, kartice, zlatna, isti fontovi */
+  :root {
+    --bg: #000; --surface: #0f1013; --surface-2: #181a1e; --surface-3: #202329; --line: #262930; --text: #eceef2; --muted: #9aa1ad; --dim: #6d737d;
+    --accent: #f5a524; --accent-soft: rgba(245, 165, 36, .14); --ok: #3dd68c; --ok-soft: rgba(61, 214, 140, .15); --danger: #ff6b6b; --blue: #5aa9ff;
+    --sec: #f59e0b; --sec2: #ffcc33; --sec-deep: #b45309;
+    --mono: ui-monospace, 'SF Mono', 'Menlo', 'Roboto Mono', 'DejaVu Sans Mono', 'Consolas', monospace;
+    --sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); line-height: 1.45; }
+  main { max-width: 1240px; margin: 0 auto; padding: calc(env(safe-area-inset-top) + 16px) 16px 80px; }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand img { width: 46px; height: 46px; border-radius: 22.5%; box-shadow: 0 0 0 1px var(--line); }
+  .gold { background: linear-gradient(100deg, var(--sec) 0%, var(--sec2) 65%, var(--sec) 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  h1 { font-size: 1.9rem; margin: 0; letter-spacing: .08em; font-weight: 900; }
+  h2 { font-size: 1.3rem; margin: 2.6rem 0 .3rem; }
+  h3 { font-size: 1.02rem; margin: 0 0 .5rem; display: flex; align-items: center; gap: 10px; }
+  p { margin: .4rem 0; }
+  .muted { color: var(--muted); } .small { font-size: .85rem; } .tiny { font-size: .75rem; }
+  .acr b { color: var(--accent); }
+  .tag { display: inline-grid; place-items: center; min-width: 30px; height: 30px; padding: 0 9px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-weight: 800; font-size: .9rem; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px; }
+  .note { border-left: 3px solid var(--accent); padding: 8px 12px; background: var(--surface); border-radius: 0 12px 12px 0; font-size: .88rem; color: var(--muted); margin: 10px 0; }
+  .grid2 { display: grid; gap: 16px; } @media (min-width: 1000px) { .grid2 { grid-template-columns: 1fr 1fr; } }
+  .grid3 { display: grid; gap: 16px; } @media (min-width: 900px) { .grid3 { grid-template-columns: repeat(3, 1fr); } }
+  .sticky-nav { position: sticky; top: 0; z-index: 20; background: rgba(0,0,0,.88); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); margin: 14px -16px 0; padding: 8px 16px; display: flex; gap: 8px; overflow-x: auto; }
+  .sticky-nav a { color: var(--text); text-decoration: none; font-size: .85rem; font-weight: 600; padding: 6px 12px; border-radius: 999px; background: var(--surface-2); white-space: nowrap; }
+  kbd { font: 600 .75rem var(--mono); padding: 1px 6px; border-radius: 5px; background: var(--surface-2); border: 1px solid var(--line); color: var(--accent); }
+
+  /* ---- okvir računara (skalira se da stane na telefon) ---- */
+  .desk-wrap { width: 100%; overflow: hidden; border-radius: 14px; }
+  .vs > *, .grid2 > *, .grid3 > *, .flow > * { min-width: 0; }
+  .desk { width: 1440px; height: 780px; transform-origin: 0 0; background: #000; border: 1px solid #2a2d33; border-radius: 14px; overflow: hidden; display: flex; position: relative; font-size: 14px; }
+  .rail { width: 72px; flex: none; border-right: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; padding-top: 140px; gap: 22px; }
+  .rail div { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 10.5px; color: var(--muted); }
+  .rail div i { width: 22px; height: 22px; border-radius: 6px; background: #3a3e46; display: block; }
+  .rail div.on { color: var(--accent); } .rail div.on i { background: var(--accent); }
+  .rail .conn { margin-top: auto; margin-bottom: 18px; width: 56px; border-radius: 12px; padding: 8px 4px; background: var(--accent-soft); border: 1px solid rgba(245,165,36,.35); color: var(--accent); text-align: center; font-weight: 700; font-size: 9.5px; line-height: 1.2; }
+  .rail .conn i { background: var(--accent) !important; border-radius: 50%; width: 18px; height: 18px; margin: 0 auto 4px; }
+  .rail .conn.dot { position: relative; } .rail .conn.dot::after { content: ''; position: absolute; top: -3px; right: -3px; width: 9px; height: 9px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+
+  .fold { width: 210px; flex: none; border-right: 1px solid var(--line); padding: 18px 12px; display: flex; flex-direction: column; gap: 2px; }
+  .fold .ttl { font: 800 11px var(--sans); color: var(--muted); letter-spacing: .08em; margin: 10px 8px 6px; display: flex; justify-content: space-between; }
+  .fold .it { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 9px; color: var(--text); font-size: 13.5px; }
+  .fold .it i { width: 16px; height: 13px; border-radius: 3px; background: #5c4a2a; flex: none; }
+  .fold .it i.s { background: #2f4a3a; border-radius: 50%; width: 14px; height: 14px; }
+  .fold .it b { margin-left: auto; font-weight: 600; color: var(--dim); font-size: 12px; }
+  .fold .it.on { background: var(--accent-soft); color: var(--accent); } .fold .it.on b { color: var(--accent); }
+  .fold .it.drop { outline: 2px dashed var(--accent); background: rgba(245,165,36,.08); }
+  .fold .it.ren { background: var(--surface-2); outline: 1px solid var(--accent); }
+  .fold .add { color: var(--accent); font-size: 13px; padding: 7px 10px; }
+
+  .lib { flex: 1; min-width: 0; padding: 18px 20px; display: flex; flex-direction: column; overflow: hidden; }
+  .lib-top { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .lib-top h4 { margin: 0; font-size: 22px; font-weight: 800; }
+  .search { flex: 1; max-width: 360px; height: 36px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line); color: var(--dim); display: flex; align-items: center; padding: 0 12px; font-size: 13px; }
+  .pill { height: 34px; display: inline-flex; align-items: center; gap: 6px; padding: 0 12px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line); font-size: 13px; font-weight: 600; white-space: nowrap; }
+  .pill.gold-b { background: linear-gradient(135deg, var(--sec2), var(--sec) 55%, var(--sec-deep)); color: #1a1203; border: 0; }
+  .bulk { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 8px 10px; border-radius: 12px; background: rgba(245,165,36,.1); border: 1px solid rgba(245,165,36,.35); margin-bottom: 10px; font-size: 13px; }
+  .bulk b { color: var(--accent); margin-right: 6px; }
+  table.songs { width: 100%; border-collapse: collapse; font-size: 13.5px; table-layout: auto; }
+  table.songs th { text-align: left; font: 700 11px var(--sans); color: var(--muted); letter-spacing: .06em; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  table.songs th.sort::after { content: ' ▾'; color: var(--accent); }
+  table.songs td { padding: 9px 10px; border-bottom: 1px solid #16181c; white-space: nowrap; }
+  table.songs tr.sel td { background: rgba(245,165,36,.09); }
+  table.songs tr.cur td { background: rgba(245,165,36,.16); }
+  table.songs tr.cur td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+  .ck { width: 15px; height: 15px; border-radius: 4px; border: 1.5px solid #4a4f58; display: inline-block; vertical-align: middle; }
+  .ck.on { background: var(--accent); border-color: var(--accent); box-shadow: inset 0 0 0 2px #1a1203; }
+  .k { color: var(--accent); font-weight: 700; }
+  .yt { display: inline-block; width: 18px; height: 13px; border-radius: 3px; background: #c4302b; vertical-align: middle; } .yt.no { background: #2a2d33; }
+  .chip { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11.5px; background: var(--surface-2); color: var(--muted); }
+
+  .pane { width: 360px; flex: none; border-left: 1px solid var(--line); padding: 18px; display: flex; flex-direction: column; gap: 10px; }
+  .pane h5 { margin: 0; font-size: 22px; color: var(--accent); }
+  .lyr { font: 13px/1.5 var(--mono); }
+  .lyr div { white-space: pre; } .lyr .c { color: var(--accent); font-weight: 700; }
+  .field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+  .field span { height: 32px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--line); color: var(--text); display: flex; align-items: center; padding: 0 10px; font-size: 13px; }
+  .field span.focus { border-color: var(--accent); }
+
+  .set { width: 330px; flex: none; border-left: 1px solid var(--line); padding: 18px; display: flex; flex-direction: column; gap: 8px; }
+  .set h5 { margin: 0 0 4px; font-size: 18px; display: flex; justify-content: space-between; align-items: center; }
+  .set .row { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); font-size: 13.5px; }
+  .set .row .n { color: var(--dim); width: 18px; } .set .row .h { margin-left: auto; color: var(--dim); letter-spacing: -2px; }
+  .set .row.lift { transform: rotate(-1.2deg); box-shadow: 0 10px 24px rgba(0,0,0,.6), 0 0 0 1px var(--accent); background: var(--surface-2); }
+  .set .dz { border: 2px dashed var(--accent); border-radius: 10px; padding: 14px; text-align: center; color: var(--accent); font-size: 13px; background: rgba(245,165,36,.06); }
+  .ghost { position: absolute; padding: 8px 12px; border-radius: 10px; background: var(--surface-3); border: 1px solid var(--accent); box-shadow: 0 12px 28px rgba(0,0,0,.7); font-size: 13px; font-weight: 600; pointer-events: none; }
+  .ghost b { display: inline-grid; place-items: center; min-width: 20px; height: 20px; border-radius: 999px; background: var(--accent); color: #1a1203; font-size: 11px; margin-left: 6px; }
+  .cursor { position: absolute; width: 0; height: 0; border-left: 7px solid transparent; border-right: 7px solid transparent; border-bottom: 16px solid #fff; transform: rotate(-30deg); filter: drop-shadow(0 1px 2px #000); }
+  .kbd-bar { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); display: flex; gap: 14px; font-size: 11.5px; color: var(--muted); background: rgba(15,16,19,.92); border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; }
+
+  /* modal na računaru */
+  .shade { position: absolute; inset: 0; background: rgba(0,0,0,.66); display: grid; place-items: center; }
+  .modal { width: 520px; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 22px; box-shadow: 0 20px 60px rgba(0,0,0,.7); }
+  .modal h6 { margin: 0 0 6px; font-size: 19px; }
+  .modal .btns { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }
+  .qrow { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #16181c; font-size: 13.5px; }
+  .qrow .st { margin-left: auto; font-size: 12px; font-weight: 700; }
+  .ok { color: var(--ok); } .wait { color: var(--accent); } .run { color: var(--blue); }
+  .pdf { width: 22px; height: 26px; border-radius: 4px; background: #3a1d1d; color: #ff8a80; font: 800 8px var(--sans); display: grid; place-items: center; flex: none; }
+  .bar { height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; margin: 10px 0 4px; } .bar b { display: block; height: 100%; width: 45%; background: linear-gradient(90deg, var(--sec2), var(--sec)); }
+
+  /* telefon */
+  .phone { width: 300px; height: 640px; margin: 0 auto; border-radius: 36px; background: #000; border: 1px solid #2a2d33; box-shadow: 0 0 0 6px #0b0c0e, 0 18px 40px rgba(0,0,0,.6); overflow: hidden; position: relative; font-size: 13px; padding: 34px 14px 14px; }
+  .phone .ph-h { font-size: 22px; font-weight: 800; margin: 2px 2px 12px; }
+  .pc { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px; margin-bottom: 10px; }
+  .pc b.t { display: block; font-size: 14px; margin-bottom: 4px; }
+  .pc p { color: var(--muted); font-size: 12px; margin: 0 0 8px; }
+  .pbtn { display: inline-flex; align-items: center; justify-content: center; height: 34px; padding: 0 14px; border-radius: 10px; font-weight: 700; font-size: 12.5px; background: var(--surface-2); border: 1px solid var(--line); }
+  .pbtn.g { background: linear-gradient(135deg, var(--sec2), var(--sec) 55%, var(--sec-deep)); color: #1a1203; border: 0; }
+  .pbtn.w { width: 100%; }
+  .pc.hl { border-color: rgba(245,165,36,.45); background: linear-gradient(180deg, rgba(245,165,36,.08), var(--surface)); }
+  .sheet { position: absolute; left: 0; right: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--line); border-radius: 22px 22px 0 0; padding: 16px 16px 22px; box-shadow: 0 -12px 40px rgba(0,0,0,.7); }
+  .sheet .grip { width: 40px; height: 4px; border-radius: 2px; background: #3a3e46; margin: 0 auto 12px; }
+  .pshade { position: absolute; inset: 0; background: rgba(0,0,0,.6); }
+  .nw { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid #16181c; font-size: 12.5px; } .nw i { width: 26px; height: 26px; border-radius: 8px; background: var(--accent-soft); flex: none; display: grid; place-items: center; color: var(--accent); font-style: normal; font-weight: 800; }
+  .dotg { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px var(--accent); vertical-align: middle; margin-left: 6px; }
+  .navp { position: absolute; left: 0; right: 0; bottom: 0; height: 52px; border-top: 1px solid var(--line); background: #000; display: flex; justify-content: space-around; align-items: center; font-size: 9.5px; color: var(--muted); }
+  .navp span.on { color: var(--accent); } .navp span { position: relative; }
+  .step { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: #1a1203; font-weight: 900; font-size: 13px; }
+  .flow { display: grid; gap: 18px; } @media (min-width: 1000px) { .flow { grid-template-columns: repeat(3, 1fr); } }
+  .flow > div > h3 { justify-content: center; }
+  .mini-ico { width: 64px; height: 64px; border-radius: 22.5%; margin: 4px auto 8px; display: block; box-shadow: 0 0 0 1px var(--line), 0 10px 30px rgba(245,165,36,.18); }
+  .vs { display: grid; gap: 20px; }
+  footer { margin-top: 48px; font-size: .8rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <div class="brand"><img src="../../icons/icon-192.png" alt=""><div><h1 class="gold">MARLI</h1><div class="acr small"><b>M</b>elodija, <b>A</b>kordi, <b>R</b>itam, <b>L</b>jubav, <b>I</b>nspiracija</div></div></div>
+  <p class="muted" style="margin-top:12px">Predlozi za sledeću verziju (posle MARLI 1.69): MARLI na računaru, upravljanje bibliotekom, set liste i folderi, više PDF-ova odjednom, oporavak posle brisanja podataka, „Šta je novo“. <b>Samo prikaz — ništa se ne menja dok ne odobriš.</b></p>
+  <nav class="sticky-nav">
+    <a href="#pesme">1. Pesme na računaru (A / B)</a><a href="#setliste">2. Set liste</a><a href="#folderi">3. Folderi</a><a href="#poveži">4. Poveži Google</a><a href="#oporavak">5. Oporavak</a><a href="#pdf">6. Više PDF-ova</a><a href="#telefon">7. Na telefonu</a><a href="#novo">8. Šta je novo</a>
+  </nav>
+
+  <!-- 1 -->
+  <h2 id="pesme">1. Pesme na računaru — dve opcije</h2>
+  <p class="muted small">Isti podaci, dva načina. Izaberi <b>A</b> ili <b>B</b>.</p>
+  <div class="vs">
+    <div class="card">
+      <h3><span class="tag">A</span> Pesme postaje upravljač biblioteke</h3>
+      <p class="muted small">Isti ekran „Pesme“ koji znaš, samo širi: levo folderi i set liste, u sredini tabela pesama (klik na naslov kolone = redosled), desno otvorena pesma. Izaberi više pesama (<kbd>Shift</kbd>/<kbd>Ctrl</kbd> + klik) → traka sa radnjama za sve odjednom. Jedno mesto za sve.</p>
+      <div class="desk-wrap"><div class="desk" data-fit>
+        <div class="rail"><div><i></i>Tuner</div><div><i></i>Akordi</div><div class="on"><i></i>Pesme</div><div><i></i>Vežbe</div><div><i></i>Podešavanja</div></div>
+        <div class="fold">
+          <div class="ttl">BIBLIOTEKA</div>
+          <div class="it on"><i></i>Sve pesme<b>142</b></div><div class="it"><i></i>Nedavno<b>12</b></div><div class="it"><i></i>Bez videa<b>37</b></div>
+          <div class="ttl">FOLDERI <span style="color:var(--accent)">+</span></div>
+          <div class="it"><i></i>Domaće<b>58</b></div><div class="it"><i></i>Strane<b>61</b></div><div class="it"><i></i>Za svadbe<b>23</b></div><div class="it"><i></i>Vežbam<b>9</b></div>
+          <div class="ttl">SET LISTE <span style="color:var(--accent)">+</span></div>
+          <div class="it"><i class="s"></i>Subota — kafana<b>18</b></div><div class="it"><i class="s"></i>Proba utorak<b>7</b></div>
+        </div>
+        <div class="lib">
+          <div class="lib-top"><h4>Sve pesme</h4><div class="search">🔍&nbsp; Pretraži naslov, izvođača, tekst…  <kbd style="margin-left:auto">/</kbd></div><span class="pill gold-b">+ Dodaj pesme</span></div>
+          <div class="bulk"><b>3 izabrane</b><span class="pill">📁 Premesti u folder</span><span class="pill">≡ Dodaj u set listu</span><span class="pill">♯ Promeni ton</span><span class="pill">▶ Poveži video</span><span class="pill" style="color:var(--danger)">Obriši</span><span style="margin-left:auto;color:var(--muted)">Esc poništi</span></div>
+          <table class="songs">
+            <tr><th style="width:26px"></th><th class="sort">NASLOV</th><th>IZVOĐAČ</th><th>TON</th><th>FOLDER</th><th>VIDEO</th><th>IZMENJENO</th></tr>
+            <tr class="sel"><td><span class="ck on"></span></td><td>Lutka sa naslovne strane</td><td>Parni valjak</td><td class="k">D</td><td><span class="chip">Domaće</span></td><td><span class="yt"></span></td><td class="muted">danas</td></tr>
+            <tr class="cur"><td><span class="ck on"></span></td><td><b>Sweet Child o' Mine</b></td><td>Guns N' Roses</td><td class="k">D</td><td><span class="chip">Strane</span></td><td><span class="yt"></span></td><td class="muted">juče</td></tr>
+            <tr><td><span class="ck"></span></td><td>Ti si mi u krvi</td><td>Zdravko Čolić</td><td class="k">Am</td><td><span class="chip">Domaće</span></td><td><span class="yt no"></span></td><td class="muted">3. nov</td></tr>
+            <tr class="sel"><td><span class="ck on"></span></td><td>Wonderwall</td><td>Oasis</td><td class="k">Em</td><td><span class="chip">Strane</span></td><td><span class="yt"></span></td><td class="muted">1. nov</td></tr>
+            <tr><td><span class="ck"></span></td><td>Zakuni se ljubavi</td><td>Ceca</td><td class="k">G</td><td><span class="chip">Za svadbe</span></td><td><span class="yt no"></span></td><td class="muted">28. okt</td></tr>
+            <tr><td><span class="ck"></span></td><td>Hotel California</td><td>Eagles</td><td class="k">Hm</td><td><span class="chip">Strane</span></td><td><span class="yt"></span></td><td class="muted">27. okt</td></tr>
+            <tr><td><span class="ck"></span></td><td>Moja prva ljubav</td><td>Haris Džinović</td><td class="k">C</td><td><span class="chip">Za svadbe</span></td><td><span class="yt no"></span></td><td class="muted">20. okt</td></tr>
+            <tr><td><span class="ck"></span></td><td>Plavi safir</td><td>Bajaga</td><td class="k">A</td><td><span class="chip">Domaće</span></td><td><span class="yt"></span></td><td class="muted">15. okt</td></tr>
+          </table>
+        </div>
+        <div class="pane">
+          <h5>Sweet Child o' Mine</h5><div class="muted">Guns N' Roses · D · 125 BPM</div>
+          <div style="display:flex;gap:8px"><span class="pill">✎ Uredi</span><span class="pill">▶ Uz video</span><span class="pill">⋯</span></div>
+          <div class="lyr"><div class="muted tiny">STROFA 1</div><div class="c">D                   C</div><div>She's got a smile that it seems to me</div><div class="c">C                 G</div><div>Reminds me of childhood memories</div><div class="c">G              D</div><div>Where everything was as fresh</div><div class="muted tiny" style="margin-top:8px">REFREN</div><div class="c">A          C           D</div><div>Sweet child o' mine</div></div>
+        </div>
+        <div class="kbd-bar"><span><kbd>Shift</kbd>/<kbd>Ctrl</kbd>+klik više</span><span><kbd>Ctrl</kbd>+<kbd>A</kbd> sve</span><span><kbd>Enter</kbd> otvori</span><span><kbd>E</kbd> uredi</span><span><kbd>Del</kbd> obriši</span></div>
+      </div></div>
+    </div>
+    <div class="card">
+      <h3><span class="tag">B</span> Poseban ekran „Biblioteka“</h3>
+      <p class="muted small">Pesme ostaje tačno kao sada (lista levo, pesma desno). Novo dugme <b>Biblioteka</b> u bočnoj traci (samo na računaru) otvara ceo ekran za sređivanje: velika tabela, folderi, set liste, radnje za više pesama, uređivanje sa strane. Za sviranje — Pesme; za sređivanje — Biblioteka.</p>
+      <div class="desk-wrap"><div class="desk" data-fit>
+        <div class="rail"><div><i></i>Tuner</div><div><i></i>Akordi</div><div><i></i>Pesme</div><div class="on"><i></i>Biblioteka</div><div><i></i>Vežbe</div><div><i></i>Podešavanja</div></div>
+        <div class="fold">
+          <div class="ttl">FOLDERI <span style="color:var(--accent)">+</span></div>
+          <div class="it on"><i></i>Sve pesme<b>142</b></div><div class="it"><i></i>Domaće<b>58</b></div><div class="it"><i></i>Strane<b>61</b></div><div class="it"><i></i>Za svadbe<b>23</b></div>
+          <div class="ttl">SET LISTE <span style="color:var(--accent)">+</span></div>
+          <div class="it"><i class="s"></i>Subota — kafana<b>18</b></div><div class="it"><i class="s"></i>Proba utorak<b>7</b></div>
+          <div class="ttl">PROVERA</div>
+          <div class="it"><i></i>Bez videa<b>37</b></div><div class="it"><i></i>Bez ritma<b>21</b></div><div class="it"><i></i>Mogući duplikati<b>2</b></div>
+        </div>
+        <div class="lib">
+          <div class="lib-top"><h4>Biblioteka</h4><div class="search">🔍&nbsp; Pretraži…</div><span class="pill">Kolone ▾</span><span class="pill gold-b">+ Dodaj pesme</span></div>
+          <table class="songs">
+            <tr><th style="width:26px"></th><th class="sort">NASLOV</th><th>IZVOĐAČ</th><th>TON</th><th>BPM</th><th>RITAM</th><th>FOLDER</th><th>VIDEO</th></tr>
+            <tr><td><span class="ck"></span></td><td>Lutka sa naslovne strane</td><td>Parni valjak</td><td class="k">D</td><td>112</td><td>↓↓↑↑↓↑</td><td><span class="chip">Domaće</span></td><td><span class="yt"></span></td></tr>
+            <tr class="cur"><td><span class="ck"></span></td><td><b>Sweet Child o' Mine</b></td><td>Guns N' Roses</td><td class="k">D</td><td>125</td><td>↓·↓↑·↑↓↑</td><td><span class="chip">Strane</span></td><td><span class="yt"></span></td></tr>
+            <tr><td><span class="ck"></span></td><td>Ti si mi u krvi</td><td>Zdravko Čolić</td><td class="k">Am</td><td>96</td><td class="muted">—</td><td><span class="chip">Domaće</span></td><td><span class="yt no"></span></td></tr>
+            <tr><td><span class="ck"></span></td><td>Wonderwall</td><td>Oasis</td><td class="k">Em</td><td>87</td><td>↓·↓↑↑↓↑</td><td><span class="chip">Strane</span></td><td><span class="yt"></span></td></tr>
+            <tr><td><span class="ck"></span></td><td>Zakuni se ljubavi</td><td>Ceca</td><td class="k">G</td><td>104</td><td class="muted">—</td><td><span class="chip">Za svadbe</span></td><td><span class="yt no"></span></td></tr>
+            <tr><td><span class="ck"></span></td><td>Hotel California</td><td>Eagles</td><td class="k">Hm</td><td>75</td><td>↓·↓↑·↑↓↑</td><td><span class="chip">Strane</span></td><td><span class="yt"></span></td></tr>
+          </table>
+        </div>
+        <div class="pane">
+          <div class="muted tiny" style="letter-spacing:.08em;font-weight:800">BRZO UREĐIVANJE</div>
+          <h5>Sweet Child o' Mine</h5>
+          <div class="field">Naslov<span>Sweet Child o' Mine</span></div>
+          <div class="field">Izvođač<span>Guns N' Roses</span></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px"><div class="field">Ton<span>D</span></div><div class="field">Kapo<span>—</span></div><div class="field">BPM<span>125</span></div></div>
+          <div class="field">YouTube video<span class="focus">youtu.be/1w7OgIMMRc4 ✓</span></div>
+          <div class="field">Folder<span>Strane ▾</span></div>
+          <div style="display:flex;gap:8px;margin-top:4px"><span class="pill gold-b">Sačuvaj</span><span class="pill">Otvori celu pesmu ›</span></div>
+        </div>
+      </div></div>
+    </div>
+  </div>
+  <div class="note"><b>Moj predlog: A</b> — jedno mesto, bez novog ekrana za učenje; tabela i radnje se pojavljuju samo na računaru (na telefonu Pesme ostaje isto). Iz B bih uzeo dobre stvari i u A: „Brzo uređivanje“ sa strane (taster <kbd>E</kbd>), kolone po izboru i filtere „Bez videa / Bez ritma / Mogući duplikati“.</div>
+
+  <!-- 2 -->
+  <h2 id="setliste">2. Set liste — prevlačenjem i tastaturom</h2>
+  <p class="muted small">Izaberi pesme u tabeli i prevuci ih u set listu desno (ili na set listu u levoj koloni). Redosled menjaš prevlačenjem ili <kbd>Alt</kbd>+<kbd>↑</kbd>/<kbd>↓</kbd>. „Nova set lista od izabranih“ pravi listu jednim klikom.</p>
+  <div class="desk-wrap"><div class="desk" data-fit>
+    <div class="rail"><div><i></i>Tuner</div><div><i></i>Akordi</div><div class="on"><i></i>Pesme</div><div><i></i>Vežbe</div><div><i></i>Podešavanja</div></div>
+    <div class="fold">
+      <div class="ttl">SET LISTE <span style="color:var(--accent)">+</span></div>
+      <div class="it on"><i class="s"></i>Subota — kafana<b>6</b></div><div class="it drop"><i class="s"></i>Proba utorak<b>7</b></div><div class="it"><i class="s"></i>Svadba Jovanovići<b>24</b></div>
+      <div class="add">+ Nova set lista od izabranih (3)</div>
+    </div>
+    <div class="lib">
+      <div class="lib-top"><h4>Sve pesme</h4><div class="search">🔍&nbsp; Pretraži…</div></div>
+      <div class="bulk"><b>3 izabrane</b><span class="pill">≡ Dodaj u „Subota — kafana“</span><span class="pill">+ Nova set lista od izabranih</span></div>
+      <table class="songs">
+        <tr><th style="width:26px"></th><th class="sort">NASLOV</th><th>IZVOĐAČ</th><th>TON</th><th>U SET LISTI</th></tr>
+        <tr class="sel"><td><span class="ck on"></span></td><td>Plavi safir</td><td>Bajaga</td><td class="k">A</td><td class="muted">—</td></tr>
+        <tr><td><span class="ck"></span></td><td>Hotel California</td><td>Eagles</td><td class="k">Hm</td><td class="ok">✓</td></tr>
+        <tr class="sel"><td><span class="ck on"></span></td><td>Moja prva ljubav</td><td>Haris Džinović</td><td class="k">C</td><td class="muted">—</td></tr>
+        <tr><td><span class="ck"></span></td><td>Ti si mi u krvi</td><td>Zdravko Čolić</td><td class="k">Am</td><td class="ok">✓</td></tr>
+        <tr class="sel"><td><span class="ck on"></span></td><td>Jesen u meni</td><td>Riblja čorba</td><td class="k">Em</td><td class="muted">—</td></tr>
+        <tr><td><span class="ck"></span></td><td>Wonderwall</td><td>Oasis</td><td class="k">Em</td><td class="muted">—</td></tr>
+      </table>
+    </div>
+    <div class="set">
+      <h5>Subota — kafana <span class="pill gold-b" style="height:28px">▶ Sviraj set</span></h5>
+      <div class="muted tiny">6 pesama · oko 24 min</div>
+      <div class="row"><span class="n">1</span>Ti si mi u krvi<span class="k" style="margin-left:6px">Am</span><span class="h">⋮⋮</span></div>
+      <div class="row lift"><span class="n">2</span>Hotel California<span class="k" style="margin-left:6px">Hm</span><span class="h">⋮⋮</span></div>
+      <div class="row"><span class="n">3</span>Lutka sa naslovne strane<span class="k" style="margin-left:6px">D</span><span class="h">⋮⋮</span></div>
+      <div class="row"><span class="n">4</span>Zakuni se ljubavi<span class="k" style="margin-left:6px">G</span><span class="h">⋮⋮</span></div>
+      <div class="dz">Pusti ovde — 3 pesme na kraj liste</div>
+    </div>
+    <div class="ghost" style="left:740px;top:430px">Plavi safir +2<b>3</b></div>
+    <div class="cursor" style="left:760px;top:458px"></div>
+    <div class="kbd-bar"><span>Prevuci izabrane → set lista</span><span><kbd>Alt</kbd>+<kbd>↑</kbd><kbd>↓</kbd> pomeri</span><span><kbd>Del</kbd> izbaci iz liste</span><span><kbd>Enter</kbd> otvori</span></div>
+  </div></div>
+
+  <!-- 3 -->
+  <h2 id="folderi">3. Folderi — leva kolona</h2>
+  <div class="grid2">
+    <div class="card">
+      <h3>Premeštanje prevlačenjem</h3>
+      <p class="muted small">Prevuci jednu ili više pesama na folder → premeštene (kratka potvrda „3 pesme u Za svadbe · Poništi“). Broj pesama stoji pored svakog foldera; klik na folder filtrira tabelu.</p>
+      <div class="desk-wrap"><div class="desk" data-fit style="height:420px;width:760px">
+        <div class="fold" style="width:240px">
+          <div class="ttl">FOLDERI <span style="color:var(--accent)">+</span></div>
+          <div class="it on"><i></i>Sve pesme<b>142</b></div><div class="it"><i></i>Domaće<b>58</b></div><div class="it"><i></i>Strane<b>61</b></div><div class="it drop"><i></i>Za svadbe<b>23 → 26</b></div><div class="it"><i></i>Vežbam<b>9</b></div>
+          <div class="add">+ Novi folder</div>
+        </div>
+        <div class="lib"><table class="songs"><tr><th></th><th>NASLOV</th><th>FOLDER</th></tr>
+          <tr class="sel"><td><span class="ck on"></span></td><td>Moja prva ljubav</td><td><span class="chip">Domaće</span></td></tr>
+          <tr class="sel"><td><span class="ck on"></span></td><td>Zakuni se ljubavi</td><td><span class="chip">—</span></td></tr>
+          <tr class="sel"><td><span class="ck on"></span></td><td>Ruža</td><td><span class="chip">—</span></td></tr>
+          <tr><td><span class="ck"></span></td><td>Plavi safir</td><td><span class="chip">Domaće</span></td></tr></table></div>
+        <div class="ghost" style="left:120px;top:150px">Moja prva ljubav +2<b>3</b></div><div class="cursor" style="left:150px;top:176px"></div>
+      </div></div>
+    </div>
+    <div class="card">
+      <h3>Preimenuj, poredaj, obriši</h3>
+      <p class="muted small">Dupli klik ili <kbd>F2</kbd> = preimenuj na licu mesta. Folderi se poređaju prevlačenjem. Desni klik → Preimenuj / Obriši folder (pesme ostaju u „Sve pesme“).</p>
+      <div class="desk-wrap"><div class="desk" data-fit style="height:420px;width:760px">
+        <div class="fold" style="width:300px">
+          <div class="ttl">FOLDERI</div>
+          <div class="it"><i></i>Sve pesme<b>142</b></div><div class="it ren"><i></i>Svadbe 2026|<b></b></div><div class="it"><i></i>Domaće<b>58</b></div><div class="it"><i></i>Strane<b>61</b></div><div class="it"><i></i>Vežbam<b>9</b></div>
+        </div>
+        <div class="lib">
+          <div class="card" style="width:250px;padding:8px;margin-top:110px;margin-left:6px;box-shadow:0 12px 30px rgba(0,0,0,.7)">
+            <div class="qrow" style="border:0">✎ Preimenuj <kbd style="margin-left:auto">F2</kbd></div>
+            <div class="qrow" style="border:0">↕ Pomeri gore / dole</div>
+            <div class="qrow" style="border:0">▶ Sviraj sve iz foldera</div>
+            <div class="qrow" style="border:0;color:var(--danger)">Obriši folder (pesme ostaju)</div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- 4 -->
+  <h2 id="poveži">4. Poveži isti Google nalog — na računaru</h2>
+  <p class="muted small">Nije obavezno, ali je jasno i stalno pri ruci. Povezivanje <b>samo uključuje sinhronizaciju</b> (na svakom uređaju) — pesme, set liste, podešavanja i Gemini ključ stižu sami i ostaju usklađeni.</p>
+  <div class="grid2">
+    <div class="card">
+      <h3>Prvi put na računaru (i podsetnik na par dana)</h3>
+      <div class="desk-wrap"><div class="desk" data-fit style="height:560px;width:980px">
+        <div class="rail"><div><i></i>Tuner</div><div><i></i>Akordi</div><div class="on"><i></i>Pesme</div><div><i></i>Vežbe</div><div><i></i>Podešavanja</div><div class="conn dot"><i></i>Poveži Google</div></div>
+        <div class="lib"></div>
+        <div class="shade"><div class="modal" style="text-align:center">
+          <img class="mini-ico" src="../../icons/icon-192.png" alt="">
+          <h6>Tvoja biblioteka, i na računaru</h6>
+          <p class="muted small">Poveži <b>isti Google nalog</b> kao na telefonu. Sve stiže samo — pesme, set liste, podešavanja i Gemini ključ — i ostaje usklađeno na svim uređajima. Ovde ih lako sređuješ: tabela, folderi, set liste, YouTube.</p>
+          <div style="display:flex;flex-direction:column;gap:6px;text-align:left;margin:12px auto;max-width:360px;font-size:13px">
+            <div>✓ 142 pesme i 3 set liste na jednom mestu</div><div>✓ Uređivanje tastaturom i mišem</div><div>✓ Skeniranje sa računara (Gemini ključ stiže sam)</div>
+          </div>
+          <div class="btns" style="justify-content:center"><span class="pill">Kasnije</span><span class="pill gold-b" style="height:40px;padding:0 20px">G&nbsp; Poveži Google nalog</span></div>
+          <p class="tiny muted" style="margin-top:10px">Sinhronizacija se uključuje sama. Isključuje se u Podešavanjima.</p>
+        </div></div>
+      </div></div>
+      <p class="muted small">Ako odabereš „Kasnije“: podsetnik se vrati za 3 dana (najviše 3 puta), a <b>„Poveži Google“</b> ostaje dole u bočnoj traci sa zlatnom tačkom.</p>
+    </div>
+    <div class="card">
+      <h3>Posle povezivanja</h3>
+      <div class="desk-wrap"><div class="desk" data-fit style="height:560px;width:980px">
+        <div class="rail"><div><i></i>Tuner</div><div><i></i>Akordi</div><div class="on"><i></i>Pesme</div><div><i></i>Vežbe</div><div><i></i>Podešavanja</div></div>
+        <div class="lib"></div>
+        <div class="shade"><div class="modal">
+          <h6>Sve je stiglo ✓</h6>
+          <p class="muted small">Sa tvog naloga (marko@gmail.com):</p>
+          <div class="qrow">🎵 Pesme<span class="st ok">142</span></div><div class="qrow">≡ Set liste<span class="st ok">3</span></div><div class="qrow">📁 Folderi<span class="st ok">4</span></div><div class="qrow">🔑 Gemini ključ<span class="st ok">stigao</span></div><div class="qrow">⚙ Podešavanja<span class="st ok">usklađena</span></div>
+          <p class="muted small" style="margin-top:12px">Od sada se svaka izmena sama prenosi na telefon i obrnuto.</p>
+          <div class="btns"><span class="pill gold-b">Otvori biblioteku</span></div>
+        </div></div>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- 5 -->
+  <h2 id="oporavak">5. Oporavak — „Dobrodošao nazad“ i „Vrati rezervnu kopiju“</h2>
+  <p class="muted small">Kad se aplikacija pokrene prazna (obrisani podaci pregledača, nov telefon, ponovo instalirana): umesto prazne liste — jasan put nazad. Posle prijave aplikacija <b>sama</b> nađe šta postoji na Drive-u.</p>
+  <div class="flow">
+    <div><h3><span class="step">1</span> Prazna aplikacija</h3>
+      <div class="phone"><div class="ph-h gold">Pesme</div>
+        <div class="pc hl" style="text-align:center"><img class="mini-ico" src="../../icons/icon-192.png" alt=""><b class="t">Dobrodošao nazad?</b><p>Ako si MARLI već koristio (na ovom ili drugom uređaju), poveži isti Google nalog — vraćamo pesme, set liste, podešavanja i Gemini ključ.</p><span class="pbtn g w">G&nbsp; Poveži Google nalog</span><p style="margin:8px 0 0">ili <u>vrati iz fajla</u></p></div>
+        <div class="pc"><b class="t">Prvi put ovde?</b><p>Skeniraj papir, uvezi PDF ili napiši pesmu.</p><span class="pbtn w">+ Dodaj prvu pesmu</span></div>
+        <div class="navp"><span>Tuner</span><span>Akordi</span><span class="on">Pesme</span><span>Vežbe</span><span>Podešavanja</span></div>
+      </div></div>
+    <div><h3><span class="step">2</span> Traži na Drive-u</h3>
+      <div class="phone"><div class="ph-h gold">Pesme</div>
+        <div class="pshade"></div>
+        <div class="sheet"><div class="grip"></div>
+          <b style="font-size:15px">Pronađeno na tvom Google Drive-u</b>
+          <div class="qrow">🔄 Sinhronizacija <span class="st ok">142 pesme · ključ</span></div>
+          <div class="qrow">💾 Rezervna kopija „Gitara“ <span class="st muted">5. nov · 138 pesama</span></div>
+          <p class="muted" style="font-size:12px;margin:10px 0">Vraćam najnovije (sinhronizaciju). Sinhronizacija ostaje uključena, pa se ovo više ne gubi.</p>
+          <span class="pbtn g w">Vrati sve</span><div style="height:8px"></div><span class="pbtn w">Izaberi drugu kopiju</span>
+        </div>
+      </div></div>
+    <div><h3><span class="step">3</span> Vraćeno</h3>
+      <div class="phone"><div class="ph-h gold">Pesme</div>
+        <div class="pc hl"><b class="t">Sve je vraćeno ✓</b>
+          <div class="qrow">Pesme<span class="st ok">142</span></div><div class="qrow">Set liste<span class="st ok">3</span></div><div class="qrow">Gemini ključ<span class="st ok">vraćen</span></div><div class="qrow" style="border:0">Podešavanja<span class="st ok">vraćena</span></div>
+        </div>
+        <div class="pc"><b class="t" style="font-size:12.5px">Ako ključa nije bilo na nalogu</b><p>„Gemini ključ nije bio sačuvan — unesi ga ponovo (aistudio.google.com → Get API key; stari ključ je tamo).“</p></div>
+        <div class="navp"><span>Tuner</span><span>Akordi</span><span class="on">Pesme</span><span>Vežbe</span><span>Podešavanja</span></div>
+      </div></div>
+  </div>
+  <div class="grid2" style="margin-top:18px">
+    <div class="card"><h3>Podešavanja → „Vrati rezervnu kopiju“</h3>
+      <p class="muted small">Dugme prvo traži kopiju na Drive-u; fajl sa telefona ostaje kao druga mogućnost.</p>
+      <div class="phone" style="height:430px"><div class="pc"><b class="t">Rezervna kopija</b><p>Pronađena kopija na Google Drive-u — <b style="color:var(--text)">5. nov, 138 pesama</b>.</p><span class="pbtn g w">Vrati sa Drive-a</span><div style="height:8px"></div><span class="pbtn w">Izaberi fajl</span></div><p class="muted" style="font-size:11.5px;padding:0 4px">Zatim kao i sada: <b>Spoji</b> (zadrži svoje i dodaj iz kopije) ili <b>Zameni sve</b>. Ako Drive nije povezan: „Poveži Google nalog da pronađem kopiju“.</p></div>
+    </div>
+    <div class="card"><h3>Pesme → „+“ → Uvezi</h3>
+      <p class="muted small">Isti izbor i kada već imaš pesme.</p>
+      <div class="phone" style="height:430px"><div class="pshade"></div><div class="sheet"><div class="grip"></div><b style="font-size:15px">Dodaj pesmu</b>
+        <div class="qrow">📷 Skeniraj papir</div><div class="qrow">📄 Uvezi PDF ili fajl</div><div class="qrow" style="color:var(--accent)">💾 Iz rezervne kopije (Drive ili fajl)</div><div class="qrow" style="border:0">✎ Napiši novu pesmu</div></div></div>
+    </div>
+  </div>
+
+  <!-- 6 -->
+  <h2 id="pdf">6. Više PDF-ova odjednom</h2>
+  <p class="muted small">Prevuci ili izaberi više PDF-ova. Pre početka: koliko ide bez AI (PDF sa pravim tekstom — odmah, besplatno) a koliko preko besplatnog Gemini-ja (skenirani PDF).</p>
+  <div class="grid2">
+    <div class="card"><h3>Upozorenje pre početka</h3>
+      <div class="desk-wrap"><div class="desk" data-fit style="height:560px;width:980px"><div class="lib"></div>
+        <div class="shade"><div class="modal">
+          <h6>Uvoz 10 PDF-ova</h6>
+          <div class="qrow"><span class="pdf">PDF</span>4 PDF-a sa tekstom<span class="st ok">odmah, bez Gemini-ja</span></div>
+          <div class="qrow"><span class="pdf">PDF</span>6 skeniranih PDF-ova<span class="st wait">preko Gemini-ja</span></div>
+          <div class="note" style="margin-top:14px"><b style="color:var(--text)">6 PDF-ova ide preko besplatnog Gemini-ja.</b> Besplatna verzija ima dnevno ograničenje — ako se potroši, preostali čekaju i nastavljaju se <b>sutra, sami</b>. Ništa se ne gubi; možeš da zatvoriš aplikaciju.</div>
+          <div class="btns"><span class="pill">Otkaži</span><span class="pill gold-b">Kreni</span></div>
+        </div></div>
+      </div></div>
+    </div>
+    <div class="card"><h3>Red za obradu</h3>
+      <div class="desk-wrap"><div class="desk" data-fit style="height:560px;width:980px"><div class="lib"></div>
+        <div class="shade"><div class="modal">
+          <h6>Uvoz PDF-ova — 6 od 10</h6>
+          <div class="bar"><b style="width:60%"></b></div>
+          <div class="qrow"><span class="pdf">PDF</span>Lutka sa naslovne strane.pdf<span class="st ok">✓ bez AI</span></div>
+          <div class="qrow"><span class="pdf">PDF</span>Hotel California (tab).pdf<span class="st ok">✓ bez AI</span></div>
+          <div class="qrow"><span class="pdf">PDF</span>Pesmarica sken str 1-4.pdf<span class="st ok">✓ Gemini</span></div>
+          <div class="qrow"><span class="pdf">PDF</span>Stari zapis — Ruža.pdf<span class="st run">čita… (strana 2/3)</span></div>
+          <div class="qrow"><span class="pdf">PDF</span>Svadbene — sken.pdf<span class="st wait">čeka</span></div>
+          <div class="qrow"><span class="pdf">PDF</span>Narodne 2.pdf<span class="st wait">čeka — Gemini limit, nastavak sutra</span></div>
+          <div class="btns"><span class="pill">Sakrij (radi u pozadini)</span><span class="pill">Zaustavi</span></div>
+        </div></div>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- 7 -->
+  <h2 id="telefon">7. Na telefonu: „MARLI i na računaru“</h2>
+  <div class="grid2">
+    <div><div class="phone"><div class="ph-h gold">Podešavanja</div>
+      <div class="pc hl"><b class="t">💻 MARLI i na računaru</b><p>Otvori <b style="color:var(--text)">bagaljivko.github.io/Gitara</b> u Chrome-u ili Edge-u i poveži isti Google nalog. Pesme, set liste i Gemini ključ stižu sami.</p><p style="color:var(--ok)">✓ Sinhronizacija je uključena</p><span class="pbtn w">Pošalji link sebi</span></div>
+      <div class="pc"><b class="t">Sinhronizacija i Google Drive</b><p>marko@gmail.com · sve usklađeno pre 2 min</p></div>
+      <div class="pc"><b class="t">Gemini API ključ</b></div>
+      <div class="navp"><span>Tuner</span><span>Akordi</span><span>Pesme</span><span>Vežbe</span><span class="on">Podešavanja</span></div></div>
+      <p class="muted small" style="text-align:center">Ako sinhronizacija nije uključena: umesto zelene kvačice dugme <b>„Uključi“</b>.</p></div>
+    <div><div class="phone"><div class="ph-h gold">Podeli MARLI</div>
+      <div class="pc" style="text-align:center"><div style="width:150px;height:150px;margin:8px auto;background:repeating-conic-gradient(#eceef2 0 25%, #000 0 50%) 0 0/18px 18px;border-radius:10px;border:8px solid #eceef2"></div><p>Skeniraj kamerom drugog telefona.</p><span class="pbtn g w">Podeli link</span></div>
+      <div class="pc hl"><b class="t" style="font-size:13px">💻 Imaš i računar?</b><p style="margin:0">Otvori isti link tamo i poveži isti Google nalog — pesme, set liste i Gemini ključ stižu sami.</p></div>
+      <div class="navp"><span>Tuner</span><span>Akordi</span><span>Pesme</span><span>Vežbe</span><span class="on">Podešavanja</span></div></div></div>
+  </div>
+
+  <!-- 8 -->
+  <h2 id="novo">8. „Šta je novo“</h2>
+  <p class="muted small">U Podešavanja → O aplikaciji, ispod verzije. Posle ažuriranja zlatna tačka (na „Podešavanja“ i pored „Šta je novo“) dok ga ne pogledaš — bez iskačućih prozora. „Saznaj više“ otvara stranicu sa detaljima u novom tabu.</p>
+  <div class="grid3">
+    <div><div class="phone"><div class="ph-h gold">Podešavanja</div>
+      <div class="pc" style="text-align:center"><b class="t" style="text-align:left">O aplikaciji</b><img class="mini-ico" src="../../icons/icon-192.png" alt=""><div class="gold" style="font-size:26px;font-weight:900;letter-spacing:.14em">MARLI</div><div style="font-size:12px"><b style="color:var(--accent)">M</b>elodija, <b style="color:var(--accent)">A</b>kordi, <b style="color:var(--accent)">R</b>itam, <b style="color:var(--accent)">L</b>jubav, <b style="color:var(--accent)">I</b>nspiracija</div><p style="margin-top:8px">verzija 1.70.0</p><span class="pbtn w" style="color:var(--accent)">Šta je novo u 1.70<span class="dotg"></span> ›</span></div>
+      <div class="navp"><span>Tuner</span><span>Akordi</span><span>Pesme</span><span>Vežbe</span><span class="on">Podešavanja<span class="dotg" style="position:absolute;top:-10px;right:6px;margin:0"></span></span></div></div></div>
+    <div><div class="phone"><div class="pshade"></div><div class="sheet" style="top:90px"><div class="grip"></div>
+      <b style="font-size:16px">Šta je novo u 1.70</b><p class="muted" style="font-size:11.5px;margin:2px 0 6px">8. nov 2026</p>
+      <div class="nw"><i>💻</i><div><b>MARLI na računaru</b><br><span class="muted">Poveži isti Google nalog — sve stiže samo.</span></div></div>
+      <div class="nw"><i>≡</i><div><b>Biblioteka</b><br><span class="muted">Tabela, više pesama odjednom, folderi prevlačenjem.</span></div></div>
+      <div class="nw"><i>📄</i><div><b>Više PDF-ova odjednom</b><br><span class="muted">Sa tekstom odmah, skenirani preko Gemini-ja.</span></div></div>
+      <div class="nw"><i>↺</i><div><b>Dobrodošao nazad</b><br><span class="muted">Posle brisanja podataka sve se vraća sa Drive-a.</span></div></div>
+      <div style="height:10px"></div><span class="pbtn g w">Saznaj više ↗</span><p class="muted" style="font-size:11px;text-align:center;margin-top:8px">Ranije verzije ›</p></div></div></div>
+    <div><div class="phone" style="padding:0"><div style="height:30px;background:#16181c;border-bottom:1px solid var(--line);font-size:10.5px;color:var(--muted);display:flex;align-items:center;padding:0 12px;margin-top:22px">🔒 bagaljivko.github.io/Gitara/docs/novosti/</div>
+      <div style="padding:14px">
+        <div style="display:flex;align-items:center;gap:8px"><img src="../../icons/icon-192.png" style="width:30px;height:30px;border-radius:22.5%"><b class="gold" style="font-size:18px;letter-spacing:.1em">MARLI</b><span class="muted" style="font-size:11px;margin-left:auto">Novosti</span></div>
+        <div class="pc" style="margin-top:12px"><span class="tag" style="height:22px;font-size:11px">1.70</span> <b style="font-size:14px">MARLI na računaru</b>
+          <div style="height:120px;margin:8px 0;border-radius:8px;background:linear-gradient(135deg,#15171b,#0b0c0e);border:1px solid var(--line);display:grid;place-items:center;color:var(--dim);font-size:11px">[snimak ekrana: biblioteka]</div>
+          <p style="margin:0"><b style="color:var(--text)">Kako:</b> 1. Na računaru otvori bagaljivko.github.io/Gitara · 2. Poveži isti Google nalog · 3. Sve stiže samo.</p></div>
+        <div class="pc"><b style="font-size:13px">Poboljšano</b><p style="margin:4px 0 0">• Sinhronizacija se uključuje sama · • „Vrati rezervnu kopiju“ nalazi kopiju na Drive-u</p></div>
+      </div></div></div>
+  </div>
+  <footer>Predlozi su samo prikaz (docs/desktop/). Na engleskom jeziku svi tekstovi idu na engleskom (Melody, Accords, Rhythm, Love, Inspiration). Posle tvog izbora (npr. „A“) pravim verziju 1.70.</footer>
+</main>
+<script>
+  // okviri računara se smanjuju da stanu u širinu ekrana (telefon)
+  function fit() {
+    document.querySelectorAll('[data-fit]').forEach((d) => {
+      const w = d.parentElement.clientWidth, W = d.offsetWidth, H = d.offsetHeight, k = Math.min(1, w / W);
+      d.style.transform = 'scale(' + k + ')'; d.parentElement.style.height = (H * k) + 'px';
+    });
+  }
+  addEventListener('resize', fit); fit();
+</script>
+</body>
+</html>
