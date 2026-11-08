@@ -53,10 +53,10 @@
   .home-label { font-size: .75rem; color: var(--muted); margin-top: 6px; text-align: center; }
 
   /* ---- uvodna animacija ---- */
-  .phone { width: min(300px, 82vw); aspect-ratio: 9 / 19.5; margin: 0 auto; border-radius: 34px; background: #000; border: 1px solid #2a2d33; box-shadow: 0 0 0 6px #0b0c0e, 0 18px 40px rgba(0,0,0,.6); position: relative; overflow: hidden; }
+  .phone { container-type: inline-size; width: min(300px, 82vw); aspect-ratio: 9 / 19.5; margin: 0 auto; border-radius: 34px; background: #000; border: 1px solid #2a2d33; box-shadow: 0 0 0 6px #0b0c0e, 0 18px 40px rgba(0,0,0,.6); position: relative; overflow: hidden; }
   .phone .stage { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; }
   .anim-card .row { display: flex; gap: 10px; justify-content: center; margin-top: 14px; flex-wrap: wrap; }
-  .words { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 .38em; padding: 0 18px; font-size: 15px; color: var(--muted); letter-spacing: .01em; min-height: 46px; text-align: center; }
+  .words { display: flex; flex-wrap: nowrap; white-space: nowrap; justify-content: center; gap: 0 .32em; padding: 0; width: 100%; font-size: 4.55cqw; color: var(--muted); letter-spacing: 0; min-height: 1.6em; text-align: center; }
   .words span { opacity: 0; transform: translateY(6px); display: inline-block; }
   .words span i { font-style: normal; color: var(--accent); font-weight: 800; text-shadow: 0 0 10px rgba(245, 165, 36, .85); }
   .play .words span { animation: wordIn .32s cubic-bezier(.2, .8, .2, 1) forwards; }
@@ -93,6 +93,41 @@
   @keyframes shrink { to { transform: scaleX(.62); } }
   .play.a2 .okring { animation: okRing .7s ease-out .82s both; }
   @keyframes okRing { 0% { opacity: 0; r: 6; } 25% { opacity: .9; } 100% { opacity: 0; r: 120; } }
+
+  /* animacija 3: akord — šest žica, skupe se u jednu, slova iskaču */
+  .a3 .strs path { transform-box: fill-box; transform-origin: center; }
+  .play.a3 .strs { animation: strsTo .5s cubic-bezier(.6, 0, .3, 1) 1s forwards; }
+  @keyframes strsTo { to { transform: translateY(var(--dy, 0)) ; opacity: 0; } }
+  .play.a3 .strs path { animation: lineGather .5s cubic-bezier(.6, 0, .3, 1) 1s forwards; }
+  @keyframes lineGather { to { transform: translateY(var(--to)); } }
+  .a3 .base { opacity: 0; }
+  .play.a3 .base { animation: fadeIn .2s linear 1.38s forwards; }
+  .a3 .ltr, .a5 .ltr { opacity: 0; transform-box: fill-box; transform-origin: 50% 100%; }
+  .play.a3 .ltr { animation: pop .38s cubic-bezier(.2, 1.4, .4, 1) forwards; }
+  @keyframes pop { 0% { opacity: 0; transform: translateY(26px) scale(.6); } 60% { opacity: 1; } to { opacity: 1; transform: none; } }
+  @keyframes fadeIn { to { opacity: 1; } }
+
+  /* animacija 4: čivije (ikonica B) */
+  .a4 .hs { stroke-dasharray: 1; stroke-dashoffset: 1; }
+  .play.a4 .hs { animation: draw .45s ease-out forwards; }
+  .a4 .peg { fill: #2a2d33; }
+  .play.a4 .peg { animation: pegOn .32s ease-out forwards; }
+  @keyframes pegOn { 0% { fill: #2a2d33; } 35% { fill: #3dd68c; } to { fill: #f5a524; } }
+  .a4 .str { opacity: .15; }
+  .play.a4 .str { animation: strOn .3s ease-out forwards; }
+  @keyframes strOn { to { opacity: 1; } }
+  .a4 .nm { opacity: 0; transform: translateY(18px); }
+  .play.a4 .nm { animation: rise .55s cubic-bezier(.2, .9, .25, 1.1) 1.15s forwards; }
+
+  /* animacija 5: ritam */
+  .a5 .bar { transform-box: fill-box; transform-origin: 50% 100%; transform: scaleY(.15); }
+  .play.a5 .bar { animation: beat 1.4s linear forwards; }
+  @keyframes beat { 0% { transform: scaleY(.15); } 6% { transform: scaleY(var(--h)); } 22% { transform: scaleY(.35); } 28% { transform: scaleY(var(--h)); } 44% { transform: scaleY(.35); } 50% { transform: scaleY(var(--h)); } 66% { transform: scaleY(.35); } 72% { transform: scaleY(var(--h)); } 100% { transform: scaleY(calc(var(--h) * .45)); } }
+  .play.a5 .ltr { animation: drop .32s cubic-bezier(.3, 1.5, .5, 1) forwards; }
+  @keyframes drop { 0% { opacity: 0; transform: translateY(-40px); } 50% { opacity: 1; } to { opacity: 1; transform: none; } }
+  .a5 .hit { opacity: 0; }
+  .play.a5 .hit { animation: hit .35s ease-out forwards; }
+  @keyframes hit { 0% { opacity: .55; } to { opacity: 0; } }
   @media (prefers-reduced-motion: reduce) { .note-rm { display: block !important; } }
 
 .scrub { display: flex; align-items: center; gap: 10px; margin: 12px auto 0; width: min(300px, 82vw); }
@@ -157,6 +192,33 @@
       <div class="timeline"><b></b></div>
       <div class="row"><button class="btn primary" data-replay="2">↻ Pusti ponovo</button><button class="btn" data-slow="2">🐢 Usporeno 4×</button></div>
       <div class="scrub"><input type="range" min="0" max="2600" step="20" value="0" data-scrub="2" aria-label="Kadar po kadar"><output data-t="2">0,00 s</output></div>
+      <p class="muted small scrub-hint">Prevuci klizač: kadar po kadar.</p>
+    </div>
+    <div class="card anim-card">
+      <h3><span class="tag">3</span> Akord (šest žica)</h3>
+      <p class="muted small">Šest žica se odsvira odozgo nadole kao akord, sve zatrepere, pa se skupe u jednu liniju iz koje slovo po slovo iskoči MARLI. Zatim reč po reč.</p>
+      <div class="phone a3" id="ph3"></div>
+      <div class="timeline"><b></b></div>
+      <div class="row"><button class="btn primary" data-replay="3">↻ Pusti ponovo</button><button class="btn" data-slow="3">🐢 Usporeno 4×</button></div>
+      <div class="scrub"><input type="range" min="0" max="2600" step="20" value="0" data-scrub="3" aria-label="Kadar po kadar"><output data-t="3">0,00 s</output></div>
+      <p class="muted small scrub-hint">Prevuci klizač: kadar po kadar.</p>
+    </div>
+    <div class="card anim-card">
+      <h3><span class="tag">4</span> Čivije (uz ikonicu B)</h3>
+      <p class="muted small">Glava gitare iz ikonice B: čivije se jedna po jedna „uštimuju“ (kratko zeleno, pa zlatno), žice zasijaju, a ispod izraste MARLI — kao sama ikonica. Zatim reč po reč.</p>
+      <div class="phone a4" id="ph4"></div>
+      <div class="timeline"><b></b></div>
+      <div class="row"><button class="btn primary" data-replay="4">↻ Pusti ponovo</button><button class="btn" data-slow="4">🐢 Usporeno 4×</button></div>
+      <div class="scrub"><input type="range" min="0" max="2600" step="20" value="0" data-scrub="4" aria-label="Kadar po kadar"><output data-t="4">0,00 s</output></div>
+      <p class="muted small scrub-hint">Prevuci klizač: kadar po kadar.</p>
+    </div>
+    <div class="card anim-card">
+      <h3><span class="tag">5</span> Ritam</h3>
+      <p class="muted small">Stubići zvuka skaču u ritmu, a na svaki udarac pada po jedno slovo M · A · R · L · I. Stubići se smire ispod imena. Zatim reč po reč.</p>
+      <div class="phone a5" id="ph5"></div>
+      <div class="timeline"><b></b></div>
+      <div class="row"><button class="btn primary" data-replay="5">↻ Pusti ponovo</button><button class="btn" data-slow="5">🐢 Usporeno 4×</button></div>
+      <div class="scrub"><input type="range" min="0" max="2600" step="20" value="0" data-scrub="5" aria-label="Kadar po kadar"><output data-t="5">0,00 s</output></div>
       <p class="muted small scrub-hint">Prevuci klizač: kadar po kadar.</p>
     </div>
   </div>
@@ -392,10 +454,73 @@ function anim2() {
     ${WORDS}</div>`;
 }
 
+
+// reči sa sopstvenim početkom (--w0)
+const words = (w0) => WORDS.replace('--w0:1.45s', '--w0:' + w0 + 's');
+
+function anim3() {
+  const id = ++uid, g = 'g' + id;
+  const Y = [52, 64, 76, 88, 100, 112], BASE = 150;
+  const strs = Y.map((y, i) => {
+    const amp = 9 - i * 0.6, vals = [amp, -amp * .8, amp * .6, -amp * .45, amp * .3, -amp * .18, amp * .08, 0].map((a) => wavePath(24, 296, y, a, 2.5)).join(';');
+    return `<path d="M24,${y} L296,${y}" stroke="${GOLD}" stroke-width="${1.2 + (5 - i) * 0.35}" style="--to:${BASE - y}px">
+      <animate attributeName="d" begin="${(i * 0.07).toFixed(2)}s" dur="0.85s" fill="freeze" values="${vals}"/></path>`;
+  }).join('');
+  // slova MARLI (isti potez kao ikonica A, deblji) — svako iskače posebno
+  const L = LETTERS.map((d, i) => `<g class="ltr" style="animation-delay:${(1.12 + i * 0.07).toFixed(2)}s"><path d="${d}" filter="url(#${g})"/></g>`).join('');
+  return `<div class="stage">
+    <svg viewBox="0 0 320 200" width="100%" style="max-width:290px;overflow:visible" aria-label="MARLI">
+      <defs>${glowDefs(g, 4)}<linearGradient id="lg${id}" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="320" y2="0"><stop offset="0" stop-color="#f59e0b"/><stop offset=".6" stop-color="#ffcc33"/><stop offset="1" stop-color="#f59e0b"/></linearGradient></defs>
+      <g class="strs" fill="none" stroke-linecap="round" filter="url(#${g})">${strs.replace(/<path /g, '<path class="sl" ')}</g>
+      <line class="base" x1="24" y1="${BASE}" x2="296" y2="${BASE}" stroke="${GOLD}" stroke-width="2.4" filter="url(#${g})"/>
+      <g transform="translate(58 56) scale(.6 .82)" fill="none" stroke="url(#lg${id})" stroke-width="15" stroke-linecap="round" stroke-linejoin="round">${L}</g>
+    </svg>
+    ${words(1.55)}</div>`;
+}
+
+function anim4() {
+  const id = ++uid, g = 'g' + id;
+  const ys = [40, 72, 104], posts = [...ys.map((y) => [138, y]), ...ys.map((y) => [182, y])];
+  const order = [2, 1, 0, 3, 4, 5], nutX = [146, 151.5, 157, 163, 168.5, 174];
+  const pegT = (k) => (0.4 + k * 0.11).toFixed(2);
+  const pegs = [0, 1, 2, 3, 4, 5].map((k) => { const side = k < 3 ? 0 : 1, y = ys[k % 3], x = side ? 205 : 115; return `<ellipse class="peg" cx="${x}" cy="${y}" rx="11" ry="8.5" style="animation-delay:${pegT(k)}s"/>`; }).join('');
+  const strs = order.map((pi, i) => `<line class="str" x1="${posts[pi][0]}" y1="${posts[pi][1]}" x2="${nutX[i]}" y2="150" style="animation-delay:${pegT(pi)}s"/>`).join('');
+  return `<div class="stage">
+    <svg viewBox="0 0 320 250" width="100%" style="max-width:290px;overflow:visible" aria-label="MARLI">
+      <defs>${glowDefs(g, 4)}<linearGradient id="lg${id}" gradientUnits="userSpaceOnUse" x1="60" y1="0" x2="260" y2="0"><stop offset="0" stop-color="#f59e0b"/><stop offset=".6" stop-color="#ffcc33"/><stop offset="1" stop-color="#f59e0b"/></linearGradient></defs>
+      <path class="hs" pathLength="1" d="M141 154 L128 44 Q127 22 146 18 L174 18 Q193 22 192 44 L179 154 Z" fill="#181a1e" stroke="#3a3e46" stroke-width="2"/>
+      <g stroke="#6b5a3a" stroke-width="3.5" stroke-linecap="round">${ys.map((y) => `<line x1="122" y1="${y}" x2="138" y2="${y}"/><line x1="182" y1="${y}" x2="198" y2="${y}"/>`).join('')}</g>
+      <g stroke="${CORE}" stroke-width="1.6" filter="url(#${g})">${strs}</g>
+      <rect x="139" y="146" width="42" height="7" rx="2" fill="#e9e1cf" opacity=".9"/>
+      <g filter="url(#${g})">${pegs}</g>
+      <text class="nm" x="160" y="222" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif" font-weight="900" font-size="56" letter-spacing="3" fill="url(#lg${id})" filter="url(#${g})">MARLI</text>
+    </svg>
+    ${words(1.6)}</div>`;
+}
+
+function anim5() {
+  const id = ++uid, g = 'g' + id;
+  const H = [.45, .7, 1, .8, .95, .6, .85, .5, .35];
+  const bars = H.map((h, i) => `<rect class="bar" x="${46 + i * 26}" y="120" width="16" height="60" rx="4" style="--h:${h}"/>`).join('');
+  // slova padaju na udarce (0,1 · 0,4 · 0,7 · 1,0 · 1,15 s)
+  const T = [0.12, 0.42, 0.72, 1.02, 1.18];
+  const L = LETTERS.map((d, i) => `<g class="ltr" style="animation-delay:${T[i]}s"><path d="${d}" filter="url(#${g})"/></g>`).join('');
+  const hits = T.slice(0, 4).map((t) => `<rect class="hit" x="0" y="0" width="320" height="200" fill="#f5a524" style="animation-delay:${t + 0.14}s;filter:blur(40px)"/>`).join('');
+  return `<div class="stage">
+    <svg viewBox="0 0 320 200" width="100%" style="max-width:290px;overflow:visible" aria-label="MARLI">
+      <defs>${glowDefs(g, 4)}<linearGradient id="lg${id}" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="320" y2="0"><stop offset="0" stop-color="#f59e0b"/><stop offset=".6" stop-color="#ffcc33"/><stop offset="1" stop-color="#f59e0b"/></linearGradient>
+        <linearGradient id="bar${id}" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#b45309"/><stop offset=".55" stop-color="#f59e0b"/><stop offset="1" stop-color="#ffcc33"/></linearGradient></defs>
+      <g opacity=".12">${hits}</g>
+      <g fill="url(#bar${id})" filter="url(#${g})">${bars}</g>
+      <g transform="translate(58 22) scale(.6 .8)" fill="none" stroke="url(#lg${id})" stroke-width="15" stroke-linecap="round" stroke-linejoin="round">${L}</g>
+    </svg>
+    ${words(1.5)}</div>`;
+}
+const ANIMS = { 1: () => anim1(), 2: () => anim2(), 3: anim3, 4: anim4, 5: anim5 };
 function play(n) {
   const ph = document.getElementById('ph' + n);
   ph.classList.remove('play');
-  ph.innerHTML = n === 1 ? anim1() : anim2();
+  ph.innerHTML = ANIMS[n]();
   const tl = ph.parentElement.querySelector('.timeline b'); tl.style.animation = 'none'; void tl.offsetWidth; tl.style.animation = '';
   void ph.offsetWidth;
   ph.classList.add('play');
@@ -428,7 +553,7 @@ document.querySelectorAll('[data-slow]').forEach((b) => b.addEventListener('clic
 }));
 // pusti kad se vidi na ekranu
 const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting && !e.target.dataset.played) { e.target.dataset.played = '1'; play(+e.target.id.slice(2)); } }), { threshold: .5 });
-io.observe(document.getElementById('ph1')); io.observe(document.getElementById('ph2'));
+[1, 2, 3, 4, 5].forEach((n) => io.observe(document.getElementById('ph' + n)));
 document.querySelectorAll('.timeline').forEach((t) => { /* traka vremena prati .play */ });
 
 // O aplikaciji: ikonica po izboru; dodir na naslov/ikonicu = animacija 1 (primer)
