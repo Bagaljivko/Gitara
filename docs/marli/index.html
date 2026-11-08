@@ -107,17 +107,21 @@
   @keyframes pop { 0% { opacity: 0; transform: translateY(26px) scale(.6); } 60% { opacity: 1; } to { opacity: 1; transform: none; } }
   @keyframes fadeIn { to { opacity: 1; } }
 
-  /* animacija 4: čivije (ikonica B) */
-  .a4 .hs { stroke-dasharray: 1; stroke-dashoffset: 1; }
-  .play.a4 .hs { animation: draw .45s ease-out forwards; }
-  .a4 .peg { fill: #2a2d33; }
-  .play.a4 .peg { animation: pegOn .32s ease-out forwards; }
-  @keyframes pegOn { 0% { fill: #2a2d33; } 35% { fill: #3dd68c; } to { fill: #f5a524; } }
-  .a4 .str { opacity: .15; }
-  .play.a4 .str { animation: strOn .3s ease-out forwards; }
-  @keyframes strOn { to { opacity: 1; } }
-  .a4 .nm { opacity: 0; transform: translateY(18px); }
-  .play.a4 .nm { animation: rise .55s cubic-bezier(.2, .9, .25, 1.1) 1.15s forwards; }
+  /* animacija 4 / 4b: glava gitare iz tunera — ključevi kao u tuneru (narandžasto dok se štimuje → zeleno) */
+  .a4 .hsimg, .a4b .hsimg { opacity: 0; }
+  .play.a4 .hsimg { animation: fadeIn .4s ease-out forwards; }
+  .a4b .hsil { stroke-dasharray: 1; stroke-dashoffset: 1; fill-opacity: 0; }
+  .play.a4b .hsil { animation: silDraw .5s ease-out forwards, silFill .35s ease-out .4s forwards; }
+  .a4b .hstr { opacity: 0; }
+  .play.a4b .hstr { animation: fadeIn .35s ease-out .4s forwards; }
+  @keyframes silDraw { to { stroke-dashoffset: 0; } }
+  @keyframes silFill { to { fill-opacity: 1; } }
+  .a4 .kn, .a4b .kn { fill: rgba(255, 255, 255, 0); stroke: rgba(255, 255, 255, .5); stroke-width: 3; stroke-linejoin: round; }
+  .a4b .kn { stroke: rgba(245, 165, 36, .5); }
+  .play.a4 .kn, .play.a4b .kn { animation: knTune .38s ease-out forwards; }
+  @keyframes knTune { 0% { fill: rgba(255,255,255,0); } 40% { fill: rgba(245, 150, 30, .6); stroke: #f5a524; stroke-width: 5; } 100% { fill: rgba(40, 190, 105, .82); stroke: #6ff0aa; stroke-width: 4; } }
+  .a4 .nm, .a4b .nm { opacity: 0; transform: translateY(18px); }
+  .play.a4 .nm, .play.a4b .nm { animation: rise .55s cubic-bezier(.2, .9, .25, 1.1) 1.15s forwards; }
 
   /* animacija 5: ritam */
   .a5 .bar { transform-box: fill-box; transform-origin: 50% 100%; transform: scaleY(.15); }
@@ -204,12 +208,21 @@
       <p class="muted small scrub-hint">Prevuci klizač: kadar po kadar.</p>
     </div>
     <div class="card anim-card">
-      <h3><span class="tag">4</span> Čivije (uz ikonicu B)</h3>
-      <p class="muted small">Glava gitare iz ikonice B: čivije se jedna po jedna „uštimuju“ (kratko zeleno, pa zlatno), žice zasijaju, a ispod izraste MARLI — kao sama ikonica. Zatim reč po reč.</p>
+      <h3><span class="tag">4</span> Čivije — fotografija iz tunera</h3>
+      <p class="muted small">Ista glava gitare kao u tuneru: ključevi se jedan po jedan „uštimuju“ tačno kao u tuneru (narandžasto, pa zeleno), a ispod izraste MARLI. Zatim reč po reč.</p>
       <div class="phone a4" id="ph4"></div>
       <div class="timeline"><b></b></div>
       <div class="row"><button class="btn primary" data-replay="4">↻ Pusti ponovo</button><button class="btn" data-slow="4">🐢 Usporeno 4×</button></div>
       <div class="scrub"><input type="range" min="0" max="2600" step="20" value="0" data-scrub="4" aria-label="Kadar po kadar"><output data-t="4">0,00 s</output></div>
+      <p class="muted small scrub-hint">Prevuci klizač: kadar po kadar.</p>
+    </div>
+    <div class="card anim-card">
+      <h3><span class="tag">4b</span> Čivije — silueta iz tunera</h3>
+      <p class="muted small">Obris iste glave gitare iz tunera se iscrta zlatnom linijom (kao ikonica B), ključevi se uštimuju jedan po jedan, a ispod izraste MARLI. Zatim reč po reč.</p>
+      <div class="phone a4b" id="ph4b"></div>
+      <div class="timeline"><b></b></div>
+      <div class="row"><button class="btn primary" data-replay="4b">↻ Pusti ponovo</button><button class="btn" data-slow="4b">🐢 Usporeno 4×</button></div>
+      <div class="scrub"><input type="range" min="0" max="2600" step="20" value="0" data-scrub="4b" aria-label="Kadar po kadar"><output data-t="4b">0,00 s</output></div>
       <p class="muted small scrub-hint">Prevuci klizač: kadar po kadar.</p>
     </div>
     <div class="card anim-card">
@@ -261,7 +274,7 @@
 // ------------------------------------------------------------------------------------------------
 const GOLD = '#f5a524', CORE = '#ffd27a', GREEN = '#3dd68c';
 let uid = 0;
-const glowDefs = (id, blur = 9) => `<filter id="${id}" filterUnits="userSpaceOnUse" x="-200" y="-200" width="1000" height="1000"><feGaussianBlur stdDeviation="${blur}" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>`;
+const glowDefs = (id, blur = 9) => `<filter id="${id}" filterUnits="userSpaceOnUse" x="-3000" y="-3000" width="9000" height="9000"><feGaussianBlur stdDeviation="${blur}" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>`;
 
 // „MARLI“ jednim potezom (monoline), slova visine 100, sa razmakom; ukupno 340 × 100
 const LETTERS = [
@@ -287,6 +300,12 @@ function wavePath(x0, x1, y, amp, waves = 2, phase = 0, step = 4) {
 // ------------------------------------------------------------------------------------------------
 // Ikonice (512 × 512, bez zaobljenja — zaobljenje/krug radi sistem)
 // ------------------------------------------------------------------------------------------------
+// Glava gitare iz tunera: fotografija assets/headstock.webp (926 × 1205), obris (silueta) i tačni obrisi šest ključeva (src/headstockKnobs.js)
+const HS = { W: 926, H: 1205, img: '../../assets/headstock.webp', sil: '402,18 386,24 374,30 364,36 354,42 346,48 336,54 324,60 316,66 302,72 286,78 256,84 228,90 224,96 224,102 222,108 222,114 222,120 222,126 224,132 224,138 224,144 224,150 226,156 226,162 226,168 228,174 228,180 228,186 230,192 230,198 232,204 232,210 232,216 232,222 234,228 148,234 136,240 126,246 120,252 114,258 110,264 106,270 104,276 102,282 100,288 100,294 100,300 100,306 102,312 102,318 106,324 108,330 112,336 116,342 122,348 128,354 136,360 150,366 246,372 246,378 246,384 246,390 248,396 246,402 248,408 248,414 248,420 248,426 248,432 146,438 134,444 124,450 118,456 112,462 108,468 106,474 102,480 100,486 100,492 100,498 100,504 100,510 100,516 102,522 104,528 108,534 110,540 116,546 122,552 128,558 138,564 152,570 250,576 250,582 250,588 250,594 250,600 250,606 250,612 250,618 250,624 250,630 250,636 250,642 142,648 136,654 124,660 116,666 114,672 110,678 106,684 104,690 102,696 100,702 96,708 98,714 98,720 100,726 102,732 102,738 106,744 108,750 112,756 116,762 122,768 132,774 142,780 244,786 244,792 244,798 244,804 244,810 244,816 246,822 248,828 250,834 256,840 260,846 264,852 270,858 274,864 278,870 282,876 286,882 290,888 292,894 296,900 298,906 302,912 304,918 308,924 310,930 312,936 314,942 314,948 316,954 318,960 320,966 322,972 322,978 324,984 326,990 326,996 326,1002 328,1008 328,1014 328,1020 328,1026 328,1032 328,1038 328,1044 328,1050 328,1056 328,1062 330,1068 332,1074 350,1080 348,1086 342,1092 334,1098 334,1104 334,1110 330,1116 330,1122 330,1128 330,1134 330,1140 330,1146 330,1152 330,1158 330,1164 330,1170 332,1176 332,1182 332,1188 328,1194 328,1200 592,1200 592,1194 592,1188 590,1182 590,1176 590,1170 590,1164 590,1158 590,1152 590,1146 590,1140 590,1134 590,1128 590,1122 590,1116 590,1110 590,1104 590,1098 590,1092 588,1086 588,1080 588,1074 588,1068 590,1062 590,1056 590,1050 590,1044 590,1038 590,1032 590,1026 592,1020 592,1014 594,1008 594,1002 596,996 596,990 598,984 598,978 600,972 602,966 602,960 604,954 606,948 608,942 610,936 612,930 616,924 618,918 620,912 624,906 626,900 630,894 634,888 638,882 642,876 646,870 650,864 654,858 658,852 664,846 670,840 672,834 676,828 678,822 680,816 680,810 680,804 680,798 680,792 680,786 784,780 794,774 802,768 808,762 812,756 816,750 820,744 822,738 824,732 826,726 826,720 826,714 826,708 826,702 824,696 822,690 820,684 816,678 812,672 806,666 798,660 790,654 774,648 676,642 676,636 676,630 676,624 676,618 676,612 676,606 676,600 676,594 676,588 676,582 676,576 772,570 788,564 798,558 804,552 810,546 814,540 818,534 820,528 822,522 824,516 826,510 826,504 826,498 826,492 824,486 822,480 820,474 818,468 814,462 808,456 802,450 792,444 780,438 678,432 678,426 678,420 680,414 680,408 680,402 680,396 680,390 680,384 682,378 682,372 776,366 788,360 800,354 806,348 810,342 814,336 816,330 820,324 822,318 824,312 824,306 826,300 826,294 824,288 824,282 822,276 820,270 816,264 812,258 806,252 800,246 790,240 776,234 694,228 694,222 696,216 696,210 696,204 698,198 698,192 698,186 700,180 700,174 700,168 702,162 702,156 702,150 702,144 702,138 704,132 704,126 704,120 704,114 704,108 704,102 704,96 700,90 678,84 648,78 628,72 616,66 604,60 594,54 588,48 576,42 568,36 558,30 546,24 530,18', knobs: [{"id": 0, "cx": 149.3, "cy": 715.2, "pts": "189.9,714.9 188.3,718.8 186.5,722.6 188.3,727.2 189.9,732.3 191.7,737.9 191.5,743.6 191.4,750.1 191.4,757.8 190.3,765.7 187.7,773.1 183.0,778.4 177.1,782.5 170.4,784.6 163.3,785.3 156.2,784.7 149.4,783.1 142.9,781.1 136.8,778.2 131.2,775.1 125.9,771.4 121.2,767.8 116.9,763.8 112.8,759.6 109.5,755.1 106.4,750.4 104.0,745.4 101.8,740.6 100.1,735.5 98.7,730.5 97.8,725.4 97.3,720.2 97.4,715.2 97.3,710.0 97.8,704.8 98.3,699.6 99.8,694.7 101.5,689.6 104.0,684.8 106.6,680.1 109.7,675.5 113.1,670.9 116.9,666.5 121.1,662.4 125.9,658.7 131.1,655.0 136.8,652.0 142.9,649.4 149.4,647.3 156.2,645.8 163.3,645.0 170.4,645.6 177.2,647.6 183.3,651.3 187.9,656.8 190.4,664.4 191.4,672.4 191.4,680.1 191.5,686.6 191.7,692.3 191.7,697.5 191.8,702.2 191.8,706.6 191.7,711.0"}, {"id": 1, "cx": 149.7, "cy": 502.7, "pts": "191.6,502.7 191.8,506.9 191.5,511.0 191.5,515.5 191.4,520.2 191.7,525.4 191.6,530.9 191.6,537.4 191.4,544.9 190.4,552.7 187.9,560.2 183.3,566.0 177.6,570.0 170.8,572.0 163.7,572.5 156.7,571.9 149.9,570.2 143.4,568.0 137.5,565.0 132.0,561.9 126.9,558.4 122.1,554.7 117.9,550.6 114.0,546.5 110.6,542.0 107.7,537.4 105.2,532.6 102.7,527.9 100.8,523.1 99.4,518.0 98.2,513.0 97.5,507.9 97.1,502.7 97.1,497.5 97.4,492.4 98.5,487.2 99.9,482.0 102.0,477.2 104.1,472.1 106.9,467.5 109.9,462.8 113.6,458.6 117.6,454.5 121.9,450.4 126.6,446.7 131.9,443.4 137.5,440.7 143.5,437.9 149.9,435.8 156.6,434.2 163.6,433.6 170.7,433.9 177.4,436.0 183.3,439.7 187.9,445.2 190.5,452.6 191.4,460.6 191.6,468.0 191.6,474.5 191.7,480.1 191.8,485.3 191.9,489.8 191.8,494.3 191.8,498.6"}, {"id": 2, "cx": 149.9, "cy": 299.2, "pts": "191.5,299.2 191.4,303.3 190.2,307.2 188.7,310.9 188.8,315.6 189.9,321.0 191.5,327.3 191.4,333.5 191.2,341.0 190.2,348.8 187.8,356.2 183.2,361.6 177.4,365.5 170.7,367.5 163.8,368.6 156.9,368.1 150.1,366.8 143.6,364.5 137.7,361.6 132.1,358.2 127.0,354.8 122.2,351.3 118.0,347.2 114.3,342.8 111.2,338.0 108.2,333.5 105.7,328.7 103.6,324.0 101.9,319.1 100.7,314.1 99.3,309.3 98.7,304.3 98.2,299.2 98.3,294.1 98.6,289.0 99.4,283.8 100.7,278.7 102.5,273.8 104.8,269.0 107.4,264.3 110.5,259.7 113.9,255.2 118.0,251.2 122.3,247.5 127.1,243.9 132.2,240.5 137.8,237.3 143.7,234.5 150.0,232.4 156.8,231.1 163.6,230.8 170.7,231.1 177.2,233.4 183.2,236.8 187.7,242.3 190.3,249.4 191.2,257.4 191.4,264.9 191.5,271.1 191.6,276.8 191.6,281.7 191.6,286.4 191.6,290.9 191.8,295.1"}, {"id": 3, "cx": 777.1, "cy": 299.4, "pts": "827.4,299.3 827.0,304.3 826.5,309.2 825.4,314.0 823.8,318.7 821.6,323.2 819.6,327.9 817.5,332.7 815.1,337.5 812.0,342.1 808.4,346.4 804.3,350.5 799.8,354.5 794.8,358.2 789.2,361.1 783.3,364.0 776.9,366.3 770.2,368.0 763.2,368.6 756.2,368.0 749.3,366.3 743.3,362.7 738.9,357.0 736.4,349.5 735.7,341.3 735.6,333.8 736.9,326.7 738.1,320.5 739.3,315.1 739.2,310.9 738.9,307.0 738.6,303.2 738.2,299.4 737.9,295.5 737.9,291.6 737.9,287.5 738.3,283.2 738.3,278.5 738.4,273.3 738.5,267.4 737.6,259.2 737.4,250.3 738.9,241.8 743.4,236.2 749.4,232.8 756.3,231.0 763.3,230.6 770.2,231.2 777.0,232.6 783.3,234.6 789.3,237.3 794.8,240.5 799.8,244.3 804.5,247.9 808.8,251.8 812.8,255.8 816.2,260.3 819.0,264.9 821.5,269.7 823.7,274.5 825.4,279.3 826.4,284.4 827.1,289.4 827.3,294.4"}, {"id": 4, "cx": 776.8, "cy": 502.6, "pts": "827.7,502.6 827.4,507.7 826.6,512.6 825.7,517.5 824.3,522.4 822.7,527.2 820.5,532.0 818.1,536.7 815.4,541.4 811.9,545.6 808.2,549.8 804.0,553.7 799.4,557.7 794.5,561.4 789.0,564.8 783.0,567.4 776.7,569.5 770.0,570.8 762.9,571.8 755.6,571.9 748.7,570.4 742.6,567.0 738.4,560.7 736.3,552.7 735.6,544.4 735.6,536.8 735.4,530.6 735.4,524.9 735.2,520.0 736.2,515.1 737.3,510.7 738.3,506.5 738.4,502.6 738.3,498.9 738.4,495.0 738.3,490.9 738.5,486.7 738.5,482.0 737.5,476.0 736.6,469.1 735.6,460.9 736.4,452.8 738.8,445.4 743.2,439.6 749.1,435.8 755.9,433.8 762.9,433.6 770.0,434.3 776.7,435.7 783.0,437.7 789.0,440.4 794.6,443.4 799.9,446.8 804.6,450.4 808.8,454.6 812.6,459.0 816.0,463.4 819.1,467.8 821.8,472.6 824.0,477.4 825.6,482.4 826.7,487.5 827.3,492.6 827.8,497.7"}, {"id": 5, "cx": 777, "cy": 715.2, "pts": "828.0,715.2 827.9,720.2 827.4,725.3 826.3,730.2 825.1,735.2 823.3,740.0 821.5,745.1 819.0,749.9 816.3,754.6 812.8,759.0 809.1,763.5 804.9,767.6 800.2,771.3 795.0,774.8 789.3,777.9 783.4,780.7 776.9,782.9 770.1,784.5 762.9,785.4 755.8,785.1 748.9,783.3 742.7,779.6 738.4,773.5 736.3,765.5 735.7,757.1 735.6,749.6 736.4,742.8 737.3,736.7 738.2,731.4 738.2,727.1 738.2,723.0 737.8,719.0 737.7,715.2 737.4,711.3 737.5,707.3 737.6,703.2 737.9,698.9 738.2,694.3 737.4,688.4 736.5,681.5 735.7,673.4 736.2,664.7 738.4,657.0 742.7,651.1 749.0,647.7 755.9,645.6 762.9,644.8 770.0,645.5 776.9,647.1 783.3,649.6 789.3,652.6 794.9,656.0 800.1,659.5 804.8,663.0 809.0,667.1 812.8,671.5 816.2,676.0 819.5,680.3 822.1,685.0 824.1,690.0 825.5,695.0 826.6,700.1 827.4,705.2 827.9,710.2"}] };
+// žice od klinova do sedla, kao na fotografiji (koordinate fotografije)
+const HS_POST = [[336, 720], [340, 486], [330, 266], [600, 260], [592, 486], [584, 720]], HS_NUT = [362, 405, 448, 491, 534, 577];
+const HS_STRINGS = HS_POST.map(([x, y], i) => `<line x1="${x}" y1="${y}" x2="${HS_NUT[i]}" y2="1030"/>`).join('');
+const HS_POSTS = HS_POST.map(([x, y]) => `<circle cx="${x}" cy="${y}" r="26"/>`).join('');
 const ICONS = {
   A: {
     name: 'Žica ispisuje ime',
@@ -308,24 +327,42 @@ const ICONS = {
     },
   },
   B: {
-    name: 'Glava gitare',
-    note: 'Glava gitare sa šest sjajnih čivija i žicama, ime krupno ispod.',
+    name: 'Glava gitare (silueta iz tunera)',
+    note: 'Obris glave gitare iz tunera, ključevi sijaju zlatno kao naštimovana žica, ime krupno ispod.',
     svg(id) {
-      const g = 'g' + id;
-      const ys = [104, 168, 232], posts = [...ys.map((y) => [212, y]), ...ys.map((y) => [300, y])];
-      const nutX = [228, 239, 250, 262, 273, 284];
-      const order = [2, 1, 0, 3, 4, 5]; // niže čivije = spoljne žice
-      const strings = order.map((pi, i) => `<line x1="${posts[pi][0]}" y1="${posts[pi][1]}" x2="${nutX[i]}" y2="318"/>`).join('');
+      const g = 'g' + id, k = 0.3, tx = 256 - HS.W * k / 2, ty = 12;
+      const knobs = HS.knobs.map((kn) => `<polygon points="${kn.pts}"/>`).join('');
       return `<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg"><defs>${glowDefs(g, 9)}
-        <linearGradient id="lg${id}" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="512" y2="0"><stop offset="0" stop-color="#f59e0b"/><stop offset=".6" stop-color="#ffcc33"/><stop offset="1" stop-color="#f59e0b"/></linearGradient></defs>
+        <linearGradient id="lg${id}" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="512" y2="0"><stop offset="0" stop-color="#f59e0b"/><stop offset=".6" stop-color="#ffcc33"/><stop offset="1" stop-color="#f59e0b"/></linearGradient>
+        <linearGradient id="wd${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a1a12"/><stop offset="1" stop-color="#120b07"/></linearGradient>
+        <clipPath id="cl${id}"><rect x="0" y="0" width="${HS.W}" height="1030"/></clipPath></defs>
         <rect width="512" height="512" fill="#000"/>
-        <path d="M206 322 L180 96 Q178 58 214 52 L298 52 Q334 58 332 96 L306 322 Z" fill="#181a1e" stroke="#2f333b" stroke-width="4"/>
-        <g stroke="#6b5a3a" stroke-width="7" stroke-linecap="round">${ys.map((y) => `<line x1="150" y1="${y}" x2="212" y2="${y}"/><line x1="300" y1="${y}" x2="362" y2="${y}"/>`).join('')}</g>
-        <g fill="#2a2d33">${posts.map(([x, y]) => `<circle cx="${x}" cy="${y}" r="7"/>`).join('')}</g>
-        <g stroke="${CORE}" stroke-width="3" filter="url(#${g})">${strings}</g>
-        <rect x="206" y="314" width="100" height="12" rx="4" fill="#e9e1cf" opacity=".9"/>
-        <g fill="${GOLD}" filter="url(#${g})">${ys.map((y) => `<ellipse cx="136" cy="${y}" rx="22" ry="17"/><ellipse cx="376" cy="${y}" rx="22" ry="17"/>`).join('')}</g>
-        <text x="256" y="440" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif" font-weight="900" font-size="112" letter-spacing="6" fill="url(#lg${id})" filter="url(#${g})">MARLI</text>
+        <g transform="translate(${tx.toFixed(1)} ${ty}) scale(${k})" clip-path="url(#cl${id})">
+          <polygon points="${HS.sil}" fill="url(#wd${id})" stroke="${GOLD}" stroke-width="10" stroke-linejoin="round" filter="url(#${g})"/>
+          <g fill="${GOLD}" stroke="${CORE}" stroke-width="6" filter="url(#${g})">${knobs}</g>
+          <g stroke="${CORE}" stroke-width="6" opacity=".9" filter="url(#${g})">${HS_STRINGS}</g><g fill="#3a3e46" stroke="#8a8f99" stroke-width="5">${HS_POSTS}</g>
+          <rect x="334" y="1026" width="262" height="30" rx="8" fill="#e9e1cf"/>
+        </g>
+        <text x="256" y="452" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif" font-weight="900" font-size="104" letter-spacing="6" fill="url(#lg${id})" filter="url(#${g})">MARLI</text>
+        </svg>`;
+    },
+  },
+  B2: {
+    name: 'Glava gitare (fotografija iz tunera)',
+    note: 'Ista fotografija kao u tuneru, ključevi zlatno osvetljeni, ime ispod. Za poređenje sa B.',
+    svg(id) {
+      const g = 'g' + id, k = 0.3, tx = 256 - HS.W * k / 2, ty = 12;
+      const knobs = HS.knobs.map((kn) => `<polygon points="${kn.pts}"/>`).join('');
+      return `<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><defs>${glowDefs(g, 9)}
+        <linearGradient id="lg${id}" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="512" y2="0"><stop offset="0" stop-color="#f59e0b"/><stop offset=".6" stop-color="#ffcc33"/><stop offset="1" stop-color="#f59e0b"/></linearGradient>
+        <linearGradient id="fade${id}" x1="0" y1="0" x2="0" y2="1"><stop offset=".72" stop-color="#fff"/><stop offset="1" stop-color="#000"/></linearGradient>
+        <mask id="mk${id}"><rect width="${HS.W}" height="${HS.H}" fill="url(#fade${id})"/></mask></defs>
+        <rect width="512" height="512" fill="#000"/>
+        <g transform="translate(${tx.toFixed(1)} ${ty}) scale(${k})">
+          <image href="${HS.img}" xlink:href="${HS.img}" width="${HS.W}" height="${HS.H}" mask="url(#mk${id})"/>
+          <g fill="rgba(245,150,30,.6)" stroke="${GOLD}" stroke-width="7" filter="url(#${g})">${knobs}</g>
+        </g>
+        <text x="256" y="452" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif" font-weight="900" font-size="104" letter-spacing="6" fill="url(#lg${id})" filter="url(#${g})">MARLI</text>
         </svg>`;
     },
   },
@@ -478,25 +515,32 @@ function anim3() {
     ${words(1.55)}</div>`;
 }
 
-function anim4() {
-  const id = ++uid, g = 'g' + id;
-  const ys = [40, 72, 104], posts = [...ys.map((y) => [138, y]), ...ys.map((y) => [182, y])];
-  const order = [2, 1, 0, 3, 4, 5], nutX = [146, 151.5, 157, 163, 168.5, 174];
-  const pegT = (k) => (0.4 + k * 0.11).toFixed(2);
-  const pegs = [0, 1, 2, 3, 4, 5].map((k) => { const side = k < 3 ? 0 : 1, y = ys[k % 3], x = side ? 205 : 115; return `<ellipse class="peg" cx="${x}" cy="${y}" rx="11" ry="8.5" style="animation-delay:${pegT(k)}s"/>`; }).join('');
-  const strs = order.map((pi, i) => `<line class="str" x1="${posts[pi][0]}" y1="${posts[pi][1]}" x2="${nutX[i]}" y2="150" style="animation-delay:${pegT(pi)}s"/>`).join('');
+// 4: fotografija iz tunera — ključevi se „uštimuju“ jedan po jedan tačno kao u tuneru (narandžasto → zeleno)
+function headstockAnim(photo) {
+  const id = ++uid, g = 'g' + id, k = 0.2, tx = 160 - HS.W * k / 2, ty = 0;
+  const order = [0, 1, 2, 3, 4, 5];
+  const knobs = HS.knobs.map((kn) => `<polygon class="kn" points="${kn.pts}" style="animation-delay:${(0.42 + order.indexOf(kn.id) * 0.11).toFixed(2)}s"/>`).join('');
+  const art = photo
+    ? `<image class="hsimg" href="${HS.img}" xlink:href="${HS.img}" width="${HS.W}" height="${HS.H}" mask="url(#mk${id})"/>`
+    : `<polygon class="hsil" pathLength="1" points="${HS.sil}" fill="url(#wd${id})" stroke="${GOLD}" stroke-width="10" stroke-linejoin="round" filter="url(#${g})"/><g class="hstr" stroke="${CORE}" stroke-width="5" filter="url(#${g})">${HS_STRINGS}</g><g class="hstr" fill="#3a3e46" stroke="#8a8f99" stroke-width="5">${HS_POSTS}</g><rect class="hstr" x="334" y="1026" width="262" height="30" rx="8" fill="#e9e1cf"/>`;
   return `<div class="stage">
-    <svg viewBox="0 0 320 250" width="100%" style="max-width:290px;overflow:visible" aria-label="MARLI">
-      <defs>${glowDefs(g, 4)}<linearGradient id="lg${id}" gradientUnits="userSpaceOnUse" x1="60" y1="0" x2="260" y2="0"><stop offset="0" stop-color="#f59e0b"/><stop offset=".6" stop-color="#ffcc33"/><stop offset="1" stop-color="#f59e0b"/></linearGradient></defs>
-      <path class="hs" pathLength="1" d="M141 154 L128 44 Q127 22 146 18 L174 18 Q193 22 192 44 L179 154 Z" fill="#181a1e" stroke="#3a3e46" stroke-width="2"/>
-      <g stroke="#6b5a3a" stroke-width="3.5" stroke-linecap="round">${ys.map((y) => `<line x1="122" y1="${y}" x2="138" y2="${y}"/><line x1="182" y1="${y}" x2="198" y2="${y}"/>`).join('')}</g>
-      <g stroke="${CORE}" stroke-width="1.6" filter="url(#${g})">${strs}</g>
-      <rect x="139" y="146" width="42" height="7" rx="2" fill="#e9e1cf" opacity=".9"/>
-      <g filter="url(#${g})">${pegs}</g>
-      <text class="nm" x="160" y="222" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif" font-weight="900" font-size="56" letter-spacing="3" fill="url(#lg${id})" filter="url(#${g})">MARLI</text>
+    <svg viewBox="0 0 320 310" width="100%" style="max-width:290px;overflow:visible" aria-label="MARLI" xmlns:xlink="http://www.w3.org/1999/xlink">
+      <defs>${glowDefs(g, 4)}<linearGradient id="lg${id}" gradientUnits="userSpaceOnUse" x1="60" y1="0" x2="260" y2="0"><stop offset="0" stop-color="#f59e0b"/><stop offset=".6" stop-color="#ffcc33"/><stop offset="1" stop-color="#f59e0b"/></linearGradient>
+        <filter id="kg${id}" filterUnits="userSpaceOnUse" x="-200" y="-200" width="1400" height="1600"><feGaussianBlur stdDeviation="22" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        <linearGradient id="wd${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a1a12"/><stop offset="1" stop-color="#120b07"/></linearGradient>
+        <linearGradient id="fade${id}" x1="0" y1="0" x2="0" y2="1"><stop offset=".7" stop-color="#fff"/><stop offset="1" stop-color="#000"/></linearGradient>
+        <mask id="mk${id}"><rect width="${HS.W}" height="${HS.H}" fill="url(#fade${id})"/></mask>
+        <clipPath id="cl${id}"><rect x="0" y="0" width="${HS.W}" height="1050"/></clipPath></defs>
+      <g transform="translate(${tx.toFixed(1)} ${ty}) scale(${k})" clip-path="${photo ? '' : `url(#cl${id})`}">
+        ${art}
+        <g class="kns" filter="url(#kg${id})">${knobs}</g>
+      </g>
+      <text class="nm" x="160" y="284" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif" font-weight="900" font-size="58" letter-spacing="3" fill="url(#lg${id})" filter="url(#${g})">MARLI</text>
     </svg>
     ${words(1.6)}</div>`;
 }
+const anim4 = () => headstockAnim(true);
+const anim4b = () => headstockAnim(false);
 
 function anim5() {
   const id = ++uid, g = 'g' + id;
@@ -516,7 +560,7 @@ function anim5() {
     </svg>
     ${words(1.5)}</div>`;
 }
-const ANIMS = { 1: () => anim1(), 2: () => anim2(), 3: anim3, 4: anim4, 5: anim5 };
+const ANIMS = { 1: () => anim1(), 2: () => anim2(), 3: anim3, 4: anim4, '4b': anim4b, 5: anim5 };
 // Rečenica ispod imena: uvek jedan red — meri se i smanjuje dok ne stane u širinu ekrana (radi u svakom pregledaču)
 function fitWords(root) {
   root.querySelectorAll('.words').forEach((w) => {
@@ -538,7 +582,7 @@ function play(n) {
   ph.classList.add('play');
   ph.querySelector('svg')?.setCurrentTime?.(0);
 }
-document.querySelectorAll('[data-replay]').forEach((b) => b.addEventListener('click', () => { stopDrive(+b.dataset.replay); play(+b.dataset.replay); }));
+document.querySelectorAll('[data-replay]').forEach((b) => b.addEventListener('click', () => { stopDrive(b.dataset.replay); play(b.dataset.replay); }));
 
 // Kadar po kadar / usporeno: sve animacije (CSS + SVG) se zaustave i postave na isto vreme t
 const END = 2.6, drives = {};
@@ -553,9 +597,9 @@ function seek(n, t, fresh = false) {
 }
 window.__seek = seek; // za snimanje kadrova
 function stopDrive(n) { if (drives[n]) { cancelAnimationFrame(drives[n].raf); drives[n] = null; } document.querySelector(`[data-slow="${n}"]`).classList.remove('on'); }
-document.querySelectorAll('[data-scrub]').forEach((r) => r.addEventListener('input', () => { const n = +r.dataset.scrub; stopDrive(n); seek(n, +r.value / 1000); }));
+document.querySelectorAll('[data-scrub]').forEach((r) => r.addEventListener('input', () => { const n = r.dataset.scrub; stopDrive(n); seek(n, +r.value / 1000); }));
 document.querySelectorAll('[data-slow]').forEach((b) => b.addEventListener('click', () => {
-  const n = +b.dataset.slow;
+  const n = b.dataset.slow;
   if (drives[n]) return stopDrive(n);
   b.classList.add('on');
   seek(n, 0, true);
@@ -564,8 +608,8 @@ document.querySelectorAll('[data-slow]').forEach((b) => b.addEventListener('clic
   d.raf = requestAnimationFrame(step);
 }));
 // pusti kad se vidi na ekranu
-const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting && !e.target.dataset.played) { e.target.dataset.played = '1'; play(+e.target.id.slice(2)); } }), { threshold: .5 });
-[1, 2, 3, 4, 5].forEach((n) => io.observe(document.getElementById('ph' + n)));
+const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting && !e.target.dataset.played) { e.target.dataset.played = '1'; play(e.target.id.slice(2)); } }), { threshold: .5 });
+['1', '2', '3', '4', '4b', '5'].forEach((n) => io.observe(document.getElementById('ph' + n)));
 document.querySelectorAll('.timeline').forEach((t) => { /* traka vremena prati .play */ });
 
 // O aplikaciji: ikonica po izboru; dodir na naslov/ikonicu = animacija 1 (primer)
