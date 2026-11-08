@@ -5,6 +5,11 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '1.72', date: '2026-11-08', items: [
+    { i: '⚙', sr: ['Nova Podešavanja', 'Kratak spisak sa ikonicama i trenutnim vrednostima; svaka celina je svoja stranica. Na računaru: spisak levo, stranica desno.'], en: ['New Settings', 'A short list with icons and current values; each section is its own page. On a computer: list on the left, page on the right.'] },
+    { i: '✓', sr: ['Stanje na jedan pogled', 'Na vrhu: Google nalog, sinhronizacija, rezervna kopija i Gemini ključ.'], en: ['Status at a glance', 'At the top: Google account, sync, backup and Gemini key.'] },
+    { i: '🔑', sr: ['Gemini ključ se sklopi', 'Kad ključ radi, vidi se samo „Ključ radi“ sa Proveri / Promeni. Sve ostalo je pod „Napredno“.'], en: ['Gemini key folds away', 'When the key works you only see “Key works” with Check / Change. Everything else is under “Advanced”.'] },
+  ] },
   { v: '1.71', date: '2026-11-08', items: [
     { i: '🛡', sr: ['Rezervne kopije — jednostavno', '„Cela aplikacija“ (sve, i Gemini ključ) i „Samo pesme“ — na Google Drive-u, same se pronađu pri vraćanju.'], en: ['Backups — simple', '“Whole app” (everything, including the Gemini key) and “Songs only” — on Google Drive, found by themselves when restoring.'] },
     { i: '🔑', sr: ['Vrati ključ sa Google naloga', 'Ključ je nestao? Jedan dodir u kartici Gemini ključ ga vraća.'], en: ['Restore key from Google account', 'Key gone? One tap in the Gemini key card brings it back.'] },
