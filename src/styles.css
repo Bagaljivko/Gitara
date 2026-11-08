@@ -1816,3 +1816,15 @@ body.desk-lib-mode main { max-width: none; padding-left: 0; padding-right: 0; }
 .settings-view > .desk-note { padding: 14px 16px; border-radius: var(--radius); border: 1px solid rgba(245, 165, 36, .4); margin-bottom: 16px; }
 .settings-view > .desk-note h2 { font-size: 1.05rem; margin: 0 0 4px; }
 @media (min-width: 900px) { .settings-view > .desk-note { break-inside: avoid; display: inline-block; width: 100%; } }
+
+/* v1.70.1: „Proveri ključ“ — šta tačno nije u redu */
+.status.warn { color: var(--accent); font-weight: 600; }
+.gdx { margin: 6px 0 12px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface-2); }
+.gdx.wait { border-color: rgba(245,165,36,.45); background: rgba(245,165,36,.08); }
+.gdx.bad { border-color: color-mix(in srgb, var(--danger) 55%, transparent); background: color-mix(in srgb, var(--danger) 10%, transparent); }
+.gdx-t { display: block; margin-bottom: 4px; }
+.gdx-b { margin: 0; color: var(--muted); font-size: .92rem; line-height: 1.45; }
+.key-lost { margin: 4px 0 14px; padding: 12px 14px; border-radius: 12px; border: 1px solid rgba(245,165,36,.45); background: rgba(245,165,36,.07); }
+.key-lost > b { display: block; margin-bottom: 2px; }
+.key-lost .btn { margin-top: 8px; }
+.key-lost .gdx { margin-bottom: 0; }

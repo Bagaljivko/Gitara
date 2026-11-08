@@ -1,6 +1,6 @@
 // Tab "Podešavanja": Gemini ključ, tuner, rezervna kopija, instalacija.
 import { settings, songs as db } from './db.js';
-import { testKey, GeminiError, cleanModelName, AUTO, getModelSetting, listModels } from './gemini.js';
+import { testKey, diagnose, explain, GeminiError, cleanModelName, AUTO, getModelSetting, listModels } from './gemini.js';
 import { esc, toast, confirmDialog, pickFile, dialog } from './ui.js';
 import { exportAll } from './songs.js';
 import { parseBackup, SongFormatError } from './songformat.js';
@@ -71,6 +71,13 @@ export async function renderSettings(root) {
       <button class="btn small" id="mUseSuggested" hidden></button>
       <button class="btn small" id="kRetry" hidden>${t('common.retry')}</button>
       <p class="status" id="kStatus" role="status">${key ? t('set.keySaved') : t('set.keyMissing')}</p>
+      <div class="gdx" id="kDiag" hidden><b class="gdx-t"></b><p class="gdx-b"></p></div>
+      <div class="key-lost" id="kLost"${key ? ' hidden' : ''}>
+        <b>${t('set.kLostTitle')}</b>
+        <p class="muted small">${t('set.kLostBody')}</p>
+        <button class="btn primary wide" id="kFromAcct" type="button">${t('set.kFromAcct')}</button>
+        <div class="gdx" id="kLostRes" hidden><b class="gdx-t"></b><p class="gdx-b"></p></div>
+      </div>
       <label class="switch set-switch key-sync"><input type="checkbox" id="keySyncSw"${keySync ? ' checked' : ''}><span class="switch-track"><span class="switch-thumb"></span></span><span><b>${t('set.keySync')}</b><small class="muted">${t('set.keySyncHint')}</small></span></label>
 
       <div class="help-box">
@@ -116,7 +123,7 @@ export async function renderSettings(root) {
 
     <div class="card">
       <h2>${t('set.fileBackupTitle')}</h2>
-      <p class="muted small">${t('set.fileBackupNote')}</p>
+      <p class="muted small" id="fbNote">${t('set.fileBackupNote')}</p>
       <div class="row wrap">
         <button class="btn" id="bExport">${t('set.exportAll')}</button>
         <button class="btn" id="bImport">${t('set.importBackup')}</button>
@@ -175,6 +182,7 @@ export async function renderSettings(root) {
   // Pesme → „Predlaži ritam“ (isto se isključuje i preko „Ne predlaži više“ na samom predlogu)
   $('strumSuggestSw').addEventListener('change', (e) => settings.set('strumSuggest', e.target.checked));
   // v1.70: „Šta je novo“ (zlatna tačka dok se ne pogleda)
+  import('./sync.js').then((Y) => { if (Y.syncState().on && $('fbNote')) $('fbNote').textContent = t('set.fileBackupNoteSync'); }).catch(() => {});
   import('./whatsnew.js').then((W) => { if (W.unseen()) $('aboutNew')?.insertAdjacentHTML('beforeend', '<i class="wn-dot" aria-hidden="true"></i>'); });
   $('aboutNew').addEventListener('click', async () => (await import('./whatsnew.js')).showWhatsNew());
   // O aplikaciji: dodir na naslov (ili ikonicu) ponovo pušta uvodnu animaciju
@@ -333,7 +341,7 @@ export async function renderSettings(root) {
   };
   fillModels(cachedModels, model);
   const loadModels = async (force) => {
-    const v = $('kInput').value.trim();
+    const v = $('kInput').value.replace(/\s+/g, ''); $('kInput').value = v;
     if (!v) { $('mHint').textContent = t('set.modelNeedKey'); return; }
     $('mRefresh').disabled = true;
     $('mRefresh').classList.add('spin');
@@ -354,17 +362,39 @@ export async function renderSettings(root) {
   const readModel = () => $('mSelect').value || AUTO;
   const modelLabel = (m) => (m === AUTO ? t('set.modelAuto') : m);
   $('kSave').addEventListener('click', async () => {
-    const v = $('kInput').value.trim();
+    const v = $('kInput').value.replace(/\s+/g, ''); $('kInput').value = v;
     const m = readModel();
     await settings.set('geminiModelSel', m);
     if (!v) { status(t('set.modelSavedNoKey'), 'err'); return; }
     await settings.set('geminiKey', v);
-    $('kDel').hidden = false;
+    $('kDel').hidden = false; $('kLost').hidden = true;
     status(t('set.keyModelSaved', { model: modelLabel(m) }), 'ok');
     toast(t('common.saved'));
     if (!cachedModels.length) loadModels(false);
   });
   $('kRetry').addEventListener('click', () => $('kTest').click());
+  // v1.70.1: ključ je nestao (obrisani podaci / nov telefon) → vrati ga sa Google naloga (sinhronizacija), bez kucanja
+  $('kFromAcct').addEventListener('click', async () => {
+    const btn = $('kFromAcct'), res = $('kLostRes');
+    const show = (level, title, body) => { res.hidden = false; res.className = 'gdx ' + level; res.querySelector('.gdx-t').textContent = title; res.querySelector('.gdx-b').textContent = body; };
+    btn.disabled = true; res.hidden = true; status(t('set.kFromAcctBusy'));
+    try {
+      const db = await import('./db.js');
+      if ((await settings.get('keySync', true)) === false) { await db.setKeySync(true); $('keySyncSw').checked = true; } // ključ koji je čekao sa strane se odmah primenjuje
+      const Y = await import('./sync.js');
+      if (!Y.syncState().on) { if (!(await Y.connectSync())) { status(''); btn.disabled = false; return; } } else Y.syncNow();
+      let k = '';
+      for (let i = 0; i < 50 && !(k = await settings.get('geminiKey', '')); i++) await new Promise((r) => setTimeout(r, 500));
+      status('');
+      if (k) {
+        $('kInput').value = k; $('kDel').hidden = false; $('kLost').hidden = true;
+        status(t('set.kFromAcctOk', { last: k.slice(-4) }), 'ok'); toast(t('set.kFromAcctOk', { last: k.slice(-4) }));
+      } else show('wait', t('set.kFromAcctNoneTitle'), t('set.kFromAcctNone'));
+    } catch (e) {
+      status('');
+      show('bad', t('set.kFromAcctErrTitle'), (e && e.user && e.message) || t('set.kFromAcctNone'));
+    } finally { btn.disabled = false; }
+  });
   $('mUseSuggested').addEventListener('click', async () => {
     const m = $('mUseSuggested').dataset.model;
     fillModels([...$('mSelect').options].map((o) => o.value).filter((x) => x !== AUTO), m);
@@ -373,23 +403,35 @@ export async function renderSettings(root) {
     status(t('set.modelChanged', { model: m }), 'ok');
   });
   $('kTest').addEventListener('click', async () => {
-    const v = $('kInput').value.trim();
+    const v = $('kInput').value.replace(/\s+/g, ''); $('kInput').value = v;
     if (!v) { status(t('set.enterKeyFirst'), 'err'); return; }
     const m = readModel();
     $('kTest').disabled = true;
     $('mUseSuggested').hidden = true;
     $('kRetry').hidden = true;
+    $('kDiag').hidden = true;
     status(t('set.checking', { model: modelLabel(m) }));
+    const diag = { attempts: [] };
     try {
-      const used = await testKey(v, m, (kind, model) => status(kind === 'switch' ? t('scan.switchModel', { model }) : t('scan.busy')));
+      // v1.70.1: vidi se koji je pokušaj i koji model, umesto beskrajnog „zauzet, pokušavam ponovo…“
+      const used = await testKey(v, m, (kind, model) => {
+        if (kind === 'send') status(diag.attempts.length ? t('gdx.try', { n: diag.attempts.length + 1, model }) : t('set.checking', { model }));
+        else if (kind === 'switch') status(t('scan.switchModel', { model }));
+      }, diag);
+      saveKeyCheck('ok', used, diag);
       status(t('set.keyWorksModel', { model: used }), 'ok');
       const saved = await settings.get('geminiKey', '');
       const savedModel = await getModelSetting();
       if (saved !== v || savedModel !== m) status(t('set.keyWorksModel', { model: used }) + ' — ' + t('set.dontForgetSave'), 'ok');
       if (m === AUTO) $('mHint').textContent = t('set.modelAutoHint') + ' ' + t('set.modelLast', { model: used });
     } catch (e) {
-      status(e instanceof GeminiError ? e.message : t('set.checkFailed'), 'err');
-      if (e instanceof GeminiError && (e.code === 'BUSY' || e.code === 'TIMEOUT')) $('kRetry').hidden = false;
+      // v1.70.1: jasno — da li je problem u ključu (uradi nešto) ili kod Google-a / dnevni limit (samo sačekaj)
+      const dx = diagnose(e, diag), x = explain(dx);
+      saveKeyCheck(dx.kind, '', diag);
+      status('');
+      const box = $('kDiag'); box.hidden = false; box.className = 'gdx ' + x.level;
+      box.querySelector('.gdx-t').textContent = x.title; box.querySelector('.gdx-b').textContent = x.body;
+      if (e instanceof GeminiError && (e.code === 'BUSY' || e.code === 'TIMEOUT') && dx.kind !== 'daily') $('kRetry').hidden = false;
       if (e instanceof GeminiError && e.suggestedModel && e.suggestedModel !== m) {
         const b = $('mUseSuggested');
         b.dataset.model = e.suggestedModel;
@@ -411,7 +453,7 @@ export async function renderSettings(root) {
     if (!(await confirmDialog(t('set.deleteKeyTitle'), t('set.deleteKeyBody'), t('common.delete'), 'danger'))) return;
     await settings.remove('geminiKey');
     $('kInput').value = '';
-    $('kDel').hidden = true;
+    $('kDel').hidden = true; $('kLost').hidden = false;
     status(t('set.keyMissing'));
   });
 
@@ -568,4 +610,9 @@ export async function renderSettings(root) {
     ib.hidden = false;
     ib.addEventListener('click', async () => { await promptInstall(); ib.hidden = true; });
   }
+}
+
+// v1.70.1: poslednja provera ključa ide u dijagnostiku (bez ključa)
+function saveKeyCheck(kind, model, diag) {
+  try { localStorage.setItem('marli-keycheck', JSON.stringify({ t: Date.now(), kind, model, att: (diag.attempts || []).slice(-12).map((a) => `${a.model} · ${a.status} · ${Math.round(a.ms || 0)} ms${a.message ? ' · ' + String(a.message).slice(0, 160) : ''}`) })); } catch {}
 }

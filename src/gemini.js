@@ -367,6 +367,8 @@ async function callOnceInner(apiKey, body, signal, model, { diag, onStatus, thin
   att.status = 'HTTP ' + res.status;
   if (!res.ok) {
     att.message = String((data && data.error && (data.error.message || data.error.status)) || res.statusText || '').slice(0, 400);
+    const qid = /"quotaId":"([^"]+)"/.exec(JSON.stringify((data && data.error && data.error.details) || '')); // npr. …PerDay… / …PerMinute…
+    if (qid) att.message += ' [' + qid[1] + ']';
     throw httpError(res, data, model);
   }
   const cand = data && data.candidates && data.candidates[0];
@@ -491,12 +493,48 @@ function textOf(data) {
   return (cand.content && cand.content.parts || []).map((p) => p.text || '').join('');
 }
 
+/** Kada stiže nov dnevni besplatni limit: ponoć po pacifičkom vremenu (Google), u lokalnom vremenu. */
+export function quotaResetAt(now = Date.now()) {
+  try {
+    const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Los_Angeles', hour12: false, hour: 'numeric', minute: 'numeric', second: 'numeric' }).formatToParts(new Date(now)).map((x) => [x.type, x.value]));
+    const sec = ((Number(p.hour) % 24) * 60 + Number(p.minute)) * 60 + Number(p.second);
+    return now + (86400 - sec) * 1000;
+  } catch { return 0; }
+}
+/**
+ * v1.70.1: šta tačno nije u redu — iz greške i svih pokušaja (diag.attempts).
+ * kind: badKey (ključ ne radi — jedini pravi problem), daily (dnevni besplatni limit), minute (previše zahteva u minuti),
+ * overload (Google preopterećen), net (internet), region, other.
+ */
+export function diagnose(err, diag) {
+  const atts = (diag && diag.attempts) || [];
+  const fails = atts.filter((a) => a.status !== 'HTTP 200' && a.status !== 'prekinuto');
+  const txt = (a) => String(a.status) + ' ' + (a.message || '');
+  if (err && err.code === 'BAD_KEY') return { kind: 'badKey' };
+  if (navigator.onLine === false || (fails.length && fails.every((a) => a.status === 'mreža'))) return { kind: 'net' };
+  if (err && err.message === t('gem.region')) return { kind: 'region' };
+  const q429 = fails.filter((a) => /HTTP 429|RESOURCE_EXHAUSTED|quota/i.test(txt(a)));
+  const daily = q429.filter((a) => /per.?day|PerDay|daily/i.test(txt(a)));
+  const over = fails.filter((a) => /HTTP 50\d|zaglavljen|isteklo|overloaded|UNAVAILABLE/i.test(txt(a)));
+  if (daily.length && !over.length && daily.length === q429.length) return { kind: 'daily', resetAt: quotaResetAt() };
+  if (q429.length && !over.length) return { kind: 'minute' };
+  if (over.length || (err && (err.code === 'BUSY' || err.code === 'TIMEOUT'))) return { kind: 'overload', withDaily: daily.length > 0, resetAt: daily.length ? quotaResetAt() : 0 };
+  return { kind: 'other', msg: (err && err.message) || '' };
+}
+/** Naslov + objašnjenje + koliko je ozbiljno (ok | wait | bad) za prikaz. */
+export function explain(d) {
+  const time = d.resetAt ? new Date(d.resetAt).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }) : '';
+  const level = d.kind === 'badKey' || d.kind === 'region' || d.kind === 'other' ? 'bad' : 'wait';
+  const body = t('gdx.' + d.kind + '.body', { time, msg: d.msg || '' }) + (d.withDaily ? ' ' + t('gdx.alsoDaily', { time }) : '');
+  return { level, title: t('gdx.' + d.kind + '.title'), body };
+}
+
 /** Mali test poziv za proveru ključa i modela. Vraća ime modela koji je odgovorio. */
-export async function testKey(apiKey, selection, onStatus) {
+export async function testKey(apiKey, selection, onStatus, diag) {
   const { data, model } = await generate(apiKey, {
     contents: [{ parts: [{ text: 'Odgovori samo rečju: OK' }] }],
     generationConfig: { maxOutputTokens: 64, temperature: 0 },
-  }, { selection: selection || AUTO, onStatus });
+  }, { selection: selection || AUTO, onStatus, diag, deadline: 60000 });
   if (!data || !data.candidates) throw new GeminiError(t('gem.unexpected'));
   return model;
 }

@@ -3,7 +3,7 @@ import { songs as db, newSongId, versions } from './db.js';
 import { findExisting } from './songIdentity.js';
 import { esc, toast, dialog, confirmDialog, pickFiles, closeXHTML } from './ui.js';
 import { textToSections, sectionsToText, songExtras, cleanUncertain, isChordLine, normalizeSong } from './songformat.js';
-import { scanSong, scanTab, prepareImage, getApiKey, GeminiError, cleanComposer } from './gemini.js';
+import { scanSong, scanTab, prepareImage, getApiKey, GeminiError, cleanComposer, diagnose, explain } from './gemini.js';
 import { fixCaps } from './textCase.js';
 import './tabText.js'; // tekstovi za izbor vrste (Akordi / TAB) — mali modul, ostatak TAB koda se učitava tek kad zatreba
 import { t } from './i18n.js';
@@ -273,14 +273,16 @@ async function runScan(files, prepared = null, opts = {}) {
     close();
     if (cancelled || (e && e.name === 'AbortError')) { if (opts.onFail) opts.onFail(e); return; }
     const code = e instanceof GeminiError ? e.code : 'ERROR';
-    const title = code === 'TIMEOUT' ? t('scan.timeoutTitle') : code === 'BUSY' ? t('scan.busyTitle') : t('scan.failedTitle');
+    // v1.70.1: ključ, dnevni limit, preopterećen Google ili internet — jasno šta je i da li treba nešto da se uradi
+    const gx = e instanceof GeminiError && ['BUSY', 'TIMEOUT', 'BAD_KEY'].includes(code) ? explain(diagnose(e, diag)) : null;
+    const title = gx ? gx.title : code === 'TIMEOUT' ? t('scan.timeoutTitle') : code === 'BUSY' ? t('scan.busyTitle') : t('scan.failedTitle');
     const report = formatScanDiag(diag, e);
     saveScanReport(report);
     const canRetry = imgs && imgs.length && code !== 'BAD_KEY';
     const p = dialog({
       title,
       html: true,
-      body: `<p>${esc(e instanceof GeminiError ? e.message : t('common.error'))}</p>
+      body: `<p>${esc(gx ? gx.body : e instanceof GeminiError ? e.message : t('common.error'))}</p>
         <details class="diag"><summary>${t('scan.details')}</summary><textarea readonly class="diag-text" id="diagText" rows="8">${esc(report)}</textarea>
         <button class="btn small" id="diagCopy" type="button">${t('scan.copyDetails')}</button></details>`,
       buttons: canRetry
