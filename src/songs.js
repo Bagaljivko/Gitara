@@ -685,13 +685,27 @@ const lyrW = new Map();
 const lyrWKey = () => `${screen.width}x${screen.height}|${screen.orientation ? screen.orientation.type : ''}|${document.body.classList.contains('two-pane-mode') ? 2 : 1}`;
 
 /** Svi delovi pesme. uncertain = lista nesigurnih mesta (indeksi se odnose na ove sekcije). */
-export function renderSectionsHTML(sections, uncertain = []) {
-  return (sections || []).map((s, si) => `
+export function renderSectionsHTML(sections, uncertain = [], { edit = false, songStrum = null } = {}) {
+  // v1.67 (ekran pesme): ritam dela je dugme (dodir = izmena); deo bez svog ritma prikazuje ritam cele pesme (bleđe);
+  // pesma bez ikakvog ritma: „+ Ritam“ uz prvi deo
+  const has = (x) => x.lines.length || (x.tabs || []).length;
+  const addAt = edit && !songStrum && !(sections || []).some((x) => x.strum) ? (sections || []).findIndex(has) : -1;
+  const pat = (s, si) => {
+    if (!edit) return s.strum ? patternHTML(s.strum, { compact: true }) : '';
+    if (!has(s)) return '';
+    if (s.strum) return `<button class="sec-pat" data-strumedit="${si}" aria-label="${esc(t('strum.editPart', { name: s.name ? sectionLabel(s.name) : t('strum.section', { n: si + 1 }) }))}">${patternHTML(s.strum, { compact: true })}</button>`;
+    if (songStrum) return `<button class="sec-pat inherited" data-strumedit="${si}" data-inherited="1" aria-label="${esc(t('strum.editPart', { name: s.name ? sectionLabel(s.name) : t('strum.section', { n: si + 1 }) }))}">${patternHTML(songStrum, { compact: true })}</button>`;
+    if (si === addAt) return `<button class="sec-pat-add" data-strumedit="song">${t('strum.addShort')}</button>`;
+    // neki delovi imaju svoj ritam, a pesma nema zajednički: ostali delovi dobijaju „+ Ritam“ (izbor: ovaj deo ili cela pesma)
+    if (addAt < 0 && !songStrum) return `<button class="sec-pat-add" data-strumedit="${si}" data-inherited="1">${t('strum.addShort')}</button>`;
+    return '';
+  };
+  return (sections || []).map((s, si) => { const pt = pat(s, si); return `
     <div class="sec">
-      ${s.name || s.strum ? `<div class="sec-head">${s.name ? `<div class="sec-name">${esc(sectionLabel(s.name))}</div>` : ''}${s.strum ? patternHTML(s.strum, { compact: true }) : ''}</div>` : ''}
+      ${s.name || pt ? `<div class="sec-head">${s.name ? `<div class="sec-name">${esc(sectionLabel(s.name))}</div>` : ''}${pt}</div>` : ''}
       ${(s.tabs || []).map((tab, ti) => tabBlockHTML(tab, { si, ti, playLabel: t('tab.play'), marks: uncertain.map((u, idx) => ({ ...u, idx })).filter((u) => u.kind === 'fret' && u.section === si && u.tab === ti).map((u) => ({ string: u.string, col: u.col, idx: u.idx })) })).join('')}
       ${s.lines.map((l, li) => renderLineHTML(l, uncertain.map((u, idx) => ({ ...u, idx })).filter((u) => u.section === si && u.line === li))).join('')}
-    </div>`).join('');
+    </div>`; }).join('');
 }
 
 /** Primeni predlog na pesmu (menja originalne akorde/tekst, pomera akorde iza promenjene reči). */
@@ -959,7 +973,7 @@ export async function renderSong(root, id, nav = null) {
     // Širina teksta: zapamćena za ovu veličinu ekrana (bez merenja); ako se razlikuje, ResizeObserver ispravi
     l.style.setProperty('--zoom', zoom);
     const pre = lyricsMetrics(l, lyrW.get(lyrWKey()));
-    l.innerHTML = renderSectionsHTML(shapesSong().sections, unc());
+    l.innerHTML = renderSectionsHTML(shapesSong().sections, unc(), { edit: !stored.recording, songStrum: stored.strum || null });
     addLoopButtons();
     fitAndTabs(pre);
   };
@@ -1171,6 +1185,18 @@ export async function renderSong(root, id, nav = null) {
     else delete obj.strum; // „Bez ritma“ / „Kao cela pesma“
     await save();
     draw();
+  }
+
+  /** v1.67: dodir na ritam uz deo. Svoj ritam → izbor za taj deo; ritam cele pesme → „samo ovaj deo“ ili „cela pesma“. */
+  async function strumTap(btn) {
+    const v = btn.dataset.strumedit;
+    if (v === 'song' || !btn.dataset.inherited) return editStrum(v);
+    const name = (() => { const x = stored.sections[+v]; return x && x.name ? sectionLabel(x.name) : t('strum.section', { n: +v + 1 }); })();
+    const c = await moreMenu(null, [
+      { value: 'part', label: t('strum.onlyPart', { name }), sub: t('strum.onlyPartSub'), icon: 'edit' },
+      { value: 'song', label: t('strum.wholeSong'), sub: stored.strum ? t('strum.wholeSongSub', { name: patternName(stored.strum) }) : t('strum.wholeSongNew'), icon: 'details' },
+    ]);
+    if (c === 'part') editStrum(v); else if (c === 'song') editStrum('song');
   }
 
   // ---- Automatsko skrolovanje ----
@@ -1412,6 +1438,8 @@ export async function renderSong(root, id, nav = null) {
   }
   root.querySelector('.song-view').addEventListener('click', (e) => {
     if (seekFrom(e.target)) return;
+    const se = e.target.closest('[data-strumedit]');
+    if (se) return strumTap(se);
     const tp_ = e.target.closest('[data-tabplay]');
     if (tp_) return toggleTab(tp_);
     const un = e.target.closest('[data-unsure]');

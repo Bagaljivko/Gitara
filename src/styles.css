@@ -1620,3 +1620,12 @@ button.cs-v { appearance: none; border: 0; background: none; padding: 4px 2px; c
 .nudge-txt { font-size: .82rem; color: var(--muted); }
 .nudge-link { flex: none; color: #ffcc33; font-weight: 700; font-size: .86rem; text-decoration: none; white-space: nowrap; padding: 8px 4px; }
 .nudge-bar .icon-btn { width: 36px; height: 36px; }
+
+/* v1.67: ritam uz deo pesme — dodir menja; nasleđen ritam cele pesme bleđi; „+ Ritam“ kad pesma nema ritam */
+.sec-pat { background: none; border: 0; padding: 4px 6px; margin: -4px -6px; border-radius: 10px; color: inherit; font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.sec-pat:active { background: var(--accent-soft); }
+.sec-pat:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.sec-pat .pattern { margin-top: 0; pointer-events: none; }
+.sec-pat.inherited { opacity: .5; }
+.sec-pat-add { background: none; border: 1px dashed var(--line); color: var(--accent); font: inherit; font-size: .8rem; font-weight: 600; padding: 4px 10px; border-radius: 999px; cursor: pointer; }
+.sec-pat-add:active { background: var(--accent-soft); }
