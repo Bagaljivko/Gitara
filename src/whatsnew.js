@@ -5,6 +5,10 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '1.74', date: '2026-11-08', items: [
+    { i: '👋', sr: ['Dobrodošao nazad — jedna prijava', 'Nov telefon, računar ili obrisani podaci: aplikacija odmah pita da povežeš Google nalog — pesme, podešavanja, Vežbe i Gemini ključ stižu sami.'], en: ['Welcome back — one sign-in', 'New phone, computer or cleared data: the app asks right away to connect your Google account — songs, settings, Practice and your Gemini key arrive by themselves.'] },
+    { i: '☁', sr: ['Drive se sam pretraži', 'Posle povezivanja aplikacija sama nađe rezervne kopije na Drive-u i ponudi noviju (vidi se koliko je stara).'], en: ['Drive is searched by itself', 'After connecting, the app finds the backups on Drive by itself and offers the newer one (showing how old it is).'] },
+  ] },
   { v: '1.73', date: '2026-11-08', items: [
     { i: '⏱', sr: ['Koliko sviraš i vežbaš', 'Vežbe: ova nedelja i „Moje pesme“ — svirano, vežbano, koliko puta, najbolji rezultat. Računa se samo aktivno vreme.'], en: ['How much you play and practice', 'Practice: this week and “My songs” — played, practiced, how many times, best score. Only active time counts.'] },
     { i: '♪', sr: ['Sve o pesmi', 'Dodir na pesmu: delovi pesme i napredak tempa (npr. 80 → 100 BPM, cilj 112), pa „Vežbaj“ najslabiji deo.'], en: ['Everything about a song', 'Tap a song: its parts and tempo progress (e.g. 80 → 100 BPM, target 112), then “Practice” the weakest part.'] },

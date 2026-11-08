@@ -14,7 +14,7 @@ const EXCL_SETTINGS = new Set(['driveToken', 'driveRT', 'drive', 'syncCfg', 'syn
 const LOCAL_RE = /^(gitara-|marli-)/;
 const EXCL_LOCAL = new Set(['gitara-diag', 'gitara-boots', 'gitara-lastscan', 'gitara-sync', 'gitara-echo-clean', 'marli-keycheck', 'marli-pdf-queue', 'marli-bk',
   'marli-def1701', 'marli-def-test', 'marli-dev', 'marli-intro', 'marli-intro-gate', 'marli-invite-test']);
-const KEY_RE = /^[\w-]{10,200}$/;
+const KEY_RE = /^[\w.\-]{10,300}$/; // stari (AIza…, 39) i novi Google oblik (AQ.…, sa tačkom)
 const LAST = 'marli-bk'; // kada je poslednja kopija napravljena (na ovom uređaju)
 
 const day = () => new Date().toISOString().slice(0, 10);
@@ -110,12 +110,12 @@ async function fromFile() {
 }
 
 /** Google Drive, samo od sebe: poveže nalog ako treba i nađe najnoviju kopiju (nova, pa starija). null = nema / otkazano. */
-async function fromDrive(kind) {
+async function fromDrive(kind, only = '') {
   if (!(await ensureConnected())) return null;
   const drive = await import('./drive.js');
   try { await drive.fileToken(); } catch (e) { logErr('restore ' + kind, e); if (e && e.code !== 'cancelled') toast((e && e.message) || t('common.error'), 'error'); return null; }
   toast(t('restore.looking'));
-  const names = kind === 'full' ? [drive.BK_FULL, 'gitara-backup.json'] : [drive.BK_SONGS, drive.BK_FULL, 'gitara-backup.json'];
+  const names = only ? [only] : kind === 'full' ? [drive.BK_FULL, 'gitara-backup.json'] : [drive.BK_SONGS, drive.BK_FULL, 'gitara-backup.json'];
   for (const n of names) {
     let f = null;
     try { f = await drive.readNamed(n); }
@@ -137,8 +137,8 @@ function summaryHtml(src, items) {
 }
 
 /** „Vrati sve“: kopija cele aplikacije sa Drive-a (ili iz fajla: from='file') zamenjuje sve. */
-export async function restoreFull({ from = 'drive' } = {}) {
-  const src = from === 'file' ? await fromFile() : await fromDrive('full');
+export async function restoreFull({ from = 'drive', name = '' } = {}) {
+  const src = from === 'file' ? await fromFile() : await fromDrive('full', name);
   if (!src) return false;
   const drive = await import('./drive.js');
   let parsed;
@@ -173,8 +173,8 @@ export async function restoreFull({ from = 'drive' } = {}) {
 }
 
 /** „Vrati pesme“: samo pesme (i folderi pesama) sa Drive-a (ili iz fajla). Ne dira podešavanja, set liste ni ključ. */
-export async function restoreSongs({ from = 'drive' } = {}) {
-  const src = from === 'file' ? await fromFile() : await fromDrive('songs');
+export async function restoreSongs({ from = 'drive', name = '' } = {}) {
+  const src = from === 'file' ? await fromFile() : await fromDrive('songs', name);
   if (!src) return false;
   const drive = await import('./drive.js');
   let songs, folders = null, modified = src.modified;
@@ -202,4 +202,40 @@ export async function restoreSongs({ from = 'drive' } = {}) {
   const n = r.added + r.updated;
   toast(n ? t('bk.restoredSongs', { n: songsN(n) }) : t('drive.mergedNone'));
   return true;
+}
+
+// ---------------- v1.74: posle povezivanja — Drive se sam pretraži, novija kopija se ponudi ----------------
+export function ageText(ts) {
+  const m = Math.max(0, Math.round((Date.now() - ts) / 60000));
+  if (m < 60) return t('bk.ageMin', { n: Math.max(1, m) });
+  const h = Math.round(m / 60); if (h < 24) return t('bk.ageH', { n: h });
+  return t('bk.ageD', { n: Math.round(h / 24) });
+}
+/** arrived: šta je stiglo prvom sinhronizacijom (ključevi 'song:…', 'secret'…). Ponudi se samo ako je kopija korisna:
+ *  sinhronizacija nije donela ništa, ili je kopija na Drive-u novija od najnovije pesme koja je stigla. */
+export const gotAnything = (arrived) => [...(arrived || [])].some((k) => k.startsWith('song:') || k.startsWith('set:') || k === 'secret');
+export async function offerAfterConnect(arrived) {
+  try {
+    const drive = await import('./drive.js');
+    const cands = [];
+    for (const [name, kind] of [[drive.BK_FULL, 'full'], [drive.BK_SONGS, 'songs'], ['gitara-backup.json', 'old']]) {
+      const f = await drive.peekNamed(name);
+      if (f && f.modified) cands.push({ name, kind, modified: f.modified });
+    }
+    const marli = cands.filter((c) => c.kind !== 'old');
+    const list = (marli.length ? marli : cands).sort((a, b) => b.modified - a.modified);
+    if (!list.length) return 'none';
+    const gotNothing = !gotAnything(arrived);
+    const newest = Math.max(0, ...(await db.all()).filter((s) => !s.demo).map((s) => Number(s.updatedAt) || 0));
+    const useful = gotNothing ? list : list.filter((c) => c.modified > newest + 5 * 60e3);
+    if (!useful.length) return 'none';
+    const rec = useful.find((c) => c.kind === 'full') || useful[0];
+    const label = (c) => t(c.kind === 'full' ? 'bk.fullTitle' : c.kind === 'songs' ? 'bk.songsTitle' : 'bk.oldTitle');
+    const html = `<p>${t(gotNothing ? 'bk.offerEmpty' : 'bk.offerNewer')}</p>
+      <ul class="bk-offer">${useful.map((c) => `<li class="${c === rec ? 'rec' : ''}"><b>${esc(label(c))}</b><span>${esc(ageText(c.modified))}</span>${c === rec ? `<em>${t('bk.recommended')}</em>` : ''}</li>`).join('')}</ul>`;
+    const v = await dialog({ title: t('bk.offerTitle'), html: true, body: html, className: 'bk-modal',
+      buttons: [{ label: t('bk.offerNo'), value: null }, { label: t('bk.offerYes', { what: label(rec) }), value: 'yes', kind: 'primary' }] });
+    if (v !== 'yes') return false;
+    return rec.kind === 'songs' ? restoreSongs({ name: rec.name }) : restoreFull({ name: rec.name });
+  } catch { return 'none'; }
 }

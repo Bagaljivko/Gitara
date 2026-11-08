@@ -120,7 +120,18 @@ function done(m) {
   if (m.ok) {
     failures = 0;
     setStatus(m.newer ? 'newer' : 'synced');
-    if (firstRun) (async () => { if (!migrated && !st.migrating) await migrateOnce(); await firstSummary(); })().catch(() => {});
+    if (firstRun) {
+      // v1.74: posle prve sinhronizacije — ima li (novija) rezervna kopija na Drive-u. Ako sinhronizacija nije donela ništa,
+      // prvo se nudi kopija (bez poruke „na nalogu još nema pesama“); poruka ostaje samo kad nema ni kopije.
+      const arrived = new Set(firstRun);
+      (async () => {
+        if (!migrated && !st.migrating) await migrateOnce();
+        const B = await import('./backups.js');
+        if (!B.gotAnything(arrived) && !lastMigrated) { const r = await B.offerAfterConnect(arrived); if (r !== 'none') { firstRun = null; return; } }
+        await firstSummary();
+        if (B.gotAnything(arrived)) await B.offerAfterConnect(arrived);
+      })().catch(() => {});
+    }
     else if (!migrated && !st.migrating) migrateOnce();
   } else {
     if (m.code === 'OFFLINE') setStatus('offline');

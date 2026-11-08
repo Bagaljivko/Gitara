@@ -55,7 +55,8 @@ export async function buildReport() {
 async function geminiLines() {
   const L = ['Gemini:'];
   const key = String((await settings.get('geminiKey', '')) || '');
-  const shape = !key ? 'nema' : /^AIza[\w-]{35}$/.test(key) ? 'ispravan oblik (AIza…, 39 znakova)' : `NEOBIČAN oblik (${key.length} znakova, počinje sa „${key.slice(0, 4)}“)`;
+  // stari oblik AIza… (39 znakova) i noviji Google oblik (npr. „AQ.…“, duži, sa tačkom) su oba u redu
+  const shape = !key ? 'nema' : /^AIza[\w-]{35}$/.test(key) ? 'ispravan oblik (AIza…, 39 znakova)' : /^[\w.\-]{20,300}$/.test(key) ? `ispravan oblik (noviji Google format, ${key.length} znakova, „${key.slice(0, 3)}…“)` : `NEOBIČAN oblik (${key.length} znakova, počinje sa „${key.slice(0, 4)}“)`;
   L.push(`  ključ: ${shape}${key ? ' · završava se na …' + key.slice(-4) : ''}${/\s/.test(key) ? ' · IMA RAZMAK/NOVI RED' : ''}`);
   L.push(`  prenos ključa na uređaje: ${(await settings.get('keySync', true)) !== false ? 'uključen' : 'isključen'}`);
   L.push(`  model: ${(await settings.get('geminiModelSel', '')) || 'auto'} · poslednji koji je radio: ${(await settings.get('geminiLastModel', '')) || '—'}`);

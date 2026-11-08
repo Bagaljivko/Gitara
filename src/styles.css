@@ -1981,3 +1981,12 @@ body:not(.tuner-screen) .settings-view details.set-page.card { background: none;
 .sl-num[data-ready]::after { content: ''; position: absolute; right: -3px; top: -2px; width: 8px; height: 8px; border-radius: 50%; background: #5b616b; box-shadow: 0 0 0 2px var(--bg); }
 .sl-num[data-ready="ready"]::after { background: var(--ok); } .sl-num[data-ready="work"]::after { background: var(--accent); }
 .icon-tip .it-ico { display: grid; place-items: center; margin: 4px 0 10px; } .icon-tip .it-ico img { border-radius: 18px; box-shadow: 0 8px 24px rgba(245,165,36,.25); }
+/* v1.74: dobrodošlica i ponuda kopije posle povezivanja */
+.welcome-modal .wel-ico { display: grid; place-items: center; margin: 4px 0 12px; } .welcome-modal .wel-ico img { border-radius: 18px; box-shadow: 0 8px 24px rgba(245,165,36,.3); }
+.wel-list { margin: 8px 0 4px; padding: 0; list-style: none; } .wel-list li { position: relative; padding: 4px 0 4px 26px; color: var(--text); }
+.wel-list li::before { content: '✓'; position: absolute; left: 4px; color: var(--ok); font-weight: 800; }
+.bk-offer { list-style: none; margin: 10px 0 4px; padding: 0; display: grid; gap: 8px; }
+.bk-offer li { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--line); }
+.bk-offer li b { flex: 1; } .bk-offer li span { color: var(--muted); font-size: .86rem; }
+.bk-offer li.rec { border-color: rgba(245,165,36,.55); background: linear-gradient(160deg, rgba(245,165,36,.12), transparent 70%), var(--surface-2); }
+.bk-offer li em { font-style: normal; font-size: .68rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); }

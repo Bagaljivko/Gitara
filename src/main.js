@@ -307,7 +307,9 @@ const ytShare = (() => { try { const p = new URLSearchParams(location.search); r
 if (ytShare) { history.replaceState(null, '', location.pathname + '#/pesme'); }
 route();
 if (ytShare) import('./ytShare.js').then((m) => m.linkShared(ytShare)).catch(() => {});
-if (FIRST_RUN && !hasSharedSong() && !ytShare) setTimeout(() => import('./tour.js').then((m) => { if (!m.tourSeen()) m.startTour(); }).catch(() => {}), 600);
+// v1.74: prvi put na ovom uređaju → „Dobrodošao u MARLI“: Poveži Google (vraća sve) ili Prvi put sam ovde (obilazak)
+const WELCOME_TEST = (() => { try { return navigator.webdriver && !!localStorage.getItem('marli-welcome-test'); } catch { return false; } })();
+if ((FIRST_RUN || WELCOME_TEST) && !hasSharedSong() && !ytShare) setTimeout(() => import('./welcome.js').then((m) => m.firstRunWelcome()).catch(() => {}), WELCOME_TEST ? 600 : 3200);
 // Drive (automatska rezervna kopija) se učitava malo kasnije, kad se prvi ekran već prikaže.
 const idle = window.requestIdleCallback || ((f) => setTimeout(f, 1200));
 // v1.68: tastatura i miš (računar): prečice, Ctrl + točkić, „?“ = spisak prečica
