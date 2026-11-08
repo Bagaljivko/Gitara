@@ -95,6 +95,11 @@
   @keyframes okRing { 0% { opacity: 0; r: 6; } 25% { opacity: .9; } 100% { opacity: 0; r: 120; } }
   @media (prefers-reduced-motion: reduce) { .note-rm { display: block !important; } }
 
+.scrub { display: flex; align-items: center; gap: 10px; margin: 12px auto 0; width: min(300px, 82vw); }
+  .scrub input { flex: 1; accent-color: var(--accent); }
+  .scrub output { font: 600 .85rem var(--mono); color: var(--accent); min-width: 58px; text-align: right; }
+  .scrub-hint { text-align: center; margin: 2px 0 0; font-size: .75rem; }
+  .btn.on { border-color: var(--accent); color: var(--accent); }
   /* ---- O aplikaciji ---- */
   .about-mock { max-width: 420px; margin: 0 auto; }
   .about-mock .set-card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 18px 16px; text-align: center; }
@@ -141,19 +146,23 @@
       <p class="muted small">Žica zatreperi (kao na tuneru), umiri se, i istim sjajnim potezom napiše MARLI. Zatim reč po reč, sa istaknutim M, A, R, L, I.</p>
       <div class="phone a1" id="ph1"></div>
       <div class="timeline"><b></b></div>
-      <div class="row"><button class="btn primary" data-replay="1">↻ Pusti ponovo</button></div>
+      <div class="row"><button class="btn primary" data-replay="1">↻ Pusti ponovo</button><button class="btn" data-slow="1">🐢 Usporeno 4×</button></div>
+      <div class="scrub"><input type="range" min="0" max="2600" step="20" value="0" data-scrub="1" aria-label="Kadar po kadar"><output data-t="1">0,00 s</output></div>
+      <p class="muted small scrub-hint">Prevuci klizač: kadar po kadar.</p>
     </div>
     <div class="card anim-card">
       <h3><span class="tag">2</span> Naštimovano</h3>
       <p class="muted small">Talas klizi narandžasto kao neštimovana žica, „uštimuje se“ i pozeleni, a ime izraste iz žice koja ostaje kao zlatna linija ispod. Zatim reč po reč.</p>
       <div class="phone a2" id="ph2"></div>
       <div class="timeline"><b></b></div>
-      <div class="row"><button class="btn primary" data-replay="2">↻ Pusti ponovo</button></div>
+      <div class="row"><button class="btn primary" data-replay="2">↻ Pusti ponovo</button><button class="btn" data-slow="2">🐢 Usporeno 4×</button></div>
+      <div class="scrub"><input type="range" min="0" max="2600" step="20" value="0" data-scrub="2" aria-label="Kadar po kadar"><output data-t="2">0,00 s</output></div>
+      <p class="muted small scrub-hint">Prevuci klizač: kadar po kadar.</p>
     </div>
   </div>
 
   <h2 id="oaplikaciji">3. Podešavanja → O aplikaciji</h2>
-  <p class="muted small">Na dnu Podešavanja, umesto sadašnjeg reda „Gitara · verzija…“. Dodir na naslov ponovo pušta uvodnu animaciju. Ikonica u primeru: <b id="aboutIcoName">A</b> (biće izabrana).</p>
+  <p class="muted small">Na dnu Podešavanja, umesto sadašnjeg reda „Gitara · verzija…“. Dodir na naslov ponovo pušta uvodnu animaciju. Ikonica u primeru: <b id="aboutIcoName">B</b> (izabrana).</p>
   <div class="grid two">
     <div class="about-mock">
       <span class="lang-tag">SRPSKI</span>
@@ -392,7 +401,31 @@ function play(n) {
   ph.classList.add('play');
   ph.querySelector('svg')?.setCurrentTime?.(0);
 }
-document.querySelectorAll('[data-replay]').forEach((b) => b.addEventListener('click', () => play(+b.dataset.replay)));
+document.querySelectorAll('[data-replay]').forEach((b) => b.addEventListener('click', () => { stopDrive(+b.dataset.replay); play(+b.dataset.replay); }));
+
+// Kadar po kadar / usporeno: sve animacije (CSS + SVG) se zaustave i postave na isto vreme t
+const END = 2.6, drives = {};
+function seek(n, t, fresh = false) {
+  const ph = document.getElementById('ph' + n);
+  if (fresh || !ph.classList.contains('play') || !ph.querySelector('svg')) play(n);
+  const card = ph.parentElement;
+  card.getAnimations({ subtree: true }).forEach((a) => { a.pause(); a.currentTime = t * 1000; });
+  const svg = ph.querySelector('svg'); if (svg && svg.pauseAnimations) { svg.pauseAnimations(); svg.setCurrentTime(t); }
+  card.querySelector('[data-scrub]').value = String(Math.round(t * 1000));
+  card.querySelector('[data-t]').textContent = t.toFixed(2).replace('.', ',') + ' s';
+}
+window.__seek = seek; // za snimanje kadrova
+function stopDrive(n) { if (drives[n]) { cancelAnimationFrame(drives[n].raf); drives[n] = null; } document.querySelector(`[data-slow="${n}"]`).classList.remove('on'); }
+document.querySelectorAll('[data-scrub]').forEach((r) => r.addEventListener('input', () => { const n = +r.dataset.scrub; stopDrive(n); seek(n, +r.value / 1000); }));
+document.querySelectorAll('[data-slow]').forEach((b) => b.addEventListener('click', () => {
+  const n = +b.dataset.slow;
+  if (drives[n]) return stopDrive(n);
+  b.classList.add('on');
+  seek(n, 0, true);
+  const t0 = performance.now(), d = { raf: 0 }; drives[n] = d;
+  const step = (now) => { const t = Math.min(END, (now - t0) / 4000); seek(n, t); if (t < END && drives[n] === d) d.raf = requestAnimationFrame(step); else stopDrive(n); };
+  d.raf = requestAnimationFrame(step);
+}));
 // pusti kad se vidi na ekranu
 const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting && !e.target.dataset.played) { e.target.dataset.played = '1'; play(+e.target.id.slice(2)); } }), { threshold: .5 });
 io.observe(document.getElementById('ph1')); io.observe(document.getElementById('ph2'));
@@ -403,7 +436,7 @@ function setAboutIcon(k) {
   document.querySelectorAll('[data-ab]').forEach((el) => { el.innerHTML = icon(k); });
   document.getElementById('aboutIcoName').textContent = k;
 }
-setAboutIcon('A');
+setAboutIcon('B'); // izabrana: B
 document.querySelectorAll('[data-ab-ico]').forEach((b) => b.addEventListener('click', () => setAboutIcon(b.dataset.abIco)));
 document.querySelectorAll('.about-mock .a-title, .about-mock .a-ico').forEach((el) => el.addEventListener('click', () => { document.getElementById('ph1').scrollIntoView({ behavior: 'smooth', block: 'center' }); setTimeout(() => play(1), 450); }));
 </script>
