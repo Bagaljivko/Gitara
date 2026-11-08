@@ -11,13 +11,14 @@ import { canShareNative } from './shareService.js';
 import { syncState, onSyncChange, statusText, connectSync, reconnect as syncReconnect, disconnectSync, syncNow, initSync } from './sync.js';
 import { driveState, onDriveChange, connect as driveConnect, disconnect as driveDisconnect, reconnect as driveReconnect, backupNow, restoreFlow, formatDate, DriveError } from './drive.js';
 
-import { isStandalone, isIOS, canPromptInstall, promptInstall } from './install.js';
+import { isStandalone, isIOS, isComputer, canPromptInstall, promptInstall } from './install.js';
 import { checkForUpdate, appUrl } from './update.js';
 import { WAKE_MODES, WAKE_MINUTES } from './wakelock.js';
 import { NOTE_NAMES, noteNamesPref, setNoteNamesPref } from './naming.js';
 
 export async function renderSettings(root) {
   const key = await settings.get('geminiKey', '');
+  const keySync = (await settings.get('keySync', true)) !== false; // v1.68: ključ ide na ostale uređaje (uz sinhronizaciju)
   const model = await getModelSetting();
   const lastModel = cleanModelName(await settings.get('geminiLastModel', ''));
   const cachedModels = ((await settings.get('geminiModels', null)) || {}).list || [];
@@ -70,6 +71,7 @@ export async function renderSettings(root) {
       <button class="btn small" id="mUseSuggested" hidden></button>
       <button class="btn small" id="kRetry" hidden>${t('common.retry')}</button>
       <p class="status" id="kStatus" role="status">${key ? t('set.keySaved') : t('set.keyMissing')}</p>
+      <label class="switch set-switch key-sync"><input type="checkbox" id="keySyncSw"${keySync ? ' checked' : ''}><span class="switch-track"><span class="switch-thumb"></span></span><span><b>${t('set.keySync')}</b><small class="muted">${t('set.keySyncHint')}</small></span></label>
 
       <div class="help-box">
         <h3>${t('set.helpTitle')}</h3>
@@ -126,7 +128,7 @@ export async function renderSettings(root) {
       <h2>${t('set.installTitle')}</h2>
       ${isIOS()
         ? `<p class="small">${t('set.installIos')}</p>`
-        : `<p class="small">${t('set.installAndroid')}</p><button class="btn primary" id="installBtn" hidden>${t('set.install')}</button>`}
+        : `<p class="small">${t(isComputer() ? 'set.installPc' : 'set.installAndroid')}</p><button class="btn primary" id="installBtn" hidden>${t('set.install')}</button>`}
     </div>
 
     <div class="card" id="diagCard">
@@ -150,6 +152,7 @@ export async function renderSettings(root) {
         <textarea readonly class="diag-report" id="prDbgOut" rows="8" hidden></textarea>
       </div>
       <button class="btn small" id="bUpdate">${t('update.check')}</button>
+      <button class="btn small keys-btn" id="bKeys">⌨ ${t('keys.title')} <kbd>?</kbd></button>
       <p><a href="privacy.html" target="_blank" rel="noopener">${t('set.privacy')}</a></p>
       <p class="credits">${t('set.credits')}</p>
     </div>
@@ -270,6 +273,7 @@ export async function renderSettings(root) {
     await settings.set('wakeMinutes', Number(b.dataset.wmin));
   }));
 
+  $('bKeys').addEventListener('click', () => import('./keys.js').then((m) => m.showShortcuts()));
   // ---- Proveri ažuriranja ----
   $('bUpdate').addEventListener('click', async () => {
     const b = $('bUpdate');
@@ -366,6 +370,13 @@ export async function renderSettings(root) {
     } finally {
       $('kTest').disabled = false;
     }
+  });
+  $('keySyncSw').addEventListener('change', async (e) => {
+    const { setKeySync } = await import('./db.js');
+    await setKeySync(e.target.checked);
+    const k = await settings.get('geminiKey', '');
+    if (k && !$('kInput').value) { $('kInput').value = k; $('kDel').hidden = false; status(t('set.keySaved'), 'ok'); }
+    toast(t(e.target.checked ? 'set.keySyncOn' : 'set.keySyncOff'));
   });
   $('kDel').addEventListener('click', async () => {
     if (!(await confirmDialog(t('set.deleteKeyTitle'), t('set.deleteKeyBody'), t('common.delete'), 'danger'))) return;

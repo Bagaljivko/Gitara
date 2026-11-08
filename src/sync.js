@@ -120,6 +120,7 @@ function done(m) {
   if (m.ok) {
     failures = 0;
     setStatus(m.newer ? 'newer' : 'synced');
+    if (firstRun) firstSummary().catch(() => {});
     if (!migrated && !st.migrating) migrateOnce();
   } else {
     if (m.code === 'OFFLINE') setStatus('offline');
@@ -143,7 +144,25 @@ function localChange(e) {
   if (navigator.onLine === false) setStatus('offline');
 }
 
+// v1.68: prva sinhronizacija posle „Poveži“ — skuplja šta je stiglo, pa jedan kratak rezime
+let firstRun = null;
+async function firstSummary() {
+  const k = firstRun; firstRun = null;
+  const songsN = [...k].filter((x) => x.startsWith('song:')).length, setsN = [...k].filter((x) => x.startsWith('set:')).length;
+  const parts = [];
+  if (songsN) parts.push(t('sw.gotSongs', { n: songsN }));
+  if (setsN) parts.push(t('sw.gotSets', { n: setsN }));
+  if (k.has('secret')) parts.push(t('sw.gotKey'));
+  if ([...k].some((x) => x.startsWith('pref:') || x === 'practice' || x === 'skale' || x.startsWith('folder:'))) parts.push(t('sw.gotPrefs'));
+  if (parts.length) { await dialog({ title: t('sw.doneTitle'), body: t('sw.doneBody', { list: parts.join(', ') }), buttons: [{ label: t('common.ok'), value: true, kind: 'primary' }] }); return; }
+  // ništa nije stiglo: na nalogu još nema podataka (drugi uređaj nema uključenu sinhronizaciju)
+  const mine = (await (await import('./db.js')).songs.count().catch(() => 0));
+  if (!mine) await dialog({ title: t('sw.emptyTitle'), body: t('sw.emptyBody', { email: st.email || '' }), buttons: [{ label: t('common.ok'), value: true, kind: 'primary' }] });
+  else toast(t('sw.sentOnly'));
+}
+
 async function applied(keys) {
+  if (firstRun) keys.forEach((x) => firstRun.add(x));
   notifyRemote(keys);
   // biblioteka je otvorena (ništa se ne kuca, nema dijaloga): odmah pokaži nove pesme, na istom mestu
   if (keys.some((k) => k.startsWith('song:') || k.startsWith('set:') || k.startsWith('folder:')) && /^#\/pesme(\?|$)/.test(location.hash)
@@ -319,6 +338,7 @@ async function connectInner(pick) {
       await call({ t: 'reset' }, 'wasReset');
     }
   }
+  firstRun = new Set();
   await call({ t: 'seed' }, 'seeded'); // sve na ovom uređaju ide na nalog (spaja se sa onim što je već tamo)
   await saveCfg({ on: true, id: acct.id, email: acct.email, ...(prev.id && prev.id !== acct.id ? { migrated: false } : {}) });
   await loadCfg();

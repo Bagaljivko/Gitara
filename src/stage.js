@@ -238,6 +238,13 @@ export async function renderStage(root, setlistId, params) {
   });
   const onKey = (e) => {
     if (e.target.closest && e.target.closest('input, textarea, select')) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    // pedala koja se drži šalje ponavljanja — jedan pritisak = jedan korak
+    if (e.repeat && ['PageDown', 'PageUp', 'ArrowDown', 'ArrowUp', 'ArrowRight', 'ArrowLeft', ' '].includes(e.key)) { e.preventDefault(); return; }
+    // v1.68: Shift + → / ← (ili N / P) = sledeća / prethodna pesma odmah
+    if ((e.shiftKey && e.key === 'ArrowRight') || e.key === 'n' || e.key === 'N') { e.preventDefault(); go(1); return; }
+    if ((e.shiftKey && e.key === 'ArrowLeft') || e.key === 'p' || e.key === 'P') { e.preventDefault(); go(-1); return; }
+    if (e.key === 'Home') { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
     if (['PageDown', 'ArrowDown', 'ArrowRight', ' '].includes(e.key)) { e.preventDefault(); pageDown(); }
     else if (['PageUp', 'ArrowUp', 'ArrowLeft'].includes(e.key)) { e.preventDefault(); pageUp(); }
     else if (e.key === 'Escape') $('stExit').click();

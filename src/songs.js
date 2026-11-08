@@ -17,7 +17,7 @@ driveConnected().then((c) => c && import('./drive.js')).catch(() => {});
 import { t, getLang } from './i18n.js';
 import { tabBlockHTML, layoutTabs, playTab, noteAt, STRING_NAMES } from './tabs.js';
 import { easiestCapo, localStrum, patternById } from './suggest.js';
-import { isStandalone, isIOS, canPromptInstall, promptInstall } from './install.js';
+import { isStandalone, isIOS, isComputer, canPromptInstall, promptInstall } from './install.js';
 import { settings } from './db.js';
 import { PATTERNS, patternHTML, patternName, Metronome } from './rhythm.js';
 import { keepAwake, allowSleep, setWakeZone } from './wakelock.js';
@@ -232,7 +232,8 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
   });
   const drawWelcome = () => {
     const mine = all.filter((x) => !x.demo).length;
-    $('lWelcome').innerHTML = mine ? '' : `<div class="welcome card"><b>${t('lib.welcomeTitle')}</b><p class="muted small">${t('lib.welcomeBody')}</p>${addOptionsHTML()}</div>`;
+    $('lWelcome').innerHTML = mine ? '' : `<div id="lSyncWelcome"></div><div class="welcome card"><b>${t('lib.welcomeTitle')}</b><p class="muted small">${t('lib.welcomeBody')}</p>${addOptionsHTML()}</div>`;
+    if (!mine) syncWelcome($('lSyncWelcome'));
   };
   drawWelcome();
   oneTimeCapsFix(all).then((n) => { if (n) db.list().then((l) => { all = l; draw(); }); }).catch(() => {});
@@ -339,6 +340,39 @@ async function oneTimeCapsFix(all) {
 }
 
 // Podsetnik za rezervnu kopiju: posle 3+ pesama bez Google Drive-a; „Ne sada“ ga sakrije na 30 dana.
+/**
+ * v1.68: prazna biblioteka (npr. laptop) i sinhronizacija nije uključena: „Već koristiš Gitaru na drugom uređaju?“ —
+ * jedan dodir povezuje isti Google nalog; pesme, setliste, podešavanja i Gemini ključ stižu sami (rezime posle prve sinhronizacije).
+ */
+async function syncWelcome(box) {
+  if (!box || ((await settings.get('syncCfg', null)) || {}).on) return;
+  box.innerHTML = `<div class="sync-welcome card"><div class="sw-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v10H4zm-2 12h20v2H2zM6 8v6h12V8z"/></svg></div>
+    <div class="sw-txt"><b>${t('sw.title')}</b><p class="muted small">${t('sw.body')}</p>
+    <button class="btn primary" id="swGo">${t('sw.btn')}</button><p class="muted small sw-note">${t('sw.note')}</p></div></div>`;
+  box.querySelector('#swGo').addEventListener('click', async (e) => {
+    e.currentTarget.disabled = true;
+    try { const { connectSync } = await import('./sync.js'); if (await connectSync()) box.innerHTML = `<p class="muted small sw-wait">${t('sw.waiting')}</p>`; }
+    catch (err) { if (err && err.code !== 'cancelled') toast((err && err.message) || t('common.error'), 'error'); }
+    finally { const b = box.querySelector('#swGo'); if (b) b.disabled = false; }
+  });
+}
+
+/**
+ * v1.68: fajl prevučen bilo gde u prozor (računar): slike → skeniranje (strane), PDF / .gitara / .json → uvoz.
+ * Vraća true ako je nešto uvezeno (lista se osvežava).
+ */
+export async function importDropped(files) {
+  const list = [...files].filter(Boolean);
+  if (!list.length) return false;
+  const imgs = list.filter((f) => /^image\//.test(f.type) || /\.(jpe?g|png|webp|heic|heif)$/i.test(f.name));
+  if (imgs.length) { (await loadEditor()).scanFiles(imgs); return false; }
+  const f = list.find((x) => /\.(gitara|json|pdf|txt)$/i.test(x.name) || /pdf|json|text/.test(x.type));
+  if (!f) { toast(t('drop.unknown'), 'error'); return false; }
+  const ok = await importSongFile(f);
+  if (ok && /^#\/pesme(\?|$)/.test(location.hash)) dispatchEvent(new HashChangeEvent('hashchange'));
+  return ok;
+}
+
 const NUDGE_MIN = 3, NUDGE_SNOOZE = 30 * 864e5;
 async function backupNudge(box, count) {
   if (count < NUDGE_MIN || (await driveConnected()) || ((await settings.get('syncCfg', null)) || {}).on) return;
@@ -364,8 +398,8 @@ async function backupNudge(box, count) {
 }
 
 // ---------------- Uvoz / deljenje ----------------
-async function importSongFile() {
-  const file = await pickFile('.gitara,.json,.pdf,application/pdf,application/json,text/plain,application/octet-stream');
+async function importSongFile(given = null) {
+  const file = given || await pickFile('.gitara,.json,.pdf,application/pdf,application/json,text/plain,application/octet-stream');
   if (!file) return false;
   // PDF (note, tablatura, akordi): čita se bez AI, pa ekran za proveru; skeniran PDF ide na skeniranje
   if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) {
@@ -443,7 +477,7 @@ export async function renderSharedSong(root) {
     </div>
     ${isStandalone() ? '' : `<div class="card install-card" id="shInstall">
       <p class="small">${t('link.installHint')}</p>
-      ${canPromptInstall() ? `<button class="btn small primary" id="shInstallBtn">${t('set.install')}</button>` : `<p class="small muted">${isIOS() ? t('set.installIos') : t('set.installAndroid')}</p>`}
+      ${canPromptInstall() ? `<button class="btn small primary" id="shInstallBtn">${t('set.install')}</button>` : `<p class="small muted">${isIOS() ? t('set.installIos') : t(isComputer() ? 'set.installPc' : 'set.installAndroid')}</p>`}
     </div>`}
     <h1 class="song-h1">${esc(song.title)}</h1>
     <p class="song-meta">${esc(song.artist || '')}${shownKey ? `${song.artist ? ' · ' : ''}${t('song.key')} <b>${esc(dn(shownKey))}</b>` : ''}${song.capo ? ` · ${t('capo.title')} ${song.capo}` : ''}</p>
@@ -673,10 +707,14 @@ function chWidth(family, px) {
 }
 
 /** Veličina slova, font i raspoloživa širina za tekst pesme (ne zavise od samog teksta). */
+const COLS_GAP = 44, COLS_MIN = 760; // v1.68: tekst u dve kolone kad je prostor za tekst bar ovoliko širok (računar)
+const colsPref = () => localStorageGet('gitara-cols') !== '0';
 export function lyricsMetrics(el, availW = 0) {
   el.style.fontSize = '';
   const cs = getComputedStyle(el);
-  return { want: parseFloat(cs.fontSize) || 16, family: cs.fontFamily, avail: availW || el.clientWidth };
+  let avail = availW || el.clientWidth;
+  if (el.classList.contains('cols2')) avail = Math.floor((avail - COLS_GAP) / 2); // v1.68: dve kolone na širokom ekranu
+  return { want: parseFloat(cs.fontSize) || 16, family: cs.fontFamily, avail };
 }
 
 // Širina teksta pesme po veličini ekrana (ne zavisi od pesme)
@@ -844,7 +882,9 @@ export async function renderSong(root, id, nav = null) {
       <details class="song-details" id="sDet"><summary><span>${t('song.details')}</span><span class="small muted" id="sDetSub"></span></summary><div id="sDetBody"></div></details>
       ${zoomPillHTML()}
       ${paButtonHTML(stored)}
+      <button class="icon-btn cols-btn" id="sCols" hidden aria-pressed="false" aria-label="${t('song.cols2')}" title="${t('song.cols2')}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h8v16H3zm2 2v12h4V6zm8-2h8v16h-8zm2 2v12h4V6z"/></svg></button>
       <div class="lyrics" id="sLyrics" style="--zoom:${zoom}"></div>
+      <div class="diagram-row diag-col" id="sDiagCol" aria-label="${t('song.diagrams')}"></div>
     </div>
     <div class="scroll-bar" id="sScrollBar">
       <div class="loop-row" id="sLoopRow" hidden>
@@ -968,10 +1008,25 @@ export async function renderSong(root, id, nav = null) {
       ${chords.length ? `<div class="diagram-row" aria-label="${t('song.diagrams')}">${chords.map((c) => `<button class="diagram-btn" data-chord="${esc(c)}" aria-label="${esc(t('song.enlarge', { name: dn(c) }))}">${chordSVG(c, { voicing: (stored.shapes || {})[c] || 0 })}</button>`).join('')}</div>` : ''}
 `;
   };
+  // v1.68 (računar): dve kolone kad ima mesta (dugme ▥ uključuje/isključuje, pamti se); dijagrami akorda u koloni desno
+  const setCols = (w) => {
+    const l = $('sLyrics'), b = $('sCols');
+    const fits = w >= COLS_MIN && !stored.recording && !(stored.type === 'tab');
+    const on = fits && colsPref();
+    l.classList.toggle('cols2', on);
+    if (b) { b.hidden = !fits; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); }
+  };
+  const drawDiagCol = () => {
+    const col = $('sDiagCol'); if (!col) return;
+    const chords = songChords(shapesSong());
+    col.innerHTML = chords.map((c) => `<button class="diagram-btn" data-chord="${esc(c)}" aria-label="${esc(t('song.enlarge', { name: dn(c) }))}">${chordSVG(c, { voicing: (stored.shapes || {})[c] || 0 })}</button>`).join('');
+  };
   const drawLyrics = () => {
     const l = $('sLyrics');
     // Širina teksta: zapamćena za ovu veličinu ekrana (bez merenja); ako se razlikuje, ResizeObserver ispravi
     l.style.setProperty('--zoom', zoom);
+    setCols(lyrW.get(lyrWKey()) || l.clientWidth);
+    drawDiagCol();
     const pre = lyricsMetrics(l, lyrW.get(lyrWKey()));
     l.innerHTML = renderSectionsHTML(shapesSong().sections, unc(), { edit: !stored.recording, songStrum: stored.strum || null });
     addLoopButtons();
@@ -1357,9 +1412,11 @@ export async function renderSong(root, id, nav = null) {
   const ro = new ResizeObserver(() => {
     const w = root.querySelector('.lyrics')?.clientWidth || 0;
     if (w) lyrW.set(lyrWKey(), w);
-    if (w && w !== roW) { roW = w; fitAndTabs(lyricsMetrics(root.querySelector('.lyrics'), w)); }
+    if (w && w !== roW) { roW = w; setCols(w); fitAndTabs(lyricsMetrics(root.querySelector('.lyrics'), w)); }
   });
   ro.observe(root.querySelector('.song-view'));
+  { const zw = root.querySelector('.song-view .zoom-wrap'), cb = $('sCols'); if (zw && cb) zw.prepend(cb); } // ▥ odmah levo od − 🔍 +
+  $('sCols')?.addEventListener('click', () => { localStorageSet('gitara-cols', colsPref() ? '0' : '1'); const w = $('sLyrics').clientWidth; setCols(w); fitAndTabs(lyricsMetrics($('sLyrics'), w)); });
   // Ekran ostaje upaljen dok koristiš pesmu (Podešavanja → Ekran); ikonica u traci ga isključuje za ovu pesmu
   setWakeZone('song');
   const onHash = () => { stopLoop(); stopScroll(); stopStrum(); endTab(); ro.disconnect(); document.removeEventListener('pointerdown', outsideAa, true); window.removeEventListener('hashchange', onHash); };

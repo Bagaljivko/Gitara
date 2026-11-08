@@ -55,6 +55,14 @@ function writeInto(st, key, data) {
     });
     return;
   }
+  if (key === 'secret') {
+    // „Prenesi ključ na moje uređaje“ isključeno na ovom uređaju: ključ sa naloga se ne primenjuje, čuva se sa strane
+    get(settings, 'keySync', (on) => {
+      if (on === false) { if (data == null) syncState.delete('held:secret'); else syncState.put(data, 'held:secret'); }
+      else if (data == null) settings.delete(setting); else settings.put(data, setting);
+    });
+    return;
+  }
   if (data == null) settings.delete(setting); else settings.put(data, setting);
 }
 

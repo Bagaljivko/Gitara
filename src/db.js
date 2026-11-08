@@ -206,8 +206,30 @@ function setWithSync(key, val, removed) {
   if (!SYNCED_SETTING(key)) return tx('settings', 'readwrite', (s) => (removed ? s.delete(key) : s.put(val, key)));
   return txMulti(['settings', 'sync'], (s, y) => {
     const r = s.get(key);
-    r.onsuccess = () => { markSetting(y, key, val, r.result, removed); if (removed) s.delete(key); else s.put(val, key); };
+    r.onsuccess = () => {
+      const put = () => { if (removed) s.delete(key); else s.put(val, key); };
+      // v1.68: „Prenesi ključ na moje uređaje“ isključeno → Gemini ključ ostaje samo na ovom uređaju (ne šalje se)
+      if (key === 'geminiKey') { const k = s.get('keySync'); k.onsuccess = () => { if (k.result !== false) markSetting(y, key, val, r.result, removed); put(); }; return; }
+      markSetting(y, key, val, r.result, removed); put();
+    };
   });
+}
+
+/**
+ * v1.68: „Prenesi ključ na moje uređaje“ (podešavanje samo ovog uređaja). Uključeno: ključ ovog uređaja ide na ostale
+ * uređaje; ako ovde nema ključa, uzima se onaj koji je u međuvremenu stigao sa naloga (čuvan sa strane dok je bilo isključeno).
+ */
+export function setKeySync(on) {
+  return txMulti(['settings', 'sync', 'syncState'], (s, y, ss) => {
+    s.put(!!on, 'keySync');
+    if (!on) return;
+    const r = s.get('geminiKey');
+    r.onsuccess = () => {
+      if (r.result) { mark(y, 'secret'); return; }
+      const h = ss.get('held:secret');
+      h.onsuccess = () => { if (h.result) s.put(h.result, 'geminiKey'); ss.delete('held:secret'); };
+    };
+  }).then(() => { changed('settings-changed', 'geminiKey'); });
 }
 export const settings = {
   get: (key, def) => tx('settings', 'readonly', (s) => s.get(key)).then((v) => (v === undefined ? def : v)),

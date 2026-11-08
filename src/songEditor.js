@@ -114,8 +114,23 @@ async function scanReady() {
   return true;
 }
 
+/** v1.68: slike prevučene u prozor (računar) — odmah ekran sa stranama, pa skeniranje. */
+export async function scanFiles(files) {
+  if (!(await scanReady())) return;
+  const pages = await collectPages([...files]);
+  if (pages) await runScan(pages);
+}
+
 export async function startScan() {
   if (!(await scanReady())) return;
+  // računar (miš): nema kamere za papir — odmah izbor fajlova (fotografije ili sken sa telefona)
+  if (matchMedia('(hover: hover) and (pointer: fine)').matches) {
+    const files = await pickFiles('image/*');
+    if (!files.length) return;
+    const pages = await collectPages(files);
+    if (pages) await runScan(pages);
+    return;
+  }
   const how = await dialog({
     title: t('scan.title'),
     body: t('scan.howBody'),
