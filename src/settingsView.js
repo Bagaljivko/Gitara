@@ -143,8 +143,16 @@ export async function renderSettings(root) {
       <textarea readonly class="diag-report" id="diagOut" rows="8" hidden></textarea>
     </div>
 
+    <div class="card about-card" id="aboutCard">
+      <h2>${t('about.title')}</h2>
+      <button type="button" class="about-ico" id="aboutIco" aria-label="${t('about.replay')}"><img src="icons/icon-192.png" alt="" width="88" height="88"></button>
+      <button type="button" class="about-name" id="aboutName" aria-label="${t('about.replay')}">MARLI</button>
+      <p class="about-acr">${t('about.acr')}</p>
+      <p class="about-ver" id="aboutVer">${t('about.version', { v: APP_VERSION })}</p>
+      <p class="about-off">${t('about.offline')}</p>
+      <p class="about-hint">${t('about.hint')}</p>
+    </div>
     <div class="about muted small">
-      <p id="aboutVer">${t('set.about', { v: APP_VERSION })}</p>
       <div class="card pr-dbg" id="prDbg" hidden>
         <label class="switch-row"><input type="checkbox" id="prDbgOn"> <span>${t('pr.debug.toggle')}</span></label>
         <p class="small">${t('pr.debug.note')}</p>
@@ -164,6 +172,10 @@ export async function renderSettings(root) {
   let verTaps = 0, verT = 0;
   // Pesme → „Predlaži ritam“ (isto se isključuje i preko „Ne predlaži više“ na samom predlogu)
   $('strumSuggestSw').addEventListener('change', (e) => settings.set('strumSuggest', e.target.checked));
+  // O aplikaciji: dodir na naslov (ili ikonicu) ponovo pušta uvodnu animaciju
+  const replayIntro = () => { if (window.__marliIntro) window.__marliIntro(true); };
+  $('aboutName').addEventListener('click', replayIntro);
+  $('aboutIco').addEventListener('click', replayIntro);
   $('aboutVer').addEventListener('click', async () => {
     verTaps++; clearTimeout(verT); verT = setTimeout(() => (verTaps = 0), 1500);
     if (verTaps < 5) return;

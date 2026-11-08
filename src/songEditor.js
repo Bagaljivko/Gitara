@@ -316,7 +316,7 @@ function formatScanDiag(d, e) {
   if (!d.attempts.length) L.push(`  ${t('diag.noAttempts')}`);
   d.attempts.forEach((a, k) => L.push(`  ${k + 1}. ${a.model} [${a.thinking}] — ${secs(a.ms)} — ${a.status}${a.message ? ': ' + a.message : ''}  (${t('diag.request')} ${kb(a.sentBytes)})`));
   L.push(`${t('diag.message')}: ${(e && e.message) || String(e)}`);
-  L.push(`${t('diag.app')}: Gitara ${APP_VERSION} · ${navigator.onLine === false ? 'offline' : 'online'} · ${navigator.userAgent}`);
+  L.push(`${t('diag.app')}: MARLI ${APP_VERSION} · ${navigator.onLine === false ? 'offline' : 'online'} · ${navigator.userAgent}`);
   return L.join('\n');
 }
 

@@ -4,7 +4,7 @@ import { readFileSync, writeFileSync, readdirSync } from 'node:fs';
 const sw = readFileSync('sw.js', 'utf8');
 const src = readdirSync('src').filter((f) => /\.(js|css)$/.test(f)).sort().map((f) => `src/${f}`);
 const files = ['./', 'index.html', 'privacy.html', 'manifest.webmanifest', ...src,
-  'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-192.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png',
+  'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-192.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png',
   'assets/headstock.webp'];
 // vendor/jspdf + fonts/ su u LAZY listi u sw.js (preuzimaju se u pozadini)
 // Veliki fajlovi koji se preuzimaju u pozadini posle instalacije (PDF i snimci gitare)

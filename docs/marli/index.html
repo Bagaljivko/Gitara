@@ -164,7 +164,8 @@
 <main>
   <p class="muted small" style="margin:0">Faza 1 — samo predlozi, aplikacija se ne menja</p>
   <h1>MARLI</h1>
-  <p class="acr"><b>M</b>alo <b>A</b>korda, <b>R</b>itma, <b>L</b>jubavi, <b>I</b>nspiracije</p>
+  <p class="acr"><b>M</b>elodija, <b>A</b>kordi, <b>R</b>itam, <b>L</b>jubav, <b>I</b>nspiracija</p>
+  <p class="acr muted small" style="margin-top:0">English: <b>M</b>elody, <b>A</b>ccords, <b>R</b>hythm, <b>L</b>ove, <b>I</b>nspiration</p>
   <p class="muted small">Izaberi ikonicu (A–D) i uvodnu animaciju (1 ili 2), npr. „ikonica B, animacija 2“.</p>
   <nav class="sticky-nav"><a href="#ikonice">Ikonica</a><a href="#animacija">Uvodna animacija</a><a href="#oaplikaciji">O aplikaciji</a></nav>
 
@@ -247,7 +248,7 @@
         <div class="set-head"><b>O aplikaciji</b><span class="chev">⌄</span></div>
         <div class="a-ico" data-ab="sr"></div>
         <div class="a-title">MARLI</div>
-        <div class="a-acr"><b>M</b>alo <b>A</b>korda, <b>R</b>itma, <b>L</b>jubavi, <b>I</b>nspiracije</div>
+        <div class="a-acr"><b>M</b>elodija, <b>A</b>kordi, <b>R</b>itam, <b>L</b>jubav, <b>I</b>nspiracija</div>
         <div class="a-ver">verzija 1.69.0</div>
         <div class="a-hint">Dodirni naslov za uvodnu animaciju</div>
       </div>
@@ -258,8 +259,7 @@
         <div class="set-head"><b>About</b><span class="chev">⌄</span></div>
         <div class="a-ico" data-ab="en"></div>
         <div class="a-title">MARLI</div>
-        <div class="a-acr"><b>M</b>alo <b>A</b>korda, <b>R</b>itma, <b>L</b>jubavi, <b>I</b>nspiracije</div>
-        <div class="a-tr">A little chords, rhythm, love and inspiration</div>
+        <div class="a-acr"><b>M</b>elody, <b>A</b>ccords, <b>R</b>hythm, <b>L</b>ove, <b>I</b>nspiration</div>
         <div class="a-ver">version 1.69.0</div>
         <div class="a-hint">Tap the title to replay the intro</div>
       </div>
@@ -480,7 +480,7 @@ home(document.getElementById('homeAndroid'), 'crop-circle');
 // ------------------------------------------------------------------------------------------------
 // Uvodne animacije (samo SVG + CSS; žica treperi preko SVG <animate>, radi i u Safariju)
 // ------------------------------------------------------------------------------------------------
-const WORDS = `<div class="words" style="--w0:1.45s"><span><i>M</i>alo</span><span><i>A</i>korda,</span><span><i>R</i>itma,</span><span><i>L</i>jubavi,</span><span><i>I</i>nspiracije</span></div>`;
+const WORDS = `<div class="words" style="--w0:1.45s"><span><i>M</i>elodija,</span><span><i>A</i>kordi,</span><span><i>R</i>itam,</span><span><i>L</i>jubav,</span><span><i>I</i>nspiracija</span></div>`;
 
 function anim1() {
   const id = ++uid, g = 'g' + id;

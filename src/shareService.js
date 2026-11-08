@@ -44,7 +44,7 @@ export async function shareFile(blob, filename, title) {
 
 // ---------------- Aplikacija (adresa, bez podataka) ----------------
 export async function shareApp(url) {
-  if (navigator.share) { try { await navigator.share({ title: 'Gitara', text: t('appShare.shareText'), url }); return 'shared'; } catch (e) { if (e && e.name === 'AbortError') return null; } }
+  if (navigator.share) { try { await navigator.share({ title: 'MARLI', text: t('appShare.shareText'), url }); return 'shared'; } catch (e) { if (e && e.name === 'AbortError') return null; } }
   return copyLink(url, t('appShare.copied'));
 }
 export const copyAppLink = (url) => copyLink(url, t('appShare.copied'));

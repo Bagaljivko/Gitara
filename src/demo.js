@@ -83,7 +83,7 @@ export function demoSong(lang) {
   const en = lang === 'en';
   return {
     title: en ? 'Example: Slowly' : 'Primer: Polako',
-    artist: en ? 'Gitara (example song)' : 'Gitara (primer pesme)',
+    artist: en ? 'MARLI (example song)' : 'MARLI (primer pesme)',
     key: 'A',
     sections: textToSections(en ? EN : SR),
     strum: { id: 'folk', sig: '4/4', steps: 'D-DU-UDU' },

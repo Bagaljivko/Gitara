@@ -132,7 +132,7 @@ export async function songToPdf(song, { transposeLabel = '', capoLabel = '' } = 
   doc.addFont('DejaVuSansMono.ttf', 'Mono', 'normal');
   doc.addFileToVFS('DejaVuSansMono-Bold.ttf', monoBold);
   doc.addFont('DejaVuSansMono-Bold.ttf', 'Mono', 'bold');
-  doc.setProperties({ title: song.title || t('pdf.song'), subject: song.artist || '', creator: 'Gitara' });
+  doc.setProperties({ title: song.title || t('pdf.song'), subject: song.artist || '', creator: 'MARLI' });
 
   const accent = [196, 120, 10];
   const M = 16, PW = 210, PH = 297, bottom = PH - 14;
