@@ -463,8 +463,16 @@ export function parseBackupData(data, modified = 0) {
 export const BK_FULL = 'MARLI – cela aplikacija.json';
 export const BK_SONGS = 'MARLI – pesme.json';
 /** Sačuvaj (zameni) kopiju pod tim imenom. Vraća vreme izmene. Poziva se iz dodira (može da traži dozvolu). */
+/** v1.73: ključ za fajlove na Drive-u — prvo bez prozora (važeći ili tiho obnovljen preko pomoćnika), tek onda prozor.
+ *  Poziva se odmah na dodir (pre pripreme kopije), jer telefon blokira Google prozor ako od dodira prođe previše vremena. */
+export async function fileToken() {
+  await initDrive().catch(() => {});
+  if (state.token && state.tokenFile && Date.now() < state.tokenExp) return state.token;
+  if (await refreshQuiet('file').catch(() => false)) return state.token;
+  return shareToken({ interactive: true });
+}
 export async function saveNamed(name, json) {
-  await shareToken({ interactive: !(state.token && state.tokenFile && Date.now() < state.tokenExp) });
+  await fileToken();
   const folder = await ensureFolder();
   const files = await findFiles(`name='${q(name)}' and '${folder}' in parents and trashed=false`);
   const r = await uploadFile({ id: files[0] && files[0].id, name, mime: 'application/json', blob: new Blob([json], { type: 'application/json' }), parents: [folder] });
@@ -472,7 +480,7 @@ export async function saveNamed(name, json) {
 }
 /** Najnovija kopija pod tim imenom: { data, modified } ili null. */
 export async function readNamed(name) {
-  if (!(state.token && Date.now() < state.tokenExp)) await shareToken({ interactive: true });
+  await fileToken();
   const files = await findFiles(`name='${q(name)}' and trashed=false`);
   if (!files.length) return null;
   const res = await api(`${API}/files/${files[0].id}?alt=media`);

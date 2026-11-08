@@ -124,6 +124,7 @@ export async function renderSetlist(root, id) {
     <div class="sl-hero">
       <h1 id="slTitle">${esc(sl.name)}</h1>
       <p class="sl-sub" id="slSub"></p>
+      <button type="button" class="sl-ready" id="slReady" hidden></button>
       <button class="btn sl-play-btn" id="slStage">${ICON.play}<span>${t('stage.playSet')}</span></button>
       <div class="sl-actions">
         <button class="btn sl-sec" id="slAdd">${ICON.add}<span>${t('sl.addSongs')}</span></button>
@@ -138,7 +139,17 @@ export async function renderSetlist(root, id) {
   try { if (localStorage.getItem('gitara-shares')) import('./shareService.js').then((m) => m.prewarmShare()).catch(() => {}); } catch {} // „Podeli“ ne čeka Google
 
   const resumeAt = () => { try { return Number(localStorage.getItem(`gitara-set-pos-${id}`)) || 0; } catch { return 0; } };
+  // v1.73: spremnost za svirku — „Spremno 6 od 9“ + tačka uz svaku pesmu (zeleno spremna, zlatno u radu, sivo nevežbana)
+  const fillReady = async () => {
+    const S = await import('./statsView.js'); const r = await S.setReadiness(ids);
+    const el = $('slReady'); if (!el) return;
+    el.hidden = !ids.length;
+    el.innerHTML = `<span class="slr-ring" style="--p:${ids.length ? Math.round((r.ready / ids.length) * 100) : 0}%"></span><span><b>${t('st.ready', { n: r.ready, total: r.total })}</b><small>${[r.work ? t('st.inWork', { n: r.work }) : '', r.none ? t('st.notPr', { n: r.none }) : ''].filter(Boolean).join(' · ') || t('st.allReady')}</small></span>`;
+    root.querySelectorAll('#slList .sl-item').forEach((li) => { const st = r.map[li.dataset.id] || 'new'; li.querySelector('.sl-num')?.setAttribute('data-ready', st); });
+    el.onclick = () => { const weak = ids.find((x) => r.map[x] === 'work') || ids.find((x) => r.map[x] === 'new'); if (weak) S.openSongStats(weak); };
+  };
   const draw = () => {
+    setTimeout(() => fillReady().catch(() => {}), 0);
     $('slStage').disabled = !ids.length;
     $('slSub').textContent = songsCount(ids.length);
     $('slList').innerHTML = ids.length ? ids.map((sid, i) => {

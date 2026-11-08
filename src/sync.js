@@ -342,7 +342,7 @@ async function connectInner(pick) {
       if (!ok) { await drive.syncSignOut().catch(() => {}); return false; }
       const { wipeForAccount } = await import('./syncLocal.js');
       await wipeForAccount();
-      notifyRemote(['song:*', 'set:*', 'folder:*', 'practice', 'skale', 'secret']);
+      notifyRemote(['song:*', 'set:*', 'folder:*', 'practice', 'skale', 'activity', 'secret']);
       await call({ t: 'reset' }, 'wasReset');
     }
   }

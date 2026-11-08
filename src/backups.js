@@ -13,7 +13,7 @@ import { APP_VERSION } from './version.js';
 const EXCL_SETTINGS = new Set(['driveToken', 'driveRT', 'drive', 'syncCfg', 'syncMigrated', 'syncOffered', 'geminiModels', 'shareFolder', 'held:secret']);
 const LOCAL_RE = /^(gitara-|marli-)/;
 const EXCL_LOCAL = new Set(['gitara-diag', 'gitara-boots', 'gitara-lastscan', 'gitara-sync', 'gitara-echo-clean', 'marli-keycheck', 'marli-pdf-queue', 'marli-bk',
-  'marli-def1701', 'marli-def-test', 'marli-intro', 'marli-intro-gate', 'marli-invite-test']);
+  'marli-def1701', 'marli-def-test', 'marli-dev', 'marli-intro', 'marli-intro-gate', 'marli-invite-test']);
 const KEY_RE = /^[\w-]{10,200}$/;
 const LAST = 'marli-bk'; // kada je poslednja kopija napravljena (na ovom uređaju)
 
@@ -21,6 +21,8 @@ const day = () => new Date().toISOString().slice(0, 10);
 const songsN = (n) => songsCount(n);
 export const lastBackups = () => { try { return JSON.parse(localStorage.getItem(LAST) || '{}') || {}; } catch { return {}; } };
 const noteLast = (kind, where) => { try { const o = lastBackups(); o[kind] = { at: Date.now(), where }; localStorage.setItem(LAST, JSON.stringify(o)); } catch {} };
+// greške sa Drive-om idu u dijagnostiku (Podešavanja → Dijagnostika → Kopiraj izveštaj)
+function logErr(what, e) { try { const L = JSON.parse(localStorage.getItem('gitara-diag') || '[]'); L.push({ t: Date.now(), k: 'backup', m: `${what}: ${(e && (e.code || e.name)) || ''} ${(e && e.message) || e}`.slice(0, 300) }); localStorage.setItem('gitara-diag', JSON.stringify(L.slice(-60))); } catch {} }
 const driveName = async (kind) => { const d = await import('./drive.js'); return kind === 'full' ? d.BK_FULL : d.BK_SONGS; };
 
 export async function isConnected() {
@@ -78,15 +80,17 @@ export async function saveFile(kind) {
 
 /** „Sačuvaj sve“ / „Sačuvaj pesme“: na Google Drive, samo od sebe (poveže nalog ako treba). Vraća { ok, at } ili null. */
 export async function saveBackup(kind) {
-  if (kind === 'songs' && !(await counts()).songs) { toast(t('set.nothingToExport')); return null; }
   if (!(await ensureConnected())) return null;
   const drive = await import('./drive.js');
   try {
+    await drive.fileToken(); // odmah na dodir (Google prozor, ako uopšte treba, ne sme da čeka pripremu kopije)
+    if (kind === 'songs' && !(await counts()).songs) { toast(t('set.nothingToExport')); return null; }
     const at = await drive.saveNamed(await driveName(kind), await build(kind));
     noteLast(kind, 'drive');
     toast(t(kind === 'full' ? 'bk.savedFullT' : 'bk.savedSongsT'));
     return { ok: true, at };
   } catch (e) {
+    logErr('save ' + kind, e);
     if (e && e.code === 'cancelled') return null;
     const v = await dialog({ title: t('bk.driveFailTitle'), body: t('bk.driveFail', { msg: (e && e.message) || '' }),
       buttons: [{ label: t('common.cancel'), value: null }, { label: t('bk.saveFile'), value: 'file', kind: 'primary' }] });
@@ -108,13 +112,14 @@ async function fromFile() {
 /** Google Drive, samo od sebe: poveže nalog ako treba i nađe najnoviju kopiju (nova, pa starija). null = nema / otkazano. */
 async function fromDrive(kind) {
   if (!(await ensureConnected())) return null;
-  toast(t('restore.looking'));
   const drive = await import('./drive.js');
+  try { await drive.fileToken(); } catch (e) { logErr('restore ' + kind, e); if (e && e.code !== 'cancelled') toast((e && e.message) || t('common.error'), 'error'); return null; }
+  toast(t('restore.looking'));
   const names = kind === 'full' ? [drive.BK_FULL, 'gitara-backup.json'] : [drive.BK_SONGS, drive.BK_FULL, 'gitara-backup.json'];
   for (const n of names) {
     let f = null;
     try { f = await drive.readNamed(n); }
-    catch (e) { if (e && e.code === 'cancelled') return null; if (e && e.code === 'offline') { toast(t('drive.e.offline'), 'error'); return null; } }
+    catch (e) { logErr('read ' + n, e); if (e && e.code === 'cancelled') return null; if (e && e.code === 'offline') { toast(t('drive.e.offline'), 'error'); return null; } }
     if (f) return { ...f, name: n, src: 'drive' };
   }
   const v = await dialog({ title: t(kind === 'full' ? 'bk.restoreFullTitle' : 'bk.restoreSongsTitle'), body: t('bk.noneOnDrive'),

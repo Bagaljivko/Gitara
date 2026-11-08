@@ -928,6 +928,7 @@ export async function renderSong(root, id, nav = null) {
     <div id="sBody">
       <div id="sHead"></div>
       ${stored.recording ? '' : practiceLineHTML(id)}
+      <button type="button" class="st-line" id="sStats" hidden></button>
       <div id="sAsk"></div>
       <div id="sSuggest"></div>
       <div id="sControls"></div>
@@ -998,6 +999,13 @@ export async function renderSong(root, id, nav = null) {
   };
   // Mala oznaka napretka pored ikonice vežbe: koliko delova pesme je dobro uvežbano (najbolje ≥ 80)
   // napredak vežbanja ove pesme na kartici „Vežbaj ovu pesmu“: koliko delova je dobro uvežbano (najbolje ≥ 80)
+  // v1.73: jedan red „Svirano · Vežbano · najslabiji deo“; dodir → sve o pesmi
+  import('./statsView.js').then(async (S) => {
+    const b = root.querySelector('#sStats'); if (!b) return;
+    const txt = await S.songLineText(stored.id, stored.sections || []);
+    if (txt) { b.innerHTML = txt; b.hidden = false; }
+    b.addEventListener('click', () => S.openSongStats(stored.id));
+  }).catch(() => {});
   const drawPracticeMark = () => settings.get('practice', null).then((st) => {
     const rec = st && st.songs && st.songs[stored.id];
     const card = root.querySelector('.sp-line');

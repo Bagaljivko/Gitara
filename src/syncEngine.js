@@ -12,7 +12,7 @@
 //           saveVersion(key, data, reason, hlc) }
 // remote: { startToken(), changes(token), list(), get(fileId), put(name, bytes, props, fileId?), del(fileId) }
 // opts:   { node, ask(kind, info) → Promise<bool>, onStatus(s), onApplied(keys), now() }
-import { mergePractice, mergeSkale } from './syncMerge.js';
+import { mergePractice, mergeSkale, mergeActivity } from './syncMerge.js';
 
 export const SCHEMA = 1;
 export const TOMB_DAYS = 90;
@@ -48,6 +48,7 @@ export async function sha(bytes) { const d = new Uint8Array(await crypto.subtle.
 const MERGE = {
   practice: (a, b) => mergePractice(mergePractice(null, a), b),
   skale: (a, b) => mergeSkale(a, b),
+  activity: (a, b) => mergeActivity(a, b), // v1.73: po uređaju, noviji zapis istog uređaja pobeđuje
 };
 const mergeFor = (key) => MERGE[key] || null;
 

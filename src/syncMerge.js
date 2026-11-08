@@ -9,6 +9,7 @@ export function cleanPractice(p) {
     streak: Math.max(0, Math.round(Number(r.streak) || 0)),
     lastDay: typeof r.lastDay === 'string' && /^\d{4}-\d{1,2}-\d{1,2}$/.test(r.lastDay) ? r.lastDay : '',
     lastTempo: Math.max(0, Math.min(400, Math.round(Number(r.lastTempo) || 0))) || undefined,
+    t0: Math.max(0, Math.min(400, Math.round(Number(r.t0) || 0))) || undefined, // v1.73: prvi zabeleženi tempo (napredak)
     plays: Math.max(0, Math.round(Number(r.plays) || 0)),
     ...(r.challenge === true ? { challenge: true } : {}), // „Izazov ✓“ (v1.57)
   } : null);
@@ -62,7 +63,8 @@ export function mergePractice(a, b) {
     if (!x) return y; if (!y) return x;
     const newer = day(y) > day(x) ? y : x;
     const bm = Math.max(x.bestMetric ?? -1, y.bestMetric ?? -1);
-    return { ...newer, best: Math.max(x.best || 0, y.best || 0), plays: Math.max(x.plays || 0, y.plays || 0), ...(bm >= 0 ? { bestMetric: bm } : {}), ...(x.challenge || y.challenge ? { challenge: true } : {}) };
+    const t0 = Math.min(...[x.t0, y.t0].filter((v) => v > 0)); // v1.73: prvi tempo = manji od dva
+    return { ...newer, best: Math.max(x.best || 0, y.best || 0), plays: Math.max(x.plays || 0, y.plays || 0), ...(bm >= 0 ? { bestMetric: bm } : {}), ...(x.challenge || y.challenge ? { challenge: true } : {}), ...(Number.isFinite(t0) ? { t0 } : {}) };
   };
   const out = { v: 1, games: { ...(a.games || {}) }, songs: { ...(a.songs || {}) } };
   for (const [k, r] of Object.entries(b.games || {})) out.games[k] = one(out.games[k], r);
@@ -79,4 +81,14 @@ export function mergeFolders(a, b) {
   const map = new Map((Array.isArray(a) ? a : []).map((f) => [f.id, f]));
   for (const f of Array.isArray(b) ? b : []) if (f && f.id) map.set(f.id, { ...(map.get(f.id) || {}), ...f });
   return [...map.values()];
+}
+
+// v1.73: svirano/vežbano (activity) — /** Unija uređaja; za isti uređaj pobeđuje noviji zapis (at). */
+export function mergeActivity(a, b) {
+  const out = { v: 1, dev: {} };
+  for (const src of [a, b]) {
+    if (!src || typeof src !== 'object' || !src.dev) continue;
+    for (const [id, d] of Object.entries(src.dev)) if (d && typeof d === 'object' && (!out.dev[id] || (Number(d.at) || 0) >= (Number(out.dev[id].at) || 0))) out.dev[id] = d;
+  }
+  return out;
 }

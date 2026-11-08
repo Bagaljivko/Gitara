@@ -5,6 +5,13 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '1.73', date: '2026-11-08', items: [
+    { i: '⏱', sr: ['Koliko sviraš i vežbaš', 'Vežbe: ova nedelja i „Moje pesme“ — svirano, vežbano, koliko puta, najbolji rezultat. Računa se samo aktivno vreme.'], en: ['How much you play and practice', 'Practice: this week and “My songs” — played, practiced, how many times, best score. Only active time counts.'] },
+    { i: '♪', sr: ['Sve o pesmi', 'Dodir na pesmu: delovi pesme i napredak tempa (npr. 80 → 100 BPM, cilj 112), pa „Vežbaj“ najslabiji deo.'], en: ['Everything about a song', 'Tap a song: its parts and tempo progress (e.g. 80 → 100 BPM, target 112), then “Practice” the weakest part.'] },
+    { i: '✓', sr: ['Spremnost set liste', 'Na set listi: „Spremno 6 od 9“ i tačka uz svaku pesmu.'], en: ['Setlist readiness', 'On a setlist: “Ready 6 of 9” and a dot next to each song.'] },
+    { i: '◎', sr: ['Nedeljni cilj', 'Po želji: npr. 3 h nedeljno — krug na Vežbama se puni.'], en: ['Weekly goal', 'Optional: e.g. 3 h a week — the ring in Practice fills up.'] },
+    { i: '★', sr: ['Nova ikonica', 'Telefon je lakše prepoznaje; ako i dalje vidiš staru, aplikacija jednom kaže šta da uradiš.'], en: ['New icon', 'Easier for the phone to pick up; if you still see the old one, the app tells you once what to do.'] },
+  ] },
   { v: '1.72', date: '2026-11-08', items: [
     { i: '⚙', sr: ['Nova Podešavanja', 'Kratak spisak sa ikonicama i trenutnim vrednostima; svaka celina je svoja stranica. Na računaru: spisak levo, stranica desno.'], en: ['New Settings', 'A short list with icons and current values; each section is its own page. On a computer: list on the left, page on the right.'] },
     { i: '✓', sr: ['Stanje na jedan pogled', 'Na vrhu: Google nalog, sinhronizacija, rezervna kopija i Gemini ključ.'], en: ['Status at a glance', 'At the top: Google account, sync, backup and Gemini key.'] },
@@ -53,4 +60,19 @@ export function navDot() {
   if (!unseen()) return;
   const a = document.querySelector('.nav a[data-tab="podesavanja"]');
   if (a && !a.querySelector('.wn-dot')) a.insertAdjacentHTML('beforeend', '<i class="wn-dot" aria-hidden="true"></i>');
+}
+
+// v1.73: jednom, samo u instaliranoj aplikaciji — kako se dobija nova ikonica (telefon je menja sam ili posle ponovnog dodavanja)
+export async function iconTip() {
+  try {
+    if (localStorage.getItem('marli-icontip')) return;
+    if (navigator.webdriver && !localStorage.getItem('marli-icontip-test')) return;
+    const { isStandalone, isIOS, isComputer } = await import('./install.js');
+    if (!isStandalone()) return;
+    localStorage.setItem('marli-icontip', '1');
+    const how = isIOS() ? 'icon.ios' : isComputer() ? 'icon.pc' : 'icon.android';
+    await dialog({ title: t('icon.title'), html: true, className: 'icon-tip',
+      body: `<div class="it-ico"><img src="icons/marli-192.png" alt="" width="72" height="72"></div><p>${esc(t(how))}</p><p class="muted small">${esc(t('icon.safe'))}</p>`,
+      buttons: [{ label: t('common.ok'), value: true, kind: 'primary' }] });
+  } catch {}
 }

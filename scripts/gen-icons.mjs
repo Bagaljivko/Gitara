@@ -11,6 +11,12 @@ const jobs = [
   ['icon-maskable.svg', 'icon-maskable-512.png', 512],
   ['icon.svg', 'apple-touch-icon.png', 180],
   ['icon.svg', 'favicon-32.png', 32],
+  // v1.73: ista slika i pod novim imenima (manifest i iPhone koriste nova — telefon lakše primeti promenu ikonice)
+  ['icon.svg', 'marli-192.png', 192],
+  ['icon.svg', 'marli-512.png', 512],
+  ['icon.svg', 'marli-apple-touch-180.png', 180],
+  ['icon-maskable.svg', 'marli-maskable-192.png', 192],
+  ['icon-maskable.svg', 'marli-maskable-512.png', 512],
 ];
 const browser = await chromium.launch();
 const page = await browser.newPage();

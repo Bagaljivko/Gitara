@@ -10,8 +10,10 @@ export function createPlayerWith(tl, { bpm = 80, rate = 1, ctx, play, silence, o
   const beatAt = (time) => beat0 + (time - t0) * bps;
   const find = (beat) => { let i = 0; while (i < tl.events.length && tl.events[i].beat < beat - 1e-6) i++; return i; };
 
+  let actPing = 0;
   function tick() {
     if (!playing) return;
+    if (performance.now() - actPing > 5000) { actPing = performance.now(); dispatchEvent(new Event('marli-act')); } // v1.73: sviranje se računa kao aktivnost
     let ahead = beatAt(c.currentTime + 0.3);
     const end = until ?? loop?.to ?? tl.total;
     while (sched < ahead) {

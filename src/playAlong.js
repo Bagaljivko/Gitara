@@ -171,7 +171,7 @@ function openStrip(ctx, { clock = false } = {}) {
   function adCheck() {
     const raw = player.getCurrentTime() || 0, n = performance.now(), st = player.getPlayerState();
     if (!wantPlay || st === 0) { adSince = n; adRaw = raw; if (adMode) setAd(false); return; } // pauzirao korisnik / kraj
-    if (st === 1 && raw !== adRaw) { adRaw = raw; adSince = n; if (adMode) setAd(false); return; } // pesma ide
+    if (st === 1 && raw !== adRaw) { adRaw = raw; adSince = n; if (adMode) setAd(false); dispatchEvent(new Event('marli-act')); return; } // pesma ide (v1.73: računa se kao sviranje)
     if (!adMode && n - adSince > 1500) setAd(true);
   }
   function setAd(on) {

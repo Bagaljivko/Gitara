@@ -80,12 +80,15 @@ export function currentStreak(rec) {
 
 /** Upis rezultata runde. key: npr. id pesme + deo (za „Delovi pesme“). */
 export async function saveResult(gameId, res, key = null) {
+  try { dispatchEvent(new Event('marli-act')); } catch {} // v1.73: završena runda = aktivno vežbanje
   const st = await loadStats();
   const upd = (rec = {}) => {
     const day = today(), last = rec.lastDay;
     const gap = last ? dayNum(day) - dayNum(last) : null;
     const streak = gap === 0 ? rec.streak || 1 : gap === 1 ? (rec.streak || 0) + 1 : 1;
+    const tNow = Math.round(res.tempo || res.nextTempo || 0) || undefined;
     const out = { best: Math.round(Math.max(rec.best || 0, Number(res.score) || 0)), streak, lastDay: day, lastTempo: Math.round(res.nextTempo || res.tempo || 0) || undefined, plays: (rec.plays || 0) + 1 };
+    const t0 = rec.t0 || rec.lastTempo || tNow; if (t0) out.t0 = Math.round(t0); // v1.73: od kog tempa je krenulo (napredak tempa)
     const bm = Math.max(rec.bestMetric ?? -1, res.metric != null ? Math.round(res.metric) : -1);
     if (bm >= 0) out.bestMetric = bm; // npr. Promena akorda: čistih promena u minuti
     if (rec.challenge || res.challenge) out.challenge = true; // „Izazov“ (najveća brzina) odsviran sa 90+
@@ -192,6 +195,7 @@ async function renderHub(root) {
   <section class="view practice-view">
     <header class="view-head pr-hub-head"><h1>${t('pr.title')}</h1></header>
     <p class="muted pr-intro">${t('pr.intro')}</p>
+    <div id="stWeekBox"></div>
     ${todayCardHTML(sug, streak, doneToday)}
     <div class="pr-cards">
       ${GAMES.map((g) => {
@@ -209,7 +213,20 @@ async function renderHub(root) {
         </a>`;
       }).join('')}
     </div>
+    <div id="stSongsBox"></div>
   </section>`;
+  // v1.73: ova nedelja (+ cilj), moje pesme, dugo nisi svirao — posle prvog prikaza, da hub ne čeka
+  import('./statsView.js').then(async (S) => {
+    let all = false;
+    const drawWeek = async () => { const b = root.querySelector('#stWeekBox'); if (!b) return; b.innerHTML = await S.weekHTML(); S.bindWeek(b, drawWeek); };
+    const drawSongs = async () => { const b = root.querySelector('#stSongsBox'); if (!b) return; b.innerHTML = await S.mySongsHTML({ all }); };
+    await (await import('./activity.js')).flush().catch(() => {});
+    drawWeek(); drawSongs();
+    root.querySelector('#stSongsBox')?.addEventListener('click', (e) => {
+      if (e.target.closest('#stAll')) { all = !all; drawSongs(); return; }
+      const b = e.target.closest('[data-stsong]'); if (b) S.openSongStats(b.dataset.stsong);
+    });
+  }).catch(() => {});
 }
 
 /**
