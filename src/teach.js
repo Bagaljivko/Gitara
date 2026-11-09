@@ -53,6 +53,9 @@ export async function removeStudent(id) {
   for (const s of await songs.all()) if (s.student === id) { const { student, ...rest } = s; await songs.save(rest); }
   const c = await import('./collections.js');
   for (const sl of await c.getSetlists()) if ((sl.students || []).includes(id)) await c.updateSetlist(sl.id, { students: sl.students.filter((x) => x !== id) });
+  // v1.79: i njegovi zahtevi i zapis poslatog
+  await settings.set('requests', ((await settings.get('requests', [])) || []).filter((r) => r && r.sid !== id));
+  const tc = await getTeacher(); if ((tc.sentLog || []).some((e) => e.sid === id)) await setTeacher({ sentLog: tc.sentLog.filter((e) => e.sid !== id) });
 }
 export const initialOf = (name) => (String(name || '?').trim()[0] || '?').toUpperCase();
 export const avatarHTML = (s, size = 40) => `<span class="tch-av" style="--c:${esc(s.color || COLORS[0])};--s:${size}px" aria-hidden="true">${esc(initialOf(s.name))}</span>`;
@@ -70,9 +73,9 @@ export async function inviteLink(student) {
   return `${SHARE_BASE}#poziv/${encodeURIComponent(tc.id)}/${encodeURIComponent(student.id)}?${qs({ n: await teacherName(), c: tc.contact || '' })}`;
 }
 /** Nastavnik → učenik: dodatak linku poslatog fajla. */
-export async function toStudentSuffix(student) {
+export async function toStudentSuffix(student, rq = '') {
   const tc = await setTeacher({});
-  return '?' + qs({ tt: tc.id, ts: student.id, tn: await teacherName(), tc: tc.contact || '' });
+  return '?' + qs({ tt: tc.id, ts: student.id, tn: await teacherName(), tc: tc.contact || '', rq });
 }
 /** Učenik → nastavnik. */
 export async function toTeacherSuffix() {
@@ -131,6 +134,7 @@ export async function handleTaggedImport({ pkg, fileId, show, btn, card, clearHa
         else if (my.name !== info.name || my.contact !== info.contact) await setMyTeacher({ ...my, name: info.name || my.name, contact: info.contact || my.contact });
         const fromT = { tid: info.tid, name: info.name };
         const r = await importTagged(pkg, fileId, { fromT }, { fromT });
+        if (p.get('rq')) await markAnswered(p.get('rq'), pkg.name || pkg.songs[0]?.title || ''); // v1.79: odgovor na zahtev
         toast(r.updated && !r.added ? t('tch.got.updated') : t('tch.got.saved'));
         clearHash(r.setId ? '#/setlista/' + encodeURIComponent(r.setId) : '#/pesma/' + encodeURIComponent(r.ids[0]));
       }),
@@ -159,3 +163,72 @@ export async function handleTaggedImport({ pkg, fileId, show, btn, card, clearHa
   }
   return false;
 }
+
+// ---------------- v1.79: zahtevi učenika (želja / „Imaš li ovu pesmu?“) — bez Google naloga ----------------
+// Učenik → nastavnik: link #zahtev/<podaci> u poruci (preko učenikove aplikacije). Nastavnik → učenik: odgovor je
+// poslata pesma (link sa rq=<id>) ili „Nemam“ (link #odgovor/<podaci>) — tada i učenik vidi stanje zahteva.
+const b64e = (o) => btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const b64d = (s) => JSON.parse(decodeURIComponent(escape(atob(String(s).replace(/-/g, '+').replace(/_/g, '/')))));
+export const REQ_TYPES = ['wish', 'ask'];
+/** Nastavnik: kratak zapis poslatog (za pregled) — samo kod nastavnika, najviše 300 poslednjih. */
+export async function logSent(sids, kind) { const tc = await getTeacher(); const at = Date.now(); await setTeacher({ sentLog: [...(tc.sentLog || []), ...sids.map((sid) => ({ sid, kind, at }))].slice(-300) }); }
+export async function getRequests() { return ((await settings.get('requests', [])) || []).filter((r) => r && r.id); }
+export async function setRequest(id, patch) {
+  const list = await getRequests(); const i = list.findIndex((r) => r.id === id); if (i < 0) return null;
+  list[i] = { ...list[i], ...patch }; await settings.set('requests', list); return list[i];
+}
+export async function getMyRequests() { return ((await settings.get('myRequests', [])) || []).filter((r) => r && r.id); }
+async function setMyRequest(id, patch) {
+  const list = await getMyRequests(); const i = list.findIndex((r) => r.id === id); if (i < 0) return null;
+  list[i] = { ...list[i], ...patch }; await settings.set('myRequests', list); return list[i];
+}
+/** Učenik: pošalji nastavniku želju ili pitanje. */
+export async function askTeacher({ type, title, artist = '', note = '' }) {
+  const m = await getMyTeacher(); if (!m || !REQ_TYPES.includes(type)) return false;
+  const req = { id: uid(), type, title: clip(title, 80), artist: clip(artist, 60), note: clip(note, 300), at: Date.now() };
+  const { SHARE_BASE } = await import('./shareConfig.js');
+  const link = `${SHARE_BASE}#zahtev/${b64e({ v: 1, ft: m.tid, fs: m.sid, ...req })}`;
+  const what = req.artist ? `„${req.title}“ — ${req.artist}` : `„${req.title}“`;
+  const text = t(type === 'wish' ? 'tch.rq.msgWish' : 'tch.rq.msgAsk', { what, note: req.note ? `\n${req.note}\n` : '', link });
+  const final = await editMessage(t(type === 'wish' ? 'tch.rq.wish' : 'tch.rq.ask'), text, t('tch.lockMsg'));
+  if (final == null) return false;
+  await settings.set('myRequests', [...(await getMyRequests()), { ...req, status: 'sent' }]);
+  await compose({ to: m.contact || '', subject: t('tch.rq.subject'), text: final });
+  return true;
+}
+/** Nastavnik otvara link zahteva → zahtev ide u spisak (kod tog učenika). Vraća učenika ili null. */
+export async function receiveRequest(hash) {
+  let d; try { d = b64d(hash.replace(/^#zahtev\//, '').split(/[?#]/)[0]); } catch { toast(t('tch.rq.bad')); return null; }
+  const me = await getTeacher();
+  if (!me.on || d.ft !== me.id) { toast(t('tch.rq.notMine')); return null; }
+  const st = await getStudent(d.fs); if (!st) { toast(t('tch.rq.noStudent')); return null; }
+  if (!REQ_TYPES.includes(d.type) || !d.id || !d.title) { toast(t('tch.rq.bad')); return null; }
+  const list = await getRequests();
+  if (!list.some((r) => r.id === d.id)) {
+    list.push({ id: clip(d.id, 40), sid: st.id, type: d.type, title: clip(d.title, 80), artist: clip(d.artist, 60), note: clip(d.note, 300), at: Number(d.at) || Date.now(), status: 'open' });
+    await settings.set('requests', list);
+  }
+  toast(t(d.type === 'wish' ? 'tch.rq.gotWish' : 'tch.rq.gotAsk', { name: st.name }));
+  return st;
+}
+/** Nastavnik: „Nemam“ — poruka učeniku (njegova aplikacija ažurira stanje zahteva). */
+export async function answerNone(req) {
+  const st = await getStudent(req.sid); if (!st) return false;
+  const tc = await setTeacher({});
+  const { SHARE_BASE } = await import('./shareConfig.js');
+  const link = `${SHARE_BASE}#odgovor/${b64e({ v: 1, tt: tc.id, id: req.id, s: 'none' })}`;
+  const text = await editMessage(t('tch.rq.none'), t('tch.rq.msgNone', { s: st.name, title: req.title, link }), t('tch.lockMsg'));
+  if (text == null) return false;
+  await compose({ to: st.contact, subject: t('tch.subject', { t: (await teacherName()) || 'MARLI' }), text });
+  await setRequest(req.id, { status: 'none', doneAt: Date.now() });
+  return true;
+}
+/** Učenik otvara „Nemam“ odgovor. */
+export async function receiveAnswer(hash) {
+  let d; try { d = b64d(hash.replace(/^#odgovor\//, '').split(/[?#]/)[0]); } catch { return; }
+  const m = await getMyTeacher(); if (!m || d.tt !== m.tid) return;
+  const r = await setMyRequest(d.id, { status: d.s === 'none' ? 'none' : 'answered', answeredAt: Date.now() });
+  if (r) toast(t(d.s === 'none' ? 'tch.rq.ansNone' : 'tch.rq.ansOk', { title: r.title }));
+}
+/** Učenik je uvezao pesmu poslatu kao odgovor (rq u linku). */
+export async function markAnswered(id, title = '') { const r = await setMyRequest(id, { status: 'answered', answeredAt: Date.now(), gotTitle: clip(title, 80) }); return r; }

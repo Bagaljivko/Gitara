@@ -107,7 +107,7 @@ export function seed(node) {
             if (v == null) return;
             if (k === 'setlists' && Array.isArray(v)) v.forEach((x) => x && x.id && add('set:' + x.id, x.updatedAt));
             else if (k === 'folders' && Array.isArray(v)) v.forEach((x) => x && x.id && add('folder:' + x.id, 1));
-            else if (k === 'practice' || k === 'skale' || k === 'activity' || k === 'teacher' || k === 'students' || k === 'myTeacher') add(k, 1);
+            else if (k === 'practice' || k === 'skale' || k === 'activity' || k === 'teacher' || k === 'students' || k === 'myTeacher' || k === 'requests' || k === 'myRequests') add(k, 1);
             else if (k === 'geminiKey') add('secret', 1);
             else if (PREFS.has(k)) add('pref:' + k, 1);
           });
@@ -133,6 +133,6 @@ export function resetForAccount() {
 export function wipeForAccount() {
   return run(['songs', 'lib', 'deleted', 'settings', 'sync', 'syncState', 'versions'], 'readwrite', (songs, lib, deleted, settings, y, s, v) => {
     songs.clear(); lib.clear(); deleted.clear(); y.clear(); s.clear(); v.clear();
-    for (const k of ['setlists', 'folders', 'practice', 'skale', 'activity', 'teacher', 'students', 'myTeacher', 'geminiKey']) settings.delete(k);
+    for (const k of ['setlists', 'folders', 'practice', 'skale', 'activity', 'teacher', 'students', 'myTeacher', 'requests', 'myRequests', 'geminiKey']) settings.delete(k);
   });
 }

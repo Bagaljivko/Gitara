@@ -5,6 +5,10 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '1.79', date: '2026-11-09', items: [
+    { i: '⭐', sr: ['Pitaj nastavnika', 'Od nastavnika → „Želim da naučim…“ ili „Imaš li ovu pesmu?“: naslov, izvođač i napomena idu nastavniku porukom. U „Moji zahtevi“ vidiš šta je poslato, šta je stiglo i šta nastavnik nema.'], en: ['Ask your teacher', 'From teacher → “I want to learn…” or “Do you have this song?”: title, artist and a note go to your teacher in a message. “My requests” shows what was sent, what arrived and what your teacher doesn’t have.'] },
+    { i: '📊', sr: ['Pregled za nastavnika', 'Na računaru i velikom tabletu „Učenici“ su pregled: brojke, tabela učenika, zahtevi sa dugmadima Pošalji pesmu / Nemam / Rešeno i „Treba pažnje“. Na telefonu su zahtevi na stranici učenika.'], en: ['Teacher overview', 'On computers and large tablets “Students” is an overview: numbers, a students table, requests with Send song / Don’t have it / Done and “Needs attention”. On phones the requests are on the student’s page.'] },
+  ] },
   { v: '1.78', date: '2026-11-09', items: [
     { i: '🎓', sr: ['Nastava: učenici', 'Podešavanja → Nastava → „Ja sam nastavnik“: učenici, snimci i set liste po učeniku, slanje pesama i set lista jednom ili više učenika (svako dobija svoju poruku).'], en: ['Teaching: students', 'Settings → Teaching → “I’m a teacher”: students, recordings and setlists per student, sending songs and setlists to one or more students (each gets their own message).'] },
     { i: '📨', sr: ['Od nastavnika', 'Učenik prihvati pozivnicu: sve od nastavnika je na jednom mestu i osvežava se bez duplikata, a snimak se nastavniku šalje jednim dodirom. Biblioteke se nikad ne dele.'], en: ['From teacher', 'The student accepts the invite: everything from the teacher is in one place and updates without duplicates, and a recording goes to the teacher with one tap. Libraries are never shared.'] },

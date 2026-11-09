@@ -97,6 +97,9 @@ async function routeInner() {
   const myRoute = ++routeId;
   // v1.78: pozivnica nastavnika (#poziv/…): pita učenika da li prihvata, pa nastavlja na Pesme
   if (location.hash.startsWith('#poziv/')) { const h = location.hash; history.replaceState(null, '', location.pathname + '#/pesme'); import('./teachView.js').then((m) => m.acceptInvite(h)).catch((e) => console.error(e)); }
+  // v1.79: zahtev učenika (kod nastavnika) i odgovor „Nemam“ (kod učenika)
+  if (location.hash.startsWith('#zahtev/')) { const h = location.hash; history.replaceState(null, '', location.pathname + '#/ucenici'); const st = await (await import('./teach.js')).receiveRequest(h).catch(() => null); if (st) history.replaceState(null, '', location.pathname + '#/ucenici'); }
+  if (location.hash.startsWith('#odgovor/')) { const h = location.hash; history.replaceState(null, '', location.pathname + '#/od-nastavnika'); await (await import('./teach.js')).receiveAnswer(h).catch(() => {}); }
   setWakeZone(null); // ekrani koji računaju aktivnost (pesma, setlista, rečnik) je ponovo uključe
   const shared = hasSharedSong();
   const hash = shared ? '#/primljena' : location.hash || '#/tuner';
