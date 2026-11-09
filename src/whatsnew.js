@@ -5,6 +5,9 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '1.75', date: '2026-11-09', items: [
+    { i: '🎸', sr: ['Ime akorda na liniji', 'Promena akorda, Delovi pesme i Ritam (sa akordima): iznad žute linije stoji ime akorda koji sviraš, a otkucaj pre promene i sledeći („Em › G“). Brojevi i boje prstiju ostaju.'], en: ['Chord name on the line', 'Chord switch, Song parts and Rhythm (with chords): the chord you play is named above the yellow line, and one beat before a change the next one too (“Em › G”). Finger numbers and colors stay.'] },
+  ] },
   { v: '1.74', date: '2026-11-08', items: [
     { i: '👋', sr: ['Dobrodošao nazad — jedna prijava', 'Nov telefon, računar ili obrisani podaci: aplikacija odmah pita da povežeš Google nalog — pesme, podešavanja, Vežbe i Gemini ključ stižu sami.'], en: ['Welcome back — one sign-in', 'New phone, computer or cleared data: the app asks right away to connect your Google account — songs, settings, Practice and your Gemini key arrive by themselves.'] },
     { i: '☁', sr: ['Drive se sam pretraži', 'Posle povezivanja aplikacija sama nađe rezervne kopije na Drive-u i ponudi noviju (vidi se koliko je stara).'], en: ['Drive is searched by itself', 'After connecting, the app finds the backups on Drive by itself and offers the newer one (showing how old it is).'] },

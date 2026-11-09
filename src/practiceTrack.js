@@ -70,6 +70,7 @@ export function createTrack({ t, onExit, lookBeats = 4.5, onInfo = null, speed =
       <div class="trk-meter" aria-hidden="true"><span class="pr-lvl"><i></i></span><span class="trk-heard"></span></div>
     </div>
     <div class="trk-lyric" aria-live="polite"></div>
+    <div class="trk-name" aria-hidden="true"><span class="trk-tab"><b></b><small></small></span></div>
     <div class="trk-lane">
       <div class="trk-cw">
         <canvas class="trk-bg"></canvas>
@@ -89,6 +90,9 @@ export function createTrack({ t, onExit, lookBeats = 4.5, onInfo = null, speed =
   const cw = q('.trk-cw'), bg = q('.trk-bg'), gridL = q('.trk-grid'), itemsL = q('.trk-items'), fxL = q('.trk-fx'), hand = q('.trk-hand');
   const progI = q('.trk-prog i'), lvlI = q('.pr-lvl i'), heardEl = q('.trk-heard'), comboB = q('.trk-combo b'), comboEl = q('.trk-combo');
   const capEl = q('.trk-captxt'), lyrEl = q('.trk-lyric'), bigEl = q('.trk-big'), popEl = q('.trk-pop');
+  // v1.75: ime akorda iznad linije pogotka (tekući akord; „› sledeći“ se pojavi otkucaj pre promene)
+  const tabEl = q('.trk-tab'), tabB = tabEl.firstChild, tabNext = tabEl.lastChild;
+  let chordsOn = [], tabKey = '';
   const exit = () => onExit?.();
   q('.trk-x').addEventListener('click', exit);
   q('.trk-i')?.addEventListener('click', () => onInfo?.());
@@ -130,6 +134,7 @@ export function createTrack({ t, onExit, lookBeats = 4.5, onInfo = null, speed =
     cw.style.setProperty('--lh', G.laneH + 'px');
     cw.style.setProperty('--py', G.padY + 'px');
     cw.style.setProperty('--hx', G.hitX + 'px');
+    el.style.setProperty('--hx', G.hitX + 'px'); el.style.setProperty('--py', G.padY + 'px');
     // ruka: desno dole, gde note ulaze — nikad preko linije ni preko sledeće dve note
     const free = w - (G.hitX + 2 * G.ppb + G.r * 2) - 8;
     // diskretno: oko 40 % visine vrata (podsetnik u uglu, ne lik na sceni)
@@ -242,6 +247,7 @@ export function createTrack({ t, onExit, lookBeats = 4.5, onInfo = null, speed =
       }
     }
     for (let k = gi; k < gridEls.length; k++) setX(gridEls[k], 'translate3d(-9999px,0,0)');
+    if (chordsOn.length) chordTab(now);
     for (const it of items) {
       if (it.state === 'hit' && !it.deco) { release(it); continue; }
       if (it.state === 'miss' && it.doneAt && performance.now() - it.doneAt > 700) { release(it); continue; }
@@ -254,6 +260,26 @@ export function createTrack({ t, onExit, lookBeats = 4.5, onInfo = null, speed =
       else if (it.kind === 'barre') setX(e, `translate3d(${(x - r).toFixed(1)}px,${(Math.min(y(it.from), y(it.to)) - r * 0.8).toFixed(1)}px,0)`);
       else setX(e, `translate3d(${(x - r * 1.1).toFixed(1)}px,${(y(5) - r * 0.7).toFixed(1)}px,0)`); // od gornje žice
     }
+  }
+  // Ime akorda na liniji: akord koji je na liniji (ili prvi koji dolazi); sledeći (drugačiji) se doda tek kad je
+  // promena na manje od jednog otkucaja. DOM se menja samo kad se ime promeni.
+  function chordTab(now) {
+    let curC = null, nextC = null;
+    for (const c of chordsOn) {
+      if (!Number.isFinite(c.at)) { if (!curC && !nextC) nextC = c; break; }
+      const end = c.at + (c.dur || 1) * beatMs;
+      if (c.at <= now + 40 && now < end) { curC = c; continue; }
+      if (c.at > now + 40) { nextC = c; break; }
+    }
+    const main = curC || nextC;
+    const soon = curC && nextC && nextC.label !== curC.label && nextC.at - now <= beatMs ? nextC.label : '';
+    const key = (main ? main.label : '') + '\u0001' + soon;
+    if (key === tabKey) return;
+    tabKey = key;
+    if (main && tabB.textContent !== main.label) tabB.textContent = main.label;
+    if (soon) tabNext.textContent = '› ' + soon;
+    tabEl.classList.toggle('off', !main);
+    tabEl.classList.toggle('soon', !!soon);
   }
   function wake() { if (!raf && alive && !sleeping) raf = requestAnimationFrame(frame); }
   wake();
@@ -312,7 +338,11 @@ export function createTrack({ t, onExit, lookBeats = 4.5, onInfo = null, speed =
   return {
     el,
     useClock(fn) { clock = fn; },
-    setItems(list, ms) { for (const it of items) release(it); items = list; if (ms) beatMs = ms; cur = null; },
+    setItems(list, ms) {
+      for (const it of items) release(it); items = list; if (ms) beatMs = ms; cur = null;
+      chordsOn = list.filter((it) => it.kind === 'chord' && it.label).sort((a, b) => a.beat - b.beat);
+      tabKey = ''; tabEl.classList.add('off'); tabEl.classList.remove('soon');
+    },
     setGrid(gr) { grid = gr; },
     set beatMs(v) { beatMs = v; },
     /** Ocena: kind 'hit' | 'early' | 'late' | 'miss'; text = poruka; sound = cink */
@@ -353,6 +383,8 @@ export function createTrack({ t, onExit, lookBeats = 4.5, onInfo = null, speed =
     },
     /** Red teksta iznad vrata (Delovi pesme): odluči se na početku runde, visina je stalna. */
     setLyricMode(on) { el.classList.toggle('with-lyric', !!on); },
+    /** Traka za ime akorda iznad vrata (samo kad runda ima akorde; Pauk i Skale ne). */
+    setNameMode(on) { el.classList.toggle('with-name', !!on); },
     progress(frac) { progI.style.transform = `scaleX(${Math.max(0, Math.min(1, frac)).toFixed(3)})`; },
     level(lv, note) {
       const now = performance.now();
@@ -719,6 +751,7 @@ export function trackGame(api, cfg) {
     runner?.stop();
     track.reset();
     track.setLyricMode(round.items.some((it) => it.lyric !== undefined));
+    track.setNameMode(round.items.some((it) => it.kind === 'chord' && it.label));
     track.relayout(); // raspored se meri jednom, na početku runde
     runner = runTrack({
       api, track, t, items: round.items, bpm: round.bpm || bpm, wait: round.wait ?? api.wait,
@@ -756,6 +789,7 @@ export function trackGame(api, cfg) {
     if (!track || my !== gen || !api.running) return;
     const d = cfg.demo, its = d.items();
     track.setLyricMode(its.some((it) => it.lyric !== undefined));
+    track.setNameMode(its.some((it) => it.kind === 'chord' && it.label));
     track.relayout();
     runner = runTrack({
       api, track, t, items: its, bpm: d.bpm, demo: { play: d.play, early: d.early, captions: d.captions },

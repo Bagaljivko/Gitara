@@ -230,6 +230,19 @@ body.trk-open { overflow: hidden; }
 .trk-lyric { flex: 0 0 auto; height: 0; overflow: hidden; text-align: center; font-weight: 600; padding: 0 16px; white-space: nowrap; text-overflow: ellipsis; contain: strict; }
 .trk.with-lyric .trk-lyric { height: 1.9em; line-height: 1.9em; font-size: clamp(.9rem, 4.2vh, 1.15rem); }
 .trk-lane { position: relative; flex: 1 1 auto; min-height: 0; }
+/* v1.75: ime akorda — jezičak na vrhu vrata, tačno iznad linije pogotka; sledeći akord („› Em“) se doda otkucaj pre promene */
+.trk-name { flex: 0 0 auto; height: 0; position: relative; z-index: 4; pointer-events: none; }
+.trk.with-name .trk-name { height: 1.75rem; }
+.trk.with-name.with-lyric .trk-name { height: 0; } /* Delovi pesme: jezičak ulazi u red teksta (bez nove trake) */
+.trk.with-name.with-lyric .trk-lyric { padding: 0 calc(var(--hx, 120px) + 70px); }
+.trk-tab { position: absolute; left: var(--hx, 120px); bottom: calc(-1 * var(--py, 12px)); transform: translateX(-50%); display: none;
+  padding: 0 .5em; border-radius: 10px 10px 0 0; background: var(--accent); color: #111; font-size: 1.2rem; font-weight: 900; line-height: 1.5;
+  white-space: nowrap; box-shadow: 0 -2px 12px rgba(245, 165, 36, .4); transition: opacity .2s; }
+.trk.with-name .trk-tab { display: block; }
+.trk-tab.off { opacity: 0; }
+.trk-tab small { position: absolute; left: calc(100% - 8px); top: 0; bottom: 0; display: flex; align-items: center; padding: 0 .55em 0 .6em;
+  border-radius: 0 10px 0 0; background: var(--accent); color: rgba(17, 17, 17, .55); font-size: .68em; font-weight: 800; opacity: 0; transition: opacity .25s; }
+.trk-tab.soon small { opacity: 1; }
 .trk-cw { position: absolute; inset: 0; overflow: hidden; contain: strict; }
 .trk-bg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .trk-layer { position: absolute; inset: 0; pointer-events: none; }
