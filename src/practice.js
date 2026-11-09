@@ -201,6 +201,7 @@ async function renderHub(root) {
     <header class="view-head pr-hub-head"><h1>${t('pr.title')}</h1></header>
     <p class="muted pr-intro">${t('pr.intro')}</p>
     <div id="stWeekBox"></div>
+    <div id="prPlan"></div>
     ${todayCardHTML(sug, streak, doneToday)}
     <div class="pr-cards">
       ${GAMES.map((g) => {
@@ -220,6 +221,15 @@ async function renderHub(root) {
     </div>
     <div id="stSongsBox"></div>
   </section>`;
+  // v1.83: zadaci od nastavnika (samo kod učenika koji ima plan)
+  settings.get('myTeacher', null).then(async (m) => {
+    if (!m || !m.planFile) return;
+    const V = await import('./planView.js');
+    const draw = async () => { const b = root.querySelector('#prPlan'); if (b && b.isConnected) await V.drawHubCard(b); };
+    await draw();
+    const P = await import('./plan.js'); P.watchTasks();
+    if (await P.refreshPlan().catch(() => false)) draw();
+  }).catch(() => {});
   // v1.73: ova nedelja (+ cilj), moje pesme, dugo nisi svirao — posle prvog prikaza, da hub ne čeka
   import('./statsView.js').then(async (S) => {
     let all = false;

@@ -43,7 +43,7 @@ const hasSharedSong = () => location.hash.startsWith('#pesma=') || location.hash
 // Osećaj prave aplikacije: dugi pritisak ne otvara meni pregledača („Kopiraj / Potraži / Sačuvaj sliku“), ništa se ne
 // označava i ne prevlači — osim u poljima za unos (gde se kuca i lepi tekst).
 const editable = (el) => !!(el && el.closest && el.closest('input, textarea, [contenteditable]:not([contenteditable="false"])'));
-for (const ev of ['contextmenu', 'selectstart', 'dragstart']) document.addEventListener(ev, (e) => { if (!editable(e.target)) e.preventDefault(); }, { capture: true });
+for (const ev of ['contextmenu', 'selectstart', 'dragstart']) document.addEventListener(ev, (e) => { if (!editable(e.target) && !(ev === 'dragstart' && e.target.closest && e.target.closest('[draggable="true"]'))) e.preventDefault(); }, { capture: true }); // v1.83: namerno prevlačenje (plan, pesme u folder na računaru) radi
 
 const app = document.getElementById('app');
 const views = {};
@@ -117,6 +117,7 @@ async function routeInner() {
   // v1.79: zahtev učenika (kod nastavnika) i odgovor „Nemam“ (kod učenika)
   if (location.hash.startsWith('#zahtev/')) { const h = location.hash; history.replaceState(null, '', location.pathname + '#/ucenici'); const st = await (await import('./teach.js')).receiveRequest(h).catch(() => null); if (st) history.replaceState(null, '', location.pathname + '#/ucenici'); }
   if (location.hash.startsWith('#napredak/')) { const h = location.hash; history.replaceState(null, '', location.pathname + '#/ucenici'); const st = await (await import('./teach.js')).receiveProgress(h).catch(() => null); if (st) history.replaceState(null, '', location.pathname + '#/ucenik/' + encodeURIComponent(st.id)); } // v1.80
+  if (location.hash.startsWith('#plan/')) { const h = location.hash; history.replaceState(null, '', location.pathname + '#/vezbe'); await (await import('./plan.js')).receivePlanLink(h).catch(() => {}); } // v1.83: plan od nastavnika
   if (location.hash.startsWith('#odgovor/')) { const h = location.hash; history.replaceState(null, '', location.pathname + '#/od-nastavnika'); await (await import('./teach.js')).receiveAnswer(h).catch(() => {}); }
   setWakeZone(null); // ekrani koji računaju aktivnost (pesma, setlista, rečnik) je ponovo uključe
   const shared = hasSharedSong();
@@ -349,7 +350,7 @@ idle(() => import('./keys.js').then((m) => m.initKeys()).catch(() => {}));
 idle(() => import('./whatsnew.js').then((m) => m.navDot()).catch(() => {}));
 idle(() => import('./activity.js').then((m) => m.startActivity()).catch(() => {})); // v1.73: svirano / vežbano
 idle(() => import('./feedback.js').then((m) => m.initFeedback()).catch(() => {})); // v1.76: utisci koji čekaju se pošalju
-idle(() => import('./db.js').then(async ({ settings }) => { const m = await settings.get('myTeacher', null); if (m && m.prog && m.prog.on) (await import('./progress.js')).initProgress(); }).catch(() => {})); // v1.80: napredak za nastavnika (samo ako je uključeno)
+idle(() => import('./db.js').then(async ({ settings }) => { const m = await settings.get('myTeacher', null); if (m && m.prog && m.prog.on) (await import('./progress.js')).initProgress(); if (m && m.planFile) { const P = await import('./plan.js'); P.watchTasks(); P.refreshPlan().catch(() => {}); } }).catch(() => {})); // v1.80: napredak za nastavnika (samo ako je uključeno)
 const DESK = matchMedia('(min-width: 1100px) and (hover: hover) and (pointer: fine)');
 const deskAcct = () => { if (DESK.matches) import('./navAcct.js').then((m) => m.initNavAcct()).catch(() => {}); };
 deskAcct(); DESK.addEventListener?.('change', deskAcct); // v1.77: nalog u gornjoj traci (samo računar)

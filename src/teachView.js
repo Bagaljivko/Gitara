@@ -79,6 +79,7 @@ export async function renderStudent(root, id) {
     <div class="tch-hero">${T.avatarHTML(s, 56)}<div><h1>${esc(s.name)}</h1><small class="muted">${esc([s.contact, t('tch.since', { d: ((d) => `${d.getDate()}. ${d.getMonth() + 1}. ${d.getFullYear()}.`)(new Date(s.createdAt || Date.now())) })].filter(Boolean).join(' · '))}</small></div></div>
     <div class="tch-actions"><button class="btn primary" id="tSend">${t('tch.sendTo', { name: s.name })}</button><button class="btn" id="tMore" aria-label="${esc(t('tch.more'))}">⋯</button></div>
     <div id="tProg">${s.prog ? `<div class="tch-sec"><span>${t('prog.head')}</span></div><p class="muted small tch-none">${t('prog.loading')}</p>` : ''}</div>
+    <div id="tPlan" class="pl-tch"></div>
     ${reqs.length ? `<div class="tch-sec"><span>${t('tch.rq.head')}</span></div><div class="set-grp tch-reqs">${reqs.map((r) => reqHTML(r)).join('')}</div>` : ''}
     <div class="tch-sec"><span>${t('tch.setlists')}</span><button class="linkish" id="tNewSet">+ ${t('tch.newSet')}</button></div>
     ${sets.length ? `<div class="set-grp">${sets.map((sl) => `<a class="tch-row" href="#/setlista/${encodeURIComponent(sl.id)}">${ic('list')}<span><b>${esc(sl.name)}</b><small>${songsCount((sl.songIds || []).length)}${(sl.sentTo || {})[id] ? ' · ' + t('tch.sentOn', { d: day(sl.sentTo[id]) }) : ''}</small></span>${CHEV}</a>`).join('')}</div>` : `<p class="muted small tch-none">${t('tch.noSets')}</p>`}
@@ -87,7 +88,14 @@ export async function renderStudent(root, id) {
   </section>`;
   root.querySelector('#tSend').addEventListener('click', () => sendMenu([s]));
   bindReqs(root, () => renderStudent(root, id));
-  if (s.prog) progressCardHTML(s).then((h) => { const box = root.querySelector('#tProg'); if (box) box.innerHTML = h; }).catch(() => {});
+  if (s.prog) progressCardHTML(s, true).then((h) => { const box = root.querySelector('#tProg'); if (box) box.innerHTML = h; }).catch(() => {});
+  // v1.83: zadaci i plan učenja (stanje iz učenikovog napretka, ako ga deli)
+  (async () => {
+    const box = root.querySelector('#tPlan'); if (!box) return;
+    const V = await import('./planView.js');
+    await V.drawTeacherPlan(box, id, null);
+    if (s.prog) { const P = await import('./progress.js'); const pr = await P.studentProgress(s, { fresh: true }).catch(() => null); if (pr && !pr.err && !pr.gone && box.isConnected) V.drawTeacherPlan(box, id, pr); }
+  })().catch((e) => console.error(e));
   root.querySelector('#tNewSet').addEventListener('click', async () => {
     const { askName } = await import('./setlistsView.js');
     const name = await askName(t('tch.newSet'), t('tch.forNextLesson'));
@@ -260,6 +268,7 @@ export async function renderFromTeacher(root) {
     <a class="back tch-back" href="#/pesme">‹ ${t('lib.title')}</a>
     <header class="view-head tch-head"><h1>${t('tch.fromTeacher')}</h1></header>
     <div class="card tch-teacher">${T.avatarHTML({ name: m.name || '?', color: '#f5a524' }, 44)}<span><b>${esc(m.name || t('tch.teacher'))}</b><small class="muted">${t('tch.yourTeacher')}${m.contact ? ' · ' + esc(m.contact) : ''}</small></span></div>
+    <div id="tMyPlan"></div>
     <div class="tch-ask"><button class="btn" id="tWish">⭐ ${t('tch.rq.wish')}</button><button class="btn" id="tAsk">❓ ${t('tch.rq.ask')}</button></div>
     <div class="tch-sec"><span>${t(progOn ? 'prog.sharing' : 'prog.share')}</span><label class="switch tch-psw"><input type="checkbox" id="tProgSw"${progOn ? ' checked' : ''} aria-label="${esc(t('prog.shareWith', { t: tn }))}"><span class="switch-track"><span class="switch-thumb"></span></span></label></div>
     ${progBody}
@@ -271,6 +280,13 @@ export async function renderFromTeacher(root) {
     <button class="btn small tch-disc" id="tDisc">${t('tch.disconnect')}</button>
   </section>`;
   root.querySelector('#tBack').addEventListener('click', () => sendToTeacher());
+  // v1.83: plan od nastavnika (osveži pri otvaranju)
+  if (m.planFile) import('./planView.js').then(async (V) => {
+    const box = root.querySelector('#tMyPlan'); if (!box) return;
+    await V.drawMyPlan(box);
+    const P = await import('./plan.js'); P.watchTasks();
+    if (await P.refreshPlan({ force: true }).catch(() => false) && box.isConnected) V.drawMyPlan(box);
+  }).catch(() => {});
   root.querySelector('#tWish').addEventListener('click', async () => { if (await askTeacherFlow('wish')) renderFromTeacher(root); });
   root.querySelector('#tAsk').addEventListener('click', async () => { if (await askTeacherFlow('ask')) renderFromTeacher(root); });
   root.querySelector('#tDisc').addEventListener('click', () => disconnectTeacher());
@@ -421,6 +437,7 @@ export async function renderDashboard(root) {
   const total = sharing.reduce((a, r) => a + r.w.total, 0), totalLast = sharing.reduce((a, r) => a + r.w.lastWeek, 0);
   const maxT = Math.max(1, ...sharing.map((r) => r.w.total));
   const { fmtDur } = await import('./statsView.js');
+  const V = await import('./planView.js');
   const diff = (a, b, fmt) => (a === b || (!a && !b) ? `<em>${t('tch.d.week')}</em>` : `<em class="${a > b ? 'up' : ''}">${a > b ? '+' : '−'}${fmt(Math.abs(a - b))} ${t('st.vsLast')}</em>`);
   const attention = [
     ...rows.filter((r) => r.w && r.w.idle != null && r.w.idle >= 7).map((r) => ({ c: 'tp red', n: '!', txt: t('prog.attIdle', { name: r.s.name, n: r.w.idle }) })),
@@ -446,8 +463,8 @@ export async function renderDashboard(root) {
     </div>
     <div class="db">
       <div class="db-card"><h2>${t('tch.d.all')}</h2>
-        ${students.length ? `<table class="db-tbl"><thead><tr><th>${t('tch.d.cStudent')}</th><th>${t('prog.cWeek')}</th><th>${t('prog.cStreak')}</th><th>${t('prog.cBest')}</th><th>${t('prog.cLast')}</th><th>${t('tch.d.cOpen')}</th></tr></thead><tbody>
-        ${rows.map((r) => `<tr data-go="${esc(r.s.id)}"><td><div class="who">${T.avatarHTML(r.s, 34)}<span><b>${esc(r.s.name)}</b><small>${esc(r.s.contact || t('tch.noContact'))}</small></span></div></td>${progCells(r)}<td>${r.open ? `<span class="tp">${r.open}</span>` : ''}</td></tr>`).join('')}
+        ${students.length ? `<table class="db-tbl"><thead><tr><th>${t('tch.d.cStudent')}</th><th>${t('prog.cWeek')}</th><th>${t('prog.cStreak')}</th><th>${t('prog.cBest')}</th><th>${t('prog.cLast')}</th><th>${t('plan.col')}</th><th>${t('tch.d.cOpen')}</th></tr></thead><tbody>
+        ${rows.map((r) => `<tr data-go="${esc(r.s.id)}"><td><div class="who">${T.avatarHTML(r.s, 34)}<span><b>${esc(r.s.name)}</b><small>${esc(r.s.contact || t('tch.noContact'))}</small></span></div></td>${progCells(r)}<td>${esc(V.dashCell(r.s, r.p && !r.p.err && !r.p.gone ? r.p : null))}</td><td>${r.open ? `<span class="tp">${r.open}</span>` : ''}</td></tr>`).join('')}
         </tbody></table>` : `<p class="muted db-empty">${t('tch.emptyBody')}</p>`}
       </div>
       <div class="db-side">

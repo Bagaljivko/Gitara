@@ -36,7 +36,8 @@ export async function buildSummary() {
     songs.push({ title: String(s.title || '').slice(0, 80), n: w.reduce((x, [, v]) => x + (v[0] || 0), 0), from: w[0][1][1] || 0, to: Math.max(...w.map(([, v]) => v[1] || 0)) });
   }
   songs.sort((a, b) => b.n - a.n);
-  return { v: 1, start, today, days, total: days.reduce((a, b) => a + b, 0), lastWeek, streak, lastDay, rounds: games.reduce((s, g) => s + g.n, 0), games: games.slice(0, 6), songs: songs.slice(0, 4) };
+  const tasks = await (await import('./plan.js')).summaryTasks().catch(() => null); // v1.83: stanje zadataka od nastavnika (samo brojevi)
+  return { v: 1, ...(tasks ? { tasks } : {}), start, today, days, total: days.reduce((a, b) => a + b, 0), lastWeek, streak, lastDay, rounds: games.reduce((s, g) => s + g.n, 0), games: games.slice(0, 6), songs: songs.slice(0, 4) };
 }
 
 const hashOf = (s) => { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return String(h >>> 0); };

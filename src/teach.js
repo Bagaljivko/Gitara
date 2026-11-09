@@ -50,6 +50,7 @@ export async function updateStudent(id, patch) {
 }
 /** Brisanje učenika: ime i kontakt nestaju; njegovi snimci ostaju („Bez učenika“), set liste ostaju (bez njega). */
 export async function removeStudent(id) {
+  const gone = await getStudent(id); if (gone && gone.planFile) await (await import('./plan.js')).dropPlanFile(gone).catch(() => {}); // v1.83: i fajl sa planom
   await settings.set('students', (await getStudents()).filter((s) => s.id !== id));
   const { songs } = await import('./db.js');
   for (const s of await songs.all()) if (s.student === id) { const { student, ...rest } = s; await songs.save(rest); }
@@ -199,6 +200,7 @@ export async function handleTaggedImport({ pkg, fileId, show, btn, card, clearHa
 // poslata pesma (link sa rq=<id>) ili „Nemam“ (link #odgovor/<podaci>) — tada i učenik vidi stanje zahteva.
 const b64e = (o) => btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const b64d = (s) => JSON.parse(decodeURIComponent(escape(atob(String(s).replace(/-/g, '+').replace(/_/g, '/')))));
+export const encodeLink = b64e, decodeLink = b64d; // v1.83: i za link plana
 export const REQ_TYPES = ['wish', 'ask'];
 /** Nastavnik: kratak zapis poslatog (za pregled) — samo kod nastavnika, najviše 300 poslednjih. */
 export async function logSent(sids, kind) { const tc = await getTeacher(); const at = Date.now(); await setTeacher({ sentLog: [...(tc.sentLog || []), ...sids.map((sid) => ({ sid, kind, at }))].slice(-300) }); }
