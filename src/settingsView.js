@@ -258,6 +258,8 @@ export async function renderSettings(root) {
   if ($('deskNote')) { const dn = $('deskNote'); dn.classList.add('card'); dn.id = 'deskNoteCard'; const inner = document.createElement('div'); inner.id = 'deskNote'; while (dn.firstChild) inner.appendChild(dn.firstChild); dn.appendChild(inner); const h = inner.querySelector('h2'); if (h) dn.prepend(h); mkDet('pc', dn); }
   const extra = root.querySelector('.settings-view > .about');
   if (extra && dets.about) dets.about.querySelector('.set-body').appendChild(extra);
+  // v1.78: Nastava — „Ja sam nastavnik“ (i „Moj nastavnik“ kod učenika)
+  { const tc = document.createElement('div'); tc.className = 'card'; tc.id = 'teachCard'; tc.innerHTML = `<h2>${t('tch.section')}</h2><div id="teachBody"></div>`; view.appendChild(tc); mkDet('teach', tc); }
 
   const I = {
     tuner: '<path d="M10 2h4v8.3a4 4 0 1 1-4 0zM7 4h2v6H7zm8 0h2v6h-2z"/>',
@@ -272,6 +274,7 @@ export async function renderSettings(root) {
     install: '<path d="M11 3h2v9l3-3 1.4 1.4L12 15.8 6.6 10.4 8 9l3 3zM4 18h16v2H4z"/>',
     keys: '<path d="M2 6h20v12H2zm2 2v2h2V8zm4 0v2h2V8zm4 0v2h2V8zm4 0v2h2V8zM4 12v2h2v-2zm4 0v2h8v-2zm10 0v2h2v-2z"/>',
     diag: '<path d="M20 8h-2.8a6 6 0 0 0-1.8-2l1.6-1.6L15.6 3l-2.2 2.2a6 6 0 0 0-2.8 0L8.4 3 7 4.4 8.6 6a6 6 0 0 0-1.8 2H4v2h2.1a6 6 0 0 0 0 1H4v2h2.1a6 6 0 0 0 0 1H4v2h2.8a6 6 0 0 0 10.4 0H20v-2h-2.1a6 6 0 0 0 0-1H20v-2h-2.1a6 6 0 0 0 0-1H20zm-6 8h-4v-2h4zm0-4h-4v-2h4z"/>',
+    teach: '<path d="M12 3 1 9l11 6 9-4.9V17h2V9L12 3zm-7 9.2v4L12 20l7-3.8v-4L12 16l-7-3.8z"/>',
     fb: '<path d="M4 3h16a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H9l-5 4v-4H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm3 5v2h10V8zm0 4v2h7v-2z"/>',
     privacy: '<path d="M17 9V7a5 5 0 0 0-10 0v2H5v13h14V9zm-8-2a3 3 0 0 1 6 0v2H9z"/>',
   };
@@ -285,6 +288,7 @@ export async function renderSettings(root) {
     <h3 class="set-sec">${t('set.s.play')}</h3><div class="set-grp">${rowH('tuner', t('set.tunerTitle'), 'g')}${rowH('songs', t('set.songsTitle'))}${rowH('screen', t('set.g.screen'))}</div>
     <h3 class="set-sec">${t('set.s.app')}</h3><div class="set-grp">${rowH('lang', t('set.g.lang'))}${rowH('scan', t('set.g.key'))}</div>
     <h3 class="set-sec">${t('set.s.data')}</h3><div class="set-grp">${rowH('drive', t('set.g.sync'))}${rowH('file', t('bk.title'), 'g')}${rowH('shared', t('shared.title'))}</div>
+    <h3 class="set-sec">${t('tch.section')}</h3><div class="set-grp">${rowH('teach', t('tch.sectionRow'), 'n')}</div>
     <h3 class="set-sec">${t('set.s.more')}</h3><div class="set-grp">
       <button type="button" class="set-row" data-act="fb">${ico('fb', 'g')}<span class="sr-t">${t('fb.title')}</span><span class="sr-v">${t('fb.rowSub')}</span><span class="sr-chev" aria-hidden="true">›</span></button>${rowH('pc', t('pc.title'), 'n')}${rowH('install', t('set.installTitle'), 'n')}
       ${isComputer() ? `<button type="button" class="set-row" data-act="keys">${ico('keys', 'n')}<span class="sr-t">${t('keys.title')}</span><span class="sr-chev" aria-hidden="true">›</span></button>` : ''}
@@ -319,6 +323,8 @@ export async function renderSettings(root) {
 
   // trenutne vrednosti u redovima i u gornjoj kartici
   const setV = (k, txt, cls = '') => { const el = home.querySelector(`[data-v="${k}"]`); if (el) { el.textContent = txt; el.className = 'sr-v ' + cls; } };
+  const drawTeach = () => import('./teachView.js').then((m) => m.renderTeachSettings($('teachBody'), (v) => setV('teach', v))).catch((e) => console.error(e));
+  drawTeach();
   const drawVals = async () => {
     if (!root.isConnected && !home.isConnected) return;
     const tun = $('tsetBox')?.querySelector('.tset-tuning.active b')?.textContent?.trim() || '';

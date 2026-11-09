@@ -42,6 +42,7 @@ export function summarize(rec) {
     v: LIB_V, id: rec.id, title: rec.title || '', artist: rec.artist || '', key: rec.key || '', keyN: rec.keyN || null,
     transpose: rec.transpose || 0, capo: rec.capo || 0, tuning: rec.tuning || '', folders: rec.folders || [],
     demo: !!rec.demo, createdAt: rec.createdAt || 0, updatedAt: rec.updatedAt || 0, ...(rec.type === 'tab' ? { type: 'tab' } : {}),
+    ...(rec.student ? { student: rec.student } : {}), ...(rec.fromStudent ? { fromStudent: 1 } : {}), ...(rec.fromT ? { fromT: 1 } : {}), // v1.78: nastava
     hasTabs: secs.some((x) => (x.tabs || []).length),
     find: fold(secs.map((sec) => (sec.lines || []).map((l) => l.text || '').join('\n')).join('\n')), // za pretragu teksta
   };
@@ -82,7 +83,7 @@ export function notifyRemote(keys) {
 // Više izmena iste stavke pre slanja = jedna promena. Verzija (hibridni sat) je uvek veća od one koju zamenjuje.
 export const PREF_KEYS = ['a4', 'lang', 'metBpm', 'tunerRoom', 'tuning', 'wakeMode', 'wakeMinutes', 'noteNames', 'geminiModel', 'geminiModelSel', 'syncMigrated', 'myRhythms', 'strumSuggest', 'weekGoal'];
 const LIST_KEYS = { setlists: 'set:', folders: 'folder:' }; // nizovi: svaka set lista / folder je posebna stavka
-const WHOLE_KEYS = ['practice', 'skale', 'activity']; // v1.73: activity = svirano/vežbano po uređaju
+const WHOLE_KEYS = ['practice', 'skale', 'activity', 'teacher', 'students', 'myTeacher']; // v1.73: activity = svirano/vežbano po uređaju; v1.78: nastava
 export function SYNC_SETTING_OF(k) {
   if (k.startsWith('set:')) return 'setlists';
   if (k.startsWith('folder:')) return 'folders';

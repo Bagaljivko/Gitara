@@ -114,6 +114,43 @@ export async function shareItem(item, { fresh = false } = {}) {
   } finally { clearTimeout(slow); busy = false; }
 }
 
+/** v1.78 (Nastava): poruka za jednu osobu, uvek preko korisnikove aplikacije (MARLI sam ništa ne šalje):
+ *  imejl → mailto (primalac popunjen), telefon na telefonu → SMS, inače meni za deljenje; bez njega se poruka kopira. */
+const isEmailAddr = (c) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c || '');
+const isPhoneNo = (c) => /^[+\d][\d\s/().-]{5,}$/.test(c || '');
+export async function composeMessage({ to = '', subject = '', text, kind = '' }) {
+  if (globalThis.__marliTest?.compose) return globalThis.__marliTest.compose({ to, subject, text, kind }); // samo testovi
+  const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const k = kind || (isEmailAddr(to) ? 'mail' : isPhoneNo(to) && mobile ? 'sms' : navigator.share ? 'share' : 'mail');
+  if (k === 'mail') { location.href = `mailto:${isEmailAddr(to) ? encodeURIComponent(to) : ''}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`; return true; }
+  if (k === 'sms') { location.href = `sms:${encodeURIComponent(to.replace(/[^\d+]/g, ''))}?body=${encodeURIComponent(text)}`; return true; }
+  if (navigator.share) { try { await navigator.share({ text }); return true; } catch (e) { if (e && e.name === 'AbortError') return false; } }
+  return copyLink(text, t('tch.copied')).then(() => true, () => false);
+}
+
+/** v1.78 (Nastava): samo objavi predmet i vrati link (bez menija za deljenje) — poruke za učenike / nastavnika
+ *  sastavlja teach.js, posebno za svakog primaoca. Isti predmet = isti fajl (izmene stižu na isti link). */
+export async function publishOnly(item) {
+  if (globalThis.__marliTest?.publish) return globalThis.__marliTest.publish(item); // samo testovi (bez Google Drive-a)
+  const file = await buildShareFile(item);
+  if (navigator.onLine === false) { await needAccount(item); return null; }
+  const drive = await import('./drive.js');
+  try { await drive.shareToken({ interactive: false }); }
+  catch { const ok = await dialog({ title: t('share.needTitle'), body: t('share.needBody'), buttons: [{ label: t('common.cancel'), value: null }, { label: t('share.connect'), value: 'go', kind: 'primary' }] });
+    if (ok !== 'go') return null;
+    try { await drive.shareToken({ interactive: true }); } catch { toast(t('share.failed'), 'error'); return null; } }
+  const slow = setTimeout(() => toast(t('share.making')), 700);
+  try { return await publish(drive, item, file, false); }
+  catch (e) { await dialog({ title: t('share.failedTitle'), body: (e && e.message) || t('share.failed') }); return null; }
+  finally { clearTimeout(slow); }
+}
+export const songItem = (song) => ({ key: 'song:' + song.id, kind: 'song', name: song.title, artist: song.artist || '', songs: [song], what: isRec(song) ? 'rec' : song.type === 'tab' ? 'tab' : 'song' });
+export async function setlistItem(sl) {
+  const got = await Promise.all((sl.songIds || []).map((id) => db.get(id).catch(() => null)));
+  const list = got.filter(Boolean);
+  return list.length ? { key: 'set:' + sl.id, kind: 'set', name: sl.name, songs: list, what: 'set', missing: got.length - list.length } : null;
+}
+
 /** Meni telefona za deljenje — odmah, dok dodir još važi; inače jedno dugme „Podeli“ (nov dodir). */
 async function openShare(item, res, who, tap) {
   const msg = shareMessage(item, res.link, who);

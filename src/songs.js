@@ -52,15 +52,21 @@ function markOpened(id) {
 const foldMemo = new WeakMap();
 const folded = (s) => { let f = foldMemo.get(s); if (!f) { f = { t: fold(s.title), a: fold(s.artist) }; foldMemo.set(s, f); } return f; };
 const libKey = (s) => (s.keyN ? keyName({ root: (s.keyN.root + (s.transpose || 0) + 120) % 12, minor: s.keyN.minor }, 'en') : s.key);
+let STUDENT_NAMES = new Map(); // v1.78: id učenika → ime (za oznaku na snimku)
+export async function loadStudentNames() { try { const T = await import('./teach.js'); STUDENT_NAMES = new Map((await T.getStudents()).map((s) => [s.id, s.name])); } catch {} }
 function libBadges(s) {
   const b = [];
   if (s.type === 'tab') b.push('<span class="badge-sm tab-badge">TAB</span>');
   if (s.capo) b.push(`<span class="badge-sm" title="${esc(t('capo.title'))}">${esc(t('lib.badgeCapo', { n: s.capo }))}</span>`);
   if (s.tuning && s.tuning !== 'standard') b.push(`<span class="badge-sm">${esc(t('tuning.' + s.tuning))}</span>`);
   if (s.type !== 'tab' && (s.hasTabs ?? (s.sections || []).some((x) => (x.tabs || []).length))) b.push('<span class="badge-sm tab-badge">TAB</span>'); // isti izgled svuda
+  // v1.78: nastava — čiji je snimak / od nastavnika
+  if (s.student && STUDENT_NAMES.has(s.student)) b.push(`<span class="badge-sm tch-badge">${esc(STUDENT_NAMES.get(s.student))}</span>`);
+  if (s.fromT) b.push(`<span class="badge-sm tch-badge">${esc(t('tch.fromTeacherShort'))}</span>`);
   return b.length ? ' ' + b.join(' ') : '';
 }
 export async function renderLibrary(root, params = new URLSearchParams()) {
+  await loadStudentNames(); // v1.78
   const sortPref = localStorageGet('gitara-sort') || 'new';
   const tab = params.get('tab') === 'sl' ? 'sl' : 'songs';
   root.innerHTML = `
@@ -127,8 +133,11 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
     $('lGroup').disabled = sl;
   };
   $('lGroup').addEventListener('click', async () => {
-    const r = await openGroupSheet({ all, folders, cur: folderFilter, inGroup, anchor: $('lGroup') });
+    let teach = null;
+    try { const T = await import('./teach.js'); const [tc, my, sts] = await Promise.all([T.getTeacher(), T.getMyTeacher(), T.getStudents()]); teach = { on: !!tc.on, n: sts.length, my }; } catch {}
+    const r = await openGroupSheet({ all, folders, cur: folderFilter, inGroup, anchor: $('lGroup'), teach });
     if (!r) return;
+    if (r.nav) { location.hash = r.nav; return; } // v1.78: Učenici / Od nastavnika
     if (r.manage) {
       const res = await manageFolder(folders.find((f) => f.id === r.manage));
       folders = await getFolders();
@@ -255,13 +264,14 @@ const GRP_ICONS = {
   plus: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></svg>',
   check: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg>',
   more: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>',
+  students: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 1 9l11 6 9-4.9V17h2V9L12 3zm-7 9.2v4L12 20l7-3.8v-4L12 16l-7-3.8z"/></svg>',
 };
 /**
  * Izbor grupe — padajući meni ispod naslova: Sve pesme, Nedavno otvorene, TAB pesme, Moji snimci, moji folderi
  * (⋯ = preimenuj/obriši) i + Novi folder. Izvođači se ne nude (pretraga ih nalazi).
  * Vraća { g } | { manage: id } | { add: true } | null.
  */
-function openGroupSheet({ all, folders, cur, inGroup, anchor }) {
+function openGroupSheet({ all, folders, cur, inGroup, anchor, teach = null }) {
   return new Promise((resolve) => {
     const rec = new Set(Object.entries(openedMap()).sort((a, b) => b[1] - a[1]).slice(0, 30).map(([k]) => k));
     const n = (g) => all.filter((s) => inGroup(s, g, rec)).length;
@@ -276,6 +286,8 @@ function openGroupSheet({ all, folders, cur, inGroup, anchor }) {
       ${rec.size ? row('auto:recent', t('lib.groupRecent'), GRP_ICONS['auto:recent'], n('auto:recent')) : ''}
       ${n('auto:tab') ? row('auto:tab', t('lib.groupTab'), GRP_ICONS['auto:tab'], n('auto:tab')) : ''}
       ${sys.map((f) => row(f.id, folderLabel(f), GRP_ICONS.rec, n(f.id))).join('')}
+      ${teach && teach.on ? `<button class="grp-row" role="menuitem" data-nav="#/ucenici"><span class="grp-ic">${GRP_ICONS.students}</span><span class="grp-name">${esc(t('tch.students'))}</span><span class="grp-n">${teach.n}</span></button>` : ''}
+      ${teach && teach.my ? `<button class="grp-row" role="menuitem" data-nav="#/od-nastavnika"><span class="grp-ic">${GRP_ICONS.students}</span><span class="grp-name">${esc(t('tch.fromTeacher'))}</span><span class="grp-n">${all.filter((s) => s.fromT).length}</span></button>` : ''}
       <div class="grp-sep"></div>
       <div class="grp-head">${t('lib.groupsFolders')}</div>
       ${own.map((f) => row(f.id, folderLabel(f), GRP_ICONS.folder, n(f.id), `<span class="grp-more" data-gm="${esc(f.id)}" role="button" aria-label="${esc(t('folder.manage', { name: folderLabel(f) }))}">${GRP_ICONS.more}</span>`)).join('') || `<p class="small muted grp-empty">${t('lib.groupsMineEmpty')}</p>`}
@@ -292,6 +304,7 @@ function openGroupSheet({ all, folders, cur, inGroup, anchor }) {
     wrap.addEventListener('click', (e) => {
       const m = e.target.closest('[data-gm]'); if (m) { e.stopPropagation(); return done({ manage: m.dataset.gm }); }
       if (e.target.closest('[data-gadd]')) return done({ add: true });
+      const nv = e.target.closest('[data-nav]'); if (nv) return done({ nav: nv.dataset.nav });
       const rw = e.target.closest('[data-g]'); if (rw) return done({ g: rw.dataset.g });
       if (!e.target.closest('.grp-pop')) done(null);
     });
@@ -1634,10 +1647,21 @@ export async function renderSong(root, id, nav = null) {
   const outsideAa = (e) => { if (!aaPop.contains(e.target)) closeAa(); };
   // „⋯“: veličina slova (isti klizač kao ranije „Aa“), prethodne verzije; dva prsta = uvećanje teksta
   $('sMore').addEventListener('click', async () => {
+    // v1.78: nastava — „Pošalji učeniku…“ (nastavnik) i „Pošalji nastavniku“ (učenik)
+    let teachItems = [];
+    try { const T = await import('./teach.js'); const [on, my] = await Promise.all([T.isTeacher(), T.getMyTeacher()]);
+      if (on) teachItems.push({ value: 'toStudent', label: t('tch.sendToStudent'), sub: t('tch.sendToStudentSub'), icon: 'students' });
+      if (my) teachItems.push({ value: 'toTeacher', label: t('tch.sendToTeacher'), sub: t('tch.sendToTeacherSub', { t: my.name || t('tch.teacher') }), icon: 'students' }); } catch {}
     const v = await moreMenu('song:' + id, songMenuItems(stored, [
       { value: 'easy', label: t('sug.easyBtn'), sub: easyActive() ? t('song.easyOnSub') : t('song.easySub'), icon: 'easy', on: easyActive() },
       { value: 'details', label: t('song.detailsMenu'), sub: t('song.detailsSub'), icon: 'details' },
+      ...teachItems,
     ]));
+    if (v === 'toStudent' || v === 'toTeacher') {
+      const V = await import('./teachView.js');
+      if (v === 'toTeacher') return V.sendToTeacher(stored);
+      return V.sendSongToStudents(stored);
+    }
     if (v && /^(listen|tutorial)/.test(v)) { (await import('./ytPick.js')).ytAction(v.split(':')[0], stored, save, { change: v.endsWith(':change') }).then(() => pa.refresh()); return; }
     if (v === 'edit') { location.hash = '#/uredi/' + encodeURIComponent(id); return; }
     if (v === 'easy') { await toggleEasy(); return; }

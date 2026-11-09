@@ -50,6 +50,35 @@ export async function importPackage(pkg, ask) {
   return { setId, ids, added, replaced, skipped };
 }
 
+/** v1.78: uvoz od nastavnika (kod učenika) ili od učenika (kod nastavnika) — bez pitanja o duplikatima:
+ *  isti poslati fajl (isti link) ponovo = ažuriranje istih pesama / iste set liste, nikad druga kopija.
+ *  tag: polja koja se upisuju na svaku pesmu (npr. { fromT: {...} } ili { student, fromStudent: 1, folders }). */
+export async function importTagged(pkg, file, tag = {}, setTag = {}) {
+  const all = await db.all();
+  const ids = [];
+  let added = 0, updated = 0;
+  for (let i = 0; i < pkg.songs.length; i++) {
+    const song = { ...pkg.songs[i] };
+    delete song.id; delete song.student; delete song.fromStudent; delete song.fromT; delete song.src; // tuđe oznake se ne prenose
+    const tg = typeof tag === 'function' ? tag(song) : tag;
+    const src = `${file}:${i}`;
+    const ex = all.find((s) => s.src === src);
+    if (ex) {
+      const kept = {};
+      for (const k of KEEP_ON_REPLACE) if (ex[k] !== undefined) kept[k] = ex[k];
+      const rec = await db.save({ ...song, ...tg, ...kept, src, folders: tg.folders || ex.folders || [] });
+      ids.push(rec.id); updated++;
+    } else { const rec = await db.save({ ...song, folders: [], ...tg, src }); ids.push(rec.id); added++; }
+  }
+  let setId = null;
+  if (pkg.kind === 'set') {
+    const ex = (await getSetlists()).find((x) => x.src === file);
+    if (ex) { await updateSetlist(ex.id, { name: pkg.name || ex.name, songIds: [...new Set(ids)], ...setTag }); setId = ex.id; }
+    else { const sl = await addSetlist(pkg.name || t('share.setDefault')); await updateSetlist(sl.id, { songIds: [...new Set(ids)], src: file, ...setTag }); setId = sl.id; }
+  }
+  return { setId, ids, added, updated };
+}
+
 /** Pitanje za postojeću pesmu (sa „Primeni na sve“ kad ima još pesama). */
 async function askDuplicate(existing, more, single = false) {
   // jedna pesma: „Ova pesma već postoji“ — Otkaži / Sačuvaj kao novu / Zameni; više pesama: Preskoči (+ „Primeni na sve“)
@@ -141,7 +170,8 @@ export async function renderDriveShare(root, fileId) {
       btn(t('share.r.openApp'), 'primary', async () => {
         if (/Android/i.test(navigator.userAgent)) {
           const u = new URL(SHARE_BASE);
-          location.href = `intent://${u.host}${u.pathname}?d=${encodeURIComponent(fileId)}#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(link)};end`;
+          const extra = (location.hash.split('?')[1] || ''); // v1.78: oznake nastavnika / učenika idu i u aplikaciju
+          location.href = `intent://${u.host}${u.pathname}?d=${encodeURIComponent(fileId)}${extra ? '&' + extra : ''}#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(link + (extra ? '?' + extra : ''))};end`;
         } else copyShareLinkText(link);
       }),
     ]);
@@ -174,6 +204,8 @@ export async function renderDriveShare(root, fileId) {
     history.replaceState(null, '', location.pathname + '#/pesme');
     return;
   }
+  // v1.78: od nastavnika / od učenika — poseban, kraći tok (bez pitanja o duplikatima)
+  try { const tch = await import('./teach.js'); if (await tch.handleTaggedImport({ pkg, fileId, show, btn, card, clearHash, el })) return; } catch (e) { console.error(e); }
   // pregled (samo tekst) i pitanje „Uvezi …?“
   const isSet = pkg.kind === 'set';
   const q = isSet ? t('share.r.askSet', { name: pkg.name, n: songsCount(pkg.songs.length) }) : t('share.r.askSong', { title: pkg.songs[0].title });

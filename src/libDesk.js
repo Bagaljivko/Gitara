@@ -61,6 +61,9 @@ function sideHTML() {
       ${st.folders.map((f) => it('f:' + f.id, folderLabel(f), cnt((s) => (s.folders || []).includes(f.id)), FOLDER_SVG, ` data-drop="f:${esc(f.id)}"${isSystemFolder(f.id) ? ' data-sys="1"' : ''}`)).join('') || `<p class="ds-empty">${t('desk.noFolders')}</p>`}</div>
     <div class="ds-sec"><div class="ds-ttl">${t('desk.setlists')}<button type="button" class="ds-add" data-a="newSet" title="${t('desk.newSet')}" aria-label="${t('desk.newSet')}">+</button></div>
       ${st.sets.map((x) => `<button type="button" class="ds-it" data-set="${esc(x.id)}" data-drop="s:${esc(x.id)}">${SET_SVG}<span class="ds-name">${esc(x.name)}</span><b>${(x.songIds || []).length}</b></button>`).join('') || `<p class="ds-empty">${t('desk.noSets')}</p>`}</div>
+    ${st.teach && (st.teach.on || st.teach.my) ? `<div class="ds-sec"><div class="ds-ttl">${t('tch.section')}</div>
+      ${st.teach.on ? `<a class="ds-it" href="#/ucenici"><span class="ds-name">${t('tch.students')}</span><b>${st.teach.sts.length}</b></a>` : ''}
+      ${st.teach.my ? `<a class="ds-it" href="#/od-nastavnika"><span class="ds-name">${t('tch.fromTeacher')}</span><b>${st.all.filter((s) => s.fromT).length}</b></a>` : ''}</div>` : ''}
     <div class="ds-conn" id="dsConn" hidden></div>`;
 }
 
@@ -108,6 +111,7 @@ export async function renderDeskLibrary(sideEl, listEl, songEl, params, h = {}) 
 export async function deskReload() { if (side && document.body.contains(side)) await reload(); }
 async function reload() {
   [st.all, st.folders, st.sets] = await Promise.all([db.all(), getFolders(), getSetlists()]);
+  try { const T = await import('./teach.js'); const [tc, my, sts] = await Promise.all([T.getTeacher(), T.getMyTeacher(), T.getStudents()]); st.teach = { on: !!tc.on, sts, my }; } catch { st.teach = null; } // v1.78
   const ids = new Set(st.all.map((s) => s.id));
   for (const id of [...st.sel]) if (!ids.has(id)) st.sel.delete(id);
   draw();

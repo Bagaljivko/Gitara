@@ -145,12 +145,29 @@ export async function renderSetlist(root, id) {
         <button class="btn sl-sec" id="slAdd">${ICON.add}<span>${t('sl.addSongs')}</span></button>
         <button class="btn sl-sec" id="slShare">${ICON.share}<span>${t('share.btn')}</span></button>
       </div>
+      <div class="sl-teach" id="slTeach" hidden></div>
     </div>
     <div class="sl-list-head"><h2>${t('sl.songsHead')}</h2><p class="sl-hint">${t('sl.rowHint')}</p></div>
     <ol class="sl-list" id="slList"></ol>
   </section>`;
   const $ = (q) => root.querySelector('#' + q);
   const save = () => updateSetlist(id, { songIds: ids });
+  // v1.78: nastava — „Za učenike“ (dodaj / ukloni, ne vide jedni druge) i „Pošalji učenicima“; kod učenika: od koga je
+  const drawTeach = async () => {
+    const T = await import('./teach.js');
+    const cur = await getSetlist(id); if (!cur) return;
+    const box = $('slTeach'); if (!box) return;
+    if (cur.fromT) { box.hidden = false; box.innerHTML = `<a class="sl-teach-from" href="#/od-nastavnika">${esc(t('tch.fromName', { name: cur.fromT.name || t('tch.teacher') }))} ›</a>`; return; }
+    if (!(await T.isTeacher())) { box.hidden = true; return; }
+    const sts = (await T.getStudents()).filter((s) => (cur.students || []).includes(s.id));
+    box.hidden = false;
+    box.innerHTML = `<div class="sl-teach-who">${sts.length ? sts.map((s) => `<a class="sl-teach-st" href="#/ucenik/${encodeURIComponent(s.id)}">${T.avatarHTML(s, 24)}${esc(s.name)}</a>`).join('') : `<span class="muted small">${esc(t('tch.noStudentsOnSet'))}</span>`}</div>
+      <div class="sl-teach-btns"><button class="btn small" id="slForSt">${esc(t('tch.forStudents'))}…</button><button class="btn small primary" id="slSendSt">${esc(t('tch.sendSetTo'))}</button></div>`;
+    const V = await import('./teachView.js');
+    $('slForSt').onclick = async () => { await V.setlistStudents(await getSetlist(id)); drawTeach(); };
+    $('slSendSt').onclick = async () => { await V.setlistStudents(await getSetlist(id), { send: true }); drawTeach(); };
+  };
+  drawTeach().catch(() => {});
   try { if (localStorage.getItem('gitara-shares')) import('./shareService.js').then((m) => m.prewarmShare()).catch(() => {}); } catch {} // „Podeli“ ne čeka Google
 
   const resumeAt = () => { try { return Number(localStorage.getItem(`gitara-set-pos-${id}`)) || 0; } catch { return 0; } };

@@ -562,7 +562,9 @@ async function startLive({ onExit, onSaved }) {
     const created = Date.now(), dur = Math.round(performance.now() - r.start);
     const d = new Date(created);
     const rec = { v: REC_V, id: 'r' + created.toString(36), name: t('fp.recName', { d: `${d.getDate()}.${d.getMonth() + 1}. ${pad2(d.getHours())}:${pad2(d.getMinutes())}` }), created, dur, events: r.events.map(({ id, ...e }) => e) };
-    try { await saveRecAsSong(rec); toast(t('fp.saved')); } catch { toast(t('fp.saveFail'), 'error'); }
+    let saved = null;
+    try { saved = await saveRecAsSong(rec); toast(t('fp.saved')); } catch { toast(t('fp.saveFail'), 'error'); }
+    if (saved) import('./teachView.js').then((m) => m.askStudentFor(saved)).catch(() => {}); // v1.78: „Za koga je snimak?“ (samo nastavnik)
     onSaved?.();
   }
   function recordEvent(ev, notes, chord) {

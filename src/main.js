@@ -95,11 +95,13 @@ async function route() {
 }
 async function routeInner() {
   const myRoute = ++routeId;
+  // v1.78: pozivnica nastavnika (#poziv/…): pita učenika da li prihvata, pa nastavlja na Pesme
+  if (location.hash.startsWith('#poziv/')) { const h = location.hash; history.replaceState(null, '', location.pathname + '#/pesme'); import('./teachView.js').then((m) => m.acceptInvite(h)).catch((e) => console.error(e)); }
   setWakeZone(null); // ekrani koji računaju aktivnost (pesma, setlista, rečnik) je ponovo uključe
   const shared = hasSharedSong();
   const hash = shared ? '#/primljena' : location.hash || '#/tuner';
   const [, page, arg] = hash.match(/^#\/([^/?]*)\/?(.*)$/) || [, 'tuner', ''];
-  const tab = { tuner: 'tuner', akordi: 'akordi', pesme: 'pesme', pesma: 'pesme', uredi: 'pesme', setlista: 'pesme', nastup: 'pesme', primljena: 'pesme', podesavanja: 'podesavanja', provera: 'podesavanja', vezbe: 'vezbe' }[page] || 'tuner';
+  const tab = { tuner: 'tuner', akordi: 'akordi', pesme: 'pesme', pesma: 'pesme', uredi: 'pesme', setlista: 'pesme', nastup: 'pesme', primljena: 'pesme', podesavanja: 'podesavanja', provera: 'podesavanja', vezbe: 'vezbe', ucenici: 'pesme', ucenik: 'pesme', 'od-nastavnika': 'pesme' }[page] || 'tuner';
   document.body.classList.toggle('tuner-screen', tab === 'tuner');
   document.querySelectorAll('.nav a').forEach((a) => {
     const on = a.dataset.tab === tab;
@@ -206,6 +208,12 @@ async function routeInner() {
     else if (page === 'uredi') await renderEditor(el, dec);
     else if (page === 'podesavanja') await renderSettings(el);
     else if (page === 'provera') await renderChordCheck(el);
+    else if (page === 'ucenici' || page === 'ucenik' || page === 'od-nastavnika') { // v1.78: nastava
+      const V = await import('./teachView.js');
+      if (page === 'ucenici') await V.renderStudents(el);
+      else if (page === 'ucenik') await V.renderStudent(el, dec);
+      else await V.renderFromTeacher(el);
+    }
   }
   window.scrollTo(0, 0);
 }

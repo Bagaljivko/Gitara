@@ -99,6 +99,11 @@ export function cleanSetlists(raw) {
     songIds: (Array.isArray(x.songIds) ? x.songIds : []).filter((s) => typeof s === 'string').slice(0, 500),
     v: 1, ...(Number(x.updatedAt) > 0 ? { updatedAt: Number(x.updatedAt) } : {}),
     ...(cleanPlay(x.play) ? { play: cleanPlay(x.play) } : {}),
+    // v1.78: nastava — za koje učenike, kada je poslato, i da li je stigla od nastavnika (isti link = ista set lista)
+    ...(Array.isArray(x.students) ? { students: x.students.filter((s) => typeof s === 'string').slice(0, 200).map((s) => s.slice(0, 40)) } : {}),
+    ...(x.sentTo && typeof x.sentTo === 'object' ? { sentTo: Object.fromEntries(Object.entries(x.sentTo).filter(([k, v]) => typeof k === 'string' && Number(v) > 0).slice(0, 200)) } : {}),
+    ...(typeof x.src === 'string' ? { src: x.src.slice(0, 120) } : {}),
+    ...(x.fromT && typeof x.fromT === 'object' ? { fromT: { tid: String(x.fromT.tid || '').slice(0, 40), name: String(x.fromT.name || '').slice(0, 60) } } : {}),
   }));
 }
 /** Izbor za „Sviraj set“ (pauza u sekundama, -1 = čekaj mene; skrolovanje; zvuk) — pamti se uz set listu. */

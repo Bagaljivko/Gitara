@@ -5,6 +5,10 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '1.78', date: '2026-11-09', items: [
+    { i: '🎓', sr: ['Nastava: učenici', 'Podešavanja → Nastava → „Ja sam nastavnik“: učenici, snimci i set liste po učeniku, slanje pesama i set lista jednom ili više učenika (svako dobija svoju poruku).'], en: ['Teaching: students', 'Settings → Teaching → “I’m a teacher”: students, recordings and setlists per student, sending songs and setlists to one or more students (each gets their own message).'] },
+    { i: '📨', sr: ['Od nastavnika', 'Učenik prihvati pozivnicu: sve od nastavnika je na jednom mestu i osvežava se bez duplikata, a snimak se nastavniku šalje jednim dodirom. Biblioteke se nikad ne dele.'], en: ['From teacher', 'The student accepts the invite: everything from the teacher is in one place and updates without duplicates, and a recording goes to the teacher with one tap. Libraries are never shared.'] },
+  ] },
   { v: '1.77', date: '2026-11-09', items: [
     { i: '🖥', sr: ['Nov izgled na računaru', 'Meni je gore (logo levo, nalog i sinhronizacija desno), sadržaj je širi. Vežbe: „Danas“ kao veliki blok, igre u velikim pločicama. Podešavanje igre u dve kolone, a „Počni“ je uvek dole, uz kratak pregled izabranog. Telefon ostaje isti.'], en: ['New look on computers', 'The menu is at the top (logo left, account and sync right), content is wider. Practice: “Today” as a big block, games as large tiles. Game setup in two columns, with “Start” always at the bottom next to a short summary of your choices. Phones stay the same.'] },
   ] },

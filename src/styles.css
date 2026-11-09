@@ -2049,3 +2049,56 @@ body:not(.tuner-screen) .settings-view details.set-page.card { background: none;
   .pq-pill { left: 24px; bottom: 24px; }
   a, button { cursor: pointer; }
 }
+
+/* ================= v1.78: Nastava — učenici, slanje, Od nastavnika ================= */
+.modal-backdrop:has(> .tch-dlg) { z-index: 260; } /* i iznad „Samo sviraj“ */
+.tch-dlg { max-height: calc(100dvh - 32px); overflow: auto; }
+.tch-dlg textarea, .tch-dlg input:not([type="checkbox"]), .tch-fields input { width: 100%; box-sizing: border-box; }
+.tch-view .tch-back { display: inline-block; color: var(--accent); text-decoration: none; font-weight: 700; margin: 4px 0 8px; }
+.tch-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.tch-av { flex: none; width: var(--s, 40px); height: var(--s, 40px); border-radius: 50%; display: inline-grid; place-items: center; background: var(--c, #ff7cc3); color: #111; font-weight: 800; font-size: calc(var(--s, 40px) * .42); line-height: 1; }
+.tch-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; color: var(--text); text-decoration: none; background: none; border: 0; border-top: 1px solid var(--line); font: inherit; text-align: left; cursor: pointer; }
+.set-grp > .tch-row:first-child, .tch-each > .tch-row:first-child, .tch-list > .tch-row:first-child { border-top: 0; }
+.tch-row > span:not(.tch-av):not(.sr-ic):not(.chev) { min-width: 0; flex: 1; }
+.tch-row b { display: block; font-size: 1rem; overflow: hidden; text-overflow: ellipsis; }
+.tch-row small { display: block; color: var(--muted); font-size: .84rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tch-row .chev { color: var(--muted); font-size: 1.2rem; }
+.tch-row:active, .tch-row:hover { background: rgba(245, 165, 36, .06); }
+.tch-row .btn { flex: none; }
+.tch-from { display: inline-block; font-style: normal; font-size: .72rem; font-weight: 700; color: var(--accent); background: var(--accent-soft); border-radius: 999px; padding: 1px 8px; margin-left: 6px; white-space: nowrap; vertical-align: 2px; }
+.tch-sec { display: flex; justify-content: space-between; align-items: center; margin: 18px 4px 8px; font-size: .75rem; letter-spacing: .08em; color: var(--muted); font-weight: 800; }
+.tch-sec .linkish { background: none; border: 0; color: var(--accent); font: 700 .85rem var(--sans); cursor: pointer; padding: 6px 0; letter-spacing: 0; }
+.tch-hero { display: flex; align-items: center; gap: 14px; margin: 6px 0 4px; }
+.tch-hero h1 { margin: 0; }
+.tch-actions { display: flex; gap: 8px; margin: 12px 0 4px; }
+.tch-actions .btn.primary { flex: 1; }
+.tch-none { margin: 4px 4px 0; }
+.tch-lock { display: flex; gap: 8px; align-items: flex-start; background: rgba(255, 255, 255, .03); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin: 14px 0 0; font-size: .82rem; color: var(--muted); line-height: 1.45; }
+.tch-empty p { margin: 0; }
+.tch-lab { display: block; font-weight: 700; margin: 14px 0 4px; }
+.tch-lab:first-child { margin-top: 0; }
+.tch-hint { display: block; margin: -2px 0 6px; line-height: 1.4; }
+.tch-sw { align-items: flex-start; min-height: 0; margin-top: 14px; }
+.tch-sw .switch-track { flex: none; }
+.tch-sw b { display: block; } .tch-sw small { display: block; font-weight: 400; margin-top: 3px; line-height: 1.4; }
+.tch-fields { margin-top: 6px; }
+.tch-go { margin-top: 14px; }
+.tch-feats { margin: 0; padding-left: 18px; color: var(--muted); font-size: .88rem; line-height: 1.55; }
+.tch-feats b { color: var(--text); }
+.tch-q { font-weight: 700; margin: 6px 0 8px; }
+.tch-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.tch-chip { display: inline-flex; align-items: center; gap: 8px; padding: 0 14px; }
+.tch-chip.on { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.tch-teacher { display: flex; align-items: center; gap: 12px; padding: 14px; }
+.tch-teacher b { display: block; }
+.tch-sendback { width: 100%; margin-top: 16px; }
+.tch-disc { margin-top: 14px; }
+.tch-list { max-height: 50dvh; overflow: auto; margin-top: 8px; }
+.tch-pick .chev { margin-left: auto; }
+.tch-badge { background: var(--accent-soft) !important; color: var(--accent) !important; }
+.sl-teach { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+.sl-teach-who { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.sl-teach-st { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 3px; border-radius: 999px; background: var(--surface-2); color: var(--text); text-decoration: none; font-weight: 600; font-size: .88rem; }
+.sl-teach-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.sl-teach-from { color: var(--accent); font-weight: 700; text-decoration: none; }
+a.ds-it { text-decoration: none; }

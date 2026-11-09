@@ -7,6 +7,7 @@ import { versions } from './db.js';
 export const MORE_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 14a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm6 0a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm6 0a2 2 0 1 1 0-4 2 2 0 0 1 0 4z"/></svg>';
 
 const ICONS = {
+  students: '<path d="M12 3 1 9l11 6 9-4.9V17h2V9L12 3zm-7 9.2v4L12 20l7-3.8v-4L12 16l-7-3.8z"/>',
   edit: '<path d="M3 17.2V21h3.8l11-11-3.8-3.8-11 11zM20.7 7a1 1 0 0 0 0-1.4l-2.3-2.3a1 1 0 0 0-1.4 0l-1.8 1.8 3.8 3.8L20.7 7z"/>',
   easy: '<path d="M7 2h2v4h6V2h2v4h2a2 2 0 0 1 2 2v3H3V8a2 2 0 0 1 2-2h2V2zm-4 11h18v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7zm5 3v2h8v-2H8z"/>',
   details: '<path d="M12 3v10.6A4 4 0 1 0 14 17V7h4V3h-6z"/>',
