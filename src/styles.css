@@ -2006,3 +2006,46 @@ body:not(.tuner-screen) .settings-view details.set-page.card { background: none;
 .fb-ask .chip { min-height: 34px; padding: 0 12px; }
 .fb-ask .fb-ask-w { color: var(--muted); }
 .fb-dlg { max-height: calc(100dvh - 32px); overflow: auto; }
+
+/* ================= v1.77: računar — navigacija gore (logo levo, meni, nalog desno), širi sadržaj =================
+   Samo veliki ekran sa mišem; telefon i tablet ostaju potpuno isti. --top-h: visina gornje trake (lepljivi delovi
+   ekrana staju ispod nje). */
+.nav-brand, .nav-acct { display: none; }
+:root { --top-h: 0px; }
+@media (min-width: 1100px) and (hover: hover) and (pointer: fine) {
+  :root { --top-h: 64px; }
+  body { padding-left: 0; padding-top: var(--top-h); }
+  body.stage-mode, body.pa-on { --top-h: 0px; padding-top: 0; }
+  .nav {
+    top: 0; bottom: auto; left: 0; right: 0; width: auto; height: var(--top-h);
+    display: flex; align-items: center; gap: 4px; padding: 0 max(32px, calc((100vw - 1240px) / 2 + 8px));
+    border-top: 0; border-right: 0; border-bottom: 1px solid var(--line); background: rgba(10, 11, 14, .92);
+  }
+  .nav-brand { display: flex; align-items: center; gap: 10px; margin-right: 26px; color: var(--text); font-weight: 800; font-size: 1.1rem; letter-spacing: .04em; }
+  .nav-brand img { width: 32px; height: 32px; border-radius: 9px; }
+  .nav a { flex-direction: row; gap: 8px; height: 40px; padding: 0 14px; border-radius: 999px; font-size: .92rem; text-align: left; transition: background .15s, color .15s; }
+  .nav a svg { width: 20px; height: 20px; }
+  .nav a:hover { background: rgba(255, 255, 255, .05); color: var(--text); }
+  .nav a.active { background: var(--accent-soft); }
+  .nav a .wn-dot { position: static; margin: 0 0 0 2px; }
+  .nav-acct:not([hidden]) { display: flex; align-items: center; gap: 10px; margin-left: auto; padding: 4px 12px 4px 4px; border: 0; border-radius: 999px; background: none; color: var(--muted); font: inherit; font-size: .8rem; text-align: left; cursor: pointer; max-width: 300px; }
+  .nav-acct:hover { background: rgba(255, 255, 255, .05); }
+  .nav-acct i { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: #111; font-style: normal; font-weight: 800; }
+  .nav-acct span { min-width: 0; } .nav-acct b, .nav-acct small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nav-acct b { color: var(--text); font-size: .85rem; } .nav-acct small { font-size: .78rem; }
+  .nav-acct.warn i { background: var(--surface-2); color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+  body:not(.desk-lib-mode):not(.two-pane-mode):not(.stage-mode):not(.tuner-screen) main { max-width: 1240px; padding: 32px 40px 24px; }
+  h1 { font-size: 2.05rem; }
+  /* lepljivi delovi staju ispod gornje trake */
+  .topbar, .offline-bar { top: var(--top-h); }
+  .two-pane > .pane-list, .desk-lib > .pane-side, .desk-lib > .pane-list { top: var(--top-h); max-height: calc(100dvh - var(--top-h)); }
+  .desk-lib { min-height: calc(100dvh - var(--top-h)); }
+  .settings-view > .set-home { top: calc(var(--top-h) + 12px); }
+  #sBody > .diagram-row { top: calc(var(--top-h) + 64px); max-height: calc(100dvh - 140px - var(--top-h)); }
+  .aa-pop { top: calc(var(--top-h) + 64px); }
+  #rhPane > .metro { top: calc(var(--top-h) + 8px); }
+  .tuner-view { height: calc(100dvh - var(--top-h) - 8px); }
+  .drive-banner { left: 12px; top: calc(var(--top-h) + 10px); }
+  .pq-pill { left: 24px; bottom: 24px; }
+  a, button { cursor: pointer; }
+}

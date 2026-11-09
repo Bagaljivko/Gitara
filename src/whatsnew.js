@@ -5,6 +5,9 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '1.77', date: '2026-11-09', items: [
+    { i: '🖥', sr: ['Nov izgled na računaru', 'Meni je gore (logo levo, nalog i sinhronizacija desno), sadržaj je širi. Vežbe: „Danas“ kao veliki blok, igre u velikim pločicama. Podešavanje igre u dve kolone, a „Počni“ je uvek dole, uz kratak pregled izabranog. Telefon ostaje isti.'], en: ['New look on computers', 'The menu is at the top (logo left, account and sync right), content is wider. Practice: “Today” as a big block, games as large tiles. Game setup in two columns, with “Start” always at the bottom next to a short summary of your choices. Phones stay the same.'] },
+  ] },
   { v: '1.76', date: '2026-11-09', items: [
     { i: '💬', sr: ['Pošalji utisak', 'Podešavanja → Pošalji utisak: javi šta ne radi, predloži ideju ili reci šta ti se sviđa — čita ga autor aplikacije. Bez mreže poruka sačeka i pošalje se sama.'], en: ['Send feedback', 'Settings → Send feedback: report what’s wrong, suggest an idea or say what you like — the app’s author reads it. Offline, the message waits and is sent by itself.'] },
     { i: '🩺', sr: ['Pošalji dijagnostiku', 'Ako nešto zapne: Podešavanja → Dijagnostika → Pošalji dijagnostiku. Bez pesama i ključeva.'], en: ['Send diagnostics', 'If something gets stuck: Settings → Diagnostics → Send diagnostics. No songs or keys.'] },

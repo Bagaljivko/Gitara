@@ -246,6 +246,7 @@ async function renderGame(root, game, args, params) {
     <div class="pr-stage" id="prStage"><p class="muted center">${t('common.loading')}</p></div>
     <div class="pr-fb" id="prFb" role="status" aria-live="polite">&nbsp;</div>
     <div class="pr-head" id="prHead"></div>
+    <div class="pr-setup"><div class="pr-cfg">
     <div class="pr-wait" id="prWaitBox">
       <label class="switch"><input type="checkbox" id="prWait"><span class="switch-track"><span class="switch-thumb"></span></span><span>${t('pr.wait.beg')}</span></label>
       <small class="muted" id="prWaitHint"></small>
@@ -261,11 +262,34 @@ async function renderGame(root, game, args, params) {
         <button class="btn round tiny" id="prFaster" aria-label="${t('pr.faster')}">+</button>
       </div>
     </div>
+    </div>
     <div class="pr-opts" id="prOpts"></div>
-    <button class="btn primary big wide" id="prGo">${t('pr.start')}</button>
+    </div>
+    <div class="pr-bar"><span class="pr-sum" id="prSum" aria-hidden="true"></span><button class="btn primary big wide" id="prGo">${t('pr.start')}</button></div>
     <div class="card pr-result" id="prRes" hidden></div>
   </section>`;
   const $ = (q) => root.querySelector('#' + q);
+  // v1.77: računar — u traci „Počni“ kratak pregled izabranog (akordi, promena, brzina, tempo); telefon ga nema
+  if (matchMedia('(min-width: 1100px) and (hover: hover) and (pointer: fine)').matches) {
+    let q = 0;
+    const sum = () => {
+      q = 0;
+      const el = $('prSum'); if (!el || !el.isConnected) return;
+      const vis = (e) => e && !e.closest('[hidden]');
+      const txt = (e) => (e.textContent || '').replace(/\s+/g, ' ').trim();
+      const parts = [...$('prOpts').querySelectorAll('.active, .on, [aria-checked="true"]')].filter(vis).map(txt).filter((s) => s && s.length < 40);
+      if ($('prWait')?.checked) parts.push(t('pr.sum.wait'));
+      else {
+        const sp = $('prSpeeds')?.querySelector('.on, .active'); if (vis(sp)) parts.push(txt(sp));
+        if ($('prGrad')?.checked && vis($('prGrad'))) parts.push(t('pr.sum.grad'));
+        if (vis($('prTempo')) && $('prBpm')) parts.push(`${$('prBpm').textContent} ${$('prUnit')?.textContent || 'BPM'}`);
+      }
+      const uniq = [...new Set(parts)].slice(0, 6);
+      el.innerHTML = uniq.map((p, i) => (i === 0 ? `<b>${esc(p)}</b>` : esc(p))).join(' · ');
+    };
+    new MutationObserver(() => { if (!q) q = requestAnimationFrame(sum); }).observe(root, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['class', 'hidden', 'aria-checked'] });
+    root.addEventListener('change', () => { if (!q) q = requestAnimationFrame(sum); });
+  }
 
   let mod;
   try { mod = await game.load(); } catch (e) { $('prStage').innerHTML = `<p class="err">${esc(t('err.title'))}</p>`; throw e; }
