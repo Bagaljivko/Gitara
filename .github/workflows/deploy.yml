@@ -29,6 +29,7 @@ jobs:
         run: |
           mkdir -p _site
           cp -r index.html privacy.html manifest.webmanifest sw.js .nojekyll src icons screenshots assets vendor fonts _site/
+          mkdir -p _site/docs && cp -r docs/novosti _site/docs/   # „Saznaj više“ iz Šta je novo
       - name: Broj verzije u adresama fajlova (bez mešanja starih i novih fajlova)
         run: node scripts/version-urls.mjs _site
       - name: Smanji JavaScript i CSS (samo objavljena kopija; izvorni kod ostaje čitljiv)
