@@ -105,17 +105,22 @@ export async function setProgressShare(on, { mode = '' } = {}) {
     if (id) { await tm.sendProgressLink(id); initProgress(); return true; }
     const now = await tm.getMyTeacher(); await tm.setMyTeacher({ ...now, prog: { on: false } });
     if (!err || err.code === 'cancelled') { if (!err) toast(t('prog.failed'), 'error'); return false; }
-    const v = await dialog({ title: t('prog.gFailTitle'), html: true, className: 'tch-dlg', body: `<p>${esc(err.code === 'stuck' ? t('drive.e.stuck') : t('prog.gFailBody'))}</p><p class="small muted">${esc(t('prog.gFailKids'))}</p>`,
-      buttons: [{ label: t('common.cancel'), value: null }, { label: t('prog.gFailMsg'), value: 'msg' }, { label: t('prog.gFailRetry'), value: 'retry', kind: 'primary' }] });
+    const v = await dialog({ title: t('prog.gFailTitle'), html: true, className: 'tch-dlg dlg-stack', body: `<p>${esc(err.code === 'stuck' ? t('drive.e.stuck') : t('prog.gFailBody'))}</p><p class="tch-lock">${esc(t('prog.gFailKids'))}</p>`,
+      buttons: [{ label: t('prog.gFailRetry'), value: 'retry', kind: 'primary' }, { label: t('prog.gFailMsg'), value: 'msg' }, { label: t('common.cancel'), value: null, kind: 'ghost' }] });
     if (v === 'msg') return setProgressShare(true, { mode: 'msg' });
     if (v !== 'retry') return false;
   }
 }
 async function chooseMode(tn) {
-  const { dialog } = await import('./ui.js');
+  const { dialog, esc } = await import('./ui.js');
   let google = false; try { const d = await import('./drive.js'); const st = d.driveState(); google = !!(st.connected || st.email); } catch {}
-  return dialog({ title: t('prog.modeTitle', { t: tn }), html: true, className: 'tch-dlg', body: `<p class="small muted">${t('prog.modeBody')}</p>`,
-    buttons: [{ label: t('common.cancel'), value: null }, { label: t('prog.modeMsg'), value: 'msg', kind: google ? '' : 'primary' }, { label: t('prog.modeDrive'), value: 'drive', kind: google ? 'primary' : '' }] });
+  let pick = google ? 'drive' : 'msg';
+  const opt = (k, ic) => `<button type="button" class="tch-opt${k === pick ? ' on' : ''}" data-o="${k}" role="radio" aria-checked="${k === pick}"><span class="tch-opt-ic">${ic}</span><span><b>${esc(t(k === 'msg' ? 'prog.modeMsg' : 'prog.modeDrive'))}</b><small>${esc(t(k === 'msg' ? 'prog.modeMsgSub' : 'prog.modeDriveSub', { t: tn }))}</small></span></button>`;
+  const p = dialog({ title: t('prog.modeTitle', { t: tn }), html: true, className: 'tch-dlg', body: `<p class="small muted">${esc(t('prog.modeBody'))}</p><div class="tch-opts" role="radiogroup">${opt('msg', '💬')}${opt('drive', '☁️')}</div>`,
+    buttons: [{ label: t('common.cancel'), value: null }, { label: t('prog.modeOk'), value: 'ok', kind: 'primary' }] });
+  const box = [...document.querySelectorAll('.modal-backdrop')].pop();
+  box?.querySelector('.tch-opts')?.addEventListener('click', (e) => { const b = e.target.closest('[data-o]'); if (!b) return; pick = b.dataset.o; box.querySelectorAll('.tch-opt').forEach((x) => { x.classList.toggle('on', x === b); x.setAttribute('aria-checked', String(x === b)); }); });
+  return (await p) === 'ok' ? pick : null;
 }
 
 /** Učenik („porukom“): brojevi ove nedelje u linku, kroz učenikovu aplikaciju za poruke. */

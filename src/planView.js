@@ -289,6 +289,6 @@ export async function drawNudge(el) {
   const P = await import('./progress.js');
   const n = await P.progNudge().catch(() => null);
   if (!n) { el.innerHTML = ''; return; }
-  el.innerHTML = `<button class="pl-nudge" id="plNudge"><span>📈</span><span><b>${esc(t('prog.nudge', { t: n.name }))}</b><small>${esc(t('prog.nudgeSub'))}</small></span><span class="pl-go">${t('prog.nudgeBtn')} ›</span></button>`;
+  el.innerHTML = `<button class="pl-nudge" id="plNudge"><span class="pl-nudge-t"><span class="pl-k">${esc(t('prog.nudgeK'))}</span><b>${esc(t('prog.nudge', { t: n.name }))}</b></span><span class="pl-nudge-go">${t('prog.nudgeBtn')} ›</span></button>`;
   el.querySelector('#plNudge').addEventListener('click', async () => { if (await P.sendProgressMsg().catch(() => false)) { toast(t('prog.sentToast', { t: n.name })); el.innerHTML = ''; } });
 }

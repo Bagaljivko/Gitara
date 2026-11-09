@@ -2327,8 +2327,12 @@ a.ds-it { text-decoration: none; }
 .pl-weeks.big .pl-addwk { min-height: 64px; align-self: start; }
 /* v1.84: napredak porukom */
 .tch-pmsg { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 10px 0 4px; }
-.pl-nudge { display: flex; width: 100%; gap: 12px; align-items: center; text-align: left; padding: 12px 14px; margin: 0 0 12px; border-radius: 16px; border: 1px dashed var(--accent); background: var(--surface); color: var(--text); cursor: pointer; font: inherit; }
-.pl-nudge > span:first-child { font-size: 1.3rem; }
-.pl-nudge > span:nth-child(2) { flex: 1; min-width: 0; }
-.pl-nudge b { display: block; font-size: .92rem; } .pl-nudge small { display: block; color: var(--muted); font-size: .8rem; }
-.pl-nudge .pl-go { display: inline-flex; align-items: center; flex: none; }
+.pl-nudge { display: flex; width: 100%; gap: 12px; align-items: center; text-align: left; padding: 11px 14px; margin: 0 0 12px; border-radius: var(--radius, 18px); border: 1px solid var(--line); background: var(--surface); color: var(--text); cursor: pointer; font: inherit; }
+.pl-nudge:hover { border-color: rgba(245, 158, 11, .45); }
+.pl-nudge-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.pl-nudge-t b { font-size: .95rem; font-weight: 700; }
+.pl-nudge-go { flex: none; color: var(--accent); font-weight: 800; font-size: .92rem; }
+/* dijalog sa dugmadima jedno ispod drugog (glavno prvo) */
+.dlg-stack .modal-actions { flex-direction: column; align-items: stretch; gap: 8px; }
+.dlg-stack .modal-actions .btn { width: 100%; flex: none; }
+.dlg-stack .modal-actions .btn.ghost { background: none; border-color: transparent; box-shadow: none; color: var(--muted); min-height: 38px; }
