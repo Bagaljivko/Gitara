@@ -256,6 +256,46 @@ async function folderMenu(btn, x, y) {
   });
 }
 
+// v1.82: meni pesme (desni klik). Jedna pesma: sve radnje; više pesama: samo one koje rade na svima.
+async function songMenu(x, y) {
+  document.querySelector('.ds-menu')?.remove();
+  const sel = ids(), one = sel.length === 1 ? sel[0] : null;
+  let teach = false; try { teach = await (await import('./teach.js')).isTeacher(); } catch {}
+  const I = (k, ico, label, key = '', cls = '') => `<button data-m="${k}"${cls ? ` class="${cls}"` : ''}><span class="dsm-ic" aria-hidden="true">${ico}</span>${esc(label)}${key ? `<kbd>${key}</kbd>` : ''}</button>`;
+  const m = document.createElement('div'); m.className = 'ds-menu ds-song'; m.setAttribute('role', 'menu');
+  m.innerHTML = (one ? I('open', '▶', t('dm.open'), 'Enter') + I('edit', '✎', t('dm.edit'), 'E') + I('practice', '◎', t('dm.practice')) + '<hr>' : `<p class="dsm-h">${esc(t('dm.selN', { n: sel.length }))}</p>`)
+    + I('folder', '▤', t('desk.moveFolder')) + I('set', '☰', t('desk.addSet'))
+    + (one ? I('share', '↗', t('dm.share')) + (teach ? I('student', '🎓', t('tch.sendToStudent')) : '') + '<hr>' + I('versions', '↺', t('song.versionsMenu')) + I('copy', '⧉', t('dm.copy'), 'Ctrl D') : '<hr>')
+    + I('del', '🗑', t('common.delete'), 'Del', 'danger');
+  document.body.appendChild(m);
+  const r = m.getBoundingClientRect();
+  m.style.left = Math.min(x, innerWidth - r.width - 8) + 'px'; m.style.top = Math.min(y, innerHeight - r.height - 8) + 'px';
+  const off = (e) => { if (!m.contains(e.target)) { m.remove(); removeEventListener('pointerdown', off, true); } };
+  setTimeout(() => addEventListener('pointerdown', off, true));
+  m.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-m]'); if (!b) return;
+    m.remove(); removeEventListener('pointerdown', off, true);
+    const a = b.dataset.m;
+    if (a === 'open') location.hash = '#/pesma/' + encodeURIComponent(one);
+    else if (a === 'edit') location.hash = '#/uredi/' + encodeURIComponent(one);
+    else if (a === 'practice') location.hash = '#/vezbe/pesma/' + encodeURIComponent(one);
+    else if (a === 'folder') act('moveFolder');
+    else if (a === 'set') act('addSet');
+    else if (a === 'del') act('del');
+    else if (a === 'share') { const s = await db.get(one); if (s) (await import('./shareService.js')).shareSong(s); }
+    else if (a === 'student') { const s = await db.get(one); if (s) (await import('./teachView.js')).sendSongToStudents(s); }
+    else if (a === 'versions') (await import('./versionsView.js')).openVersions('song:' + one);
+    else if (a === 'copy') duplicate(one);
+  });
+}
+async function duplicate(id) {
+  const s = await db.get(id); if (!s) return;
+  const { id: _i, createdAt, updatedAt, src, fromT, student, fromStudent, chk, yt, ...rest } = s;
+  const c = await db.save({ ...rest, title: t('dm.copyTitle', { title: s.title }) });
+  toast(t('dm.copied', { title: s.title }));
+  st.sel.clear(); st.sel.add(c.id); await reload();
+}
+
 // ---------------- Događaji ----------------
 let bound = null;
 function bind() {
@@ -300,6 +340,13 @@ function bind() {
     location.hash = '#/pesma/' + encodeURIComponent(id);
   });
   list.addEventListener('input', (e) => { if (e.target.id === 'lSearch') { st.q = e.target.value; draw(); } });
+  // v1.82: desni klik na pesmu → meni (kao u aplikacijama na računaru)
+  list.addEventListener('contextmenu', (e) => {
+    const tr = e.target.closest('tr[data-id]'); if (!tr) return;
+    e.preventDefault();
+    if (!st.sel.has(tr.dataset.id)) { st.sel.clear(); st.sel.add(tr.dataset.id); st.anchor = tr.dataset.id; draw(); }
+    songMenu(e.clientX, e.clientY);
+  });
   list.addEventListener('dragstart', (e) => {
     const tr = e.target.closest('tr[data-id]'); if (!tr) return;
     drag = st.sel.has(tr.dataset.id) ? rows().filter((s) => st.sel.has(s.id)).map((s) => s.id) : [tr.dataset.id];
@@ -324,6 +371,7 @@ async function onKey(e) {
   if (typingIn(e.target)) { if (e.key === 'Escape' && e.target.id === 'lSearch') { e.target.blur(); } return; }
   const k = e.key;
   if ((e.ctrlKey || e.metaKey) && (k === 'a' || k === 'A')) { e.preventDefault(); rows().forEach((s) => st.sel.add(s.id)); draw(); return; }
+  if ((e.ctrlKey || e.metaKey) && (k === 'd' || k === 'D') && st.sel.size === 1) { e.preventDefault(); return duplicate(ids()[0]); }
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   if (k === 'Escape' && st.sel.size) { st.sel.clear(); draw(); return; }
   if ((k === 'Delete' || k === 'Backspace') && st.sel.size) { e.preventDefault(); return act('del'); }

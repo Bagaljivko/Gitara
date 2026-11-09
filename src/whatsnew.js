@@ -5,6 +5,10 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '1.82', date: '2026-11-09', items: [
+    { i: '✏️', sr: ['Brza izmena akorda (samo na računaru)', 'Klikni akord u pesmi i promeni ga, pomeri ili ukloni; „+“ iznad teksta dodaje akord, dvoklik na red menja tekst. Sve se odmah čuva, Ctrl+Z poništava.'], en: ['Quick chord fixes (computers only)', 'Click a chord in the song to change, move or remove it; “+” above the lyrics adds a chord, double-click a line to edit the words. Saved right away, Ctrl+Z undoes.'] },
+    { i: '🖥', sr: ['Uređivač: tekst i pregled (samo na računaru)', 'Tekst levo, pesma kako će izgledati desno; transponuj, pronađi i zameni, Ctrl+S čuva, nesačuvane izmene se pamte. Umesto „⋯“ traka Uredi · Uz video · Lakša verzija · Podeli, a desni klik na pesmu u spisku otvara meni. Telefon i tablet bez promene.'], en: ['Editor: text and preview (computers only)', 'Text on the left, the song as it will look on the right; transpose, find and replace, Ctrl+S saves, unsaved changes are kept. Instead of “⋯” a bar Edit · Play-along · Easier version · Share, and right-click on a song in the list opens a menu. Phones and tablets unchanged.'] },
+  ] },
   { v: '1.81', date: '2026-11-09', items: [
     { i: '🎓', sr: ['Učenici kao prva kartica', 'Na računaru nastavnik ima karticu „Učenici“ na prvom mestu u meniju, sa brojem otvorenih zahteva. Na telefonu je sve isto (Učenici su u Pesmama).'], en: ['Students as the first tab', 'On computers, teachers get a “Students” tab first in the menu, with the number of open requests. Phones stay the same (Students are under Songs).'] },
   ] },

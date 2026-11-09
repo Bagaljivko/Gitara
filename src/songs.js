@@ -940,6 +940,13 @@ export async function renderSong(root, id, nav = null) {
     </div>
     <div id="sBody">
       <div id="sHead"></div>
+      ${stored.recording ? '' : `<div class="song-tb" id="sTb" role="toolbar" aria-label="${esc(t('stb.label'))}">
+        <button class="btn primary" data-tb="edit" title="${esc(t('stb.editTip'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17.2V21h3.8l11-11-3.8-3.8-11 11zM20.7 7a1 1 0 0 0 0-1.4l-2.3-2.3a1 1 0 0 0-1.4 0l-1.8 1.8 3.8 3.8L20.7 7z"/></svg><span>${t('stb.edit')}</span></button>
+        <button class="btn" data-tb="video" title="${esc(t('stb.videoTip'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.6 7.2a2.5 2.5 0 0 0-1.8-1.8C18.2 5 12 5 12 5s-6.2 0-7.8.4A2.5 2.5 0 0 0 2.4 7.2 26 26 0 0 0 2 12a26 26 0 0 0 .4 4.8 2.5 2.5 0 0 0 1.8 1.8C5.8 19 12 19 12 19s6.2 0 7.8-.4a2.5 2.5 0 0 0 1.8-1.8A26 26 0 0 0 22 12a26 26 0 0 0-.4-4.8zM10 15V9l5.2 3L10 15z"/></svg><span>${t('stb.video')}</span></button>
+        <button class="btn stb-tog" data-tb="easy" aria-pressed="false" title="${esc(t('song.easySub'))}"><i aria-hidden="true"></i><span>${t('sug.easyBtn')}</span></button>
+        <button class="btn" data-tb="share" title="${esc(t('stb.shareTip'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 16a3 3 0 0 0-2.4 1.2l-6.7-3.4a3 3 0 0 0 0-1.6l6.7-3.4A3 3 0 1 0 15 7l-6.7 3.4a3 3 0 1 0 0 3.2L15 17a3 3 0 1 0 3-1z"/></svg><span>${t('song.share')}</span></button>
+        <button class="btn stb-more" data-tb="more" title="${esc(t('song.more'))}" aria-label="${esc(t('song.more'))}">${MORE_ICON}</button>
+      </div>`}
       ${stored.recording ? '' : practiceLineHTML(id)}
       <button type="button" class="st-line" id="sStats" hidden></button>
       <div id="sAsk"></div>
@@ -1662,6 +1669,25 @@ export async function renderSong(root, id, nav = null) {
     if (v === 'details') { openPanel($('sDet'), t('song.detailsMenu')); }
   });
   bindZoomPill(root, { get: () => zoom, apply: (z) => setZoom(z), save: () => saveZoom(), min: 0.8, max: 1.8 });
+  // v1.82 (računar): traka umesto „⋯“ (Uredi · Uz video · Lakša verzija · Podeli · ⋯) i brza izmena akorda na pesmi
+  const tbSync = () => { const b = root.querySelector('[data-tb="easy"]'); if (b) { const on = !!easyActive(); b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); } };
+  root.querySelector('#sTb')?.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-tb]'); if (!b) return;
+    const a = b.dataset.tb;
+    if (a === 'edit') location.hash = '#/uredi/' + encodeURIComponent(id);
+    else if (a === 'video') $('paBtn')?.click();
+    else if (a === 'easy') { await toggleEasy(); tbSync(); }
+    else if (a === 'share') $('sShare')?.click();
+    else if (a === 'more') $('sMore')?.click();
+  });
+  $('sControls')?.addEventListener('click', () => setTimeout(tbSync, 50));
+  tbSync();
+  if (!stored.recording) import('./songQuick.js').then(({ attachQuickEdit }) => attachQuickEdit({
+    root, lyrics: () => $('sLyrics'), stored: () => stored, setStored: (p) => { for (const k of Object.keys(stored)) delete stored[k]; Object.assign(stored, p); },
+    shift: () => tp - capo, save: () => db.put(stored), enabled: () => !!$('sLyrics') && !document.body.classList.contains('stage-mode'),
+    redraw: () => { detDirty = true; drawLyrics(); if ($('sDet').open) drawDetails(); },
+    showChord: (name) => showChord(name, { voicing: (stored.shapes || {})[name] || 0 }),
+  })).catch(() => {});
   // „Uz video“: pesma prati YouTube video (automatsko listanje, petlja i „Pusti“ staju)
   const pa = bindPlayAlong({ root, stored, save, content: () => $('sLyrics'), beforeStart: () => { stopScroll(); if (loopSec >= 0) $('sLoopStop')?.click(); loopMet?.stop(); } });
   attachPinch($('sLyrics'), { get: () => zoom, set: async (z) => { await setZoom(z); await saveZoom(); }, min: 0.8, max: 1.8 });

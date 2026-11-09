@@ -626,6 +626,13 @@ export async function renderEditor(root, id) {
     if (preview) { const secs = validate(); $('ePreviewPane').innerHTML = renderSectionsHTML(secs, cleanUncertain(pendingUnc, secs)) || `<p class="muted">${t('edit.noText')}</p>`; layoutTabs($('ePreviewPane')); }
   }));
 
+  // v1.82 (samo računar): tekst i pregled jedno pored drugog, traka alata, Ctrl+S, nacrt
+  if (matchMedia('(min-width: 1100px) and (hover: hover) and (pointer: fine)').matches) {
+    import('./editorDesk.js').then((m) => m.enhanceEditor({
+      root, ta: $('eText'), keyInput: $('eKey'), validate, save: () => $('eSave').click(), draftKey: 'marli-ed:' + (isNew ? 'new' : id), original: shownText,
+      renderPreview: (el) => { const secs = validate(); el.innerHTML = renderSectionsHTML(secs, cleanUncertain(pendingUnc, secs)) || `<p class="muted">${t('edit.noText')}</p>`; layoutTabs(el); },
+    })).catch(() => {});
+  }
   const dirty = () => $('eText').value !== shownText || $('eTitle').value !== (song.title || '');
   $('eCancel').addEventListener('click', async () => {
     if (dirty() || scanned) {
