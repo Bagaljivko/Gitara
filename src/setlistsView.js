@@ -29,7 +29,7 @@ export async function askName(title, value = '') {
 }
 
 /** Izbor više stavki (checkbox lista). Vraća niz izabranih vrednosti ili null. */
-export async function pickMany(title, items, selected = [], emptyText = '') {
+export async function pickMany(title, items, selected = [], emptyText = '', extraBtn = null) {
   const sel = new Set(selected);
   const p = dialog({
     title,
@@ -37,26 +37,41 @@ export async function pickMany(title, items, selected = [], emptyText = '') {
     body: items.length
       ? `<div class="pick-list">${items.map((it) => `<label class="pick-row"><input type="checkbox" value="${esc(it.value)}" ${sel.has(it.value) ? 'checked' : ''}> <span>${esc(it.label)}${it.sub ? ` <small>${esc(it.sub)}</small>` : ''}</span></label>`).join('')}</div>`
       : `<p>${esc(emptyText)}</p>`,
-    buttons: [{ label: t('common.cancel'), value: null }, { label: t('common.save'), value: 'ok', kind: 'primary' }],
+    buttons: [...(extraBtn ? [{ label: extraBtn, value: 'extra' }] : []), { label: t('common.cancel'), value: null }, { label: t('common.save'), value: 'ok', kind: 'primary' }],
   });
   const modal = [...document.querySelectorAll('.modal-backdrop')].pop();
   modal.addEventListener('change', (e) => { if (e.target.type === 'checkbox') e.target.checked ? sel.add(e.target.value) : sel.delete(e.target.value); });
   const r = await p;
+  if (r === 'extra') return { extra: true, selected: items.map((i) => i.value).filter((v) => sel.has(v)) };
   return r === 'ok' ? items.map((i) => i.value).filter((v) => sel.has(v)) : null;
 }
 
-/** Dodela pesme folderima (pesma može biti u više foldera). */
+/** Dodela pesme folderima (pesma može biti u više foldera).
+ *  v1.77.1: sistemski folder („Moji snimci“) se ne nudi za obične pesme (samo ako je pesma već u njemu), a u
+ *  prozoru je uvek dugme „+ Novi folder“ — ranije se, čim postoji „Moji snimci“, nije moglo napraviti nov folder. */
 export async function editSongFolders(song) {
-  let folders = await getFolders();
-  if (!folders.length) {
-    const name = await askName(t('folder.new'));
-    if (!name) return false;
-    folders = [await addFolder(name)];
+  let chosen = song.folders || [];
+  for (;;) {
+    const all = await getFolders();
+    const folders = all.filter((f) => !isSystemFolder(f.id) || chosen.includes(f.id));
+    if (!folders.some((f) => !isSystemFolder(f.id))) {
+      const name = await askName(t('folder.new'));
+      if (!name) return false;
+      const f = await addFolder(name);
+      chosen = [...chosen, f.id];
+      continue;
+    }
+    const r = await pickMany(t('folder.forSong', { title: song.title }), folders.map((f) => ({ value: f.id, label: folderLabel(f) })), chosen, '', t('folder.addNew'));
+    if (!r) return false;
+    if (r.extra) {
+      chosen = r.selected;
+      const name = await askName(t('folder.new'));
+      if (name) { const f = await addFolder(name); chosen = [...chosen, f.id]; }
+      continue;
+    }
+    await setSongFolders(song.id, r);
+    return true;
   }
-  const r = await pickMany(t('folder.forSong', { title: song.title }), folders.map((f) => ({ value: f.id, label: folderLabel(f) })), song.folders || []);
-  if (!r) return false;
-  await setSongFolders(song.id, r);
-  return true;
 }
 
 /** Upravljanje folderima: preimenuj ili obriši. */

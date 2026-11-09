@@ -970,6 +970,7 @@ export default {
   'folder.systemNote': 'Your Free Play recordings are kept here. This folder can’t be renamed or deleted.',
   'folder.add': '+ Folder',
   'folder.new': 'New folder',
+  'folder.addNew': '+ New folder',
   'folder.rename': 'Rename',
   'folder.delete': 'Delete folder',
   'folder.manageBody': 'Rename the folder or delete it. Songs stay in your library.',

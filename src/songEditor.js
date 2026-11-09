@@ -717,8 +717,12 @@ export async function renderEditor(root, id) {
 // „Zameni“ posle ponovnog skeniranja: ovo ostaje od postojeće pesme
 const KEEP_ON_REPLACE = ['id', 'createdAt', 'folders', 'capo', 'key', 'keyN', 'keyAlt', 'keyAsk', 'transpose', 'strum', 'yt', 'bpm', 'scrollSpeed', 'shapes', 'tuning', 'seen', 'recording'];
 
+// v1.77.1: dok se visina meri, polje se na trenutak skupi, pa je telefon gubio položaj ekrana i vraćao tekst ispod
+// tastature posle svakog slova (prijava korisnika). Položaj stranice se sada sačuva i vrati.
 function autoGrow(el) {
+  const se = document.scrollingElement, y = se ? se.scrollTop : 0;
   el.style.height = 'auto';
   el.style.height = Math.max(240, el.scrollHeight + 4) + 'px';
+  if (se && se.scrollTop !== y) se.scrollTop = y;
 }
 

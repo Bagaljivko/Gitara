@@ -997,6 +997,7 @@ const sr = {
   'folder.systemNote': 'Ovde se čuvaju tvoji snimci iz „Samo sviraj“. Ovaj folder se ne može preimenovati ni obrisati.',
   'folder.add': '+ Folder',
   'folder.new': 'Novi folder',
+  'folder.addNew': '+ Novi folder',
   'folder.rename': 'Preimenuj',
   'folder.delete': 'Obriši folder',
   'folder.manageBody': 'Preimenuj folder ili ga obriši. Pesme ostaju u biblioteci.',
