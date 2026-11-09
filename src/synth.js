@@ -27,8 +27,9 @@ function guitarBus(c) {
   // Kratak odjek sobe (veštački impuls: šum koji brzo utihne)
   const rev = c.createGain();
   try {
-    const len = Math.round(c.sampleRate * 0.9), ir = c.createBuffer(2, len, c.sampleRate);
-    for (let ch = 0; ch < 2; ch++) {
+    // v1.86: kraći (0,45 s) i mono odjek — 4× manje posla po noti; slabiji telefoni ne „pucketaju“ dok akord zvuči
+    const len = Math.round(c.sampleRate * 0.45), ir = c.createBuffer(1, len, c.sampleRate);
+    for (let ch = 0; ch < 1; ch++) {
       const d = ir.getChannelData(ch);
       let lp = 0;
       for (let i = 0; i < len; i++) { lp += 0.35 * ((Math.random() * 2 - 1) - lp); d[i] = lp * Math.pow(1 - i / len, 3.2); }
@@ -58,7 +59,7 @@ function guitarBus(c) {
   return bus;
 }
 
-const SAMPLE_GAIN = 3.0; // izjednačava glasnoću snimaka sa ranijim zvukom
+const SAMPLE_GAIN = 2.6; // izjednačava glasnoću snimaka sa ranijim zvukom (v1.86: ~1 dB tiše — više rezerve na telefonu)
 
 // ---- Grupe zvukova koje mogu da se prekinu (npr. pregled tonaliteta na kvintnom krugu) ----
 const groups = new Map(); // ime → { gen, voices: Set<{ src, g }> }

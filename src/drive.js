@@ -392,9 +392,18 @@ function cleanFreeplayRecs(list) { // stari zapis (pre v1.37): pri otvaranju „
 
 
 /** v1.71: pesme za rezervnu kopiju (isti oblik kao ranije) + oznake obrisanih. */
+// v1.86: nastava na pesmama (za kog učenika je snimak, od nastavnika, izvor za osvežavanje) — samo u rezervnoj kopiji,
+// nikad u deljenju (deljenje ide kroz shareService i ove oznake se tamo brišu)
+const teachTags = (s) => ({
+  ...(typeof s.student === 'string' && s.student ? { student: s.student.slice(0, 40) } : {}),
+  ...(s.fromStudent ? { fromStudent: 1 } : {}),
+  ...(s.fromT && typeof s.fromT === 'object' ? { fromT: { tid: String(s.fromT.tid || '').slice(0, 40), name: String(s.fromT.name || '').slice(0, 60) } } : {}),
+  ...(typeof s.src === 'string' && s.src ? { src: s.src.slice(0, 120) } : {}),
+  ...(typeof s.chk === 'string' && s.chk ? { chk: s.chk.slice(0, 40) } : {}),
+});
 export async function backupSongs() {
   const all = await db.all();
-  return all.map((sg) => ({ id: sg.id, title: sg.title, artist: sg.artist, key: sg.key, sections: sg.sections, transpose: sg.transpose || 0, createdAt: sg.createdAt, updatedAt: sg.updatedAt, ...songExtras(sg), ...songMeta(sg), folders: sg.folders || [] }));
+  return all.map((sg) => ({ id: sg.id, title: sg.title, artist: sg.artist, key: sg.key, sections: sg.sections, transpose: sg.transpose || 0, createdAt: sg.createdAt, updatedAt: sg.updatedAt, ...songExtras(sg), ...songMeta(sg), ...teachTags(sg), folders: sg.folders || [] }));
 }
 export const backupDeleted = () => db.deleted();
 
@@ -456,7 +465,7 @@ export function parseBackupData(data, modified = 0) {
     try {
       const n = normalizeSong(s);
       const folders = cleanSongFolders(s.folders);
-      songs.push({ ...n, ...songMeta({ ...s, sections: n.sections }), ...(folders.length ? { folders } : {}), id: typeof s.id === 'string' ? s.id.slice(0, 80) : undefined, createdAt: Number(s.createdAt) || undefined, updatedAt: Number(s.updatedAt) || undefined });
+      songs.push({ ...n, ...songMeta({ ...s, sections: n.sections }), ...teachTags(s), ...(folders.length ? { folders } : {}), id: typeof s.id === 'string' ? s.id.slice(0, 80) : undefined, createdAt: Number(s.createdAt) || undefined, updatedAt: Number(s.updatedAt) || undefined });
     } catch (e) { if (!(e instanceof SongFormatError)) throw e; }
   }
   const st = {};

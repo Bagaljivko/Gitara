@@ -5,6 +5,11 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '1.86', date: '2026-11-09', items: [
+    { i: '📱', sr: ['Tablet: sređen izgled', 'Uspravno: stranice Podešavanja preko cele širine (ne više u gornjem levom uglu), malo veći tekst i razmaci. Položeno: Podešavanja kao na računaru — spisak levo, stranica desno. „O aplikaciji“ uredno centrirano. Telefon i računar isti.'], en: ['Tablet: tidier layout', 'Portrait: Settings pages use the full width (no longer stuck in the top-left corner), slightly larger text and spacing. Landscape: Settings like on a computer — list on the left, page on the right. “About” neatly centred. Phones and computers unchanged.'] },
+    { i: '🔊', sr: ['Čistiji zvuk akorda', 'Lakši odjek sobe i malo tiše — manje posla za telefon, da akord ne „pucketa“ dok zvuči (na slabijim telefonima).'], en: ['Cleaner chord sound', 'A lighter room echo and slightly lower level — less work for the phone, so a ringing chord doesn’t crackle (on weaker phones).'] },
+    { i: '🛡', sr: ['Rezervna kopija čuva i nastavu', 'Dnevna i ručna kopija sada čuvaju i oznake na pesmama i snimcima (za kog učenika, od nastavnika); vraćanje vraća sve veze, planove i zahteve. Kopija se pravi samo u mirnom trenutku — nikad tokom igre, snimanja ili sviranja.'], en: ['Backups keep your teaching too', 'Daily and manual backups now also keep the labels on songs and recordings (for which student, from the teacher); restoring brings back every connection, plan and request. The backup runs only at a calm moment — never during a game, recording or playback.'] },
+  ] },
   { v: '1.85', date: '2026-11-09', items: [
     { i: '🛡', sr: ['Rezervna kopija svaki dan — sama', 'Kad je Google nalog povezan, MARLI jednom dnevno sam sačuva celu aplikaciju na tvoj Google Drive (samo ako se nešto promenilo). Čuva se poslednjih 7 dana + po jedna za 4 nedelje; „Vrati sve“ nudi izbor datuma. Podrazumevano uključeno (Podešavanja → Rezervne kopije).'], en: ['A backup every day — by itself', 'With a Google account connected, MARLI saves the whole app to your Google Drive once a day (only if something changed). It keeps the last 7 days + one for each of 4 weeks; “Restore all” lets you pick the date. On by default (Settings → Backups).'] },
   ] },

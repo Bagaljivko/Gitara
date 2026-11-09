@@ -1924,8 +1924,8 @@ body.desk-lib-mode main { max-width: none; padding-left: 0; padding-right: 0; }
 .key-adv > summary { cursor: pointer; color: var(--muted); font-size: .9rem; padding: 6px 0; list-style: none; }
 .key-adv > summary::-webkit-details-marker { display: none; }
 .key-adv > summary::after { content: ' ›'; } .key-adv[open] > summary::after { content: ' ⌄'; }
-/* računar: lista levo, stranica desno */
-@media (min-width: 1000px) and (hover: hover) {
+/* računar i tablet položeno: lista levo, stranica desno */
+@media (min-width: 1000px) {
   main:has(> .settings-view), main:has(.settings-view) { max-width: 1120px; }
   .settings-view { column-count: auto !important; display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 0 28px; align-items: start; }
   .settings-view > .view-head { grid-column: 1 / -1; display: flex !important; }
@@ -2339,3 +2339,22 @@ a.ds-it { text-decoration: none; }
 .bk-auto { margin: 4px 0 12px; }
 .bk-picks { max-height: 52vh; overflow: auto; }
 .bk-pick-ic svg { width: 22px; height: 22px; fill: var(--accent); }
+
+/* ===== v1.86: tablet (uspravno i položeno) — sadržaj ne sme da stoji u gornjem levom uglu ===== */
+/* Podešavanja, stranica (uspravno): jedna kolona, centrirana, udobne širine */
+@media (min-width: 700px) and (max-width: 999px) {
+  .settings-view:has(> details.set-page[open]) { column-count: 1; max-width: 720px; margin-left: auto; margin-right: auto; }
+  .settings-view:has(> details.set-page[open]) > details.set-page[open] { display: block; width: 100%; }
+}
+/* Tablet (dodir, veliki ekran): malo veći tekst i razmaci — kao tablet aplikacija, ne razvučen telefon. Tuner ostaje isti. */
+@media (min-width: 700px) and (min-height: 700px) and (pointer: coarse) {
+  html:not(:has(body.tuner-screen)), html:not(:has(body.tuner-screen)) body { font-size: 17px; }
+  body:not(.tuner-screen) main { padding-left: 28px; padding-right: 28px; padding-top: calc(env(safe-area-inset-top) + 18px); }
+  .set-row { min-height: 60px; }
+  .modal { max-width: 560px; }
+}
+/* v1.86: „O aplikaciji“ — sve u jednoj centriranoj koloni (telefon, tablet, računar) */
+.set-page[data-g="about"] > .set-body { max-width: 520px; margin: 0 auto; text-align: center; }
+.set-page[data-g="about"] .about-card { text-align: center !important; display: flex; flex-direction: column; align-items: center; padding: 26px 20px 22px; background: var(--surface); border: 1px solid var(--line); border-radius: 22px; }
+.set-page[data-g="about"] .about-card > * { margin-left: auto; margin-right: auto; }
+.set-page[data-g="about"] .about { text-align: center; }

@@ -24,7 +24,7 @@ export function playVoicing(v, group = 'chord') {
   v.frets.forEach((f, i) => {
     if (f < 0) return;
     const midi = OPEN_MIDI[i] + f;
-    pluck(440 * Math.pow(2, (midi - 69) / 12), { when: t0 + k++ * 0.028 + Math.random() * 0.004, gain: 0.6, duration: 3, group });
+    pluck(440 * Math.pow(2, (midi - 69) / 12), { when: t0 + k++ * 0.028 + Math.random() * 0.004, gain: 0.5, duration: 3, group }); // v1.86: malo tiše (šest žica zajedno)
   });
 }
 

@@ -297,7 +297,7 @@ export async function renderSettings(root) {
       <a class="set-row" href="privacy.html" target="_blank" rel="noopener">${ico('privacy', 'n')}<span class="sr-t">${t('set.privacy')}</span><span class="sr-chev" aria-hidden="true">↗</span></a></div>
     <button type="button" class="set-about" data-open="about"><img src="icons/icon-192.png" alt="" width="44" height="44"><span><b>MARLI ${APP_VERSION.split('.').slice(0, 2).join('.')}</b><small>${t('set.h.about')}</small></span><i class="wn-dot" id="shDot" aria-hidden="true" hidden></i><span class="sr-chev" aria-hidden="true">›</span></button>`;
   view.querySelector('.view-head').after(home);
-  const wide = () => matchMedia('(min-width: 1000px) and (hover: hover)').matches;
+  const wide = () => matchMedia('(min-width: 1000px)').matches; // v1.86: i tablet položeno (lista levo, stranica desno)
   const pushed = new Set();
   const openPage = (k, { push = true } = {}) => {
     Object.entries(dets).forEach(([g, d]) => { d.open = g === k; });

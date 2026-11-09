@@ -151,10 +151,19 @@ export async function autoBackup({ force = false } = {}) {
 }
 /** Pokretanje: posle pokretanja aplikacije i kad se vrati u prvi plan (najviše jednom dnevno). */
 let autoInited = false;
+// v1.86: samo u mirnom trenutku — nikad dok traje igra, snimanje, sviranje pesme ili otvoren prozor; pa kad je telefon besposlen
+const busy = () => document.hidden || /^#\/vezbe\/[a-z]/.test(location.hash) // igra
+  || !!document.querySelector('.modal-backdrop, .recording, .ch.playing, .ln.playing, body.stage-mode'); // prozor, snimanje, pesma svira, set na sceni
+function whenCalm(fn, tries = 0) {
+  if (busy()) { if (tries < 30) setTimeout(() => whenCalm(fn, tries + 1), 60000); return; }
+  const go = () => (busy() ? setTimeout(() => whenCalm(fn, tries + 1), 60000) : fn());
+  if (typeof requestIdleCallback === 'function') requestIdleCallback(go, { timeout: 10000 }); else setTimeout(go, 500);
+}
 export function initAutoBackup() {
   if (autoInited) return; autoInited = true;
-  setTimeout(() => autoBackup().catch(() => {}), 25000);
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) setTimeout(() => autoBackup().catch(() => {}), 4000); });
+  const run = () => { if (autoInfo().day !== day()) whenCalm(() => autoBackup().catch(() => {})); };
+  setTimeout(run, 25000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) setTimeout(run, 4000); });
 }
 /** „Vrati sve“ sa Drive-a: izbor kopije (ručna + dnevne). '' = ručna/najnovija, null = otkazano. */
 async function pickFullCopy() {
