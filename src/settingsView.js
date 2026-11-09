@@ -196,7 +196,7 @@ export async function renderSettings(root) {
         <textarea readonly class="diag-report" id="prDbgOut" rows="8" hidden></textarea>
       </div>
       <button class="btn small" id="bUpdate">${t('update.check')}</button>
-      <button class="btn small keys-btn" id="bKeys">⌨ ${t('keys.title')} <kbd>?</kbd></button>
+      <button class="btn small keys-btn" id="bKeys"${isComputer() ? '' : ' hidden'}>⌨ ${t('keys.title')} <kbd>?</kbd></button>
       <p><a href="privacy.html" target="_blank" rel="noopener">${t('set.privacy')}</a></p>
       <p class="credits">${t('set.credits')}</p>
     </div>
@@ -287,7 +287,7 @@ export async function renderSettings(root) {
     <h3 class="set-sec">${t('set.s.data')}</h3><div class="set-grp">${rowH('drive', t('set.g.sync'))}${rowH('file', t('bk.title'), 'g')}${rowH('shared', t('shared.title'))}</div>
     <h3 class="set-sec">${t('set.s.more')}</h3><div class="set-grp">
       <button type="button" class="set-row" data-act="fb">${ico('fb', 'g')}<span class="sr-t">${t('fb.title')}</span><span class="sr-v">${t('fb.rowSub')}</span><span class="sr-chev" aria-hidden="true">›</span></button>${rowH('pc', t('pc.title'), 'n')}${rowH('install', t('set.installTitle'), 'n')}
-      <button type="button" class="set-row" data-act="keys">${ico('keys', 'n')}<span class="sr-t">${t('keys.title')}</span><span class="sr-chev" aria-hidden="true">›</span></button>
+      ${isComputer() ? `<button type="button" class="set-row" data-act="keys">${ico('keys', 'n')}<span class="sr-t">${t('keys.title')}</span><span class="sr-chev" aria-hidden="true">›</span></button>` : ''}
       ${rowH('diag', t('diag.title'), 'n')}
       <a class="set-row" href="privacy.html" target="_blank" rel="noopener">${ico('privacy', 'n')}<span class="sr-t">${t('set.privacy')}</span><span class="sr-chev" aria-hidden="true">↗</span></a></div>
     <button type="button" class="set-about" data-open="about"><img src="icons/icon-192.png" alt="" width="44" height="44"><span><b>MARLI ${APP_VERSION.split('.').slice(0, 2).join('.')}</b><small>${t('set.h.about')}</small></span><i class="wn-dot" id="shDot" aria-hidden="true" hidden></i><span class="sr-chev" aria-hidden="true">›</span></button>`;
