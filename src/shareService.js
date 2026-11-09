@@ -359,3 +359,55 @@ export async function cleanupOrphans() {
   }
   return n;
 }
+
+// ---------------- v1.80: mali podatkovni fajl (napredak učenika za nastavnika) ----------------
+// Fajl je u istom folderu, ali bez oznake „gitaraShare“ (čišćenje ga ne dira) i nije u spisku „Deljeno“.
+// Čita ga samo onaj ko ima link (nastavnik) — samo brojevi, bez pesama i snimaka.
+const DATA_MIME = 'application/json';
+/** Upiši (ili napravi) javni fajl za čitanje sa linkom. Vraća id fajla ili '' (bez mreže / bez Google naloga). */
+export async function putData(fileId, text, { interactive = false, name = 'MARLI.json' } = {}) {
+  if (globalThis.__marliTest?.putData) return globalThis.__marliTest.putData(fileId, text); // samo testovi
+  if (navigator.onLine === false) return '';
+  const drive = await import('./drive.js');
+  try { await drive.shareToken({ interactive: false }); }
+  catch {
+    if (!interactive) return '';
+    const ok = await dialog({ title: t('share.needTitle'), body: t('share.needBody'), buttons: [{ label: t('common.cancel'), value: null }, { label: t('share.connect'), value: 'go', kind: 'primary' }] });
+    if (ok !== 'go') return '';
+    try { await drive.shareToken({ interactive: true }); } catch { toast(t('share.failed'), 'error'); return ''; }
+  }
+  if (fileId) {
+    try { await drive.driveApi(`${UPLOAD}/files/${encodeURIComponent(fileId)}?uploadType=media&fields=id`, { method: 'PATCH', headers: { 'Content-Type': DATA_MIME }, body: text }); return fileId; }
+    catch (e) { if (!e || e.code !== 'notfound') { if (interactive) throw e; return ''; } }
+  }
+  const make = async () => {
+    const { boundary, body } = (() => { const b = 'gsh' + Math.random().toString(36).slice(2); return { boundary: b, body: new Blob([`--${b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify({ name, mimeType: DATA_MIME, parents: [folder], appProperties: { marliData: '1' } })}\r\n--${b}\r\nContent-Type: ${DATA_MIME}\r\n\r\n`, text, `\r\n--${b}--`]) }; })();
+    const r = await (await drive.driveApi(`${UPLOAD}/files?uploadType=multipart&fields=id`, { method: 'POST', headers: { 'Content-Type': `multipart/related; boundary=${boundary}` }, body })).json();
+    if (!r || !r.id) throw new Error(t('share.failed'));
+    return r.id;
+  };
+  let folder = await ensureFolder(drive), id;
+  try { id = await make(); }
+  catch (e) { if (!e || e.code !== 'notfound') throw e; await settings.remove('shareFolder'); folder = await ensureFolder(drive); id = await make(); }
+  try { await ensurePublic(drive, id, true); }
+  catch (e) { await drive.driveApi(`${API}/files/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {}); throw e; }
+  return id;
+}
+/** Obriši podatkovni fajl (isključeno deljenje napretka). */
+export async function deleteData(fileId) {
+  if (!fileId) return;
+  if (globalThis.__marliTest?.delData) return globalThis.__marliTest.delData(fileId);
+  const drive = await import('./drive.js');
+  try { await drive.shareToken({ interactive: false }); await drive.driveApi(`${API}/files/${encodeURIComponent(fileId)}`, { method: 'DELETE' }); }
+  catch (e) { if (e && e.code === 'notfound') return; throw e; }
+}
+/** Pročitaj javni fajl (bez prijave). Vraća objekat, { gone: true } ako fajla više nema, ili null (greška / bez mreže). */
+export async function readData(fileId) {
+  const { SHARE_API_KEY } = await import('./shareConfig.js');
+  try {
+    const r = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&key=${encodeURIComponent(SHARE_API_KEY)}`, { cache: 'no-store' });
+    if (r.status === 404 || r.status === 403) return { gone: true };
+    if (!r.ok) return null;
+    return JSON.parse(await r.text());
+  } catch { return null; }
+}

@@ -1,6 +1,12 @@
 // Spajanje podataka koji se ne „pobeđuju“ nego sabiraju (rezervna kopija i sinhronizacija između uređaja):
 // rezultati iz Vežbi i Skala (uvek ostaje najbolje), folderi (unija). Bez DOM-a — radi i u Web Worker-u i u Node-u.
 /** Rezultati iz Vežbi: samo brojevi i datumi u očekivanom obliku (ništa drugo se ne prepisuje). */
+const wkOf = (wk) => {
+  if (!wk || typeof wk !== 'object') return null;
+  const out = {};
+  for (const [k, v] of Object.entries(wk).slice(-30)) if (/^\d{4,6}$/.test(k) && Array.isArray(v)) out[k] = [Math.max(0, Math.min(999, Math.round(Number(v[0]) || 0))), Math.max(0, Math.min(100, Math.round(Number(v[1]) || 0)))];
+  return Object.keys(out).length ? out : null;
+};
 export function cleanPractice(p) {
   if (!p || typeof p !== 'object') return null;
   const rec = (r) => (r && typeof r === 'object' ? {
@@ -12,6 +18,7 @@ export function cleanPractice(p) {
     t0: Math.max(0, Math.min(400, Math.round(Number(r.t0) || 0))) || undefined, // v1.73: prvi zabeleženi tempo (napredak)
     plays: Math.max(0, Math.round(Number(r.plays) || 0)),
     ...(r.challenge === true ? { challenge: true } : {}), // „Izazov ✓“ (v1.57)
+    ...(wkOf(r.wk) ? { wk: wkOf(r.wk) } : {}), // v1.80: runde i najbolji rezultat po danu (najviše 30 dana)
   } : null);
   const games = {}, songs = {};
   for (const [k, v] of Object.entries(p.games || {})) if (/^[a-z]{2,12}$/.test(k)) { const r = rec(v); if (r) games[k] = r; }
@@ -64,7 +71,9 @@ export function mergePractice(a, b) {
     const newer = day(y) > day(x) ? y : x;
     const bm = Math.max(x.bestMetric ?? -1, y.bestMetric ?? -1);
     const t0 = Math.min(...[x.t0, y.t0].filter((v) => v > 0)); // v1.73: prvi tempo = manji od dva
-    return { ...newer, best: Math.max(x.best || 0, y.best || 0), plays: Math.max(x.plays || 0, y.plays || 0), ...(bm >= 0 ? { bestMetric: bm } : {}), ...(x.challenge || y.challenge ? { challenge: true } : {}), ...(Number.isFinite(t0) ? { t0 } : {}) };
+    const wk = { ...(x.wk || {}) }; // v1.80: po danu — više rundi i bolji rezultat
+    for (const [k, v] of Object.entries(y.wk || {})) { const a = wk[k] || [0, 0]; wk[k] = [Math.max(a[0], v[0] || 0), Math.max(a[1], v[1] || 0)]; }
+    return { ...newer, ...(Object.keys(wk).length ? { wk } : {}), best: Math.max(x.best || 0, y.best || 0), plays: Math.max(x.plays || 0, y.plays || 0), ...(bm >= 0 ? { bestMetric: bm } : {}), ...(x.challenge || y.challenge ? { challenge: true } : {}), ...(Number.isFinite(t0) ? { t0 } : {}) };
   };
   const out = { v: 1, games: { ...(a.games || {}) }, songs: { ...(a.songs || {}) } };
   for (const [k, r] of Object.entries(b.games || {})) out.games[k] = one(out.games[k], r);

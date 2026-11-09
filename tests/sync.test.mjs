@@ -284,3 +284,12 @@ test('v1.74.1: a Drive request that never answers ends with RETRY (no endless "S
   await assert.rejects(d.about(), (e) => e.code === 'RETRY');
   assert.ok(Date.now() - t0 < 2000);
 });
+
+test('v1.80: practice per-day rounds (wk) survive cleaning and merge (more rounds / better score wins)', async () => {
+  const { cleanPractice, mergePractice } = await import('../src/syncMerge.js');
+  const a = cleanPractice({ games: { promena: { best: 80, plays: 3, lastDay: '2026-11-9', wk: { 20401: [3, 80], bad: [1, 1], 20400: ['x', 500] } } } });
+  assert.deepEqual(a.games.promena.wk, { 20400: [0, 100], 20401: [3, 80] });
+  const b = { v: 1, games: { promena: { best: 92, plays: 2, lastDay: '2026-11-9', wk: { 20401: [2, 92], 20402: [1, 70] } } }, songs: {} };
+  const m = mergePractice(a, b);
+  assert.deepEqual(m.games.promena.wk, { 20400: [0, 100], 20401: [3, 92], 20402: [1, 70] });
+});

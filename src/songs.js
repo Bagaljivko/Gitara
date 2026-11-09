@@ -1648,20 +1648,14 @@ export async function renderSong(root, id, nav = null) {
   // „⋯“: veličina slova (isti klizač kao ranije „Aa“), prethodne verzije; dva prsta = uvećanje teksta
   $('sMore').addEventListener('click', async () => {
     // v1.78: nastava — „Pošalji učeniku…“ (nastavnik) i „Pošalji nastavniku“ (učenik)
-    let teachItems = [];
-    try { const T = await import('./teach.js'); const [on, my] = await Promise.all([T.isTeacher(), T.getMyTeacher()]);
-      if (on) teachItems.push({ value: 'toStudent', label: t('tch.sendToStudent'), sub: t('tch.sendToStudentSub'), icon: 'students' });
-      if (my) teachItems.push({ value: 'toTeacher', label: t('tch.sendToTeacher'), sub: t('tch.sendToTeacherSub', { t: my.name || t('tch.teacher') }), icon: 'students' }); } catch {}
+    let teachItems = []; // v1.80: i „Proveri sa nastavnikom“ / „Pošalji ispravku“ (zajedničko sa TAB pesmama)
+    try { teachItems = await (await import('./teachView.js')).teachMenuItems(stored); } catch {}
     const v = await moreMenu('song:' + id, songMenuItems(stored, [
       { value: 'easy', label: t('sug.easyBtn'), sub: easyActive() ? t('song.easyOnSub') : t('song.easySub'), icon: 'easy', on: easyActive() },
       { value: 'details', label: t('song.detailsMenu'), sub: t('song.detailsSub'), icon: 'details' },
       ...teachItems,
     ]));
-    if (v === 'toStudent' || v === 'toTeacher') {
-      const V = await import('./teachView.js');
-      if (v === 'toTeacher') return V.sendToTeacher(stored);
-      return V.sendSongToStudents(stored);
-    }
+    if (v && teachItems.some((x) => x.value === v)) { await (await import('./teachView.js')).handleTeachMenu(v, stored); return; }
     if (v && /^(listen|tutorial)/.test(v)) { (await import('./ytPick.js')).ytAction(v.split(':')[0], stored, save, { change: v.endsWith(':change') }).then(() => pa.refresh()); return; }
     if (v === 'edit') { location.hash = '#/uredi/' + encodeURIComponent(id); return; }
     if (v === 'easy') { await toggleEasy(); return; }

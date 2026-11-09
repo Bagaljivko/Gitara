@@ -5,6 +5,10 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '1.80', date: '2026-11-09', items: [
+    { i: '📈', sr: ['Napredak za nastavnika', 'Učenik može da uključi „Deli napredak“ (podrazumevano isključeno): nastavnik vidi samo brojeve — koliko se vežba, dane zaredom, igre i pesme iz „Delova pesme“. Bez pesama i snimaka; isključi i fajl se briše.'], en: ['Progress for your teacher', 'A student can turn on “Share progress” (off by default): the teacher sees numbers only — practice time, days in a row, games and Song parts songs. No songs or recordings; turn it off and the file is deleted.'] },
+    { i: '🔍', sr: ['Proveri sa nastavnikom', 'U ⋯ svake pesme: nastavnik je ispravi i vrati, pošalje svoju verziju, sačuva kopiju ili kaže „u redu je“. Ispravka zameni tvoju pesmu tek kad potvrdiš — stara ostaje u Prethodnim verzijama.'], en: ['Check with teacher', 'In every song’s ⋯: your teacher corrects it and sends it back, sends their version, keeps a copy or says it’s fine. A correction replaces your song only when you confirm — the old one stays in Previous versions.'] },
+  ] },
   { v: '1.79', date: '2026-11-09', items: [
     { i: '⭐', sr: ['Pitaj nastavnika', 'Od nastavnika → „Želim da naučim…“ ili „Imaš li ovu pesmu?“: naslov, izvođač i napomena idu nastavniku porukom. U „Moji zahtevi“ vidiš šta je poslato, šta je stiglo i šta nastavnik nema.'], en: ['Ask your teacher', 'From teacher → “I want to learn…” or “Do you have this song?”: title, artist and a note go to your teacher in a message. “My requests” shows what was sent, what arrived and what your teacher doesn’t have.'] },
     { i: '📊', sr: ['Pregled za nastavnika', 'Na računaru i velikom tabletu „Učenici“ su pregled: brojke, tabela učenika, zahtevi sa dugmadima Pošalji pesmu / Nemam / Rešeno i „Treba pažnje“. Na telefonu su zahtevi na stranici učenika.'], en: ['Teacher overview', 'On computers and large tablets “Students” is an overview: numbers, a students table, requests with Send song / Don’t have it / Done and “Needs attention”. On phones the requests are on the student’s page.'] },

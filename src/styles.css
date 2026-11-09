@@ -2147,3 +2147,32 @@ a.ds-it { text-decoration: none; }
 .tch-dash .db-note, .tch-dash .db-empty { margin: 12px 0 0; }
 .tch-sec > span { text-transform: uppercase; }
 @media (max-width: 560px) { .tch-ask .btn { flex-basis: 100%; } }
+/* v1.80: napredak (iste pločice kao „Ova nedelja“ u Vežbama) i „Proveri pesmu“ */
+.tch-pw { margin: 0 0 10px; }
+.tch-plist { margin: 0 0 8px; }
+.tch-pl { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--line); font-size: .92rem; }
+.tch-pl:last-child { border-bottom: 0; }
+.tch-pl span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tch-pl small { color: var(--muted); white-space: nowrap; flex: none; }
+.tch-sec .tch-psw { letter-spacing: 0; text-transform: none; }
+.tch-sec > small { letter-spacing: 0; font-weight: 600; text-transform: none; }
+.tch-inv-prog { margin: 12px 0 4px; padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-2); }
+.tch-opts { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+.tch-opt { display: flex; gap: 12px; align-items: flex-start; text-align: left; width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-2); color: var(--text); font: inherit; cursor: pointer; }
+.tch-opt.on { border-color: var(--accent); background: var(--accent-soft); }
+.tch-opt b { display: block; font-weight: 650; }
+.tch-opt small { display: block; color: var(--muted); font-size: .82rem; margin-top: 2px; }
+.tch-opt-ic { font-size: 1.2rem; line-height: 1.3; flex: none; }
+.chk-diff { display: flex; flex-direction: column; gap: 4px; margin: 6px 0 12px; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); font-size: .88rem; overflow-wrap: anywhere; }
+.chk-diff ins, .chk-diff del { display: block; text-decoration: none; font-family: var(--mono, ui-monospace, monospace); }
+.chk-diff del { color: var(--danger); }
+.chk-diff ins { color: var(--ok, #7ee08a); font-weight: 700; }
+.chk-diff .chk-t del, .chk-diff .chk-t ins { display: inline; }
+.chk-diff p { margin: 4px 0 0; }
+.tch-dash .db-bar { display: inline-block; vertical-align: middle; width: 80px; height: 8px; margin-right: 8px; border-radius: 9px; background: var(--surface-2); overflow: hidden; }
+.tch-dash .db-bar i { display: block; height: 100%; background: var(--accent); border-radius: 9px; }
+.tch-dash .db-card { min-width: 0; overflow-x: auto; }
+.tch-dash .db-tbl td:nth-child(2), .tch-dash .db-tbl td:nth-child(5) { white-space: nowrap; }
+.tch-dash .db-tbl .who small { max-width: 170px; }
+.tch-dash .db-bar { width: 56px; }
+.tch-dash .db-kpi em.up { color: var(--ok, #7ee08a); }

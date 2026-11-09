@@ -92,6 +92,11 @@ export async function saveResult(gameId, res, key = null) {
     const bm = Math.max(rec.bestMetric ?? -1, res.metric != null ? Math.round(res.metric) : -1);
     if (bm >= 0) out.bestMetric = bm; // npr. Promena akorda: čistih promena u minuti
     if (rec.challenge || res.challenge) out.challenge = true; // „Izazov“ (najveća brzina) odsviran sa 90+
+    // v1.80: runde i najbolji rezultat po danu (poslednje 3 nedelje) — za nedeljni pregled (i napredak za nastavnika)
+    const dn = dayNum(day), wk = { ...(rec.wk || {}) }, w = wk[dn] || [0, 0];
+    wk[dn] = [w[0] + 1, Math.max(w[1], Math.round(Number(res.score) || 0))];
+    for (const k of Object.keys(wk)) if (dn - Number(k) > 21) delete wk[k];
+    out.wk = wk;
     return out;
   };
   st.games[gameId] = upd(st.games[gameId]);

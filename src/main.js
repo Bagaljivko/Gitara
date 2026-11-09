@@ -99,6 +99,7 @@ async function routeInner() {
   if (location.hash.startsWith('#poziv/')) { const h = location.hash; history.replaceState(null, '', location.pathname + '#/pesme'); import('./teachView.js').then((m) => m.acceptInvite(h)).catch((e) => console.error(e)); }
   // v1.79: zahtev učenika (kod nastavnika) i odgovor „Nemam“ (kod učenika)
   if (location.hash.startsWith('#zahtev/')) { const h = location.hash; history.replaceState(null, '', location.pathname + '#/ucenici'); const st = await (await import('./teach.js')).receiveRequest(h).catch(() => null); if (st) history.replaceState(null, '', location.pathname + '#/ucenici'); }
+  if (location.hash.startsWith('#napredak/')) { const h = location.hash; history.replaceState(null, '', location.pathname + '#/ucenici'); const st = await (await import('./teach.js')).receiveProgress(h).catch(() => null); if (st) history.replaceState(null, '', location.pathname + '#/ucenik/' + encodeURIComponent(st.id)); } // v1.80
   if (location.hash.startsWith('#odgovor/')) { const h = location.hash; history.replaceState(null, '', location.pathname + '#/od-nastavnika'); await (await import('./teach.js')).receiveAnswer(h).catch(() => {}); }
   setWakeZone(null); // ekrani koji računaju aktivnost (pesma, setlista, rečnik) je ponovo uključe
   const shared = hasSharedSong();
@@ -329,6 +330,7 @@ idle(() => import('./keys.js').then((m) => m.initKeys()).catch(() => {}));
 idle(() => import('./whatsnew.js').then((m) => m.navDot()).catch(() => {}));
 idle(() => import('./activity.js').then((m) => m.startActivity()).catch(() => {})); // v1.73: svirano / vežbano
 idle(() => import('./feedback.js').then((m) => m.initFeedback()).catch(() => {})); // v1.76: utisci koji čekaju se pošalju
+idle(() => import('./db.js').then(async ({ settings }) => { const m = await settings.get('myTeacher', null); if (m && m.prog && m.prog.on) (await import('./progress.js')).initProgress(); }).catch(() => {})); // v1.80: napredak za nastavnika (samo ako je uključeno)
 const DESK = matchMedia('(min-width: 1100px) and (hover: hover) and (pointer: fine)');
 const deskAcct = () => { if (DESK.matches) import('./navAcct.js').then((m) => m.initNavAcct()).catch(() => {}); };
 deskAcct(); DESK.addEventListener?.('change', deskAcct); // v1.77: nalog u gornjoj traci (samo računar)

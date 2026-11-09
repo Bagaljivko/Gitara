@@ -73,9 +73,9 @@ export async function inviteLink(student) {
   return `${SHARE_BASE}#poziv/${encodeURIComponent(tc.id)}/${encodeURIComponent(student.id)}?${qs({ n: await teacherName(), c: tc.contact || '' })}`;
 }
 /** Nastavnik → učenik: dodatak linku poslatog fajla. */
-export async function toStudentSuffix(student, rq = '') {
+export async function toStudentSuffix(student, rq = '', rp = '') {
   const tc = await setTeacher({});
-  return '?' + qs({ tt: tc.id, ts: student.id, tn: await teacherName(), tc: tc.contact || '', rq });
+  return '?' + qs({ tt: tc.id, ts: student.id, tn: await teacherName(), tc: tc.contact || '', rq, rp }); // v1.80: rp = učenikova pesma koju ovo zamenjuje
 }
 /** Učenik → nastavnik. */
 export async function toTeacherSuffix() {
@@ -127,6 +127,26 @@ export async function handleTaggedImport({ pkg, fileId, show, btn, card, clearHa
     const my = await getMyTeacher();
     const fresh = !my || my.tid !== info.tid;
     const name = info.name || t('tch.teacher');
+    // v1.80: ispravka učenikove pesme (rp) — prikaži izmene: „Zameni moju“ (stara ide u Prethodne verzije) ili „Zadrži obe“
+    const rp = p.get('rp');
+    const mine = rp && pkg.songs.length === 1 ? await (await import('./db.js')).songs.get(rp).catch(() => null) : null;
+    if (mine && !mine.deleted) {
+      const nu = pkg.songs[0];
+      show(t('chk.gotTitle', { t: name, name: mine.title }), t('chk.gotBody'), [
+        btn(t('chk.keepBoth'), '', async () => {
+          const r = await importTagged(pkg, fileId, { fromT: { tid: info.tid, name: info.name } }, { fromT: { tid: info.tid, name: info.name } });
+          if (p.get('rq')) await markAnswered(p.get('rq'), nu.title);
+          toast(t('tch.got.saved')); clearHash('#/pesma/' + encodeURIComponent(r.ids[0]));
+        }),
+        btn(t('chk.replace'), 'primary', async () => {
+          await replaceWithTeacher(mine, nu);
+          if (p.get('rq')) await markAnswered(p.get('rq'), nu.title);
+          toast(t('chk.replaced')); clearHash('#/pesma/' + encodeURIComponent(mine.id));
+        }),
+      ]);
+      card.insertBefore(diffEl(mine, nu, el), card.lastChild);
+      return true;
+    }
     show(t(pkg.kind === 'set' ? 'tch.got.set' : 'tch.got.song', { t: name, name: pkg.name || pkg.songs[0]?.title || '' }), fresh ? t('tch.got.connect', { t: name }) : t('tch.got.update'), [
       btn(t('common.cancel'), '', () => clearHash()),
       btn(t('tch.got.save'), 'primary', async () => {
@@ -149,6 +169,14 @@ export async function handleTaggedImport({ pkg, fileId, show, btn, card, clearHa
     const st = await getStudent(p.get('fs'));
     if (!st) return false;
     const { REC_FOLDER, ensureRecFolder } = await import('./collections.js');
+    // v1.80: „Proveri pesmu“ — zahtev kod učenika, pa izbor (Ispravi i vrati / Moja verzija / Kopija / U redu je)
+    if (p.get('pc') && pkg.songs.length === 1) {
+      const s0 = pkg.songs[0];
+      const req = await addCheckRequest({ id: p.get('pc'), sid: st.id, title: s0.title, artist: s0.artist || '', note: p.get('pn') || '', fileId, ps: p.get('ps') || '' });
+      clearHash('#/ucenik/' + encodeURIComponent(st.id));
+      setTimeout(() => import('./teachView.js').then((V) => V.checkFlow(req.id, pkg)).catch(() => {}), 350);
+      return true;
+    }
     show(t('tch.got.fromStudent', { name: st.name }), t('tch.got.fromStudentBody', { name: st.name }), [
       btn(t('common.cancel'), '', () => clearHash()),
       btn(t('tch.got.saveAt', { name: st.name }), 'primary', async () => {
@@ -227,8 +255,101 @@ export async function answerNone(req) {
 export async function receiveAnswer(hash) {
   let d; try { d = b64d(hash.replace(/^#odgovor\//, '').split(/[?#]/)[0]); } catch { return; }
   const m = await getMyTeacher(); if (!m || d.tt !== m.tid) return;
-  const r = await setMyRequest(d.id, { status: d.s === 'none' ? 'none' : 'answered', answeredAt: Date.now() });
-  if (r) toast(t(d.s === 'none' ? 'tch.rq.ansNone' : 'tch.rq.ansOk', { title: r.title }));
+  const st = d.s === 'none' ? 'none' : d.s === 'ok' ? 'ok' : 'answered';
+  const r = await setMyRequest(d.id, { status: st, answeredAt: Date.now() });
+  if (r) toast(t(st === 'none' ? 'tch.rq.ansNone' : st === 'ok' ? 'chk.ansOk' : 'tch.rq.ansOk', { title: r.title, t: m.name || t('tch.teacher') }));
 }
 /** Učenik je uvezao pesmu poslatu kao odgovor (rq u linku). */
 export async function markAnswered(id, title = '') { const r = await setMyRequest(id, { status: 'answered', answeredAt: Date.now(), gotTitle: clip(title, 80) }); return r; }
+
+// ---------------- v1.80: napredak (link do fajla) i „Proveri pesmu“ ----------------
+/** Učenik → nastavnik: link do fajla sa napretkom (samo jednom, kad se uključi). */
+export async function sendProgressLink(fileId) {
+  const m = await getMyTeacher(); if (!m) return false;
+  const { SHARE_BASE } = await import('./shareConfig.js');
+  const link = `${SHARE_BASE}#napredak/${b64e({ v: 1, ft: m.tid, fs: m.sid, f: fileId })}`;
+  const text = await editMessage(t('prog.sendTitle'), t('prog.msg', { t: m.name || '', link }), t('prog.lockMsg', { t: m.name || t('tch.teacher') }));
+  if (text == null) return false;
+  await compose({ to: m.contact || '', subject: t('prog.subject'), text });
+  return true;
+}
+/** Nastavnik otvara link napretka → zapamti fajl kod tog učenika. */
+export async function receiveProgress(hash) {
+  let d; try { d = b64d(hash.replace(/^#napredak\//, '').split(/[?#]/)[0]); } catch { toast(t('tch.rq.bad')); return null; }
+  const me = await getTeacher();
+  if (!me.on || d.ft !== me.id) { toast(t('tch.rq.notMine')); return null; }
+  const st = await getStudent(d.fs); if (!st) { toast(t('tch.rq.noStudent')); return null; }
+  if (!d.f || !/^[\w-]{6,}$/.test(d.f)) { toast(t('tch.rq.bad')); return null; }
+  await updateStudent(st.id, { prog: { fileId: d.f, since: Date.now() } });
+  toast(t('prog.got', { name: st.name }));
+  return st;
+}
+/** Učenik: „Proveri sa nastavnikom“ — pesma ide nastavniku (link), uz napomenu. */
+export async function askCheck(song, note = '') {
+  const m = await getMyTeacher(); if (!m || !song) return false;
+  const S = await import('./shareService.js');
+  const res = await S.publishOnly(S.songItem(song));
+  if (!res) return false;
+  const id = uid();
+  const link = res.link + (await toTeacherSuffix()) + '&' + qs({ pc: id, ps: song.id, pn: clip(note, 200) });
+  const text = await editMessage(t('chk.ask'), t('chk.msg', { name: song.title, note: note ? `\n${clip(note, 300)}\n` : '', link }), t('tch.lockMsg'));
+  if (text == null) return false;
+  await settings.set('myRequests', [...(await getMyRequests()), { id, type: 'check', title: clip(song.title, 80), artist: clip(song.artist || '', 60), songId: song.id, note: clip(note, 300), at: Date.now(), status: 'sent' }]);
+  await compose({ to: m.contact || '', subject: t('chk.subject'), text });
+  return true;
+}
+/** Nastavnik: zahtev „proveri“ iz linka (fajl ostaje kod učenika; nastavnik bira šta će). */
+export async function addCheckRequest({ id, sid, title, artist, note, fileId, ps }) {
+  const list = await getRequests();
+  if (!list.some((r) => r.id === id)) {
+    list.push({ id: clip(id, 40), sid, type: 'check', title: clip(title, 80), artist: clip(artist, 60), note: clip(note, 300), at: Date.now(), status: 'open', fileId, ps: clip(ps, 60) });
+    await settings.set('requests', list);
+  }
+  return (await getRequests()).find((r) => r.id === id);
+}
+/** Nastavnik: „U redu je“ — kratka poruka učeniku. */
+export async function answerOk(req) {
+  const st = await getStudent(req.sid); if (!st) return false;
+  const tc = await setTeacher({});
+  const { SHARE_BASE } = await import('./shareConfig.js');
+  const link = `${SHARE_BASE}#odgovor/${b64e({ v: 1, tt: tc.id, id: req.id, s: 'ok' })}`;
+  const text = await editMessage(t('chk.ok'), t('chk.msgOk', { s: st.name, title: req.title, link }), t('tch.lockMsg'));
+  if (text == null) return false;
+  await compose({ to: st.contact, subject: t('tch.subject', { t: (await teacherName()) || 'MARLI' }), text });
+  await setRequest(req.id, { status: 'ok', doneAt: Date.now() });
+  return true;
+}
+
+/** Učenik: zameni svoju pesmu nastavnikovom ispravkom — isti id, folderi i podešavanja; stara ide u Prethodne verzije. */
+export async function replaceWithTeacher(mine, nu) {
+  const { songs, versions } = await import('./db.js');
+  await versions.save('song:' + mine.id, mine, 'teacher');
+  const { id, folders, createdAt, src, fromT, student, fromStudent, chk, deleted, ...content } = nu;
+  await songs.save({ ...mine, ...content, id: mine.id, updatedAt: Date.now() });
+}
+/** Kratak prikaz izmena (redovi akorda i teksta): crveno staro, zeleno novo; najviše 8 redova. */
+export function diffLines(a, b) {
+  const n = a.length, m = b.length;
+  if (n * m > 250000) return [{ k: '=', s: '…' }];
+  const L = Array.from({ length: n + 1 }, () => new Int32Array(m + 1));
+  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) L[i][j] = a[i] === b[j] ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
+  const out = []; let i = 0, j = 0;
+  while (i < n || j < m) {
+    if (i < n && j < m && a[i] === b[j]) { out.push({ k: '=', s: a[i] }); i++; j++; }
+    else if (i < n && (j >= m || L[i + 1][j] >= L[i][j + 1])) out.push({ k: '-', s: a[i++] }); // staro pa novo
+    else out.push({ k: '+', s: b[j++] });
+  }
+  return out;
+}
+function diffEl(mine, nu, el) {
+  const lines = (s) => (s.sections || []).flatMap((sec) => [sec.name ? `[${sec.name}]` : '', ...(sec.lines || []).map((l) => [(l.chords || []).map((c) => c.chord).join('  '), l.text || ''].filter(Boolean).join('  |  '))]).filter(Boolean);
+  const d = diffLines(lines(mine), lines(nu));
+  const changed = d.filter((x) => x.k !== '=');
+  const box = el('div', 'chk-diff');
+  if (mine.title !== nu.title) { const p = el('p', 'chk-t'); p.appendChild(el('del', '', mine.title)); p.appendChild(document.createTextNode(' → ')); p.appendChild(el('ins', '', nu.title)); box.appendChild(p); }
+  if (!changed.length && mine.title === nu.title) box.appendChild(el('p', 'muted small', t('chk.noDiff')));
+  for (const x of changed.slice(0, 8)) box.appendChild(el(x.k === '+' ? 'ins' : 'del', '', (x.k === '+' ? '+ ' : '− ') + x.s));
+  if (changed.length > 8) box.appendChild(el('p', 'muted small', t('chk.more', { n: changed.length - 8 })));
+  box.appendChild(el('p', 'muted small', t('chk.history')));
+  return box;
+}

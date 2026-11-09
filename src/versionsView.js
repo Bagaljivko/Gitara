@@ -5,7 +5,7 @@ import { esc, toast, dialog } from './ui.js';
 import { songs as db, settings, versions } from './db.js';
 
 const fmt = (ts) => { const d = new Date(ts), p = (x) => String(x).padStart(2, '0'); return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()}. ${p(d.getHours())}:${p(d.getMinutes())}`; };
-const reasonText = (r) => t(r === 'rescan' ? 'ver.rescan' : r === 'restore' ? 'ver.restore' : 'ver.conflict');
+const reasonText = (r) => t(r === 'rescan' ? 'ver.rescan' : r === 'restore' ? 'ver.restore' : r === 'teacher' ? 'ver.teacher' : 'ver.conflict');
 const nameOf = (v) => (v.data && (v.data.title || v.data.name)) || '—';
 
 /** Vrati verziju: trenutna se čuva kao prethodna, pa se upisuje stara (isti ID — napredak, set liste i folderi ostaju). */

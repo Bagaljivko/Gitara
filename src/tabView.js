@@ -321,7 +321,10 @@ export async function renderTabSong(root, stored, nav, { ytRowHTML, shareSong, d
   };
   // „⋯“: veličina slova (klizač), prethodne verzije; dva prsta = uvećanje
   $('tMore').addEventListener('click', async () => {
-    const v = await moreMenu('song:' + id, songMenuItems(stored));
+    let teachItems = []; // v1.80: nastava i u TAB pesmama
+    try { teachItems = await (await import('./teachView.js')).teachMenuItems(stored); } catch {}
+    const v = await moreMenu('song:' + id, songMenuItems(stored, teachItems));
+    if (v && teachItems.some((x) => x.value === v)) { await (await import('./teachView.js')).handleTeachMenu(v, stored); return; }
     if (v && /^(listen|tutorial)/.test(v)) { (await import('./ytPick.js')).ytAction(v.split(':')[0], stored, save, { change: v.endsWith(':change') }).then(() => pa.refresh()); return; }
     if (v === 'edit') location.hash = '#/uredi/' + encodeURIComponent(id);
   });

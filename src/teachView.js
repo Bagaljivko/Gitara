@@ -1,6 +1,6 @@
 // v1.78: ekrani Nastave — Učenici (#/ucenici), učenik (#/ucenik/<id>), Od nastavnika (#/od-nastavnika, kod učenika),
 // slanje učenicima (jednom ili više — svako dobija svoju poruku, ne vide jedni druge) i nastavniku, prihvatanje pozivnice.
-import { t, songsCount } from './i18n.js';
+import { t, songsCount, getLang, countOf, ROUNDS } from './i18n.js';
 import { esc, dialog, toast } from './ui.js';
 import { songs as db } from './db.js';
 import * as T from './teach.js';
@@ -72,11 +72,13 @@ export async function renderStudent(root, id) {
   const s = await T.getStudent(id);
   if (!s) { location.replace('#/ucenici'); return; }
   const sets = await setlistsOf(id), recs = await recsOf(id);
-  const reqs = (await T.getRequests()).filter((r) => r.sid === id).sort((a, b) => (a.status === 'open' ? 0 : 1) - (b.status === 'open' ? 0 : 1) || b.at - a.at);
+  const oo = (r) => (r.status === 'open' || r.status === 'editing' ? 0 : 1);
+  const reqs = (await T.getRequests()).filter((r) => r.sid === id).sort((a, b) => oo(a) - oo(b) || b.at - a.at);
   root.innerHTML = `<section class="view tch-view">
     <a class="back tch-back" href="#/ucenici">‹ ${t('tch.students')}</a>
     <div class="tch-hero">${T.avatarHTML(s, 56)}<div><h1>${esc(s.name)}</h1><small class="muted">${esc([s.contact, t('tch.since', { d: ((d) => `${d.getDate()}. ${d.getMonth() + 1}. ${d.getFullYear()}.`)(new Date(s.createdAt || Date.now())) })].filter(Boolean).join(' · '))}</small></div></div>
     <div class="tch-actions"><button class="btn primary" id="tSend">${t('tch.sendTo', { name: s.name })}</button><button class="btn" id="tMore" aria-label="${esc(t('tch.more'))}">⋯</button></div>
+    <div id="tProg">${s.prog ? `<div class="tch-sec"><span>${t('prog.head')}</span></div><p class="muted small tch-none">${t('prog.loading')}</p>` : ''}</div>
     ${reqs.length ? `<div class="tch-sec"><span>${t('tch.rq.head')}</span></div><div class="set-grp tch-reqs">${reqs.map((r) => reqHTML(r)).join('')}</div>` : ''}
     <div class="tch-sec"><span>${t('tch.setlists')}</span><button class="linkish" id="tNewSet">+ ${t('tch.newSet')}</button></div>
     ${sets.length ? `<div class="set-grp">${sets.map((sl) => `<a class="tch-row" href="#/setlista/${encodeURIComponent(sl.id)}">${ic('list')}<span><b>${esc(sl.name)}</b><small>${songsCount((sl.songIds || []).length)}${(sl.sentTo || {})[id] ? ' · ' + t('tch.sentOn', { d: day(sl.sentTo[id]) }) : ''}</small></span>${CHEV}</a>`).join('')}</div>` : `<p class="muted small tch-none">${t('tch.noSets')}</p>`}
@@ -85,6 +87,7 @@ export async function renderStudent(root, id) {
   </section>`;
   root.querySelector('#tSend').addEventListener('click', () => sendMenu([s]));
   bindReqs(root, () => renderStudent(root, id));
+  if (s.prog) progressCardHTML(s).then((h) => { const box = root.querySelector('#tProg'); if (box) box.innerHTML = h; }).catch(() => {});
   root.querySelector('#tNewSet').addEventListener('click', async () => {
     const { askName } = await import('./setlistsView.js');
     const name = await askName(t('tch.newSet'), t('tch.forNextLesson'));
@@ -111,7 +114,7 @@ function chordsOf(song) {
 
 // ---------------- slanje učenicima ----------------
 /** Šta poslati (pesmu / set listu / snimak) — za jednog ili više učenika. */
-export async function sendMenu(students, preset = null, { rq = '' } = {}) {
+export async function sendMenu(students, preset = null, { rq = '', rp = '' } = {}) {
   let item = preset;
   if (!item) {
     const v = await dialog({ title: students.length === 1 ? t('tch.sendTo', { name: students[0].name }) : t('tch.sendToN', { n: students.length }), html: true, className: 'tch-dlg',
@@ -125,9 +128,9 @@ export async function sendMenu(students, preset = null, { rq = '' } = {}) {
   const res = await S.publishOnly(item.share);
   if (!res) return;
   const got = await sendEach(students, async (st) => {
-    const link = res.link + (await T.toStudentSuffix(st, rq));
+    const link = res.link + (await T.toStudentSuffix(st, rq, rp));
     const tn = await T.teacherName();
-    return { to: st.contact, subject: t('tch.subject', { t: tn || 'MARLI' }), text: t(item.kind === 'set' ? 'tch.msgSet' : item.kind === 'rec' ? 'tch.msgRec' : 'tch.msgSong', { s: st.name, t: tn, name: item.name, n: songsCount(item.n || 1), link }) };
+    return { to: st.contact, subject: t('tch.subject', { t: tn || 'MARLI' }), text: t(item.msgKey || (item.kind === 'set' ? 'tch.msgSet' : item.kind === 'rec' ? 'tch.msgRec' : 'tch.msgSong'), { s: st.name, t: tn, name: item.name, n: songsCount(item.n || 1), link }) };
   });
   if (item.onSent) await item.onSent(students);
   if (got.length) await T.logSent(got, item.kind);
@@ -243,12 +246,24 @@ export async function renderFromTeacher(root) {
   const c = await import('./collections.js');
   const sets = (await c.getSetlists()).filter((sl) => sl.fromT);
   const mine = (await T.getMyRequests()).sort((a, b) => b.at - a.at).slice(0, 20);
+  // v1.80: „Deli napredak“ — šta tačno nastavnik vidi (isti brojevi koji idu u fajl)
+  const tn = m.name || t('tch.teacher');
+  const progOn = !!(m.prog && m.prog.on);
+  let progBody = `<p class="muted small tch-none">${t('prog.offBody', { t: tn })}</p>`;
+  if (progOn) {
+    const P = await import('./progress.js'), { fmtDur } = await import('./statsView.js');
+    await prTexts();
+    const w = { ...(await P.buildSummary()), cur: true };
+    progBody = `${progressBodyHTML(w, fmtDur)}<p class="tch-lock">🔒 ${m.prog.at ? t('prog.mineUpdated', { t: tn, d: when(m.prog.at) }) : t('prog.minePending', { t: tn })} ${t('prog.mineNote', { t: tn })}</p>`;
+  }
   root.innerHTML = `<section class="view tch-view">
     <a class="back tch-back" href="#/pesme">‹ ${t('lib.title')}</a>
     <header class="view-head tch-head"><h1>${t('tch.fromTeacher')}</h1></header>
     <div class="card tch-teacher">${T.avatarHTML({ name: m.name || '?', color: '#f5a524' }, 44)}<span><b>${esc(m.name || t('tch.teacher'))}</b><small class="muted">${t('tch.yourTeacher')}${m.contact ? ' · ' + esc(m.contact) : ''}</small></span></div>
     <div class="tch-ask"><button class="btn" id="tWish">⭐ ${t('tch.rq.wish')}</button><button class="btn" id="tAsk">❓ ${t('tch.rq.ask')}</button></div>
-    ${mine.length ? `<div class="tch-sec"><span>${t('tch.rq.mine')}</span></div><div class="set-grp">${mine.map((r) => `<div class="tch-row"><span class="sr-ic tch-rq-ic2">${RQ_IC[r.type]}</span><span><b>${esc(r.title)}${r.artist ? ' — ' + esc(r.artist) : ''}</b><small>${esc(when(r.at))}</small></span><span class="tch-st${r.status === 'answered' ? ' ok' : ''}">${esc(t('tch.rq.my.' + r.status))}</span></div>`).join('')}</div>` : ''}
+    <div class="tch-sec"><span>${t(progOn ? 'prog.sharing' : 'prog.share')}</span><label class="switch tch-psw"><input type="checkbox" id="tProgSw"${progOn ? ' checked' : ''} aria-label="${esc(t('prog.shareWith', { t: tn }))}"><span class="switch-track"><span class="switch-thumb"></span></span></label></div>
+    ${progBody}
+    ${mine.length ? `<div class="tch-sec"><span>${t('tch.rq.mine')}</span></div><div class="set-grp">${mine.map((r) => `<div class="tch-row"><span class="sr-ic tch-rq-ic2">${RQ_IC[r.type]}</span><span><b>${esc(r.title)}${r.artist ? ' — ' + esc(r.artist) : ''}</b><small>${esc(when(r.at))}</small></span><span class="tch-st${r.status === 'answered' || r.status === 'ok' ? ' ok' : ''}">${esc(t('tch.rq.my.' + r.status))}</span></div>`).join('')}</div>` : ''}
     <div class="tch-sec"><span>${t('tch.arrived')}</span></div>
     ${sets.length || songsFrom.length ? `<div class="set-grp">${sets.map((sl) => `<a class="tch-row" href="#/setlista/${encodeURIComponent(sl.id)}">${ic('list')}<span><b>${esc(sl.name)}</b><small>${songsCount((sl.songIds || []).length)}</small></span>${CHEV}</a>`).join('')}${songsFrom.map((s) => `<a class="tch-row" href="#/pesma/${encodeURIComponent(s.id)}">${ic('song')}<span><b>${esc(s.title)}</b><small>${esc(s.artist || '')}</small></span>${CHEV}</a>`).join('')}</div>` : `<p class="muted small tch-none">${t('tch.nothingArrived')}</p>`}
     <button class="btn primary wide tch-sendback" id="tBack">🎙 ${t('tch.sendToTeacher')}</button>
@@ -259,11 +274,19 @@ export async function renderFromTeacher(root) {
   root.querySelector('#tWish').addEventListener('click', async () => { if (await askTeacherFlow('wish')) renderFromTeacher(root); });
   root.querySelector('#tAsk').addEventListener('click', async () => { if (await askTeacherFlow('ask')) renderFromTeacher(root); });
   root.querySelector('#tDisc').addEventListener('click', () => disconnectTeacher());
+  root.querySelector('#tProgSw').addEventListener('change', async (e) => {
+    const on = e.target.checked; e.target.disabled = true;
+    const P = await import('./progress.js');
+    const ok = await P.setProgressShare(on).catch(() => false);
+    if (ok) toast(t(on ? 'prog.turnedOn' : 'prog.turnedOff', { t: tn }));
+    renderFromTeacher(root);
+  });
 }
 export async function disconnectTeacher() {
   const m = await T.getMyTeacher(); if (!m) return;
   const ok = await dialog({ title: t('tch.discTitle', { t: m.name || t('tch.teacher') }), body: t('tch.discBody'), buttons: [{ label: t('common.cancel'), value: null }, { label: t('tch.disconnect'), value: 'y', kind: 'danger' }] });
   if (ok !== 'y') return;
+  if (m.prog && m.prog.on) await (await import('./progress.js')).setProgressShare(false).catch(() => {}); // v1.80: fajl sa napretkom se briše
   await T.setMyTeacher(null);
   toast(t('tch.disconnected'));
   location.hash = '#/pesme';
@@ -296,13 +319,19 @@ export async function acceptInvite(hash) {
   const me = await T.getTeacher();
   if (me.id && me.id === decodeURIComponent(mm[1])) { toast(t('tch.ownInvite')); return; } // nastavnik otvorio svoj link
   const name = p.get('n') || '';
-  const ok = await dialog({ title: name ? t('tch.inv.title', { t: name }) : t('tch.inv.titleAnon'), html: true, className: 'tch-dlg',
-    body: `<p>${esc(t('tch.inv.body', { t: name || t('tch.teacher') }))}</p><p class="tch-lock">🔒 ${esc(t('tch.inv.lock', { t: name || t('tch.teacher') }))}</p>`,
+  let wantProg = false;
+  const pInv = dialog({ title: name ? t('tch.inv.title', { t: name }) : t('tch.inv.titleAnon'), html: true, className: 'tch-dlg',
+    body: `<p>${esc(t('tch.inv.body', { t: name || t('tch.teacher') }))}</p>
+      <label class="switch tch-sw tch-inv-prog"><input type="checkbox" id="invProg"><span class="switch-track"><span class="switch-thumb"></span></span><span><b>${esc(t('prog.shareWithT'))}</b><small class="muted">${esc(t('prog.offerSub'))}</small></span></label>
+      <p class="tch-lock">🔒 ${esc(t('tch.inv.lock', { t: name || t('tch.teacher') }))}</p>`,
     buttons: [{ label: t('tch.inv.no'), value: null }, { label: t('tch.inv.yes'), value: 'y', kind: 'primary' }] });
+  [...document.querySelectorAll('.modal-backdrop')].pop()?.querySelector('#invProg')?.addEventListener('change', (e) => (wantProg = e.target.checked));
+  const ok = await pInv;
   if (ok !== 'y') return;
   await T.setMyTeacher({ tid: decodeURIComponent(mm[1]), sid: decodeURIComponent(mm[2]), name, contact: p.get('c') || '', at: Date.now() });
   toast(t('tch.inv.done', { t: name || t('tch.teacher') }));
   location.hash = '#/od-nastavnika';
+  if (wantProg) { const P = await import('./progress.js'); if (await P.setProgressShare(true).catch(() => false)) toast(t('prog.turnedOn', { t: name || t('tch.teacher') })); location.hash === '#/od-nastavnika' && window.dispatchEvent(new HashChangeEvent('hashchange')); }
 }
 
 // ---------------- Podešavanja → Nastava ----------------
@@ -349,14 +378,15 @@ export async function sendSongToStudents(song) {
 }
 
 // ---------------- v1.79: zahtevi (nastavnik) ----------------
-const RQ_IC = { wish: '⭐', ask: '❓' };
+const RQ_IC = { wish: '⭐', ask: '❓', check: '🔍' };
 function reqHTML(r, who = '') {
   const what = `${esc(r.title)}${r.artist ? ` — ${esc(r.artist)}` : ''}`;
-  const st = { open: '', sent: `<span class="tch-st ok">${esc(t('tch.rq.stSent'))}</span>`, none: `<span class="tch-st">${esc(t('tch.rq.stNone'))}</span>`, done: `<span class="tch-st">${esc(t('tch.rq.stDone'))}</span>` }[r.status] || '';
+  const st = { open: '', editing: `<span class="tch-st ok">${esc(t('chk.stEditing'))}</span>`, ok: `<span class="tch-st ok">${esc(t('chk.stOk'))}</span>`, copy: `<span class="tch-st">${esc(t('chk.stCopy'))}</span>`, sent: `<span class="tch-st ok">${esc(t('tch.rq.stSent'))}</span>`, none: `<span class="tch-st">${esc(t('tch.rq.stNone'))}</span>`, done: `<span class="tch-st">${esc(t('tch.rq.stDone'))}</span>` }[r.status] || '';
   return `<div class="tch-rq${r.status === 'open' ? '' : ' closed'}" data-rq="${esc(r.id)}"><span class="tch-rq-ic">${RQ_IC[r.type] || '•'}</span><div class="tch-rq-b">
-    <b>${who ? esc(who) + ': ' : ''}${esc(t(r.type === 'wish' ? 'tch.rq.wishShort' : 'tch.rq.askShort'))} ${what}</b>
+    <b>${who ? esc(who) + ': ' : ''}${esc(t(r.type === 'wish' ? 'tch.rq.wishShort' : r.type === 'check' ? 'chk.short' : 'tch.rq.askShort'))} ${what}</b>
     <small>${r.note ? '„' + esc(r.note) + '“ · ' : ''}${esc(when(r.at))} ${st}</small>
-    ${r.status === 'open' ? `<div class="tch-rq-acts"><button class="btn small primary" data-ra="send">${esc(t('tch.rq.sendSong'))}</button>${r.type === 'ask' ? `<button class="btn small" data-ra="none">${esc(t('tch.rq.none'))}</button>` : ''}<button class="btn small" data-ra="done">${esc(t('tch.rq.done'))}</button></div>` : ''}</div></div>`;
+    ${r.type === 'check' && (r.status === 'open' || r.status === 'editing') ? `<div class="tch-rq-acts">${r.status === 'editing' && r.songId ? `<button class="btn small primary" data-ra="fixsend">${esc(t('chk.sendFix'))}</button><a class="btn small" href="#/uredi/${encodeURIComponent(r.songId)}">${esc(t('chk.edit'))}</a>` : `<button class="btn small primary" data-ra="check">${esc(t('chk.view'))}</button>`}<button class="btn small" data-ra="done">${esc(t('tch.rq.done'))}</button></div>`
+      : r.status === 'open' ? `<div class="tch-rq-acts"><button class="btn small primary" data-ra="send">${esc(t('tch.rq.sendSong'))}</button>${r.type === 'ask' ? `<button class="btn small" data-ra="none">${esc(t('tch.rq.none'))}</button>` : ''}<button class="btn small" data-ra="done">${esc(t('tch.rq.done'))}</button></div>` : ''}</div></div>`;
 }
 function bindReqs(root, redraw) {
   root.addEventListener('click', async (e) => {
@@ -366,6 +396,8 @@ function bindReqs(root, redraw) {
     const st = await T.getStudent(r.sid); if (!st) return;
     if (b.dataset.ra === 'send') { const item = await pickItem('song', [st], `${r.title} ${r.artist || ''}`.trim()); if (item) await sendMenu([st], item, { rq: r.id }); }
     else if (b.dataset.ra === 'none') await T.answerNone(r);
+    else if (b.dataset.ra === 'check') { await checkFlow(r.id); return; }
+    else if (b.dataset.ra === 'fixsend') { const song = await db.get(r.songId); if (song) await sendFix(song); }
     else if (b.dataset.ra === 'done') await T.setRequest(r.id, { status: 'done', doneAt: Date.now() });
     redraw();
   });
@@ -375,48 +407,52 @@ function bindReqs(root, redraw) {
 export const BIG = () => matchMedia('(min-width: 1000px)').matches;
 export async function renderDashboard(root) {
   const students = await T.getStudents();
-  const all = await db.list();
-  const c = await import('./collections.js');
-  const sets = await c.getSetlists();
   const reqs = (await T.getRequests()).sort((a, b) => b.at - a.at);
-  const open = reqs.filter((r) => r.status === 'open');
-  const log = (await T.getTeacher()).sentLog || [];
-  const WEEK = 7 * 864e5, now = Date.now();
-  const rowOf = (s) => {
-    const recs = all.filter((x) => x.student === s.id);
-    const fromSt = recs.filter((x) => x.fromStudent);
-    const sl = sets.filter((x) => (x.students || []).includes(s.id));
-    const sentTimes = [...sl.map((x) => (x.sentTo || {})[s.id] || 0), ...log.filter((e) => e.sid === s.id).map((e) => e.at)];
-    const lastFrom = Math.max(0, ...fromSt.map((x) => x.createdAt || x.updatedAt || 0), ...reqs.filter((r) => r.sid === s.id).map((r) => r.at));
-    return { s, recs: recs.length, fromSt: fromSt.length, sets: sl.length, lastSent: Math.max(0, ...sentTimes), lastFrom, open: open.filter((r) => r.sid === s.id).length };
-  };
-  const rows = students.map(rowOf);
-  const sentWeek = log.filter((e) => now - e.at < WEEK).length;
-  const recWeek = all.filter((x) => x.fromStudent && now - (x.createdAt || x.updatedAt || 0) < WEEK).length;
+  const isOpen = (r) => r.status === 'open' || r.status === 'editing';
+  const open = reqs.filter(isOpen);
+  const now = Date.now();
+  // v1.80: napredak (samo kod učenika koji ga dele) — čita se paralelno, najduže ~5 s
+  const P = await import('./progress.js');
+  const wait = (pr) => Promise.race([pr, new Promise((r) => setTimeout(() => r({ err: true }), 5000))]);
+  const progs = await Promise.all(students.map((s) => (s.prog ? wait(P.studentProgress(s)).catch(() => ({ err: true })) : null)));
+  const rows = students.map((s, i) => ({ s, p: progs[i], w: P.thisWeek(progs[i]), open: open.filter((r) => r.sid === s.id).length }));
+  const sharing = rows.filter((r) => r.w);
+  const practiced = sharing.filter((r) => r.w.total > 0).length, practicedLast = sharing.filter((r) => r.w.lastWeek > 0).length;
+  const total = sharing.reduce((a, r) => a + r.w.total, 0), totalLast = sharing.reduce((a, r) => a + r.w.lastWeek, 0);
+  const maxT = Math.max(1, ...sharing.map((r) => r.w.total));
+  const { fmtDur } = await import('./statsView.js');
+  const diff = (a, b, fmt) => (a === b || (!a && !b) ? `<em>${t('tch.d.week')}</em>` : `<em class="${a > b ? 'up' : ''}">${a > b ? '+' : '−'}${fmt(Math.abs(a - b))} ${t('st.vsLast')}</em>`);
   const attention = [
+    ...rows.filter((r) => r.w && r.w.idle != null && r.w.idle >= 7).map((r) => ({ c: 'tp red', n: '!', txt: t('prog.attIdle', { name: r.s.name, n: r.w.idle }) })),
     ...rows.filter((r) => r.open).map((r) => ({ c: 'tp', n: r.open, txt: t('tch.d.attOpen', { name: r.s.name, n: r.open }) })),
-    ...rows.filter((r) => !r.lastFrom || now - r.lastFrom > 14 * 864e5).map((r) => ({ c: 'tp red', n: '!', txt: t('tch.d.attQuiet', { name: r.s.name }) })),
+    ...rows.filter((r) => !r.s.prog || (r.p && r.p.gone)).map((r) => ({ c: 'tp gray', n: 'i', txt: t('prog.attNoShare', { name: r.s.name }) })),
     ...rows.filter((r) => !r.s.contact).map((r) => ({ c: 'tp gray', n: 'i', txt: t('tch.d.attNoContact', { name: r.s.name }) })),
   ].slice(0, 8);
-  const ago = (ts) => (ts ? day(ts) : '—');
+  const progCells = (r) => {
+    if (!r.s.prog || (r.p && r.p.gone)) return `<td colspan="4"><span class="tp gray">${t('prog.noShare')}</span></td>`;
+    if (!r.w) return `<td colspan="4"><span class="muted small">${t('prog.err')}</span></td>`;
+    const best = (r.w.songs || []).slice().sort((a, b) => b.to - a.to)[0];
+    const last = r.w.idle == null ? '—' : r.w.idle >= 7 ? `<span class="tp red">${day(now - r.w.idle * 864e5)}</span>` : day(now - r.w.idle * 864e5);
+    return `<td><span class="db-bar"><i style="width:${Math.round((r.w.total / maxT) * 100)}%"></i></span>${r.w.total ? fmtDur(r.w.total) : '0 min'}</td><td>${r.w.streak || '—'}</td><td>${best ? `${esc(best.title)} <small class="muted">${best.to}%</small>` : '—'}</td><td>${last}</td>`;
+  };
   root.innerHTML = `<section class="view tch-view tch-dash">
     <a class="back tch-back" href="#/pesme">‹ ${t('lib.title')}</a>
-    <div class="db-h"><div><h1>${t('tch.students')}</h1><small class="muted">${t('tch.d.sub')}</small></div><div class="db-h-btns"><button class="btn" id="dSendSet">${t('tch.d.sendSet')}</button><button class="btn primary" id="tAdd">+ ${t('tch.student')}</button></div></div>
+    <div class="db-h"><div><h1>${t('tch.students')}</h1><small class="muted">${t('prog.dSub')}</small></div><div class="db-h-btns"><button class="btn" id="dSendSet">${t('tch.d.sendSet')}</button><button class="btn primary" id="tAdd">+ ${t('tch.student')}</button></div></div>
     <div class="db-kpis">
-      <div class="db-kpi"><small>${t('tch.d.kStudents')}</small><b>${students.length}</b><em>${t('tch.d.kContact', { n: students.filter((s) => s.contact).length })}</em></div>
+      <div class="db-kpi"><small>${t('tch.d.kStudents')}</small><b>${students.length}</b><em>${t('prog.kSharing', { n: students.filter((s) => s.prog).length })}</em></div>
+      <div class="db-kpi"><small>${t('prog.kPracticed')}</small><b>${practiced} / ${sharing.length}</b>${diff(practiced, practicedLast, (n) => String(n))}</div>
+      <div class="db-kpi"><small>${t('prog.kTotal')}</small><b>${fmtDur(total)}</b>${diff(total, totalLast, fmtDur)}</div>
       <div class="db-kpi"><small>${t('tch.d.kOpen')}</small><b>${open.length}</b><em>${t('tch.d.kOpenToday', { n: open.filter((r) => now - r.at < 864e5).length })}</em></div>
-      <div class="db-kpi"><small>${t('tch.d.kSent')}</small><b>${sentWeek}</b><em>${t('tch.d.week')}</em></div>
-      <div class="db-kpi"><small>${t('tch.d.kRecs')}</small><b>${recWeek}</b><em>${t('tch.d.week')}</em></div>
     </div>
     <div class="db">
       <div class="db-card"><h2>${t('tch.d.all')}</h2>
-        ${students.length ? `<table class="db-tbl"><thead><tr><th>${t('tch.d.cStudent')}</th><th>${t('tch.d.cSets')}</th><th>${t('tch.d.cRecs')}</th><th>${t('tch.d.cLastSent')}</th><th>${t('tch.d.cLastFrom')}</th><th>${t('tch.d.cOpen')}</th></tr></thead><tbody>
-        ${rows.map((r) => `<tr data-go="${esc(r.s.id)}"><td><div class="who">${T.avatarHTML(r.s, 34)}<span><b>${esc(r.s.name)}</b><small>${esc(r.s.contact || t('tch.noContact'))}</small></span></div></td><td>${r.sets}</td><td>${r.recs}${r.fromSt ? ` <small class="muted">(${t('tch.d.fromThem', { n: r.fromSt })})</small>` : ''}</td><td>${ago(r.lastSent)}</td><td>${r.lastFrom && now - r.lastFrom > 14 * 864e5 ? `<span class="tp red">${ago(r.lastFrom)}</span>` : ago(r.lastFrom)}</td><td>${r.open ? `<span class="tp">${r.open}</span>` : ''}</td></tr>`).join('')}
-        </tbody></table><p class="db-note muted small">${t('tch.d.progressSoon')}</p>` : `<p class="muted db-empty">${t('tch.emptyBody')}</p>`}
+        ${students.length ? `<table class="db-tbl"><thead><tr><th>${t('tch.d.cStudent')}</th><th>${t('prog.cWeek')}</th><th>${t('prog.cStreak')}</th><th>${t('prog.cBest')}</th><th>${t('prog.cLast')}</th><th>${t('tch.d.cOpen')}</th></tr></thead><tbody>
+        ${rows.map((r) => `<tr data-go="${esc(r.s.id)}"><td><div class="who">${T.avatarHTML(r.s, 34)}<span><b>${esc(r.s.name)}</b><small>${esc(r.s.contact || t('tch.noContact'))}</small></span></div></td>${progCells(r)}<td>${r.open ? `<span class="tp">${r.open}</span>` : ''}</td></tr>`).join('')}
+        </tbody></table>` : `<p class="muted db-empty">${t('tch.emptyBody')}</p>`}
       </div>
       <div class="db-side">
         <div class="db-card"><h2>${t('tch.rq.head')} <span class="muted">${open.length}</span></h2>
-          <div class="db-filters"><button class="chip active" data-f="">${t('tch.d.fAll')}</button><button class="chip" data-f="wish">${t('tch.d.fWish')}</button><button class="chip" data-f="ask">${t('tch.d.fAsk')}</button><button class="chip" data-f="closed">${t('tch.d.fClosed')}</button></div>
+          <div class="db-filters"><button class="chip active" data-f="">${t('tch.d.fAll')}</button><button class="chip" data-f="check">${t('chk.filter')}</button><button class="chip" data-f="wish">${t('tch.d.fWish')}</button><button class="chip" data-f="ask">${t('tch.d.fAsk')}</button><button class="chip" data-f="closed">${t('tch.d.fClosed')}</button></div>
           <div class="tch-reqs" id="dReqs"></div></div>
         <div class="db-card"><h2>${t('tch.d.attention')}</h2><div class="att">${attention.length ? attention.map((a) => `<p><span class="${a.c}">${a.n}</span> ${esc(a.txt)}</p>`).join('') : `<p class="muted">${t('tch.d.allGood')}</p>`}</div></div>
       </div>
@@ -424,7 +460,7 @@ export async function renderDashboard(root) {
   const nameOf = (sid) => students.find((s) => s.id === sid)?.name || '?';
   let f = '';
   const drawReqs = () => {
-    const list = reqs.filter((r) => (f === 'closed' ? r.status !== 'open' : r.status === 'open' && (!f || r.type === f)));
+    const list = reqs.filter((r) => (f === 'closed' ? !isOpen(r) : isOpen(r) && (!f || r.type === f)));
     root.querySelector('#dReqs').innerHTML = list.length ? list.map((r) => reqHTML(r, nameOf(r.sid))).join('') : `<p class="muted small db-empty">${t('tch.d.noReqs')}</p>`;
   };
   drawReqs();
@@ -437,6 +473,112 @@ export async function renderDashboard(root) {
     const id = await chooseFrom(t('tch.what.set'), sets2.map((sl) => ({ id: sl.id, label: sl.name, sub: songsCount((sl.songIds || []).length) })));
     const sl = sets2.find((x) => x.id === id); if (sl) { await setlistStudents(sl, { send: true }); renderDashboard(root); }
   });
+}
+
+// ---------------- v1.80: napredak (kartica kod nastavnika i kod učenika) ----------------
+/** Nazivi igara (pr.g.*) su u practiceText.js — učitaju se samo uz Vežbe; ovde se dodaju po potrebi. */
+async function prTexts() { const [{ LANGS }, X] = await Promise.all([import('./i18n.js'), import('./practiceText.js')]); for (const l of ['sr', 'en']) if (LANGS[l] && X[l] && !LANGS[l]['pr.g.pauk']) Object.assign(LANGS[l], X[l]); }
+const WD = () => (getLang() === 'en' ? ['M', 'T', 'W', 'T', 'F', 'S', 'S'] : ['P', 'U', 'S', 'Č', 'P', 'S', 'N']);
+/** Isti izgled kao „Ova nedelja“ u Vežbama: tri pločice + spisak igara i pesama. */
+export function progressBodyHTML(w, fmtDur, { who = '' } = {}) {
+  const max = Math.max(1, ...w.days);
+  const todayIdx = (new Date().getDay() + 6) % 7;
+  const gameRows = (w.games || []).filter((g) => !(g.id === 'pesma' && (w.songs || []).length)).slice(0, 4).map((g) => `<div class="tch-pl"><span>${esc(t('pr.g.' + g.id))}</span><small>${esc(countOf(g.n, ROUNDS))}${g.best ? ' · ' + t('prog.best', { n: g.best }) : ''}</small></div>`);
+  const songRows = (w.songs || []).slice(0, 3).map((s) => `<div class="tch-pl"><span>${esc(t('prog.song', { title: s.title }))}</span><small>${esc(countOf(s.n, ROUNDS))} · ${s.from !== s.to ? `${s.from}% → ${s.to}%` : `${s.to}%`}</small></div>`);
+  return `<div class="st-week tch-pw">
+      <div class="st-wk"><small>${t('prog.practiced')}</small><b>${fmtDur(w.total)}</b>${w.lastWeek && w.total !== w.lastWeek ? `<em class="${w.total > w.lastWeek ? 'up' : ''}">${w.total > w.lastWeek ? '+' : '−'}${fmtDur(Math.abs(w.total - w.lastWeek))} ${t('st.vsLast')}</em>` : `<em>${t('st.thisWeek')}</em>`}</div>
+      <div class="st-wk"><small>${t('prog.streak')}</small><b>${w.streak || 0}</b><em>${esc(countOf(w.rounds || 0, ROUNDS))}</em></div>
+      <div class="st-wk"><span class="st-bars" aria-hidden="true">${w.days.map((v, i) => `<i class="${w.cur && i === todayIdx ? 't' : ''}" style="height:${Math.round((v / max) * 100)}%"></i>`).join('')}</span><span class="st-days">${WD().map((n, i) => `<i class="${w.cur && i === todayIdx ? 't' : ''}">${n}</i>`).join('')}</span></div>
+    </div>
+    ${gameRows.length + songRows.length ? `<div class="set-grp tch-plist">${[...gameRows, ...songRows].join('')}</div>` : `<p class="muted small tch-none">${who ? t('prog.nothingWeek', { name: who }) : t('prog.nothingMine')}</p>`}`;
+}
+async function progressCardHTML(s, fresh = false) {
+  const P = await import('./progress.js'), { fmtDur } = await import('./statsView.js');
+  await prTexts();
+  const p = await P.studentProgress(s, { fresh });
+  const head = (extra = '') => `<div class="tch-sec"><span>${t('prog.headWeek')}</span>${extra}</div>`;
+  if (!p || p.gone) return `${head()}<p class="muted small tch-none">${t('prog.stopped', { name: s.name })}</p>`;
+  if (p.err) return `${head()}<p class="muted small tch-none">${t('prog.err')}</p>`;
+  const w = P.thisWeek(p);
+  return `${head(`<small class="muted">${t('prog.updated', { d: when(p.at) })}</small>`)}${progressBodyHTML(w, fmtDur, { who: s.name })}<p class="tch-lock">🔒 ${t('prog.lockTeacher', { name: s.name })}</p>`;
+}
+
+// ---------------- v1.80: „Proveri pesmu“ ----------------
+/** Nastavnik: šta da radi sa pesmom koju učenik želi da proveri (4 izbora). */
+export async function checkFlow(reqId, pkg = null) {
+  const r = (await T.getRequests()).find((x) => x.id === reqId); if (!r) return;
+  const st = await T.getStudent(r.sid); if (!st) return;
+  const opts = [['fix', '✏️'], ['mine', '🎸'], ['copy', '📥'], ['ok', '👍']];
+  let pick = 'fix';
+  const p = dialog({ title: t('chk.tTitle', { name: st.name, title: r.title }), html: true, className: 'tch-dlg', body: `
+    ${r.note ? `<p class="small muted">„${esc(r.note)}“</p>` : ''}
+    <div class="tch-opts" role="radiogroup">${opts.map(([k, i]) => `<button type="button" class="tch-opt${k === pick ? ' on' : ''}" data-o="${k}" role="radio" aria-checked="${k === pick}"><span class="tch-opt-ic">${i}</span><span><b>${esc(t('chk.o.' + k))}</b><small>${esc(t('chk.o.' + k + 'Sub', { name: st.name }))}</small></span></button>`).join('')}</div>`,
+    buttons: [{ label: t('common.cancel'), value: null }, { label: t('tch.next'), value: 'ok', kind: 'primary' }] });
+  const box = [...document.querySelectorAll('.modal-backdrop')].pop();
+  box.querySelector('.tch-opts').addEventListener('click', (e) => { const b = e.target.closest('[data-o]'); if (!b) return; pick = b.dataset.o; box.querySelectorAll('.tch-opt').forEach((x) => { x.classList.toggle('on', x === b); x.setAttribute('aria-checked', String(x === b)); }); });
+  if ((await p) !== 'ok') return;
+  const getPkg = async () => pkg || (await (await import('./shareImport.js')).fetchPackage(r.fileId));
+  const importHere = async (extra = {}) => {
+    const k = await getPkg(); if (!k || !k.songs.length) { toast(t('share.r.gone'), 'error'); return null; }
+    const { importTagged } = await import('./shareImport.js');
+    const res = await importTagged(k, r.fileId, () => ({ student: st.id, fromStudent: 1, ...extra }));
+    return res.ids[0];
+  };
+  if (pick === 'fix') {
+    const id = await importHere({ chk: { rid: r.id, sid: st.id, ps: r.ps || '' } }); if (!id) return;
+    await T.setRequest(r.id, { status: 'editing', songId: id });
+    toast(t('chk.editHint', { name: st.name }));
+    location.hash = '#/uredi/' + encodeURIComponent(id);
+  } else if (pick === 'mine') {
+    const item = await pickItem('song', [st], `${r.title} ${r.artist || ''}`.trim());
+    if (item) await sendMenu([st], { ...item, msgKey: 'chk.msgMine' }, { rq: r.id, rp: r.ps || '' });
+  } else if (pick === 'copy') {
+    const id = await importHere(); if (!id) return;
+    await T.setRequest(r.id, { status: 'copy', doneAt: Date.now(), songId: id });
+    toast(t('tch.got.savedAt', { name: st.name }));
+  } else if (pick === 'ok') await T.answerOk(r);
+  if (/^#\/ucenik/.test(location.hash) && pick !== 'fix') window.dispatchEvent(new HashChangeEvent('hashchange')); // osveži Učenike / učenika
+}
+/** Nastavnik: ispravljena pesma nazad učeniku (zamenjuje njegovu; stara ostaje u njegovim Prethodnim verzijama). */
+export async function sendFix(song) {
+  if (!song || !song.chk) return;
+  const st = await T.getStudent(song.chk.sid); if (!st) { toast(t('tch.rq.noStudent')); return; }
+  const S = await import('./shareService.js');
+  await sendMenu([st], { kind: 'song', name: song.title, share: S.songItem(song), msgKey: 'chk.msgFix' }, { rq: song.chk.rid, rp: song.chk.ps || '' });
+}
+/** Stavke za „⋯“ pesme (obična i TAB): nastavnik / učenik. */
+export async function teachMenuItems(song) {
+  const items = [];
+  try {
+    const [on, my] = await Promise.all([T.isTeacher(), T.getMyTeacher()]);
+    const { REC_FOLDER } = await import('./collections.js');
+    const isRec = !!song.recording || (song.folders || []).includes(REC_FOLDER);
+    if (on && song.chk && song.student) { const st = await T.getStudent(song.chk.sid); if (st) items.push({ value: 'chkSend', label: t('chk.sendFixTo', { name: st.name }), sub: t('chk.sendFixSub'), icon: 'students' }); }
+    if (on) items.push({ value: 'toStudent', label: t('tch.sendToStudent'), sub: t('tch.sendToStudentSub'), icon: 'students' });
+    if (my) items.push({ value: 'toTeacher', label: t('tch.sendToTeacher'), sub: t('tch.sendToTeacherSub', { t: my.name || t('tch.teacher') }), icon: 'students' });
+    if (my && !isRec && !song.fromT) items.push({ value: 'check', label: t('chk.ask'), sub: t('chk.askSub', { t: my.name || t('tch.teacher') }), icon: 'students' });
+  } catch {}
+  return items;
+}
+/** Vraća true ako je izbor iz „⋯“ obrađen ovde. */
+export async function handleTeachMenu(v, song) {
+  if (v === 'toTeacher') { await sendToTeacher(song); return true; }
+  if (v === 'toStudent') { await sendSongToStudents(song); return true; }
+  if (v === 'chkSend') { await sendFix(song); return true; }
+  if (v === 'check') { await askCheckFlow(song); return true; }
+  return false;
+}
+/** Učenik: „Proveri sa nastavnikom“ — napomena (nije obavezna), pa poruka. */
+export async function askCheckFlow(song) {
+  const m = await T.getMyTeacher(); if (!m) return;
+  const p = dialog({ title: t('chk.ask'), html: true, className: 'tch-dlg', body: `
+    <p class="small muted">${esc(t('chk.askBody', { t: m.name || t('tch.teacher'), title: song.title }))}</p>
+    <label class="tch-lab">${t('tch.rq.note')} <span class="muted">${t('tch.optional')}</span></label><textarea id="chkN" rows="2" maxlength="300" placeholder="${esc(t('chk.notePh'))}"></textarea>
+    <p class="tch-lock">🔒 ${t('chk.lock', { t: m.name || t('tch.teacher') })}</p>`, buttons: [{ label: t('common.cancel'), value: null }, { label: t('tch.next'), value: 'ok', kind: 'primary' }] });
+  const box = [...document.querySelectorAll('.modal-backdrop')].pop();
+  let note = ''; box.querySelector('#chkN').addEventListener('input', (e) => (note = e.target.value));
+  if ((await p) !== 'ok') return;
+  await T.askCheck(song, note);
 }
 
 // ---------------- v1.79: učenik — „Pitaj nastavnika“ ----------------

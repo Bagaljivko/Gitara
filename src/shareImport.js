@@ -227,3 +227,14 @@ export async function renderDriveShare(root, fileId) {
     } finally { busy = false; }
   }
 }
+
+/** v1.80: paket iz deljenog fajla (npr. „Proveri pesmu“ otvoren kasnije iz Zahteva). null = nema ga / greška. */
+export async function fetchPackage(fileId) {
+  const { SHARE_API_KEY } = await import('./shareConfig.js');
+  try {
+    const res = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&key=${encodeURIComponent(SHARE_API_KEY)}`);
+    if (!res.ok) return null;
+    const { parseShareFile } = await import('./shareCode.js');
+    return await parseShareFile(await res.text());
+  } catch { return null; }
+}
