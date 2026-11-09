@@ -10,6 +10,7 @@ import { esc, dialog, toast } from './ui.js';
 export const COLORS = ['#ff7cc3', '#5aa9ff', '#9be15d', '#ffd75e', '#b48cff', '#4fd1c5', '#ff9f5a', '#f472b6'];
 const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
 const clip = (s, n) => String(s || '').trim().slice(0, n);
+const pingNav = () => { try { dispatchEvent(new Event('marli-teach')); } catch {} }; // v1.81: kartica „Učenici“ (broj zahteva)
 
 // ---------------- nastavnik ----------------
 export async function getTeacher() { return (await settings.get('teacher', null)) || { on: false }; }
@@ -18,6 +19,7 @@ export async function setTeacher(patch) {
   const next = { ...cur, ...patch };
   if (!next.id) next.id = uid();
   await settings.set('teacher', next);
+  if ('on' in patch) pingNav();
   return next;
 }
 export const isTeacher = async () => !!(await getTeacher()).on;
@@ -203,7 +205,7 @@ export async function logSent(sids, kind) { const tc = await getTeacher(); const
 export async function getRequests() { return ((await settings.get('requests', [])) || []).filter((r) => r && r.id); }
 export async function setRequest(id, patch) {
   const list = await getRequests(); const i = list.findIndex((r) => r.id === id); if (i < 0) return null;
-  list[i] = { ...list[i], ...patch }; await settings.set('requests', list); return list[i];
+  list[i] = { ...list[i], ...patch }; await settings.set('requests', list); pingNav(); return list[i];
 }
 export async function getMyRequests() { return ((await settings.get('myRequests', [])) || []).filter((r) => r && r.id); }
 async function setMyRequest(id, patch) {
@@ -234,7 +236,7 @@ export async function receiveRequest(hash) {
   const list = await getRequests();
   if (!list.some((r) => r.id === d.id)) {
     list.push({ id: clip(d.id, 40), sid: st.id, type: d.type, title: clip(d.title, 80), artist: clip(d.artist, 60), note: clip(d.note, 300), at: Number(d.at) || Date.now(), status: 'open' });
-    await settings.set('requests', list);
+    await settings.set('requests', list); pingNav();
   }
   toast(t(d.type === 'wish' ? 'tch.rq.gotWish' : 'tch.rq.gotAsk', { name: st.name }));
   return st;
@@ -303,7 +305,7 @@ export async function addCheckRequest({ id, sid, title, artist, note, fileId, ps
   const list = await getRequests();
   if (!list.some((r) => r.id === id)) {
     list.push({ id: clip(id, 40), sid, type: 'check', title: clip(title, 80), artist: clip(artist, 60), note: clip(note, 300), at: Date.now(), status: 'open', fileId, ps: clip(ps, 60) });
-    await settings.set('requests', list);
+    await settings.set('requests', list); pingNav();
   }
   return (await getRequests()).find((r) => r.id === id);
 }

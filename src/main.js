@@ -4,6 +4,23 @@ import { settings, songs as songsDb, events as dbEvents } from './db.js';
 import { setWakeZone } from './wakelock.js';
 import { onNamingChange, loadNoteNamesPref } from './naming.js';
 import { needsUpgrade, CV } from './songmodel.js';
+// v1.81: kartica „Učenici“ (prva) — samo nastavnik i samo na računaru; broj = otvoreni zahtevi
+const DESK_NAV = matchMedia('(min-width: 1100px) and (hover: hover) and (pointer: fine)');
+let teachNavT = 0;
+function refreshTeachNav() {
+  clearTimeout(teachNavT);
+  teachNavT = setTimeout(async () => {
+    try {
+      const tc = (await settings.get('teacher', null)) || {};
+      document.body.classList.toggle('teach-nav', !!tc.on);
+      const n = tc.on ? ((await settings.get('requests', [])) || []).filter((r) => r && (r.status === 'open' || r.status === 'editing')).length : 0;
+      const b = document.getElementById('navTeachN'); if (b) { b.hidden = !n; b.textContent = n > 99 ? '99+' : String(n); }
+      const a = document.querySelector('.nav a[data-tab="ucenici"]'); if (a) a.classList.toggle('active', /^#\/(ucenici|ucenik)(\/|\?|$)/.test(location.hash) && DESK_NAV.matches);
+      if (/^#\/(ucenici|ucenik)(\/|\?|$)/.test(location.hash) && DESK_NAV.matches && tc.on) document.querySelector('.nav a[data-tab="pesme"]')?.classList.remove('active');
+    } catch {}
+  }, 30);
+}
+addEventListener('marli-teach', refreshTeachNav);
 
 await i18nReady; // engleski prevod (ako je izabran) mora biti učitan pre prvog prikaza
 
@@ -106,9 +123,11 @@ async function routeInner() {
   const hash = shared ? '#/primljena' : location.hash || '#/tuner';
   const [, page, arg] = hash.match(/^#\/([^/?]*)\/?(.*)$/) || [, 'tuner', ''];
   const tab = { tuner: 'tuner', akordi: 'akordi', pesme: 'pesme', pesma: 'pesme', uredi: 'pesme', setlista: 'pesme', nastup: 'pesme', primljena: 'pesme', podesavanja: 'podesavanja', provera: 'podesavanja', vezbe: 'vezbe', ucenici: 'pesme', ucenik: 'pesme', 'od-nastavnika': 'pesme' }[page] || 'tuner';
+  const tabT = (page === 'ucenici' || page === 'ucenik') && document.body.classList.contains('teach-nav') && DESK_NAV.matches ? 'ucenici' : tab; // v1.81
+  refreshTeachNav();
   document.body.classList.toggle('tuner-screen', tab === 'tuner');
   document.querySelectorAll('.nav a').forEach((a) => {
-    const on = a.dataset.tab === tab;
+    const on = a.dataset.tab === tabT;
     a.classList.toggle('active', on);
     if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
   });

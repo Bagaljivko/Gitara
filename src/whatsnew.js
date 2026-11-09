@@ -5,6 +5,9 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '1.81', date: '2026-11-09', items: [
+    { i: '🎓', sr: ['Učenici kao prva kartica', 'Na računaru nastavnik ima karticu „Učenici“ na prvom mestu u meniju, sa brojem otvorenih zahteva. Na telefonu je sve isto (Učenici su u Pesmama).'], en: ['Students as the first tab', 'On computers, teachers get a “Students” tab first in the menu, with the number of open requests. Phones stay the same (Students are under Songs).'] },
+  ] },
   { v: '1.80', date: '2026-11-09', items: [
     { i: '📈', sr: ['Napredak za nastavnika', 'Učenik može da uključi „Deli napredak“ (podrazumevano isključeno): nastavnik vidi samo brojeve — koliko se vežba, dane zaredom, igre i pesme iz „Delova pesme“. Bez pesama i snimaka; isključi i fajl se briše.'], en: ['Progress for your teacher', 'A student can turn on “Share progress” (off by default): the teacher sees numbers only — practice time, days in a row, games and Song parts songs. No songs or recordings; turn it off and the file is deleted.'] },
     { i: '🔍', sr: ['Proveri sa nastavnikom', 'U ⋯ svake pesme: nastavnik je ispravi i vrati, pošalje svoju verziju, sačuva kopiju ili kaže „u redu je“. Ispravka zameni tvoju pesmu tek kad potvrdiš — stara ostaje u Prethodnim verzijama.'], en: ['Check with teacher', 'In every song’s ⋯: your teacher corrects it and sends it back, sends their version, keeps a copy or says it’s fine. A correction replaces your song only when you confirm — the old one stays in Previous versions.'] },

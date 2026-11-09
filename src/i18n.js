@@ -30,6 +30,7 @@ const sr = {
   'nav.chords': 'Akordi',
   'nav.songs': 'Pesme',
   'nav.settings': 'Podešavanja',
+  'nav.students': 'Učenici',
   'nav.label': 'Glavna navigacija',
 
   // Tuner
@@ -602,7 +603,7 @@ const sr = {
   'chk.lock': 'Ide samo ova pesma, tvojom aplikacijom za poruke. {t} ne vidi ostale pesme.',
   'chk.subject': 'MARLI — proveri pesmu',
   'chk.msg': 'Zdravo! Možeš li da proveriš „{name}“?\n{note}\nOtvori u MARLI: {link}',
-  'chk.short': 'proveri:',
+  'chk.short': 'proveri',
   'chk.filter': 'Proveri',
   'chk.view': 'Pogledaj',
   'chk.edit': 'Uredi',

@@ -2176,3 +2176,10 @@ a.ds-it { text-decoration: none; }
 .tch-dash .db-tbl .who small { max-width: 170px; }
 .tch-dash .db-bar { width: 56px; }
 .tch-dash .db-kpi em.up { color: var(--ok, #7ee08a); }
+/* v1.81: kartica „Učenici“ — prva, samo nastavnik i samo na računaru (telefon: Učenici ostaju u Pesmama) */
+.nav a.nav-teach { display: none; }
+.nav-badge { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--accent); color: #111; font: 800 .72rem/20px var(--sans); text-align: center; }
+@media (min-width: 1100px) and (hover: hover) and (pointer: fine) {
+  body.teach-nav .nav a.nav-teach { display: flex; }
+  body.teach-nav .tch-dash .tch-back { display: none; } /* svoja kartica — bez „‹ Pesme“ */
+}

@@ -26,6 +26,7 @@ export default {
   'nav.chords': 'Chords',
   'nav.songs': 'Songs',
   'nav.settings': 'Settings',
+  'nav.students': 'Students',
   'nav.label': 'Main navigation',
 
   'tuner.title': 'Tuner',
@@ -589,7 +590,7 @@ export default {
   'chk.lock': 'Only this song goes, through your own messaging app. {t} doesn’t see your other songs.',
   'chk.subject': 'MARLI — check a song',
   'chk.msg': 'Hi! Could you check “{name}”?\n{note}\nOpen in MARLI: {link}',
-  'chk.short': 'check:',
+  'chk.short': 'check',
   'chk.filter': 'Check',
   'chk.view': 'Look',
   'chk.edit': 'Edit',
