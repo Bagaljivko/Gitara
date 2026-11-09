@@ -435,16 +435,17 @@ export function createTrack({ t, onExit, lookBeats = 4.5, onInfo = null, speed =
     },
     onOrientation(fn) { orientSubs.add(fn); return () => orientSubs.delete(fn); },
     /** Rezultat na stazi; buttons: [{ id, label, primary }] → Promise sa id-jem dugmeta. */
-    results({ title, stars = 0, score, lines = [], note = '', buttons = [] }) {
+    results({ title, stars = 0, score, lines = [], note = '', buttons = [], after = '' }) {
       const box = q('.trk-res');
       box.hidden = false;
-      box.innerHTML = `<div class="trk-res-card">
+      box.innerHTML = `<div class="trk-res-card${after ? ' has-ask' : ''}">
         ${title ? `<h2>${title}</h2>` : ''}
         ${stars != null ? `<div class="trk-stars" aria-label="${stars}/3">${[0, 1, 2].map((i) => `<span class="${i < stars ? 'on' : ''}" style="animation-delay:${0.15 + i * 0.22}s">★</span>`).join('')}</div>` : ''}
         ${score != null ? `<div class="pr-score"><b>${Math.round(score)}</b><small>/100</small></div>` : ''}
         ${lines.length ? `<div class="pr-res-row">${lines.map((l) => `<span><small>${l.label}</small><b>${l.value}</b></span>`).join('')}</div>` : ''}
         ${note ? `<p class="trk-res-note">${note}</p>` : ''}
         <div class="trk-res-btns">${buttons.map((b) => `<button class="btn ${b.primary ? 'primary' : ''}" data-id="${b.id}">${b.label}</button>`).join('')}</div>
+        ${after}
       </div>`;
       return new Promise((res) => box.querySelector('.trk-res-btns').addEventListener('click', (e) => {
         const b = e.target.closest('[data-id]');
@@ -686,12 +687,17 @@ export async function roundResults({ api, track, t, stats, key = null, extra = [
   lines.push({ label: t('pr.trk.maxCombo'), value: String(stats.maxCombo) });
   if (!stats.beginner) lines.push({ label: t('pr.tempoReached'), value: `${stats.tempo} BPM` });
   if (stats.metric != null && stats.metricLabel) lines.push({ label: stats.metricLabel, value: t('pr.unit.perMin', { n: stats.metric }) });
-  const choice = await track.results({
+  // v1.76: retko pitanje „Kako ti se čini…?“ (najviše dva puta, ikad) — ispod dugmadi, ne gura ih
+  let fb = null, ask = null;
+  try { fb = await import('./feedback.js'); ask = api.gameId ? fb.askAfterRound(api.gameId) : null; } catch {}
+  const pending = track.results({
     title: stats.beginner ? t(stats.clean ? 'pr.lvl.cleanTitle' : 'pr.lvl.notCleanTitle') : t('pr.trk.res' + stars),
     stars, score: stats.score, lines,
     note: [info.newBest ? t('pr.newBest') : '', info.challenge ? t('pr.speed.challengeDone') : '', stats.beginner && stats.clean ? t('pr.wait.cleanNote') : ''].filter(Boolean).join(' '),
-    buttons,
+    buttons, after: ask ? fb.askRowHTML(ask) : '',
   });
+  if (ask) fb.bindAskRow(track.el);
+  const choice = await pending;
   return { choice, next };
 }
 

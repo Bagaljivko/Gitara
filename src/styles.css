@@ -1989,3 +1989,20 @@ body:not(.tuner-screen) .settings-view details.set-page.card { background: none;
 .bk-offer li b { flex: 1; } .bk-offer li span { color: var(--muted); font-size: .86rem; }
 .bk-offer li.rec { border-color: rgba(245,165,36,.55); background: linear-gradient(160deg, rgba(245,165,36,.12), transparent 70%), var(--surface-2); }
 .bk-offer li em { font-style: normal; font-size: .68rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); }
+/* v1.76: „Pošalji utisak“ — prozor (i iznad igre), red sa retkim pitanjem ispod rezultata */
+.modal-backdrop:has(> .fb-dlg) { z-index: 260; }
+.fb-dlg .fb-lead { margin-top: 0; }
+.fb-types { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+.fb-types .chip { padding: 0 12px; }
+.fb-types .chip.on { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.fb-dlg textarea { width: 100%; box-sizing: border-box; }
+.fb-sw { align-items: flex-start; min-height: 0; margin-top: 12px; }
+.fb-sw .switch-track { flex: none; }
+.fb-sw b { display: block; } .fb-sw small { display: block; font-weight: 400; margin-top: 2px; }
+.fb-email { display: block; margin-top: 12px; }
+.fb-email b { display: block; } .fb-email small { display: block; margin: 2px 0 6px; }
+.fb-email input { width: 100%; box-sizing: border-box; }
+.fb-ask { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; margin: 10px auto 0; padding: 6px 10px; border: 1px solid var(--line); border-radius: 14px; max-width: 440px; font-size: .88rem; font-weight: 600; }
+.fb-ask .chip { min-height: 34px; padding: 0 12px; }
+.fb-ask .fb-ask-w { color: var(--muted); }
+.fb-dlg { max-height: calc(100dvh - 32px); overflow: auto; }

@@ -5,6 +5,10 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '1.76', date: '2026-11-09', items: [
+    { i: '💬', sr: ['Pošalji utisak', 'Podešavanja → Pošalji utisak: javi šta ne radi, predloži ideju ili reci šta ti se sviđa — čita ga autor aplikacije. Bez mreže poruka sačeka i pošalje se sama.'], en: ['Send feedback', 'Settings → Send feedback: report what’s wrong, suggest an idea or say what you like — the app’s author reads it. Offline, the message waits and is sent by itself.'] },
+    { i: '🩺', sr: ['Pošalji dijagnostiku', 'Ako nešto zapne: Podešavanja → Dijagnostika → Pošalji dijagnostiku. Bez pesama i ključeva.'], en: ['Send diagnostics', 'If something gets stuck: Settings → Diagnostics → Send diagnostics. No songs or keys.'] },
+  ] },
   { v: '1.75', date: '2026-11-09', items: [
     { i: '🎸', sr: ['Ime akorda na liniji', 'Promena akorda, Delovi pesme i Ritam (sa akordima): iznad žute linije stoji ime akorda koji sviraš, a otkucaj pre promene i sledeći („Em › G“). Brojevi i boje prstiju ostaju.'], en: ['Chord name on the line', 'Chord switch, Song parts and Rhythm (with chords): the chord you play is named above the yellow line, and one beat before a change the next one too (“Em › G”). Finger numbers and colors stay.'] },
   ] },

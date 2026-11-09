@@ -56,7 +56,7 @@
     <a href="#sr" hreflang="sr">Srpski</a>
     <a href="#en" hreflang="en">English</a>
   </nav>
-  <p class="muted">Poslednja izmena / Last updated: 1. 11. 2026.</p>
+  <p class="muted">Poslednja izmena / Last updated: 9. 11. 2026.</p>
 
   <section id="sr" lang="sr-Latn">
     <h2>Politika privatnosti</h2>
@@ -64,14 +64,14 @@
 
     <h3>Bez servera, bez prikupljanja podataka</h3>
     <ul>
-      <li>MARLI nema svoj server. Ne prikupljamo, ne čuvamo, ne analiziramo i ne prodajemo nikakve podatke o tebi.</li>
+      <li>MARLI nema svoj server. Ne prikupljamo, ne analiziramo i ne prodajemo podatke o tebi — osim onoga što nam sam pošalješ preko „Pošalji utisak“ ili „Pošalji dijagnostiku“ (vidi ispod).</li>
       <li>Nema reklama, praćenja ni analitike.</li>
     </ul>
 
     <h3>Šta se čuva na tvom uređaju</h3>
     <ul>
       <li>Pesme, folderi, setliste i podešavanja čuvaju se samo na tvom uređaju (u memoriji pregledača).</li>
-      <li>Tvoj Gemini API ključ čuva se samo na tvom uređaju. Ne šaljemo ga nigde osim direktno Google-u kada skeniraš pesmu, i nikada ga ne stavljamo u rezervnu kopiju.</li>
+      <li>Tvoj Gemini API ključ čuva se na tvom uređaju. Šalje se samo direktno Google-u kada skeniraš pesmu, i u tvoju sopstvenu rezervnu kopiju i sinhronizaciju na tvom Google Drive-u (da stigne i na drugi uređaj). Nama se nikad ne šalje.</li>
       <li>Zvuk sa mikrofona (tuner i prepoznavanje akorda) obrađuje se samo na uređaju. Ne snima se i ne šalje se nikome.</li>
     </ul>
 
@@ -86,6 +86,15 @@
       <li>Ako povežeš Google Drive, aplikacija koristi samo dozvolu <code>drive.file</code>. To znači da vidi i menja <b>samo fajlove koje je sama napravila</b>: folder „Gitara“ sa fajlom rezervne kopije i PDF-ovima pesama.</li>
       <li>Aplikacija ne može da vidi nijedan drugi fajl na tvom Google Drive-u.</li>
       <li>Vezu možeš da prekineš u svakom trenutku: <b>Podešavanja → Google Drive → Prekini vezu</b>. Fajlovi koje je aplikacija napravila ostaju na tvom Drive-u dok ih ti ne obrišeš.</li>
+    </ul>
+
+    <h3>Utisci i dijagnostika (samo kad ih ti pošalješ)</h3>
+    <ul>
+      <li>Kada dodirneš <b>Pošalji utisak</b> ili <b>Pošalji dijagnostiku</b>, šalje se: tvoja poruka, <b>tvoj imejl</b> (onaj kojim si povezao Google nalog u aplikaciji ili koji sam upišeš), nasumičan ID uređaja (da se zna da su dve poruke sa istog uređaja), ekran na kom si bio, verzija aplikacije, vrsta uređaja i pregledača i — ako je ne isključiš — dijagnostika: tehnički izveštaj (brzina pokretanja, greške, stanje sinhronizacije, oblik Gemini ključa bez samog ključa).</li>
+      <li>Nikad se ne šalju tekstovi pesama, fotografije ni tvoj Gemini ključ.</li>
+      <li>Retko (najviše dva puta) aplikacija posle vežbe pita „Kako ti se čini…?“. Ako dodirneš 👍 ili 👎, šalje se samo taj odgovor sa istim podacima kao gore.</li>
+      <li>Poslato stiže u Google tabelu autora aplikacije (Google Sheets). Koristi se samo da bi se odgovorilo i aplikacija popravila; ne deli se ni sa kim i ne koristi se za reklame. Čuva se najduže 2 godine.</li>
+      <li>Ako želiš da tvoje poruke i imejl budu obrisani, piši na adresu ispod.</li>
     </ul>
 
     <h3>Deljenje i spoljni linkovi</h3>
@@ -104,14 +113,14 @@
 
     <h3>No server, no data collection</h3>
     <ul>
-      <li>MARLI has no server of its own. We do not collect, store, analyze or sell any data about you.</li>
+      <li>MARLI has no server of its own. We do not collect, analyze or sell data about you — except what you send us yourself through “Send feedback” or “Send diagnostics” (see below).</li>
       <li>There are no ads, no tracking and no analytics.</li>
     </ul>
 
     <h3>What is stored on your device</h3>
     <ul>
       <li>Songs, folders, setlists and settings are stored only on your device (in the browser's storage).</li>
-      <li>Your Gemini API key is stored only on your device. It is sent nowhere except directly to Google when you scan a song, and it is never included in backups.</li>
+      <li>Your Gemini API key is stored on your device. It is sent only directly to Google when you scan a song, and into your own backup and sync on your Google Drive (so it reaches your other devices). It is never sent to us.</li>
       <li>Microphone audio (tuner and chord recognition) is processed only on your device. It is not recorded and not sent to anyone.</li>
     </ul>
 
@@ -126,6 +135,15 @@
       <li>If you connect Google Drive, the app uses only the <code>drive.file</code> permission. This means it can see and change <b>only the files it created itself</b>: a “Gitara” folder with a backup file and song PDFs.</li>
       <li>The app cannot see any other files in your Google Drive.</li>
       <li>You can disconnect at any time: <b>Settings → Google Drive → Disconnect</b>. Files the app created stay in your Drive until you delete them.</li>
+    </ul>
+
+    <h3>Feedback and diagnostics (only when you send them)</h3>
+    <ul>
+      <li>When you tap <b>Send feedback</b> or <b>Send diagnostics</b>, this is sent: your message, <b>your email</b> (the one you connected your Google account with in the app, or the one you type in), a random device ID (so two messages from the same device can be linked), the screen you were on, the app version, the type of device and browser and — unless you turn it off — diagnostics: a technical report (startup speed, errors, sync status, the shape of the Gemini key without the key itself).</li>
+      <li>Song texts, photos and your Gemini key are never sent.</li>
+      <li>Rarely (at most twice) the app asks “How do you like…?” after practice. If you tap 👍 or 👎, only that answer is sent, with the same details as above.</li>
+      <li>What you send goes to the app author’s Google spreadsheet (Google Sheets). It is used only to reply to you and improve the app; it is not shared with anyone and not used for ads. It is kept for at most 2 years.</li>
+      <li>If you want your messages and email deleted, write to the address below.</li>
     </ul>
 
     <h3>Sharing and external links</h3>

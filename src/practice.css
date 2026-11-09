@@ -178,6 +178,8 @@ body.trk-open { overflow: hidden; }
 .trk-res-card h2 { margin: 0 0 4px; font-size: 1.3rem; }
 @keyframes trkIn { from { opacity: 0; transform: scale(.92); } to { opacity: 1; transform: scale(1); } }
 .trk-stars { font-size: 2.6rem; line-height: 1; letter-spacing: 6px; }
+/* v1.76: kad je ispod dugmadi retko pitanje, na niskom ekranu (telefon položeno) zvezdice i broj su manji — sve stane */
+@media (max-height: 480px) { .trk-res-card.has-ask .trk-stars { font-size: 1.7rem; } .trk-res-card.has-ask .pr-score b { font-size: 2.3rem; } .trk-res-card.has-ask h2 { font-size: 1.1rem; } .trk-res-card.has-ask .pr-res-row { margin: 4px 0; } .trk-res-card.has-ask { padding-top: 10px; padding-bottom: 10px; } }
 .trk-stars span { color: var(--surface-2); -webkit-text-stroke: 1px var(--line); display: inline-block; }
 .trk-stars span.on { color: var(--accent); -webkit-text-stroke: 0; text-shadow: 0 0 14px rgba(245,165,36,.7); animation: trkStar .45s ease-out backwards; }
 @keyframes trkStar { from { transform: scale(0) rotate(-40deg); } 70% { transform: scale(1.3); } to { transform: scale(1); } }

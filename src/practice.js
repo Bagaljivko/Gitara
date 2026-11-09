@@ -318,6 +318,7 @@ async function renderGame(root, game, args, params) {
   }
 
   const api = {
+    gameId: game.id,
     stage: $('prStage'),
     opts: $('prOpts'),
     head: $('prHead'),

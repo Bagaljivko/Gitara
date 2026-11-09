@@ -170,6 +170,7 @@ export async function renderSettings(root) {
       <p class="muted small">${t('diag.note')}</p>
       <p class="small" id="diagSum"></p>
       <div class="row wrap">
+        <button class="btn primary" id="diagSend">${t('diag.send')}</button>
         <button class="btn" id="diagCopy">${t('diag.copy')}</button>
         <button class="btn" id="diagClear">${t('diag.clear')}</button>
         <button class="btn" id="diagScan">${t('diag.lastScan')}</button>
@@ -271,6 +272,7 @@ export async function renderSettings(root) {
     install: '<path d="M11 3h2v9l3-3 1.4 1.4L12 15.8 6.6 10.4 8 9l3 3zM4 18h16v2H4z"/>',
     keys: '<path d="M2 6h20v12H2zm2 2v2h2V8zm4 0v2h2V8zm4 0v2h2V8zm4 0v2h2V8zM4 12v2h2v-2zm4 0v2h8v-2zm10 0v2h2v-2z"/>',
     diag: '<path d="M20 8h-2.8a6 6 0 0 0-1.8-2l1.6-1.6L15.6 3l-2.2 2.2a6 6 0 0 0-2.8 0L8.4 3 7 4.4 8.6 6a6 6 0 0 0-1.8 2H4v2h2.1a6 6 0 0 0 0 1H4v2h2.1a6 6 0 0 0 0 1H4v2h2.8a6 6 0 0 0 10.4 0H20v-2h-2.1a6 6 0 0 0 0-1H20v-2h-2.1a6 6 0 0 0 0-1H20zm-6 8h-4v-2h4zm0-4h-4v-2h4z"/>',
+    fb: '<path d="M4 3h16a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H9l-5 4v-4H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm3 5v2h10V8zm0 4v2h7v-2z"/>',
     privacy: '<path d="M17 9V7a5 5 0 0 0-10 0v2H5v13h14V9zm-8-2a3 3 0 0 1 6 0v2H9z"/>',
   };
   const ico = (k, cls = '') => `<span class="sr-ic ${cls}"><svg viewBox="0 0 24 24" aria-hidden="true">${I[k]}</svg></span>`;
@@ -283,7 +285,8 @@ export async function renderSettings(root) {
     <h3 class="set-sec">${t('set.s.play')}</h3><div class="set-grp">${rowH('tuner', t('set.tunerTitle'), 'g')}${rowH('songs', t('set.songsTitle'))}${rowH('screen', t('set.g.screen'))}</div>
     <h3 class="set-sec">${t('set.s.app')}</h3><div class="set-grp">${rowH('lang', t('set.g.lang'))}${rowH('scan', t('set.g.key'))}</div>
     <h3 class="set-sec">${t('set.s.data')}</h3><div class="set-grp">${rowH('drive', t('set.g.sync'))}${rowH('file', t('bk.title'), 'g')}${rowH('shared', t('shared.title'))}</div>
-    <h3 class="set-sec">${t('set.s.more')}</h3><div class="set-grp">${rowH('pc', t('pc.title'), 'n')}${rowH('install', t('set.installTitle'), 'n')}
+    <h3 class="set-sec">${t('set.s.more')}</h3><div class="set-grp">
+      <button type="button" class="set-row" data-act="fb">${ico('fb', 'g')}<span class="sr-t">${t('fb.title')}</span><span class="sr-v">${t('fb.rowSub')}</span><span class="sr-chev" aria-hidden="true">›</span></button>${rowH('pc', t('pc.title'), 'n')}${rowH('install', t('set.installTitle'), 'n')}
       <button type="button" class="set-row" data-act="keys">${ico('keys', 'n')}<span class="sr-t">${t('keys.title')}</span><span class="sr-chev" aria-hidden="true">›</span></button>
       ${rowH('diag', t('diag.title'), 'n')}
       <a class="set-row" href="privacy.html" target="_blank" rel="noopener">${ico('privacy', 'n')}<span class="sr-t">${t('set.privacy')}</span><span class="sr-chev" aria-hidden="true">↗</span></a></div>
@@ -301,6 +304,7 @@ export async function renderSettings(root) {
   home.addEventListener('click', (e) => {
     const b = e.target.closest('[data-open],[data-act]'); if (!b) return;
     if (b.dataset.act === 'keys') { $('bKeys')?.click(); return; }
+    if (b.dataset.act === 'fb') { import('./feedback.js').then((m) => m.openFeedback({ screen: t('nav.settings') })); return; }
     openPage(b.dataset.open);
   });
   // naslov stranice (‹) vraća na spisak; na računaru ne zatvara (uvek je otvorena jedna)
@@ -360,6 +364,7 @@ export async function renderSettings(root) {
     $('diagSum').textContent = (errs ? t('diag.errors', { n: errs }) : t('diag.noErrors')) + (avg ? ' · ' + t('diag.boot', { ms: avg }) : '');
   };
   diagSum();
+  $('diagSend').addEventListener('click', () => import('./feedback.js').then((m) => m.sendDiagnostics()));
   $('diagCopy').addEventListener('click', async () => {
     const { buildReport } = await import('./diag.js');
     const txt = await buildReport();

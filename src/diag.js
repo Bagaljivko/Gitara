@@ -18,7 +18,7 @@ const W = {
   en: { cache: 'Cache', yes: 'yes', no: 'no', inst: 'Installed', screen: 'screen', cores: 'cores', ua: 'Browser', space: 'Storage', of: 'of', persist: 'persistent', songs: 'Songs', boots: 'Startups (ms to first screen):', net: 'network', disc: '(the phone closed it in the background)', logged: 'Logged', none: 'No errors logged.' },
 };
 
-export async function buildReport() {
+export async function buildReport({ share = false } = {}) {
   const w = W[getLang()] || W.sr;
   const L = [];
   L.push(`MARLI ${APP_VERSION} · ${getLang()} · ${iso(Date.now())}`);
@@ -32,7 +32,7 @@ export async function buildReport() {
     if (e) L.push(`${w.space}: ${(e.usage / 1048576).toFixed(1)} MB ${w.of} ${(e.quota / 1048576).toFixed(0)} MB · ${w.persist}: ${p ? w.yes : w.no}`);
   } catch {}
   try { L.push(`${w.songs}: ${await songs.count()}`); } catch {}
-  try { L.push('', ...(await geminiLines())); } catch {}
+  try { L.push('', ...(await geminiLines(share))); } catch {}
   const boots = bootLog();
   if (boots.length) {
     L.push('', w.boots);
@@ -52,17 +52,17 @@ export async function buildReport() {
 }
 
 // v1.70.1: Gemini i sinhronizacija — sve što treba za proveru „zašto skeniranje ne radi“, bez samog ključa
-async function geminiLines() {
+async function geminiLines(share = false) {
   const L = ['Gemini:'];
   const key = String((await settings.get('geminiKey', '')) || '');
   // stari oblik AIza… (39 znakova) i noviji Google oblik (npr. „AQ.…“, duži, sa tačkom) su oba u redu
   const shape = !key ? 'nema' : /^AIza[\w-]{35}$/.test(key) ? 'ispravan oblik (AIza…, 39 znakova)' : /^[\w.\-]{20,300}$/.test(key) ? `ispravan oblik (noviji Google format, ${key.length} znakova, „${key.slice(0, 3)}…“)` : `NEOBIČAN oblik (${key.length} znakova, počinje sa „${key.slice(0, 4)}“)`;
-  L.push(`  ključ: ${shape}${key ? ' · završava se na …' + key.slice(-4) : ''}${/\s/.test(key) ? ' · IMA RAZMAK/NOVI RED' : ''}`);
+  L.push(`  ključ: ${shape}${key && !share ? ' · završava se na …' + key.slice(-4) : ''}${/\s/.test(key) ? ' · IMA RAZMAK/NOVI RED' : ''}`);
   L.push(`  prenos ključa na uređaje: ${(await settings.get('keySync', true)) !== false ? 'uključen' : 'isključen'}`);
   L.push(`  model: ${(await settings.get('geminiModelSel', '')) || 'auto'} · poslednji koji je radio: ${(await settings.get('geminiLastModel', '')) || '—'}`);
   try { const { quotaResetAt } = await import('./gemini.js'); const r = quotaResetAt(); if (r) L.push(`  nov dnevni besplatni limit: ${iso(r)} (UTC)`); } catch {}
   try { const c = JSON.parse(localStorage.getItem('marli-keycheck') || 'null'); if (c) { L.push(`  poslednja provera ključa: ${iso(c.t)} → ${c.kind}${c.model ? ' (' + c.model + ')' : ''}`); for (const a of c.att || []) L.push('    ' + a); } } catch {}
-  try { const sc = JSON.parse(localStorage.getItem('gitara-lastscan') || 'null'); if (sc && sc.text) L.push(`  poslednje neuspelo skeniranje ${iso(sc.at)}:`, ...String(sc.text).split('\n').slice(0, 40).map((x) => '    ' + x)); } catch {}
+  try { const sc = JSON.parse(localStorage.getItem('gitara-lastscan') || 'null'); if (sc && sc.text) L.push(`  poslednje neuspelo skeniranje ${iso(sc.at)}${share ? ' (tekst nije poslat)' : ':'}`, ...(share ? [] : String(sc.text).split('\n').slice(0, 40).map((x) => '    ' + x))); } catch {}
   try { const q = JSON.parse(localStorage.getItem('marli-pdf-queue') || '[]'); if (q.length) L.push(`  PDF red: ${q.map((x) => x.st).join(', ')}`); } catch {}
   try {
     const y = (await import('./sync.js')).syncState();
