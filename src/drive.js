@@ -515,6 +515,30 @@ export async function saveNamed(name, json) {
   const r = await uploadFile({ id: files[0] && files[0].id, name, mime: 'application/json', blob: new Blob([json], { type: 'application/json' }), parents: [folder] });
   return Date.parse(r.modifiedTime) || Date.now();
 }
+/** v1.85: tiho (bez Google prozora) — za automatsku dnevnu kopiju. '' = nema važećeg ključa (pokušaće sledeći put). */
+async function quietFileToken() {
+  await initDrive().catch(() => {});
+  if (state.token && state.tokenFile && Date.now() < state.tokenExp) return state.token;
+  if (await refreshQuiet('file').catch(() => false)) return state.token;
+  return '';
+}
+/** Sačuvaj kopiju bez ikakvog prozora. 0 = nije moglo tiho (nema ključa / mreže). */
+export async function saveNamedQuiet(name, json) {
+  if (navigator.onLine === false || !(await quietFileToken())) return 0;
+  const folder = await ensureFolder();
+  const files = await findFiles(`name='${q(name)}' and '${folder}' in parents and trashed=false`);
+  const r = await uploadFile({ id: files[0] && files[0].id, name, mime: 'application/json', blob: new Blob([json], { type: 'application/json' }), parents: [folder] });
+  return Date.parse(r.modifiedTime) || Date.now();
+}
+/** Fajlovi u folderu „Gitara“ čije ime počinje sa prefix (najviše 50). quiet = bez prozora (prazno ako ne može). */
+export async function listNamed(prefix, { quiet = false } = {}) {
+  if (quiet ? !(await quietFileToken()) : !(await fileToken())) return [];
+  const folder = await ensureFolder();
+  const url = `${API}/files?spaces=drive&pageSize=50&orderBy=name desc&fields=${encodeURIComponent('files(id,name,modifiedTime)')}&q=${encodeURIComponent(`name contains '${q(prefix)}' and '${folder}' in parents and trashed=false`)}`;
+  return ((await (await api(url)).json()).files || []).filter((f) => f.name.startsWith(prefix));
+}
+export async function deleteFileId(id) { await api(`${API}/files/${encodeURIComponent(id)}`, { method: 'DELETE' }); }
+
 /** Najnovija kopija pod tim imenom: { data, modified } ili null. */
 export async function readNamed(name) {
   await fileToken();

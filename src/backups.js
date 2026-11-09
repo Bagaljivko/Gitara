@@ -13,7 +13,7 @@ import { APP_VERSION } from './version.js';
 const EXCL_SETTINGS = new Set(['driveToken', 'driveRT', 'drive', 'syncCfg', 'syncMigrated', 'syncOffered', 'geminiModels', 'shareFolder', 'held:secret']);
 const LOCAL_RE = /^(gitara-|marli-)/;
 const EXCL_LOCAL = new Set(['gitara-diag', 'gitara-boots', 'gitara-lastscan', 'gitara-sync', 'gitara-echo-clean', 'marli-keycheck', 'marli-pdf-queue', 'marli-bk',
-  'marli-def1701', 'marli-def-test', 'marli-dev', 'marli-intro', 'marli-intro-gate', 'marli-invite-test', 'marli-fb-q', 'marli-fb-url-test']);
+  'marli-autobk', 'marli-def1701', 'marli-def-test', 'marli-dev', 'marli-intro', 'marli-intro-gate', 'marli-invite-test', 'marli-fb-q', 'marli-fb-url-test']);
 const KEY_RE = /^[\w.\-]{10,300}$/; // stari (AIza…, 39) i novi Google oblik (AQ.…, sa tačkom)
 const LAST = 'marli-bk'; // kada je poslednja kopija napravljena (na ovom uređaju)
 
@@ -99,6 +99,87 @@ export async function saveBackup(kind) {
   }
 }
 
+// ---------------- v1.85: automatska dnevna kopija (podrazumevano uključeno) ----------------
+// Jednom dnevno, pri prvom korišćenju tog dana, ako se nešto promenilo: „Cela aplikacija“ kao poseban fajl po danu
+// (folder „Gitara“ na korisnikovom Drive-u). Čuva se poslednjih 7 dana + po jedna za 4 nedelje pre toga.
+// Bez ikakvog Google prozora: ako ključ ne može tiho da se obnovi, pokušava se sledeći put.
+export const DAILY = 'MARLI – dnevna kopija ';
+const AUTO = 'marli-autobk';
+const dailyName = (d) => `${DAILY}${d}.json`;
+export const dailyDate = (name) => (/(\d{4}-\d{2}-\d{2})\.json$/.exec(name || '') || [])[1] || '';
+export const autoInfo = () => { try { return JSON.parse(localStorage.getItem(AUTO) || '{}') || {}; } catch { return {}; } };
+export async function autoOn() { return (await settings.get('autoBackup', true)) !== false; }
+export async function setAutoOn(on) { await settings.set('autoBackup', !!on); if (on) autoBackup({ force: true }).catch(() => {}); }
+const hashOf = (str) => { let h = 5381; for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0; return String(h >>> 0); };
+/** Koje dnevne kopije ostaju: 7 najnovijih + najnovija iz svake od 4 nedelje pre toga. */
+export function keepDaily(dates) {
+  const ds = [...new Set(dates)].sort().reverse();
+  const keep = new Set(ds.slice(0, 7)), weeks = new Set();
+  for (const d of ds.slice(7)) {
+    const t0 = Date.parse(d + 'T12:00:00Z'); const wd = (new Date(t0).getUTCDay() + 6) % 7; const wk = Math.round((t0 - wd * 864e5) / 864e5);
+    if (weeks.has(wk) || weeks.size >= 4) continue;
+    weeks.add(wk); keep.add(d);
+  }
+  return keep;
+}
+let autoRunning = false;
+/** Vraća: 'saved' | 'same' | 'skip' | 'later' (nije moglo tiho). */
+export async function autoBackup({ force = false } = {}) {
+  if (autoRunning) return 'skip';
+  if (!(await autoOn()) || !(await isConnected()) || navigator.onLine === false) return 'skip';
+  const today = day(), last = autoInfo();
+  if (!force && last.day === today) return 'skip';
+  autoRunning = true;
+  try {
+    const data = await buildFull();
+    if (!(data.songs || []).length && !last.hash) return 'skip'; // prazna aplikacija — nema šta da se čuva
+    const hash = hashOf(JSON.stringify({ ...data, exportedAt: 0, appVersion: 0 }));
+    const store = (o) => { try { localStorage.setItem(AUTO, JSON.stringify({ ...last, ...o })); } catch {} };
+    if (!force && last.hash === hash) { store({ day: today }); return 'same'; }
+    const drive = await import('./drive.js');
+    const at = await drive.saveNamedQuiet(dailyName(today), JSON.stringify(data));
+    if (!at) return 'later';
+    store({ day: today, hash, at, n: (data.songs || []).length });
+    // čišćenje starih
+    try {
+      const files = await drive.listNamed(DAILY, { quiet: true });
+      const keep = keepDaily(files.map((f) => dailyDate(f.name)).filter(Boolean));
+      for (const f of files) if (dailyDate(f.name) && !keep.has(dailyDate(f.name))) await drive.deleteFileId(f.id).catch(() => {});
+    } catch (e) { logErr('auto prune', e); }
+    return 'saved';
+  } catch (e) { logErr('auto', e); return 'later'; } finally { autoRunning = false; }
+}
+/** Pokretanje: posle pokretanja aplikacije i kad se vrati u prvi plan (najviše jednom dnevno). */
+let autoInited = false;
+export function initAutoBackup() {
+  if (autoInited) return; autoInited = true;
+  setTimeout(() => autoBackup().catch(() => {}), 25000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) setTimeout(() => autoBackup().catch(() => {}), 4000); });
+}
+/** „Vrati sve“ sa Drive-a: izbor kopije (ručna + dnevne). '' = ručna/najnovija, null = otkazano. */
+async function pickFullCopy() {
+  const drive = await import('./drive.js');
+  let files = [], manual = null;
+  try { files = await drive.listNamed(DAILY); } catch (e) { logErr('list daily', e); }
+  try { manual = await drive.peekNamed(drive.BK_FULL); } catch {}
+  const daily = files.map((f) => ({ name: f.name, d: dailyDate(f.name), at: Date.parse(f.modifiedTime) || 0 })).filter((x) => x.d).sort((a, b) => (a.d < b.d ? 1 : -1));
+  if (!daily.length) return '';
+  const opts = [...(manual ? [{ name: drive.BK_FULL, label: t('bk.pickManual'), sub: drive.formatDate(manual.modified) }] : []),
+    ...daily.map((x) => ({ name: x.name, label: dayLabel(x.d), sub: t('bk.pickDaily', { time: (drive.formatDate(x.at).split(' ').pop() || '') }) }))];
+  let pick = opts[0].name;
+  const p = dialog({ title: t('bk.pickTitle'), html: true, className: 'tch-dlg', body: `<p class="small muted">${esc(t('bk.pickBody'))}</p><div class="tch-opts bk-picks" role="radiogroup">${opts.map((o, i) => `<button type="button" class="tch-opt${i ? '' : ' on'}" data-o="${esc(o.name)}" role="radio" aria-checked="${!i}"><span class="tch-opt-ic bk-pick-ic"><svg viewBox="0 0 24 24" aria-hidden="true">${o.name === drive.BK_FULL ? '<path d="M12 2 3 6v6c0 5 3.8 9.4 9 10 5.2-.6 9-5 9-10V6l-9-4z"/>' : '<path d="M7 2v2H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2V2h-2v2H9V2zM5 9h14v10H5z"/>'}</svg></span><span><b>${esc(o.label)}</b><small>${esc(o.sub)}</small></span></button>`).join('')}</div>`,
+    buttons: [{ label: t('common.cancel'), value: null }, { label: t('bk.pickOk'), value: 'ok', kind: 'primary' }] });
+  const box = [...document.querySelectorAll('.modal-backdrop')].pop();
+  box?.querySelector('.bk-picks')?.addEventListener('click', (e) => { const b = e.target.closest('[data-o]'); if (!b) return; pick = b.dataset.o; box.querySelectorAll('.bk-picks .tch-opt').forEach((x) => { x.classList.toggle('on', x === b); x.setAttribute('aria-checked', String(x === b)); }); });
+  return (await p) === 'ok' ? pick : null;
+}
+function dayLabel(d) {
+  const today = day(), y = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
+  const cap = (x) => x.charAt(0).toUpperCase() + x.slice(1);
+  if (d === today) return cap(t('st.today')); if (d === y) return cap(t('st.yesterday'));
+  const [Y, M, D] = d.split('-').map(Number); return `${D}. ${M}. ${Y}.`;
+}
+
 // ---------------- Vraćanje ----------------
 /** Fajl sa uređaja (JSON) ili null. */
 async function fromFile() {
@@ -138,6 +219,11 @@ function summaryHtml(src, items) {
 
 /** „Vrati sve“: kopija cele aplikacije sa Drive-a (ili iz fajla: from='file') zamenjuje sve. */
 export async function restoreFull({ from = 'drive', name = '' } = {}) {
+  if (from === 'drive' && !name) { // v1.85: izbor — ručna kopija ili jedna od dnevnih
+    if (!(await ensureConnected())) return false;
+    try { await (await import('./drive.js')).fileToken(); } catch (e) { if (e && e.code !== 'cancelled') toast((e && e.message) || t('common.error'), 'error'); return false; }
+    const pick = await pickFullCopy(); if (pick === null) return false; name = pick;
+  }
   const src = from === 'file' ? await fromFile() : await fromDrive('full', name);
   if (!src) return false;
   const drive = await import('./drive.js');

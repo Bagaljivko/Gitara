@@ -5,6 +5,9 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '1.85', date: '2026-11-09', items: [
+    { i: '🛡', sr: ['Rezervna kopija svaki dan — sama', 'Kad je Google nalog povezan, MARLI jednom dnevno sam sačuva celu aplikaciju na tvoj Google Drive (samo ako se nešto promenilo). Čuva se poslednjih 7 dana + po jedna za 4 nedelje; „Vrati sve“ nudi izbor datuma. Podrazumevano uključeno (Podešavanja → Rezervne kopije).'], en: ['A backup every day — by itself', 'With a Google account connected, MARLI saves the whole app to your Google Drive once a day (only if something changed). It keeps the last 7 days + one for each of 4 weeks; “Restore all” lets you pick the date. On by default (Settings → Backups).'] },
+  ] },
   { v: '1.84', date: '2026-11-09', items: [
     { i: '📈', sr: ['Napredak porukom — bez Google naloga', 'Učenik bira kako nastavnik vidi napredak: automatski (Google nalog) ili porukom — jednim dodirom šalje brojeve ove nedelje, a Vežbe ga podsete jednom nedeljno. Dobro za decu, kod kojih Google traži roditelja ili ne dozvoljava pristup.'], en: ['Progress by message — no Google account', 'Students choose how their teacher sees progress: automatically (Google account) or by message — this week’s numbers in one tap, with a weekly reminder in Practice. Good for children, where Google asks a parent or doesn’t allow access.'] },
     { i: '🔐', sr: ['Google prijava više ne „zamrzne“', 'Ako se Google prozor ne javi (npr. posle roditeljevog odobrenja), MARLI prestane da čeka i ponudi „Pokušaj ponovo“ ili „Pošalji porukom“. Veza sa nastavnikom ostaje; dijagnostika beleži šta je Google odgovorio.'], en: ['Google sign-in no longer “freezes”', 'If Google’s window doesn’t answer (e.g. after a parent’s approval), MARLI stops waiting and offers “Try again” or “Send by message”. The teacher connection stays; diagnostics record what Google answered.'] },

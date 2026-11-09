@@ -138,6 +138,7 @@ export async function renderSettings(root) {
           <div class="bk-top"><span class="bk-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 3 6v6c0 5 3.8 9.4 9 10 5.2-.6 9-5 9-10V6l-9-4zm-1.2 14.2-3.5-3.5 1.4-1.4 2.1 2.1 4.9-4.9 1.4 1.4z"/></svg></span><div><b id="bkFullH">${t('bk.fullTitle')}</b><small>${t('bk.fullSub')}</small></div><span class="bk-tag">${t('bk.fullTag')}</span></div>
           <ul class="bk-chips" id="bkFullChips"></ul>
           <p class="bk-state" id="bkFullState"></p>
+          <label class="switch tch-sw bk-auto"><input type="checkbox" id="bkAuto"><span class="switch-track"><span class="switch-thumb"></span></span><span><b>${t('bk.autoTitle')}</b><small class="muted" id="bkAutoSub"></small></span></label>
           <div class="bk-actions">
             <button class="btn primary" id="bkFullSave"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.4 10.2A7 7 0 0 0 6.1 8.1 5 5 0 0 0 6.5 18H11v-4.2l-1.6 1.6L8 14l4-4 4 4-1.4 1.4-1.6-1.6V18h5.5a4 4 0 0 0 .9-7.8z"/></svg><span>${t('bk.fullSave')}</span></button>
             <button class="btn" id="bkFullRestore"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.4 10.2A7 7 0 0 0 6.1 8.1 5 5 0 0 0 6.5 18h12a4 4 0 0 0 .9-7.8zM12 16.5l-4-4 1.4-1.4 1.6 1.6V8h2v4.7l1.6-1.6 1.4 1.4z"/></svg><span>${t('bk.fullRestore')}</span></button>
@@ -346,7 +347,8 @@ export async function renderSettings(root) {
     $('shWho').textContent = y.on && y.email ? y.email : t('set.h.noAcct');
     $('shWhoSub').textContent = y.on ? t('set.h.acctSub') : t('set.h.noAcctSub');
     $('shAva').textContent = (y.on && y.email ? y.email[0] : 'M').toUpperCase();
-    const B = await import('./backups.js'), L = B.lastBackups().full;
+    const B = await import('./backups.js'), L0 = B.lastBackups().full, A = B.autoInfo(); // v1.85: i dnevna kopija
+    const L = A.at && (!L0 || A.at > L0.at) ? { at: A.at } : L0;
     const bk = L ? (new Date(L.at).toDateString() === new Date().toDateString() ? t('set.v.today') : formatDate(L.at).split(' ')[0]) : '';
     setV('file', bk || t('set.v.none'), bk ? '' : 'warn');
     $('shBk').textContent = bk ? '✓ ' + bk : t('set.v.none'); $('shBk').className = bk ? 'ok' : 'warn';
@@ -639,9 +641,20 @@ export async function renderSettings(root) {
       const local = L[kind] ? t('bk.last', { date: formatDate(L[kind].at), where: t(L[kind].where === 'drive' ? 'bk.whereDrive' : 'bk.whereFile') }) : '';
       const show = (cls, txt) => { el.className = 'bk-state ' + cls; el.textContent = txt; };
       show(L[kind] ? 'ok' : 'warn', local || t('bk.never'));
-      if (on) B.onDrive(kind).then((d) => { if (d) show('ok', t('bk.onDriveAt', { date: formatDate(d.modified) })); else if (d === null && !(L[kind] && L[kind].where === 'file')) show('warn', t('bk.noneYet')); }).catch(() => {});
+      const A = kind === 'full' ? B.autoInfo() : {}; // v1.85: i dnevna kopija se računa
+      if (A.at) show('ok', t('bk.autoOnDrive', { date: formatDate(A.at) }));
+      if (on) B.onDrive(kind).then((d) => { if (d && !(A.at > d.modified)) show('ok', t('bk.onDriveAt', { date: formatDate(d.modified) })); else if (d === null && !A.at && !(L[kind] && L[kind].where === 'file')) show('warn', t('bk.noneYet')); }).catch(() => {});
     }
   };
+  // v1.85: automatska dnevna kopija (podrazumevano uključeno)
+  const drawAuto = async () => {
+    const B = await import('./backups.js'); const on = await B.autoOn(), conn = await B.isConnected(), a = B.autoInfo();
+    if (!$('bkAuto')) return;
+    $('bkAuto').checked = on;
+    $('bkAutoSub').textContent = !on ? t('bk.autoOff') : !conn ? t('bk.autoNeedGoogle') : a.at ? t('bk.autoKeep') : `${t('bk.autoFirst')} · ${t('bk.autoKeep')}`;
+  };
+  drawAuto();
+  $('bkAuto').addEventListener('change', async (e) => { const B = await import('./backups.js'); await B.setAutoOn(e.target.checked); toast(t(e.target.checked ? 'bk.autoOnToast' : 'bk.autoOffToast')); drawAuto(); setTimeout(drawAuto, 6000); });
   drawBk();
   const bk = (id, fn) => $(id).addEventListener('click', async (e) => {
     const b = e.currentTarget; b.disabled = true; b.classList.add('busy');
