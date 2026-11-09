@@ -209,7 +209,7 @@ export function ageText(ts) {
   const m = Math.max(0, Math.round((Date.now() - ts) / 60000));
   if (m < 60) return t('bk.ageMin', { n: Math.max(1, m) });
   const h = Math.round(m / 60); if (h < 24) return t('bk.ageH', { n: h });
-  return t('bk.ageD', { n: Math.round(h / 24) });
+  const d = Math.round(h / 24); return d === 1 ? t('bk.ageD1') : t('bk.ageD', { n: d });
 }
 /** arrived: šta je stiglo prvom sinhronizacijom (ključevi 'song:…', 'secret'…). Ponudi se samo ako je kopija korisna:
  *  sinhronizacija nije donela ništa, ili je kopija na Drive-u novija od najnovije pesme koja je stigla. */

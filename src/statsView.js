@@ -1,6 +1,6 @@
 // v1.73: statistika — „Ova nedelja“ (+ nedeljni cilj), „Moje pesme“, „Dugo nisi svirao“, kartica pesme (sve o njoj,
 // delovi i napredak tempa), red na ekranu pesme i spremnost set liste. Podaci: activity.js (vreme) + practice (rezultati).
-import { t, getLang } from './i18n.js';
+import { t, getLang, countOf, DAYS, TIMES, ROUNDS } from './i18n.js';
 import { settings, songs as db } from './db.js';
 import { esc, dialog } from './ui.js';
 import { loadTotals, dayNum } from './activity.js';
@@ -50,7 +50,7 @@ export async function weekHTML() {
   const goalMs = goal * 60000;
   return `<div class="st-week" id="stWeek">
     <div class="st-wk"><small>${t('st.played')}</small><b>${fmtDur(p)}</b>${diff && lastWeekSameTime ? `<em class="${diff > 0 ? 'up' : 'down'}">${diff > 0 ? '+' : '−'}${fmtDur(Math.abs(diff))} ${t('st.vsLast')}</em>` : `<em>${t('st.thisWeek')}</em>`}</div>
-    <div class="st-wk"><small>${t('st.practiced')}</small><b>${fmtDur(x)}</b><em>${t('st.activeDays', { n: days.filter((d) => d <= today && tot.days[String(d)]).length })}</em></div>
+    <div class="st-wk"><small>${t('st.practiced')}</small><b>${fmtDur(x)}</b><em>${t('st.activeDays', { n: countOf(days.filter((d) => d <= today && tot.days[String(d)]).length, DAYS) })}</em></div>
     <button type="button" class="st-wk st-goal" id="stGoal" aria-label="${esc(t('st.goal'))}">
       ${goal ? `${ring(all / goalMs)}<span><small>${t('st.goal')}</small><b>${fmtDur(all)}</b><em>${t('st.of', { goal: fmtDur(goalMs) })}</em></span>`
         : `<span class="st-bars" aria-hidden="true">${per.map((v, i) => `<i class="${days[i] === today ? 't' : ''}" style="height:${Math.round((v / max) * 100)}%"></i>`).join('')}</span><span class="st-days">${names.map((n, i) => `<i class="${days[i] === today ? 't' : ''}">${n}</i>`).join('')}</span><small class="st-setgoal">${t('st.setGoal')}</small>`}
@@ -117,8 +117,8 @@ export async function openSongStats(id) {
   const html = `<div class="st-sheet">
     <p class="st-sub">${esc(s.artist || '')}${tot.last ? `${s.artist ? ' · ' : ''}${esc(t('st.lastPlayed', { when: agoText(tot.last) }))}` : ''}</p>
     <div class="st-big">
-      <div class="st-b"><small>${t('st.played')}</small><b>${fmtDur(tot.p)}</b><em>${t('st.timesDays', { n: tot.n, d: tot.days })}</em></div>
-      <div class="st-b p"><small>${t('st.practiced')}</small><b>${fmtDur(tot.x)}</b><em>${t('st.roundsStreak', { n: rounds, s: streak })}</em></div>
+      <div class="st-b"><small>${t('st.played')}</small><b>${fmtDur(tot.p)}</b><em>${t('st.timesDays', { n: countOf(tot.n, TIMES), d: countOf(tot.days, DAYS) })}</em></div>
+      <div class="st-b p"><small>${t('st.practiced')}</small><b>${fmtDur(tot.x)}</b><em>${t('st.roundsStreak', { n: countOf(rounds, ROUNDS), s: countOf(streak, DAYS) })}</em></div>
     </div>
     ${ps.length ? `<div class="st-parts">${ps.map((p) => `<div class="st-pt"><span class="nm">${esc(p.name)}</span><span class="bar"><i class="${p.best >= 80 ? 'ok' : ''}" style="width:${p.best}%"></i></span><span class="pc">${p.best ? p.best + '%' : '—'}</span>${tempo(p)}</div>`).join('')}</div>`
       : `<p class="muted small">${t('st.notPracticed')}</p>`}

@@ -25,7 +25,7 @@
 .pr-name b { font-size: 1.08rem; overflow: hidden; text-overflow: ellipsis; }
 .pr-name .pr-ico-svg { width: 20px; height: 20px; flex: none; color: var(--gc); filter: drop-shadow(0 0 3px var(--gc)); }
 .pr-desc { font-size: .82rem; line-height: 1.3; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 2.6em; }
-.pr-meta { display: flex; align-items: center; gap: 8px; min-height: 22px; white-space: nowrap; overflow: hidden; }
+.pr-meta { display: flex; align-items: center; gap: 8px; min-height: 22px; white-space: nowrap; overflow: hidden; padding: 8px; margin: -8px; } /* v1.74.2: mesto za sjaj „Novo“ (ranije odsečen u pravougaonik) */
 .pr-stars { display: inline-flex; gap: 1px; font-size: .95rem; line-height: 1; }
 .pr-stars i { font-style: normal; color: var(--surface-2); -webkit-text-stroke: 1px #3a3e47; }
 .pr-stars i.on { color: var(--accent); -webkit-text-stroke: 0; text-shadow: 0 0 6px rgba(245, 165, 36, .5); }

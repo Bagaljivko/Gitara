@@ -1940,7 +1940,7 @@ body:not(.tuner-screen) .settings-view details.set-page.card { background: none;
 /* ===== v1.73: statistika — ova nedelja, moje pesme, kartica pesme, red na pesmi, spremnost set liste ===== */
 .st-week { display: grid; grid-template-columns: 1fr 1fr 1.15fr; gap: 8px; margin: 4px 0 14px; }
 .st-wk { min-width: 0; border-radius: 16px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--line); color: var(--text); font: inherit; text-align: left; }
-.st-wk small { display: block; color: var(--muted); font-size: .72rem; } .st-wk b { display: block; font-size: 1.05rem; white-space: nowrap; }
+.st-wk small { display: block; color: var(--muted); font-size: .72rem; } .st-wk b { display: block; font-size: 1.05rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .st-wk em { display: block; font-style: normal; color: var(--muted); font-size: .7rem; margin-top: 2px; } .st-wk em.up { color: var(--ok); }
 .st-goal { cursor: pointer; display: flex; flex-direction: column; justify-content: flex-end; gap: 2px; }
 .st-goal:has(.st-ring) { flex-direction: row; align-items: center; gap: 8px; }

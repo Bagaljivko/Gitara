@@ -589,6 +589,7 @@ const sr = {
   'bk.offerTitle': 'Rezervna kopija na Drive-u',
   'bk.oldTitle': 'Starija kopija (Gitara)',
   'bk.ageD': 'pre {n} dana',
+  'bk.ageD1': 'pre 1 dana',
   'bk.ageH': 'pre {n} h',
   'bk.ageMin': 'pre {n} min',
   'wel.connect': 'Poveži Google nalog',
@@ -606,8 +607,8 @@ const sr = {
   'st.practicePart': 'Vežbaj: {part}',
   'st.openSong': 'Otvori pesmu',
   'st.notPracticed': 'Još nije vežbana u „Delovi pesme“.',
-  'st.roundsStreak': '{n} rundi · niz {s} dana',
-  'st.timesDays': '{n} puta · {d} dana',
+  'st.roundsStreak': '{n} · niz {s}',
+  'st.timesDays': '{n} · {d}',
   'st.lastPlayed': 'poslednji put {when}',
   'st.target': 'cilj {n}',
   'st.neglected': 'Dugo nisi svirao',
@@ -621,7 +622,7 @@ const sr = {
   'st.setGoal': 'Postavi cilj ›',
   'st.of': 'od {goal}',
   'st.goal': 'Cilj',
-  'st.activeDays': '{n} dana ove nedelje',
+  'st.activeDays': '{n} ove nedelje',
   'st.thisWeek': 'ove nedelje',
   'st.vsLast': 'od prošle',
   'st.practiced': 'Vežbano',
@@ -629,7 +630,7 @@ const sr = {
   'st.daysAgo': 'pre {n} dana',
   'st.yesterday': 'juče',
   'st.today': 'danas',
-  'st.lt1': 'manje od minuta',
+  'st.lt1': '< 1 min',
   'set.v.today': 'danas',
   'set.v.on': 'uključena',
   'set.v.off': 'isključena',
@@ -1562,6 +1563,18 @@ export function songsCount(n) {
   if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return `${n} pesme`;
   return `${n} pesama`;
 }
+
+/** v1.74.2: množina sa brojem — sr: 1/21 dan, 2–4 dana…; forms = { sr: [jedan, 2–4, 5+], en: [one, many] }. */
+export function countOf(n, forms) {
+  if (lang === 'en') return `${n} ${n === 1 ? forms.en[0] : forms.en[1]}`;
+  const m10 = n % 10, m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return `${n} ${forms.sr[0]}`;
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return `${n} ${forms.sr[1]}`;
+  return `${n} ${forms.sr[2]}`;
+}
+export const DAYS = { sr: ['dan', 'dana', 'dana'], en: ['day', 'days'] };
+export const TIMES = { sr: ['put', 'puta', 'puta'], en: ['time', 'times'] };
+export const ROUNDS = { sr: ['runda', 'runde', 'rundi'], en: ['round', 'rounds'] };
 
 export function onLangChange(fn) { listeners.add(fn); return () => listeners.delete(fn); }
 
