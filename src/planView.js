@@ -282,3 +282,13 @@ export function dashCell(s, prog) {
   const w = plan.weeks[cw];
   return `${t('plan.weekShort', { n: cw + 1 })}${prog ? ` · ${w.tasks.filter(isDone).length}/${w.tasks.length}` : ''}`;
 }
+
+/** v1.84: učenik šalje napredak porukom — podsetnik u Vežbama (jednom nedeljno, ako je vežbao). */
+export async function drawNudge(el) {
+  if (!el) return;
+  const P = await import('./progress.js');
+  const n = await P.progNudge().catch(() => null);
+  if (!n) { el.innerHTML = ''; return; }
+  el.innerHTML = `<button class="pl-nudge" id="plNudge"><span>📈</span><span><b>${esc(t('prog.nudge', { t: n.name }))}</b><small>${esc(t('prog.nudgeSub'))}</small></span><span class="pl-go">${t('prog.nudgeBtn')} ›</span></button>`;
+  el.querySelector('#plNudge').addEventListener('click', async () => { if (await P.sendProgressMsg().catch(() => false)) { toast(t('prog.sentToast', { t: n.name })); el.innerHTML = ''; } });
+}

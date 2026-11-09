@@ -27,7 +27,7 @@ const BACKUP_DELAY = 4000; // ms posle izmene
 export const BACKUP_SETTINGS = ['a4', 'geminiModel', 'geminiModelSel', 'lang', 'metBpm', 'folders', 'setlists', 'tunerRoom', 'tuning', 'wakeMode', 'wakeMinutes', 'noteNames', 'practice', 'freeplayRecs', 'skale', 'myRhythms', 'strumSuggest']; // Gemini ključ se NIKAD ne šalje na Drive
 
 export class DriveError extends Error {
-  constructor(message, code = '') { super(message); this.code = code; }
+  constructor(message, code = '', reason = '') { super(message); this.code = code; if (reason) this.reason = reason; }
 }
 
 // ---------------- Stanje ----------------
@@ -81,6 +81,21 @@ function loadGis() {
 
 let tokenClient = null;
 let pendingToken = null;
+
+// v1.84: Google prijava preko prozora — zapis u dijagnostiku (bez ključeva) i „ne čekaj zauvek“.
+// Npr. dečji nalog (Family Link): posle roditeljevog odobrenja Google-ov prozor ponekad nikad ne javi odgovor.
+export function logAuth(step, detail = '') { try { const L = JSON.parse(localStorage.getItem('gitara-diag') || '[]'); L.push({ t: Date.now(), k: 'google', m: `${step}${detail ? ': ' + detail : ''}`.slice(0, 200) }); localStorage.setItem('gitara-diag', JSON.stringify(L.slice(-60))); } catch {} }
+/** Kad se korisnik vrati u MARLI (iz Google prozora) a odgovora nema 12 s → fail('stuck'); najduže 3 min. */
+function popupWatch(fail) {
+  let away = false, t1 = 0;
+  const leave = () => { away = true; clearTimeout(t1); };
+  const back = () => { if (!away || document.hidden) return; clearTimeout(t1); t1 = setTimeout(() => fail('stuck'), globalThis.__marliTest?.authStuckMs || 12000); };
+  const vis = () => (document.hidden ? leave() : back());
+  addEventListener('blur', leave); addEventListener('focus', back); document.addEventListener('visibilitychange', vis);
+  const tAll = setTimeout(() => fail('timeout'), 180000);
+  return () => { clearTimeout(t1); clearTimeout(tAll); removeEventListener('blur', leave); removeEventListener('focus', back); document.removeEventListener('visibilitychange', vis); };
+}
+const stuckErr = (why) => new DriveError(t('drive.e.stuck'), 'stuck', why);
 
 function getTokenClient() {
   if (tokenClient) return tokenClient;
@@ -150,17 +165,23 @@ export const tokenHelperOn = () => !!helperUrl();
 /** Na dodir: Google pita „Dozvoli“ (jednom), pomoćnik menja kod za ključ i dugotrajnu dozvolu. */
 async function codeFlow({ need, hint, pick }) {
   await loadGis();
-  const code = await new Promise((resolve, reject) => {
+  logAuth('prozor', need);
+  const code = await new Promise((res0, rej0) => {
+    let stop = () => {};
+    const resolve = (v) => { stop(); res0(v); }, reject = (e) => { stop(); logAuth('greška', `${e && e.code}${e && e.reason ? ' ' + e.reason : ''}`); rej0(e); };
+    stop = popupWatch((why) => reject(stuckErr(why)));
     const client = google.accounts.oauth2.initCodeClient({
       client_id: CLIENT_ID, scope: need === 'sync' ? SCOPE : SCOPE_FILE, ux_mode: 'popup', include_granted_scopes: true,
       ...(hint && !pick ? { hint } : {}), ...(pick ? { select_account: true } : {}),
-      callback: (resp) => (resp && resp.code ? resolve(resp.code) : reject(new DriveError(resp && resp.error === 'access_denied' ? t('drive.e.denied') : t('drive.e.auth'), resp && resp.error === 'access_denied' ? 'denied' : 'auth'))),
+      callback: (resp) => (resp && resp.code ? resolve(resp.code) : reject(new DriveError(resp && resp.error === 'access_denied' ? t('drive.e.denied') : t('drive.e.auth'), resp && resp.error === 'access_denied' ? 'denied' : 'auth', resp && resp.error))),
       error_callback: (err) => reject(err && err.type === 'popup_closed' ? new DriveError(t('drive.e.cancelled'), 'cancelled') : err && err.type === 'popup_failed_to_open' ? new DriveError(t('drive.e.popup'), 'popup') : new DriveError(t('drive.e.auth'), 'auth')),
     });
     client.requestCode();
   });
+  logAuth('kod stigao');
   let r = null;
   try { r = await helper({ a: 'exchange', code }); } catch { r = null; }
+  logAuth(r && r.access_token ? 'povezano' : 'zamena koda nije uspela', r && r.error ? String(r.error) : '');
   if (!r || !r.access_token) throw new DriveError(t('drive.e.auth'), 'helper');
   if (!useAccess(r, need)) throw new DriveError(t('drive.e.scope'), 'denied');
   if (r.refresh_token) await settings.set(RT_KEY, { rt: r.refresh_token, scope: r.scope || '' });
@@ -175,7 +196,7 @@ async function requestToken({ interactive, need = 'file', hint = '', pick = fals
   // 2) na dodir, sa pomoćnikom: jednom „Dozvoli“ → posle toga nikad više prozor pri obnavljanju
   if (interactive && helperUrl()) {
     try { return await codeFlow({ need, hint: hint || state.email, pick }); }
-    catch (e) { if (['cancelled', 'denied', 'popup', 'offline'].includes(e && e.code)) throw e; } // pomoćnik ne radi: kao ranije
+    catch (e) { if (['cancelled', 'denied', 'popup', 'offline', 'stuck'].includes(e && e.code)) throw e; } // pomoćnik ne radi: kao ranije
   }
   // 3) kao ranije (kratki ključ; bez pomoćnika / dozvole Google na tren otvori svoj prozor)
   await loadGis();
@@ -193,6 +214,8 @@ async function requestToken({ interactive, need = 'file', hint = '', pick = fals
     // v1.74.1: tihi pokušaj (bez dodira) — Google na telefonu ponekad ne odgovori nikad (ni ključ ni greška); posle 20 s
     // odustani, pa sinhronizacija pokaže „Poveži“ umesto beskonačnog „Sinhronizacija…“
     if (!interactive) setTimeout(() => { if (pendingToken && pendingToken.resolve === resolve) { pendingToken = null; reject(new DriveError(t('drive.e.auth'), 'auth')); } }, 20000);
+    // v1.84: na dodir — ako se Google prozor ne javi (vratio si se u MARLI, a odgovora nema), ne čekaj zauvek
+    else { logAuth('prozor (kratki)', need); const stop = popupWatch((why) => { if (pendingToken && pendingToken === p0) { pendingToken = null; logAuth('greška', 'stuck ' + why); reject(stuckErr(why)); } }); const p0 = pendingToken; p0.resolve = ((f) => (v) => { stop(); f(v); })(p0.resolve); p0.reject = ((f) => (e) => { stop(); logAuth('greška', `${e && e.code}`); f(e); })(p0.reject); }
   });
   state.token = resp.access_token;
   state.tokenExp = Date.now() + (Number(resp.expires_in) || 3600) * 1000 - 60000;

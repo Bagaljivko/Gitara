@@ -2325,3 +2325,10 @@ a.ds-it { text-decoration: none; }
 .pl-weeks.big .pl-wk { min-height: 220px; }
 .pl-weeks.big .pl-it { cursor: grab; }
 .pl-weeks.big .pl-addwk { min-height: 64px; align-self: start; }
+/* v1.84: napredak porukom */
+.tch-pmsg { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 10px 0 4px; }
+.pl-nudge { display: flex; width: 100%; gap: 12px; align-items: center; text-align: left; padding: 12px 14px; margin: 0 0 12px; border-radius: 16px; border: 1px dashed var(--accent); background: var(--surface); color: var(--text); cursor: pointer; font: inherit; }
+.pl-nudge > span:first-child { font-size: 1.3rem; }
+.pl-nudge > span:nth-child(2) { flex: 1; min-width: 0; }
+.pl-nudge b { display: block; font-size: .92rem; } .pl-nudge small { display: block; color: var(--muted); font-size: .8rem; }
+.pl-nudge .pl-go { display: inline-flex; align-items: center; flex: none; }

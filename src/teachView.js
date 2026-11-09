@@ -262,7 +262,9 @@ export async function renderFromTeacher(root) {
     const P = await import('./progress.js'), { fmtDur } = await import('./statsView.js');
     await prTexts();
     const w = { ...(await P.buildSummary()), cur: true };
-    progBody = `${progressBodyHTML(w, fmtDur)}<p class="tch-lock">🔒 ${m.prog.at ? t('prog.mineUpdated', { t: tn, d: when(m.prog.at) }) : t('prog.minePending', { t: tn })} ${t('prog.mineNote', { t: tn })}</p>`;
+    progBody = m.prog.mode === 'msg'
+      ? `${progressBodyHTML(w, fmtDur)}<div class="tch-pmsg"><button class="btn primary" id="tProgSend">📈 ${t('prog.sendNow', { t: tn })}</button><small class="muted">${m.prog.sentAt ? t('prog.sentWhen', { d: when(m.prog.sentAt) }) : t('prog.notSentYet')}</small></div><p class="tch-lock">🔒 ${t('prog.mineMsgNote', { t: tn })} <button class="linkish" id="tProgMode">${t('prog.changeMode')}</button></p>`
+      : `${progressBodyHTML(w, fmtDur)}<p class="tch-lock">🔒 ${m.prog.at ? t('prog.mineUpdated', { t: tn, d: when(m.prog.at) }) : t('prog.minePending', { t: tn })} ${t('prog.mineNote', { t: tn })} <button class="linkish" id="tProgMode">${t('prog.changeMode')}</button></p>`;
   }
   root.innerHTML = `<section class="view tch-view">
     <a class="back tch-back" href="#/pesme">‹ ${t('lib.title')}</a>
@@ -290,6 +292,8 @@ export async function renderFromTeacher(root) {
   root.querySelector('#tWish').addEventListener('click', async () => { if (await askTeacherFlow('wish')) renderFromTeacher(root); });
   root.querySelector('#tAsk').addEventListener('click', async () => { if (await askTeacherFlow('ask')) renderFromTeacher(root); });
   root.querySelector('#tDisc').addEventListener('click', () => disconnectTeacher());
+  root.querySelector('#tProgSend')?.addEventListener('click', async () => { const P = await import('./progress.js'); if (await P.sendProgressMsg().catch(() => false)) { toast(t('prog.sentToast', { t: tn })); renderFromTeacher(root); } });
+  root.querySelector('#tProgMode')?.addEventListener('click', async () => { const P = await import('./progress.js'); await P.setProgressShare(false); if (await P.setProgressShare(true).catch(() => false)) toast(t('prog.turnedOn', { t: tn })); renderFromTeacher(root); });
   root.querySelector('#tProgSw').addEventListener('change', async (e) => {
     const on = e.target.checked; e.target.disabled = true;
     const P = await import('./progress.js');
@@ -517,7 +521,7 @@ async function progressCardHTML(s, fresh = false) {
   if (!p || p.gone) return `${head()}<p class="muted small tch-none">${t('prog.stopped', { name: s.name })}</p>`;
   if (p.err) return `${head()}<p class="muted small tch-none">${t('prog.err')}</p>`;
   const w = P.thisWeek(p);
-  return `${head(`<small class="muted">${t('prog.updated', { d: when(p.at) })}</small>`)}${progressBodyHTML(w, fmtDur, { who: s.name })}<p class="tch-lock">🔒 ${t('prog.lockTeacher', { name: s.name })}</p>`;
+  return `${head(`<small class="muted">${t(p.via === 'msg' ? 'prog.viaMsg' : 'prog.updated', { d: when(p.at) })}</small>`)}${progressBodyHTML(w, fmtDur, { who: s.name })}<p class="tch-lock">🔒 ${t('prog.lockTeacher', { name: s.name })}</p>`;
 }
 
 // ---------------- v1.80: „Proveri pesmu“ ----------------

@@ -201,6 +201,7 @@ async function renderHub(root) {
     <header class="view-head pr-hub-head"><h1>${t('pr.title')}</h1></header>
     <p class="muted pr-intro">${t('pr.intro')}</p>
     <div id="stWeekBox"></div>
+    <div id="prNudge"></div>
     <div id="prPlan"></div>
     ${todayCardHTML(sug, streak, doneToday)}
     <div class="pr-cards">
@@ -223,6 +224,7 @@ async function renderHub(root) {
   </section>`;
   // v1.83: zadaci od nastavnika (samo kod učenika koji ima plan)
   settings.get('myTeacher', null).then(async (m) => {
+    if (m && m.prog && m.prog.mode === 'msg') import('./planView.js').then((V) => V.drawNudge(root.querySelector('#prNudge'))).catch(() => {}); // v1.84
     if (!m || !m.planFile) return;
     const V = await import('./planView.js');
     const draw = async () => { const b = root.querySelector('#prPlan'); if (b && b.isConnected) await V.drawHubCard(b); };

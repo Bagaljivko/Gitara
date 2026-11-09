@@ -279,13 +279,29 @@ export async function sendProgressLink(fileId) {
 }
 /** Nastavnik otvara link napretka → zapamti fajl kod tog učenika. */
 export async function receiveProgress(hash) {
-  let d; try { d = b64d(hash.replace(/^#napredak\//, '').split(/[?#]/)[0]); } catch { toast(t('tch.rq.bad')); return null; }
+  const raw = hash.replace(/^#napredak\//, '').split(/[?#]/)[0];
+  if (raw.startsWith('z.')) return receiveProgressMsg(raw.slice(2)); // v1.84: napredak poslat porukom (bez Google naloga)
+  let d; try { d = b64d(raw); } catch { toast(t('tch.rq.bad')); return null; }
   const me = await getTeacher();
   if (!me.on || d.ft !== me.id) { toast(t('tch.rq.notMine')); return null; }
   const st = await getStudent(d.fs); if (!st) { toast(t('tch.rq.noStudent')); return null; }
   if (!d.f || !/^[\w-]{6,}$/.test(d.f)) { toast(t('tch.rq.bad')); return null; }
   await updateStudent(st.id, { prog: { fileId: d.f, since: Date.now() } });
   toast(t('prog.got', { name: st.name }));
+  return st;
+}
+async function receiveProgressMsg(z) {
+  let d; try { const LZ = (await import('./lzstring.js')).default; d = JSON.parse(LZ.decompressFromEncodedURIComponent(z) || 'null'); } catch { d = null; }
+  if (!d || d.v !== 2) { toast(t('tch.rq.bad')); return null; }
+  const me = await getTeacher();
+  if (!me.on || d.ft !== me.id) { toast(t('tch.rq.notMine')); return null; }
+  const st = await getStudent(d.fs); if (!st) { toast(t('tch.rq.noStudent')); return null; }
+  const at = Math.min(Date.now(), Number(d.at) || Date.now());
+  if (st.prog && st.prog.msg && (st.prog.at || 0) > at) { toast(t('prog.olderMsg')); return st; } // stariji link: ne prepisuj noviji
+  const data = (await import('./progress.js')).cleanSummary(d.d);
+  if (!data) { toast(t('tch.rq.bad')); return null; }
+  await updateStudent(st.id, { prog: { msg: true, at, since: (st.prog && st.prog.since) || Date.now() }, progData: data });
+  toast(t('prog.gotMsg', { name: st.name }));
   return st;
 }
 /** Učenik: „Proveri sa nastavnikom“ — pesma ide nastavniku (link), uz napomenu. */

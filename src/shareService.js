@@ -374,7 +374,7 @@ export async function putData(fileId, text, { interactive = false, name = 'MARLI
     if (!interactive) return '';
     const ok = await dialog({ title: t('share.needTitle'), body: t('share.needBody'), buttons: [{ label: t('common.cancel'), value: null }, { label: t('share.connect'), value: 'go', kind: 'primary' }] });
     if (ok !== 'go') return '';
-    try { await drive.shareToken({ interactive: true }); } catch { toast(t('share.failed'), 'error'); return ''; }
+    try { await drive.shareToken({ interactive: true }); } catch (e) { if (e && ['stuck', 'denied', 'auth', 'helper', 'popup'].includes(e.code)) throw e; toast(t('share.failed'), 'error'); return ''; } // v1.84: razlog ide pozivaocu (napredak nudi „porukom“)
   }
   if (fileId) {
     try { await drive.driveApi(`${UPLOAD}/files/${encodeURIComponent(fileId)}?uploadType=media&fields=id`, { method: 'PATCH', headers: { 'Content-Type': DATA_MIME }, body: text }); return fileId; }
@@ -411,3 +411,6 @@ export async function readData(fileId) {
     return JSON.parse(await r.text());
   } catch { return null; }
 }
+
+/** v1.84: mali podaci u samom linku (napredak porukom, bez Google naloga) — jedino mesto koje pravi takav link. */
+export async function packLinkData(o) { const LZ = (await import('./lzstring.js')).default; return LZ.compressToEncodedURIComponent(JSON.stringify(o)); }
