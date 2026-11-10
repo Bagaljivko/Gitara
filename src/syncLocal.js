@@ -1,13 +1,12 @@
 // Uređaj za sinhronizaciju: IndexedDB kao izvor istine (radi u Web Worker-u, a bez njega i na glavnoj niti).
 // Upisuje direktno u bazu (bez ponovnog označavanja „čeka slanje“); ekrani dobijaju obaveštenje preko poruke.
-import { open, summarize, keepVersion, SYNC_SETTING_OF, PREF_KEYS } from './db.js';
+import { transaction, summarize, keepVersion, SYNC_SETTING_OF, PREF_KEYS } from './db.js';
 const PREFS = new Set(PREF_KEYS);
 import { hlcStr } from './syncEngine.js';
 
 const STORES = ['songs', 'lib', 'deleted', 'settings', 'sync', 'syncState'];
 function run(stores, mode, fn) {
-  return open().then((db) => new Promise((resolve, reject) => {
-    const t = db.transaction(stores, mode);
+  return transaction(stores, mode).then((t) => new Promise((resolve, reject) => {
     const out = fn(...stores.map((n) => t.objectStore(n)));
     t.oncomplete = () => resolve(out);
     t.onerror = () => reject(t.error);

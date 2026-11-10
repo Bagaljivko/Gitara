@@ -24,6 +24,7 @@ export function open() {
     req.onsuccess = () => {
       const db = req.result;
       db.onversionchange = () => { db.close(); dbPromise = null; }; // nova verzija aplikacije u drugom prozoru
+      db.onclose = () => { if (dbPromise) dbPromise = null; }; // v1.93: telefon je sam zatvorio vezu (dugo u pozadini) — sledeće otvaranje je nova veza
       resolve(db);
     };
     req.onerror = () => reject(req.error);
@@ -48,9 +49,16 @@ export function summarize(rec) {
   };
 }
 
+/** v1.93: transakcija; ako je veza u međuvremenu zatvorena („connection is closing“), otvori novu i pokušaj još jednom. */
+export async function transaction(stores, mode) {
+  for (let i = 0; ; i++) {
+    const db = await open();
+    try { return db.transaction(stores, mode); }
+    catch (e) { if (i === 0 && e && e.name === 'InvalidStateError') { try { db.close(); } catch {} dbPromise = null; continue; } throw e; }
+  }
+}
 function tx(store, mode, fn) {
-  return open().then((db) => new Promise((resolve, reject) => {
-    const t = db.transaction(store, mode);
+  return transaction(store, mode).then((t) => new Promise((resolve, reject) => {
     const s = t.objectStore(store);
     const r = fn(s);
     t.oncomplete = () => resolve(r && 'result' in r ? r.result : r);
@@ -114,8 +122,7 @@ export const SYNCED_SETTING = (k) => !!LIST_KEYS[k] || WHOLE_KEYS.includes(k) ||
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
 
 function txMulti(stores, fn) {
-  return open().then((db) => new Promise((resolve, reject) => {
-    const t = db.transaction(stores, 'readwrite');
+  return transaction(stores, 'readwrite').then((t) => new Promise((resolve, reject) => {
     const r = fn(...stores.map((n) => t.objectStore(n)));
     t.oncomplete = () => resolve(r);
     t.onerror = () => reject(t.error);

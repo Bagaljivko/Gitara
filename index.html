@@ -63,8 +63,10 @@
       window.addEventListener('error', function (ev) {
         var tg = ev.target, isScript = tg && tg.tagName === 'SCRIPT';
         if (!(ev instanceof ErrorEvent) && !isScript) return; // slike i slično nisu greške aplikacije
+        if (/ResizeObserver loop/.test(String(ev.message || ''))) return; // bezopasno upozorenje pregledača, nije greška
+        var ext = isScript && tg.src && tg.src.indexOf(location.origin) !== 0; // spoljni skript (npr. Google prijava bez interneta)
         add({ k: 'error', m: String(ev.message || (isScript ? 'script: ' + tg.src : 'error')).slice(0, 300), s: String(ev.filename || '').split('/').pop().split('?')[0] + ':' + (ev.lineno || 0) });
-        if (!boot.done) fail();
+        if (!boot.done && !ext) fail();
       }, true);
       window.addEventListener('unhandledrejection', function (ev) {
         var r = ev.reason; add({ k: 'reject', m: String(r && (r.stack || r.message) || r).slice(0, 300) });

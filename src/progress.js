@@ -105,7 +105,10 @@ export async function setProgressShare(on, { mode = '' } = {}) {
     if (id) { await tm.sendProgressLink(id); initProgress(); return true; }
     const now = await tm.getMyTeacher(); await tm.setMyTeacher({ ...now, prog: { on: false } });
     if (!err || err.code === 'cancelled') { if (!err) toast(t('prog.failed'), 'error'); return false; }
-    const v = await dialog({ title: t('prog.gFailTitle'), html: true, className: 'tch-dlg dlg-stack', body: `<p>${esc(err.code === 'stuck' ? t('drive.e.stuck') : t('prog.gFailBody'))}</p><p class="tch-lock">${esc(t('prog.gFailKids'))}</p>`,
+    // v1.93: tačan razlog (npr. nije označena dozvola za Drive, prozor nije mogao da se otvori) — i u Dijagnostici
+    try { (await import('./drive.js')).logAuth('napredak: greška', `${err.code || ''} ${err.message || ''}`.trim()); } catch {}
+    const why = err.code === 'stuck' ? t('drive.e.stuck') : (err.message && err.message !== t('drive.e.auth') ? err.message : t('prog.gFailBody'));
+    const v = await dialog({ title: t('prog.gFailTitle'), html: true, className: 'tch-dlg dlg-stack', body: `<p>${esc(why)}</p>${err.code && err.code !== 'stuck' ? `<p class="small muted">${esc(t('prog.gFailCode', { c: err.code }))}</p>` : ''}<p class="tch-lock">${esc(t('prog.gFailKids'))}</p>`,
       buttons: [{ label: t('prog.gFailRetry'), value: 'retry', kind: 'primary' }, { label: t('prog.gFailMsg'), value: 'msg' }, { label: t('common.cancel'), value: null, kind: 'ghost' }] });
     if (v === 'msg') return setProgressShare(true, { mode: 'msg' });
     if (v !== 'retry') return false;

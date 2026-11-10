@@ -1061,6 +1061,7 @@ export default {
   'sent.setName': "Selected · {d}",
   'sent.setNameAll': "{name} — all sent",
   'tch.recsFrom': "Recordings from {name}",
+  'prog.gFailCode': "Reason: {c} (see also Settings → Diagnostics)",
   'ss.title': 'Song settings',
   'ss.key': 'Key',
   'ss.capo': 'Capo',

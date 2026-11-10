@@ -47,6 +47,20 @@
   <p class="muted" data-sr style="color:var(--muted)">Šta je novo u aplikaciji — sa snimcima ekrana i kratkim uputstvom.</p>
   <p class="muted" data-en style="color:var(--muted)">What's new in the app — with screenshots and short how-tos.</p>
 
+  <section class="ver" id="v1.93">
+    <h2><span class="tag">1.93</span> <span data-sr>Pouzdanije čuvanje</span><span data-en>More reliable saving</span> <small>10. 11. 2026.</small></h2>
+    <div class="card">
+      <div class="k" data-sr>Iz dijagnostike</div><div class="k" data-en>From diagnostics</div>
+      <p data-sr>Telefon ponekad sam zatvori bazu podataka aplikacije (posle dugog rada u pozadini). MARLI je do sada nastavljao sa zatvorenom vezom, pa čuvanje nije uspevalo dok se aplikacija ne pokrene ponovo. Sada se veza odmah sama ponovo otvori i čuvanje se ponovi.</p>
+      <p data-en>The phone sometimes closes the app’s database on its own (after a long time in the background). MARLI used to keep using the closed connection, so saving failed until the app was restarted. Now the connection reopens by itself and the save is retried.</p>
+      <p data-sr>Dijagnostika je mirnija: bezopasno upozorenje pregledača („ResizeObserver“) se više ne beleži, a ako se Google prijava ne učita bez interneta, aplikacija se i dalje normalno pokreće.</p>
+      <p data-en>Diagnostics are quieter: a harmless browser warning (“ResizeObserver”) is no longer logged, and if Google sign-in can’t load without internet, the app still starts normally.</p>
+      <p data-sr><b>„Podeli MARLI“</b> (Podešavanja, gore desno): QR kod je na telefonu izlazio iz okvira — ispravljeno.</p>
+      <p data-en><b>“Share MARLI”</b> (Settings, top right): the QR code spilled out of its frame on phones — fixed.</p>
+      <img class="shot" src="img/dijagnostika.png" alt="" style="max-width:280px">
+    </div>
+  </section>
+
   <section class="ver" id="v1.92">
     <h2><span class="tag">1.92</span> <span data-sr>Nastava: QR pozivnica i slanje više pesama</span><span data-en>Teaching: QR invite and sending several songs</span> <small>10. 11. 2026.</small></h2>
     <div class="card">

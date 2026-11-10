@@ -16,7 +16,7 @@ function refreshTeachNav() {
       const n = tc.on ? ((await settings.get('requests', [])) || []).filter((r) => r && (r.status === 'open' || r.status === 'editing')).length : 0;
       const b = document.getElementById('navTeachN'); if (b) { b.hidden = !n; b.textContent = n > 99 ? '99+' : String(n); }
       const a = document.querySelector('.nav a[data-tab="ucenici"]'); if (a) a.classList.toggle('active', /^#\/(ucenici|ucenik)(\/|\?|$)/.test(location.hash) && DESK_NAV.matches);
-      if (/^#\/(ucenici|ucenik)(\/|\?|$)/.test(location.hash) && DESK_NAV.matches && tc.on) document.querySelector('.nav a[data-tab="pesme"]')?.classList.remove('active');
+      if (/^#\/(ucenici|ucenik)(\/|\?|$)/.test(location.hash) && DESK_NAV.matches && tc.on) document.querySelectorAll('.nav a[data-tab="pesme"], .nav a[data-tab="podesavanja"]').forEach((x) => x.classList.remove('active')); // v1.93: na računaru samo Učenici
     } catch {}
   }, 30);
 }

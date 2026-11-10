@@ -2478,8 +2478,8 @@ a.ds-it { text-decoration: none; }
 .qr-x { position: absolute; top: -6px; right: -4px; width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); color: var(--text); font-size: 1.1rem; cursor: pointer; }
 .qr-inv.desk .qr-x { top: 12px; right: 12px; }
 .qr-who { display: flex; align-items: center; gap: 12px; font: 800 1.25rem var(--sans); }
-.qr-box { background: #fff; border-radius: 22px; padding: 16px; box-shadow: 0 0 0 6px rgba(245,165,36,.35); }
-.qr-box svg { display: block; width: min(74vw, 330px); height: auto; }
+.qr-inv .qr-box { width: auto; margin: 0; background: #fff; border-radius: 22px; padding: 16px; box-shadow: 0 0 0 6px rgba(245,165,36,.35); }
+.qr-inv .qr-box svg { display: block; width: min(74vw, 330px); height: auto; }
 .qr-card p { margin: 0; color: var(--muted); line-height: 1.4; }
 .qr-card p b { color: var(--text); }
 .qr-card .qr-small { font-size: .84rem; }

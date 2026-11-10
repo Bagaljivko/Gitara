@@ -5,6 +5,11 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '1.93', date: '2026-11-10', items: [
+    { i: '🛡', sr: ['Pouzdanije čuvanje', 'Kad telefon posle dugog rada u pozadini sam zatvori bazu, MARLI je sada odmah ponovo otvori — čuvanje pesama i podešavanja više ne zakaže do ponovnog pokretanja.'], en: ['More reliable saving', 'When the phone closes the database after a long time in the background, MARLI now reopens it at once — saving songs and settings no longer fails until a restart.'] },
+    { i: '▦', sr: ['„Podeli MARLI“ opet lepo izgleda', 'QR kod u „Podeli MARLI“ (Podešavanja, gore desno) je na telefonu izlazio iz okvira — ispravljeno.'], en: ['“Share MARLI” looks right again', 'The QR code in “Share MARLI” (Settings, top right) spilled out of its frame on phones — fixed.'] },
+    { i: '🧹', sr: ['Mirnija dijagnostika', 'Bezopasna upozorenja pregledača se više ne beleže kao greške, a Google prijava bez interneta nikad ne obara pokretanje aplikacije.'], en: ['Quieter diagnostics', 'Harmless browser warnings are no longer logged as errors, and Google sign-in without internet never stops the app from starting.'] },
+  ] },
   { v: '1.92', date: '2026-11-10', items: [
     { i: '▦', sr: ['QR pozivnica', 'Učenik je pored tebe? Pokaži QR (stranica učenika ili posle „Nov učenik“) — učenik ga skenira kamerom telefona i odmah prihvata. Link porukom i dalje radi.'], en: ['QR invite', 'Student sitting next to you? Show the QR (student page or after “New student”) — the student scans it with the phone camera and accepts right away. The link by message still works.'] },
     { i: '↗', sr: ['Pošalji više pesama odjednom (telefon i tablet)', 'Podešavanja → Nastava → Učenici → „Pošalji pesme“: označi pesme, izaberi učenike, pošalji. Vidiš i šta je već poslato. Na telefonu i tabletu nastava je samo slanje, QR i plan (označi nedelju) — pregled je na računaru.'], en: ['Send several songs at once (phone and tablet)', 'Settings → Teaching → Students → “Send songs”: tick songs, pick students, send. You also see what was already sent. On phone and tablet, teaching is just sending, QR and the plan (mark the week) — the overview is on the computer.'] },

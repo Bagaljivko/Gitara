@@ -1075,6 +1075,7 @@ const sr = {
   'sent.setName': "Izabrano · {d}",
   'sent.setNameAll': "{name} — sve poslato",
   'tch.recsFrom': "Snimci od: {name}",
+  'prog.gFailCode': "Razlog: {c} (vidi i Podešavanja → Dijagnostika)",
   'ss.title': 'Podešavanja pesme',
   'ss.key': 'Ton',
   'ss.capo': 'Kapodaster',
