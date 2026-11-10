@@ -1020,6 +1020,7 @@ const sr = {
   'song.pdfShort': 'PDF',
   'song.shareShort': 'Podeli',
   'stb.shareLink': 'Pošalji link',
+  'ss.easyOn': 'Kapo {n} — dodirni za originalne akorde',
   'ss.title': 'Podešavanja pesme',
   'ss.key': 'Ton',
   'ss.capo': 'Kapodaster',
@@ -1633,7 +1634,7 @@ const sr = {
   'link.copied': 'Link kopiran',
   'link.copyTitle': 'Kopiraj link',
   // YouTube
-  'yt.listen': 'Poslušaj',
+  'yt.listen': 'Snimak sa YouTube-a',
   'yt.tutorial': 'Tutorijal',
   'yt.saveLink': 'Sačuvaj link',
   'yt.changeLink': 'Promeni ili ukloni sačuvan link',

@@ -2459,3 +2459,8 @@ a.ds-it { text-decoration: none; }
 @media (min-width: 1100px) and (hover: hover) and (pointer: fine) {
   .song-tb { flex-wrap: wrap; row-gap: 8px; min-width: 0; }
 }
+/* v1.91: prekidač „Lakša verzija“ u Podešavanjima pesme */
+.ss-tog { appearance: none; flex: none; width: 50px; height: 30px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface-2); position: relative; cursor: pointer; padding: 0; }
+.ss-tog i { position: absolute; left: 3px; top: 3px; width: 22px; height: 22px; border-radius: 50%; background: var(--muted); transition: left .15s, background .15s; }
+.ss-tog.on { background: var(--accent-soft); border-color: var(--accent); }
+.ss-tog.on i { left: 23px; background: var(--accent); }

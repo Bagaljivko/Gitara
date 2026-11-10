@@ -5,6 +5,10 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '1.91', date: '2026-11-10', items: [
+    { i: '🎸', sr: ['Lakša verzija u Podešavanjima pesme', 'Prekidač odmah ispod Kapodastera: isti zvuk, lakši hvatovi uz kapodaster (npr. F → kapo 3, samo D, Hm, G, A). I dalje je i u „⋯“.'], en: ['Easier version in Song settings', 'A switch right under Capo: same sound, easier shapes with a capo (e.g. F → capo 3, only D, Bm, G, A). Still in “⋯” too.'] },
+    { i: '▶️', sr: ['Jasniji „⋯“ meni', '„Poslušaj“ u meniju je sada „Snimak sa YouTube-a“, da se ne meša sa dugmetom „Poslušaj“ (zvuk gitare) dole desno.'], en: ['Clearer “⋯” menu', '“Listen” in the menu is now “YouTube recording”, so it isn’t confused with the “Listen” button (guitar sound) at the bottom right.'] },
+  ] },
   { v: '1.90', date: '2026-11-10', items: [
     { i: '⚡', sr: ['Brže i lakše na starijim telefonima', 'Otvorene pesme se više ne gomilaju u memoriji — posle mnogo pesama (npr. ceo nastup) aplikacija ostaje jednako brza. Telefon i tablet pri pokretanju učitavaju manje (bez delova samo za računar).'], en: ['Faster and lighter on older phones', 'Opened songs no longer pile up in memory — after many songs (e.g. a whole gig) the app stays just as fast. Phones and tablets load less at startup (no computer-only parts).'] },
   ] },

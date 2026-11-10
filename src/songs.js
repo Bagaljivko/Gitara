@@ -1110,6 +1110,7 @@ export async function renderSong(root, id, nav = null) {
         <div class="ss-r"><span class="ss-l">${t('ss.key')}${tp ? ` <button class="ss-reset" data-ss="t0">↺ ${esc(t('ss.original'))}</button>` : ''}</span>
           <span class="ss-st"><button class="ss-b" data-ss="t-" aria-label="${esc(t('song.transposeDown'))}">−</button><button class="ss-v" data-ss="wheel" aria-label="${esc(t('kw.open', { k: dn(key) || '?' }))}">${esc(dn(key) || '–')}</button><button class="ss-b" data-ss="t+" aria-label="${esc(t('song.transposeUp'))}">+</button></span></div>
         <div class="ss-r"><span class="ss-l">${t('ss.capo')}${capo && shapesKey ? `<small>${esc(t('capo.shapesShort', { k: dn(shapesKey) }))}</small>` : ''}</span>${step('ssCapo', capo || esc(t('capo.none')), 'c-', 'c+', t('ss.capo'))}</div>
+        ${!stored.recording ? `<div class="ss-r"><span class="ss-l">${t('sug.easyBtn')}<small>${esc(easyActive() ? t('ss.easyOn', { n: capo }) : t('song.easySub'))}</small></span><button class="ss-tog${easyActive() ? ' on' : ''}" data-ss="easy" role="switch" aria-checked="${easyActive()}" aria-label="${esc(t('sug.easyBtn'))}"><i></i></button></div>` : ''}
         <div class="ss-r"><span class="ss-l">${t('ss.tempo')}</span>${step('ssBpm', (Number(stored.bpm) || Number($('sTempo')?.textContent) || '…') + ' <small>BPM</small>', 'b-', 'b+', t('ss.tempo'))}</div>
         <div class="ss-r"><span class="ss-l">${t('ss.rhythm')}${!stored.strum && ss ? `<small>${esc(t('ss.suggested'))}</small>` : ''}</span>
           ${stored.strum ? go(esc(patternName(stored.strum)), 'rh-edit')
@@ -1133,6 +1134,7 @@ export async function renderSong(root, id, nav = null) {
       else if (a === 't0') await setT(0);
       else if (a === 'c-') await setCapo(capo - 1);
       else if (a === 'c+') await setCapo(capo + 1);
+      else if (a === 'easy') { await toggleEasy(); syncEasyTop(); }
       else if (a === 'b-') await setBpm(-5);
       else if (a === 'b+') await setBpm(5);
       else if (a === 'z-' || a === 'z+') { const z = Math.min(1.8, Math.max(0.8, Math.round((zoom + (a === 'z+' ? 0.1 : -0.1)) * 10) / 10)); if (z !== zoom) { await setZoom(z); await saveZoom(); } }
