@@ -223,7 +223,9 @@ export function attachQuickEdit(opts) {
   root.addEventListener('dblclick', (e) => { if (!on()) return; const ln = e.target.closest('#sLyrics .ln'); if (ln && !e.target.closest('.ch')) { e.preventDefault(); editLine(ln); } });
   root.addEventListener('mousemove', onMove);
   root.addEventListener('mouseleave', (e) => { if (!plus || e.relatedTarget !== plus) hidePlus(); });
-  document.addEventListener('mousemove', (e) => { if (plus && e.target !== plus && !root.contains(e.target)) hidePlus(); });
+  // v1.90: imenovan da bi se uklonio pri izlasku (inače je svaka otvorena pesma ostajala u memoriji)
+  const onDocMove = (e) => { if (plus && e.target !== plus && !root.contains(e.target)) hidePlus(); };
+  document.addEventListener('mousemove', onDocMove);
   const outside = (e) => { if (pop && !pop.contains(e.target) && !e.target.closest('.ch')) closePop(); };
   document.addEventListener('pointerdown', outside, true);
   const onKey = (e) => {
@@ -232,7 +234,7 @@ export function attachQuickEdit(opts) {
     if (e.key === 'Escape' && pop) closePop();
   };
   document.addEventListener('keydown', onKey);
-  const off = () => { if (document.body.contains(root)) return; document.removeEventListener('keydown', onKey); document.removeEventListener('pointerdown', outside, true); closePop(); hidePlus(); bar?.remove(); removeEventListener('hashchange', off); };
+  const off = () => { if (document.body.contains(root)) return; document.removeEventListener('keydown', onKey); document.removeEventListener('pointerdown', outside, true); document.removeEventListener('mousemove', onDocMove); closePop(); hidePlus(); bar?.remove(); removeEventListener('hashchange', off); };
   addEventListener('hashchange', off);
   // jednom: kratak savet
   try { if (on() && !localStorage.getItem(TIP_KEY)) setTimeout(() => { if (document.body.contains(root)) toast(t('qe.tip')); }, 1200); } catch {}

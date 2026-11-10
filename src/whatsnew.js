@@ -5,6 +5,9 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '1.90', date: '2026-11-10', items: [
+    { i: '⚡', sr: ['Brže i lakše na starijim telefonima', 'Otvorene pesme se više ne gomilaju u memoriji — posle mnogo pesama (npr. ceo nastup) aplikacija ostaje jednako brza. Telefon i tablet pri pokretanju učitavaju manje (bez delova samo za računar).'], en: ['Faster and lighter on older phones', 'Opened songs no longer pile up in memory — after many songs (e.g. a whole gig) the app stays just as fast. Phones and tablets load less at startup (no computer-only parts).'] },
+  ] },
   { v: '1.89', date: '2026-11-10', items: [
     { i: '✍️', sr: ['Akordi prstom (telefon i tablet)', '⋯ ili „Podešavanja pesme“ → „Uredi akorde“ (ili dug pritisak na akord). Prevuci akord levo-desno — lupa pokazuje slovo ispod prsta. Dodir na akord otvara izbor (akordi iz pesme, osnova, vrsta, ◀ ▶, Ukloni), a ‹ › vode na prethodni/sledeći akord bez zatvaranja. Dodir na slovo dodaje akord, ✎ ispravlja tekst reda. Sve se odmah čuva, „Poništi“ vraća korak po korak.'], en: ['Chords by finger (phone and tablet)', '⋯ or “Song settings” → “Edit chords” (or long-press a chord). Drag a chord left or right — a magnifier shows the letter under your finger. Tap a chord to pick another (song chords, root, type, ◀ ▶, Remove); ‹ › go to the previous/next chord without closing. Tap a letter to add a chord, ✎ fixes a line. Everything saves at once, “Undo” steps back.'] },
     { i: '🖥', sr: ['Računar: traka pesme', 'Kad je prozor uži, traka (Uredi · Poslušaj · Uz video · …) prelazi u drugi red umesto da se sakrije iza dijagrama.'], en: ['Computer: song toolbar', 'In a narrower window the toolbar (Edit · Listen · Play along · …) wraps to a second row instead of hiding behind the diagrams.'] },

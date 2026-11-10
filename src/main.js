@@ -62,7 +62,9 @@ async function liveView(name) {
 // Tablet u položenom režimu: lista i pesma jedna pored druge
 const TWO_PANE = window.matchMedia('(min-width: 900px) and (min-height: 600px) and (orientation: landscape)');
 TWO_PANE.addEventListener('change', () => { app.querySelector(':scope > .page')?.remove(); route(); });
-import('./libDesk.js').then((D) => D.DESK.addEventListener('change', () => { if (document.body.classList.contains('two-pane-mode')) { app.querySelector(':scope > .page')?.remove(); route(); } })).catch(() => {});
+// v1.90: isti upit kao libDesk.DESK — sam modul (34 KB) se učitava tek kad zatreba (telefon ga nikad ne učita)
+const DESK_MQ = window.matchMedia('(min-width: 1200px) and (min-height: 600px) and (hover: hover) and (pointer: fine)');
+DESK_MQ.addEventListener('change', () => { if (document.body.classList.contains('two-pane-mode')) { app.querySelector(':scope > .page')?.remove(); route(); } });
 
 // ---- Zaštita od praznog ekrana ----
 // index.html beleži greške pre pokretanja i prikazuje „Pokušaj ponovo / Popravi aplikaciju“ ako se aplikacija
@@ -172,7 +174,7 @@ async function routeInner() {
     const twoPane = TWO_PANE.matches && (page === 'pesme' || page === 'pesma') && params.get('tab') !== 'sl';
     document.body.classList.toggle('two-pane-mode', twoPane);
     // v1.70: računar (širok ekran + miš) — upravljač biblioteke: folderi/set liste levo, tabela, pesma desno
-    const desk = twoPane && (await import('./libDesk.js')).DESK.matches;
+    const desk = twoPane && DESK_MQ.matches; // tablet položeno: bez učitavanja upravljača za računar
     document.body.classList.toggle('desk-lib-mode', desk);
     if (desk) {
       const D = await import('./libDesk.js');

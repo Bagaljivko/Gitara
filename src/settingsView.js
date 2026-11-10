@@ -538,6 +538,7 @@ export async function renderSettings(root) {
   $('kCancel').addEventListener('click', async () => { kEditing = false; $('kInput').value = await settings.get('geminiKey', ''); status(''); drawKey(); });
   const onKc = () => { if (!root.isConnected || !root.querySelector('#kState')) { removeEventListener('marli-keycheck', onKc); return; } drawKey(); };
   addEventListener('marli-keycheck', onKc);
+  addEventListener('hashchange', function offKc() { setTimeout(() => { if (!root.isConnected) { removeEventListener('marli-keycheck', onKc); removeEventListener('hashchange', offKc); } }, 0); }); // v1.90: ne zadržava stare stranice u memoriji
   drawKey();
   // v1.70.1: ključ je nestao (obrisani podaci / nov telefon) → vrati ga sa Google naloga (sinhronizacija), bez kucanja
   $('kFromAcct').addEventListener('click', async () => {
