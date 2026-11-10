@@ -228,7 +228,7 @@ export function attachTouchEdit(opts) {
   async function move(d) {
     const line = opts.stored().sections[sel.si]?.lines[sel.li]; if (!line) return;
     const c = (line.chords || []).find((x) => x.position === sel.pos); if (!c) return;
-    const max = Math.max((line.text || '').length, c.position + 1), np = Math.max(0, Math.min(max, c.position + d));
+    const max = (line.text || '').length + AFTER, np = Math.max(0, Math.min(max, c.position + d));
     if (np === c.position || (line.chords || []).some((x) => x !== c && x.position === np)) return;
     const { si, li, pos } = sel;
     sel = { si, li, pos: np };
@@ -281,6 +281,9 @@ export function attachTouchEdit(opts) {
     let best = null, bd = Infinity;
     for (const s of spans) { const r = s.getBoundingClientRect(); const d = Math.abs((r.top + r.bottom) / 2 - y) + (x < r.left ? r.left - x : x > r.right ? x - r.right : 0) * 0.02; if (d < bd) { bd = d; best = s; } }
     const r = best.getBoundingClientRect(), cy = (r.top + r.bottom) / 2;
+    // v1.94.1: i posle kraja reda (akord posle poslednje reči) — po širini jednog slova, najviše AFTER mesta
+    const lr = spans[spans.length - 1].getBoundingClientRect(); // tx0 (reč bez akorda) je viša od tx — porede se donje ivice
+    if (x > lr.right && Math.abs(lr.bottom - r.bottom) < r.height) { let total = 0; ln.querySelectorAll('.tx, .tx0').forEach((s) => { total += s.textContent.length; }); const pos = total + Math.min(AFTER, Math.max(0, Math.round((x - r.right) / charW(ln)))); return { pos, rect: letterRect(ln, pos) }; }
     const c = caretAt(Math.max(r.left + 1, Math.min(x, r.right - 1)), cy);
     let pos = -1, acc = 0;
     for (const s of ln.querySelectorAll('.tx, .tx0')) {
@@ -288,18 +291,20 @@ export function attachTouchEdit(opts) {
       acc += s.textContent.length;
     }
     if (pos < 0) return null;
-    if (x > r.right && best === spans[spans.length - 1]) { let total = 0; ln.querySelectorAll('.tx, .tx0').forEach((s) => { total += s.textContent.length; }); pos = total; }
     return { pos, rect: letterRect(ln, pos) };
   }
+  const AFTER = 24;
+  function charW(ln) { const s = [...ln.querySelectorAll('.tx, .tx0')].filter((x) => x.textContent.length).pop(); if (!s) return 9; const r = s.getBoundingClientRect(); return Math.max(4, r.width / Math.max(1, s.textContent.length)); }
   function letterRect(ln, pos) {
-    let acc = 0;
+    let acc = 0, last = null;
     for (const s of ln.querySelectorAll('.tx, .tx0')) {
       const len = s.textContent.length;
       if (pos < acc + len && s.firstChild) { const rg = document.createRange(); rg.setStart(s.firstChild, pos - acc); rg.setEnd(s.firstChild, Math.min(len, pos - acc + 1)); return rg.getBoundingClientRect(); }
-      acc += len;
+      acc += len; if (len) last = s;
     }
-    const last = [...ln.querySelectorAll('.tx, .tx0')].pop(); if (!last) return null;
-    const r = last.getBoundingClientRect(); return { left: r.right, right: r.right + 8, top: r.top, bottom: r.bottom, width: 8, height: r.height };
+    if (!last) return undefined; // posle kraja reda: zamišljeno mesto desno od poslednjeg slova
+    const r = last.getBoundingClientRect(), cw = charW(ln), left = r.right + (pos - acc) * cw;
+    return { left, right: left + cw, top: r.top, bottom: r.bottom, width: cw, height: r.height };
   }
   function showPlus(ln, x, y) {
     const w = where(ln); if (!w) return;

@@ -5,6 +5,9 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '1.94.1', date: '2026-11-10', items: [
+    { i: '✍️', sr: ['Akord posle kraja reda', 'U „Uredi akorde“ (telefon i tablet) akord može i posle poslednje reči: dodirni desno od teksta → „+ Dodaj akord“, ili prevuci akord (ili ▶) preko kraja reda. Hvala na predlogu!'], en: ['Chord after the end of a line', 'In “Edit chords” (phone and tablet) a chord can also go after the last word: tap to the right of the text → “+ Add chord”, or drag a chord (or ▶) past the end of the line. Thanks for the suggestion!'] },
+  ] },
   { v: '1.94', date: '2026-11-10', items: [
     { i: '📥', sr: ['Pesme od nastavnika stižu same', 'Bez imejla i Vibera: šta nastavnik pošalje stiže pravo u aplikaciju, u „Od nastavnika“ (sa oznakom „Novo“). „Sačuvaj u…“ stavlja pesmu u bilo koji folder ili set listu.'], en: ['Songs from your teacher arrive by themselves', 'No email or Viber: what your teacher sends goes straight into the app, in “From teacher” (marked “New”). “Save to…” puts a song in any folder or set list.'] },
     { i: '📈', sr: ['Napredak, želje i snimci — automatski', 'Pri prihvatanju pozivnice „Deli napredak“ je uključeno. Želje, „Imaš li ovu pesmu?“, „Proveri sa nastavnikom“ i snimci stižu nastavniku sami. Potreban je Google nalog — za decu ga odobrava roditelj.'], en: ['Progress, wishes and recordings — automatic', 'When you accept an invite, “Share progress” is on. Wishes, “Do you have this song?”, “Check with teacher” and recordings reach the teacher by themselves. A Google account is needed — for kids a parent approves.'] },
