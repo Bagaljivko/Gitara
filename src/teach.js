@@ -73,7 +73,8 @@ const qs = (o) => Object.entries(o).filter(([, v]) => v).map(([k, v]) => `${k}=$
 export async function inviteLink(student) {
   const { SHARE_BASE } = await import('./shareConfig.js');
   const tc = await setTeacher({});
-  return `${SHARE_BASE}#poziv/${encodeURIComponent(tc.id)}/${encodeURIComponent(student.id)}?${qs({ n: await teacherName(), c: tc.contact || '' })}`;
+  const st = (await getStudent(student.id)) || student; // v1.94: b = sanduče (pesme stižu same, bez poruka)
+  return `${SHARE_BASE}#poziv/${encodeURIComponent(tc.id)}/${encodeURIComponent(student.id)}?${qs({ n: await teacherName(), c: tc.contact || '', b: (st.box && st.box.f) || '' })}`;
 }
 /** Nastavnik → učenik: dodatak linku poslatog fajla. */
 export async function toStudentSuffix(student, rq = '', rp = '') {
@@ -98,22 +99,12 @@ export function linkParams(hash = location.hash) {
 /** Otvori poruku za jednu osobu — preko shareService.composeMessage (jedino mesto koje otvara meni za deljenje). */
 export async function compose(m) { return (await import('./shareService.js')).composeMessage(m); }
 
-/** Pozivnica za učenika (poruka od nastavnika, po imenu). */
-export async function sendInvite(student) {
+/** v1.94: pozivnica bez poruke — sanduče (ako može), pa link za kopiranje (za časove preko interneta). */
+export async function copyInvite(student) {
+  try { await (await import('./teachBox.js')).ensureBox(student.id, { interactive: true }); } catch {}
   const link = await inviteLink(student);
-  const name = await teacherName();
-  const text = t(name ? 'tch.inviteMsg' : 'tch.inviteMsgAnon', { s: student.name, t: name, link });
-  return compose({ to: student.contact, subject: t('tch.inviteSubject', { t: name || 'MARLI' }), text });
-}
-
-/** Dijalog sa porukom koja se može izmeniti; vraća tekst ili null. */
-export async function editMessage(title, text, note = '') {
-  const p = dialog({ title, html: true, className: 'tch-dlg', body: `<textarea id="tchMsg" rows="5" maxlength="2000">${esc(text)}</textarea>${note ? `<p class="tch-lock">${esc(note)}</p>` : ''}`,
-    buttons: [{ label: t('common.cancel'), value: null }, { label: t('tch.sendBtn'), value: 'ok', kind: 'primary' }] });
-  const box = [...document.querySelectorAll('.modal-backdrop')].pop();
-  let v = text;
-  box?.querySelector('#tchMsg')?.addEventListener('input', (e) => (v = e.target.value));
-  return (await p) === 'ok' ? v : null;
+  try { await navigator.clipboard.writeText(link); toast(t('qr.copied')); } catch { toast(link); }
+  return link;
 }
 
 // ---------------- uvoz označenih linkova (poziva ga shareImport.renderDriveShare) ----------------
@@ -227,19 +218,23 @@ async function setMyRequest(id, patch) {
   const list = await getMyRequests(); const i = list.findIndex((r) => r.id === id); if (i < 0) return null;
   list[i] = { ...list[i], ...patch }; await settings.set('myRequests', list); return list[i];
 }
-/** Učenik: pošalji nastavniku želju ili pitanje. */
+/** Učenik: želja ili pitanje — v1.94: ide kroz fajl napretka (nastavnikova aplikacija ga sama pročita), bez poruke. */
 export async function askTeacher({ type, title, artist = '', note = '' }) {
   const m = await getMyTeacher(); if (!m || !REQ_TYPES.includes(type)) return false;
   const req = { id: uid(), type, title: clip(title, 80), artist: clip(artist, 60), note: clip(note, 300), at: Date.now() };
-  const { SHARE_BASE } = await import('./shareConfig.js');
-  const link = `${SHARE_BASE}#zahtev/${b64e({ v: 1, ft: m.tid, fs: m.sid, ...req })}`;
-  const what = req.artist ? `„${req.title}“ — ${req.artist}` : `„${req.title}“`;
-  const text = t(type === 'wish' ? 'tch.rq.msgWish' : 'tch.rq.msgAsk', { what, note: req.note ? `\n${req.note}\n` : '', link });
-  const final = await editMessage(t(type === 'wish' ? 'tch.rq.wish' : 'tch.rq.ask'), text, t('tch.lockMsg'));
-  if (final == null) return false;
+  const B = await import('./teachBox.js');
+  if (!(await B.outPush(req))) return false;
   await settings.set('myRequests', [...(await getMyRequests()), { ...req, status: 'sent' }]);
-  await compose({ to: m.contact || '', subject: t('tch.rq.subject'), text: final });
+  toast(t('box.wishSent', { t: m.name || t('tch.teacher') }));
   return true;
+}
+/** Nastavnik: zahtev iz učenikovog fajla napretka (v1.94). */
+export async function addRequest(r) {
+  const list = await getRequests();
+  if (list.some((x) => x.id === r.id)) return;
+  const st = await getStudent(r.sid);
+  list.push({ ...r, status: 'open' }); await settings.set('requests', list); pingNav();
+  if (st) toast(t(r.type === 'wish' ? 'tch.rq.gotWish' : 'tch.rq.gotAsk', { name: st.name }));
 }
 /** Nastavnik otvara link zahteva → zahtev ide u spisak (kod tog učenika). Vraća učenika ili null. */
 export async function receiveRequest(hash) {
@@ -256,18 +251,18 @@ export async function receiveRequest(hash) {
   toast(t(d.type === 'wish' ? 'tch.rq.gotWish' : 'tch.rq.gotAsk', { name: st.name }));
   return st;
 }
-/** Nastavnik: „Nemam“ — poruka učeniku (njegova aplikacija ažurira stanje zahteva). */
-export async function answerNone(req) {
+/** v1.94: kratak odgovor učeniku kroz sanduče („Nemam“ / „U redu je“). false = učenik još nije povezan (QR). */
+async function boxAnswer(req, s) {
   const st = await getStudent(req.sid); if (!st) return false;
-  const tc = await setTeacher({});
-  const { SHARE_BASE } = await import('./shareConfig.js');
-  const link = `${SHARE_BASE}#odgovor/${b64e({ v: 1, tt: tc.id, id: req.id, s: 'none' })}`;
-  const text = await editMessage(t('tch.rq.none'), t('tch.rq.msgNone', { s: st.name, title: req.title, link }), t('tch.lockMsg'));
-  if (text == null) return false;
-  await compose({ to: st.contact, subject: t('tch.subject', { t: (await teacherName()) || 'MARLI' }), text });
-  await setRequest(req.id, { status: 'none', doneAt: Date.now() });
+  const B = await import('./teachBox.js');
+  if (!(st.box && st.box.f)) { toast(t('box.notConn', { name: st.name }), 'error'); return false; }
+  if (!(await B.boxPut(st.id, [{ key: 'ans:' + req.id, kind: 'ans', id: req.id, s }]))) { toast(t('box.failed'), 'error'); return false; }
+  await setRequest(req.id, { status: s, doneAt: Date.now() });
+  toast(t('box.answered', { name: st.name }));
   return true;
 }
+/** Nastavnik: „Nemam“. */
+export const answerNone = (req) => boxAnswer(req, 'none');
 /** Učenik otvara „Nemam“ odgovor. */
 export async function receiveAnswer(hash) {
   let d; try { d = b64d(hash.replace(/^#odgovor\//, '').split(/[?#]/)[0]); } catch { return; }
@@ -276,19 +271,22 @@ export async function receiveAnswer(hash) {
   const r = await setMyRequest(d.id, { status: st, answeredAt: Date.now() });
   if (r) toast(t(st === 'none' ? 'tch.rq.ansNone' : st === 'ok' ? 'chk.ansOk' : 'tch.rq.ansOk', { title: r.title, t: m.name || t('tch.teacher') }));
 }
+/** Učenik: odgovor stigao kroz sanduče. */
+export async function answerFromBox(id, s) {
+  const m = await getMyTeacher(); if (!m) return;
+  const st = s === 'none' ? 'none' : s === 'ok' ? 'ok' : 'answered';
+  const r = await setMyRequest(id, { status: st, answeredAt: Date.now() });
+  if (r) toast(t(st === 'none' ? 'tch.rq.ansNone' : st === 'ok' ? 'chk.ansOk' : 'tch.rq.ansOk', { title: r.title, t: m.name || t('tch.teacher') }));
+}
 /** Učenik je uvezao pesmu poslatu kao odgovor (rq u linku). */
 export async function markAnswered(id, title = '') { const r = await setMyRequest(id, { status: 'answered', answeredAt: Date.now(), gotTitle: clip(title, 80) }); return r; }
 
 // ---------------- v1.80: napredak (link do fajla) i „Proveri pesmu“ ----------------
-/** Učenik → nastavnik: link do fajla sa napretkom (samo jednom, kad se uključi). */
-export async function sendProgressLink(fileId) {
-  const m = await getMyTeacher(); if (!m) return false;
+/** Učenik → nastavnik: link do fajla sa napretkom — v1.94: prikazuje se kao QR (jednom), nastavnik ga skenira. */
+export async function progressLink(fileId) {
+  const m = await getMyTeacher(); if (!m) return '';
   const { SHARE_BASE } = await import('./shareConfig.js');
-  const link = `${SHARE_BASE}#napredak/${b64e({ v: 1, ft: m.tid, fs: m.sid, f: fileId })}`;
-  const text = await editMessage(t('prog.sendTitle'), t('prog.msg', { t: m.name || '', link }), t('prog.lockMsg', { t: m.name || t('tch.teacher') }));
-  if (text == null) return false;
-  await compose({ to: m.contact || '', subject: t('prog.subject'), text });
-  return true;
+  return `${SHARE_BASE}#napredak/${b64e({ v: 1, ft: m.tid, fs: m.sid, f: fileId })}`;
 }
 /** Nastavnik otvara link napretka → zapamti fajl kod tog učenika. */
 export async function receiveProgress(hash) {
@@ -317,18 +315,17 @@ async function receiveProgressMsg(z) {
   toast(t('prog.gotMsg', { name: st.name }));
   return st;
 }
-/** Učenik: „Proveri sa nastavnikom“ — pesma ide nastavniku (link), uz napomenu. */
+/** Učenik: „Proveri sa nastavnikom“ — pesma se podeli (fajl), a zahtev ide kroz fajl napretka. v1.94: bez poruke. */
 export async function askCheck(song, note = '') {
   const m = await getMyTeacher(); if (!m || !song) return false;
   const S = await import('./shareService.js');
   const res = await S.publishOnly(S.songItem(song));
   if (!res) return false;
   const id = uid();
-  const link = res.link + (await toTeacherSuffix()) + '&' + qs({ pc: id, ps: song.id, pn: clip(note, 200) });
-  const text = await editMessage(t('chk.ask'), t('chk.msg', { name: song.title, note: note ? `\n${clip(note, 300)}\n` : '', link }), t('tch.lockMsg'));
-  if (text == null) return false;
+  const B = await import('./teachBox.js');
+  if (!(await B.outPush({ id, type: 'check', f: res.fileId, ps: song.id, title: clip(song.title, 80), artist: clip(song.artist || '', 60), note: clip(note, 300) }))) return false;
   await settings.set('myRequests', [...(await getMyRequests()), { id, type: 'check', title: clip(song.title, 80), artist: clip(song.artist || '', 60), songId: song.id, note: clip(note, 300), at: Date.now(), status: 'sent' }]);
-  await compose({ to: m.contact || '', subject: t('chk.subject'), text });
+  toast(t('box.checkSent', { t: m.name || t('tch.teacher') }));
   return true;
 }
 /** Nastavnik: zahtev „proveri“ iz linka (fajl ostaje kod učenika; nastavnik bira šta će). */
@@ -340,18 +337,8 @@ export async function addCheckRequest({ id, sid, title, artist, note, fileId, ps
   }
   return (await getRequests()).find((r) => r.id === id);
 }
-/** Nastavnik: „U redu je“ — kratka poruka učeniku. */
-export async function answerOk(req) {
-  const st = await getStudent(req.sid); if (!st) return false;
-  const tc = await setTeacher({});
-  const { SHARE_BASE } = await import('./shareConfig.js');
-  const link = `${SHARE_BASE}#odgovor/${b64e({ v: 1, tt: tc.id, id: req.id, s: 'ok' })}`;
-  const text = await editMessage(t('chk.ok'), t('chk.msgOk', { s: st.name, title: req.title, link }), t('tch.lockMsg'));
-  if (text == null) return false;
-  await compose({ to: st.contact, subject: t('tch.subject', { t: (await teacherName()) || 'MARLI' }), text });
-  await setRequest(req.id, { status: 'ok', doneAt: Date.now() });
-  return true;
-}
+/** Nastavnik: „U redu je“. */
+export const answerOk = (req) => boxAnswer(req, 'ok');
 
 /** Učenik: zameni svoju pesmu nastavnikovom ispravkom — isti id, folderi i podešavanja; stara ide u Prethodne verzije. */
 export async function replaceWithTeacher(mine, nu) {

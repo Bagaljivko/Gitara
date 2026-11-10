@@ -68,8 +68,9 @@ export async function addStudentFlow(edit = null) {
   const s = await T.addStudent({ name: v.name, contact: v.contact });
   if (v.inv) {
     // v1.92: učenik je pored tebe → QR; inače poruka kao do sada
-    const how = await dialog({ title: t('qr.howTitle', { name: s.name }), body: t('qr.howBody'), buttons: [{ label: t('qr.howMsg'), value: 'msg' }, { label: t('qr.btn'), value: 'qr', kind: 'primary' }] });
-    if (how === 'qr') await showInviteQR(s); else if (how === 'msg') await T.sendInvite(s);
+    // v1.94: učenik je pored tebe → QR; čas preko interneta → kopiraj link (bez poruka iz aplikacije)
+    const how = await dialog({ title: t('qr.howTitle', { name: s.name }), body: t('qr.howBody'), buttons: [{ label: t('qr.copy'), value: 'copy' }, { label: t('qr.btn'), value: 'qr', kind: 'primary' }] });
+    if (how === 'qr') await showInviteQR(s); else if (how === 'copy') await T.copyInvite(s);
   }
   return s;
 }
@@ -113,10 +114,10 @@ export async function renderStudent(root, id) {
     location.hash = '#/setlista/' + encodeURIComponent(sl.id);
   });
   root.querySelector('#tMore').addEventListener('click', async () => {
-    const v = await dialog({ title: s.name, buttons: [{ label: t('tch.editStudent'), value: 'edit' }, { label: t('qr.btn'), value: 'qr' }, { label: t('tch.reinvite'), value: 'inv' }, { label: t('tch.delStudent'), value: 'del', kind: 'danger' }] });
+    const v = await dialog({ title: s.name, buttons: [{ label: t('tch.editStudent'), value: 'edit' }, { label: t('qr.btn'), value: 'qr' }, { label: t('qr.copy'), value: 'inv' }, { label: t('tch.delStudent'), value: 'del', kind: 'danger' }] });
     if (v === 'qr') return showInviteQR(s);
     if (v === 'edit') { await addStudentFlow(s); renderStudent(root, id); }
-    if (v === 'inv') await T.sendInvite(s);
+    if (v === 'inv') await T.copyInvite(s);
     if (v === 'del') {
       const ok = await dialog({ title: t('tch.delTitle', { name: s.name }), body: t('tch.delBody'), buttons: [{ label: t('common.cancel'), value: null }, { label: t('tch.delStudent'), value: 'y', kind: 'danger' }] });
       if (ok === 'y') { await T.removeStudent(s.id); toast(t('tch.deleted')); location.hash = '#/ucenici'; }
@@ -141,39 +142,40 @@ export async function sendMenu(students, preset = null, { rq = '', rp = '' } = {
     item = await pickItem(v, students);
     if (!item) return;
   }
+  // v1.94: bez poruka — fajl se podeli, a link ide u sanduče svakog učenika; pesme stižu same u „Od nastavnika“
+  const B = await import('./teachBox.js');
+  const ready = students.filter((st) => st.box && st.box.f), wait = students.filter((st) => !(st.box && st.box.f));
+  if (!ready.length) { await notConnectedFlow(wait); return; }
   const S = await import('./shareService.js');
   const res = await S.publishOnly(item.share);
   if (!res) return;
-  const got = await sendEach(students, async (st) => {
-    const link = res.link + (await T.toStudentSuffix(st, rq, rp));
-    const tn = await T.teacherName();
-    return { to: st.contact, subject: t('tch.subject', { t: tn || 'MARLI' }), text: t(item.msgKey || (item.kind === 'set' ? 'tch.msgSet' : item.kind === 'rec' ? 'tch.msgRec' : 'tch.msgSong'), { s: st.name, t: tn, name: item.name, n: songsCount(item.n || 1), link }) };
-  });
-  if (item.onSent) await item.onSent(students);
-  if (got.length) await T.logSent(got, item.kind, (item.share && item.share.songs) || []);
-  if (rq && got.length) await T.setRequest(rq, { status: 'sent', doneAt: Date.now(), sentTitle: item.name });
+  const key = (item.kind === 'set' ? 'set:' : 'song:') + res.fileId;
+  const got = [];
+  for (const st of ready) if (await B.boxPut(st.id, [{ key, kind: item.kind === 'set' ? 'set' : 'song', name: clip(item.name, 80), f: res.fileId, at: Date.now(), ...(rq ? { rq } : {}), ...(rp ? { rp } : {}) }]).catch(() => false)) got.push(st.id);
+  if (!got.length) { toast(t('box.failed'), 'error'); return; }
+  const gotSt = students.filter((x) => got.includes(x.id));
+  if (item.onSent) await item.onSent(gotSt);
+  await T.logSent(got, item.kind, (item.share && item.share.songs) || []);
+  if (rq) await T.setRequest(rq, { status: 'sent', doneAt: Date.now(), sentTitle: item.name });
+  sentToast(gotSt, item.kind === 'set' ? item.n || 1 : 1);
+  if (wait.length) await notConnectedFlow(wait);
 }
-/** Svakom učeniku posebna poruka (jedan dodir po učeniku — telefon traži dodir za svako otvaranje). */
-async function sendEach(students, build) {
-  if (students.length === 1) {
-    const m = await build(students[0]);
-    const text = await T.editMessage(t('tch.sendTo', { name: students[0].name }), m.text, t('tch.lockMsg'));
-    if (text == null) return [];
-    await T.compose({ ...m, text });
-    return [students[0].id];
-  }
-  const done = new Set();
-  const draw = () => students.map((st) => `<div class="tch-row">${T.avatarHTML(st, 34)}<span><b>${esc(st.name)}</b><small>${esc(st.contact || t('tch.noContact'))}</small></span><button class="btn small ${done.has(st.id) ? '' : 'primary'}" data-sid="${esc(st.id)}">${done.has(st.id) ? '✓ ' + t('tch.sent') : t('tch.sendBtn')}</button></div>`).join('');
-  const p = dialog({ title: t('tch.sendToN', { n: students.length }), html: true, className: 'tch-dlg', body: `<p class="small muted">${t('tch.eachOwn')}</p><div class="set-grp tch-each">${draw()}</div>`, buttons: [{ label: t('common.close'), value: null }] });
-  const box = [...document.querySelectorAll('.modal-backdrop')].pop();
-  box.querySelector('.tch-each').addEventListener('click', async (e) => {
-    const b = e.target.closest('[data-sid]'); if (!b) return;
-    const st = students.find((x) => x.id === b.dataset.sid);
-    const m = await build(st);
-    if (await T.compose(m)) { done.add(st.id); box.querySelector('.tch-each').innerHTML = draw(); }
-  });
-  await p;
-  return [...done];
+const clip = (x, n) => String(x || '').slice(0, n);
+/** „Poslato — bez poruka“ (zelena traka). */
+function sentToast(sts, n) {
+  const names = sts.length <= 2 ? sts.map((x) => x.name).join(sts.length === 2 ? ' ' + t('box.and') + ' ' : '') : t('tch.sendToN', { n: sts.length });
+  const o = document.createElement('div');
+  o.className = 'box-sent'; o.setAttribute('role', 'status');
+  o.innerHTML = `<span class="box-ok">✓</span><span><b>${esc(t('box.sentTitle'))}</b><small>${esc(t(sts.length === 1 ? 'box.sentBody1' : 'box.sentBody', { who: names, n: songsCount(n) }))}</small></span>`;
+  document.body.appendChild(o);
+  setTimeout(() => o.classList.add('out'), 3600); setTimeout(() => o.remove(), 4200);
+}
+/** Učenici povezani pre 1.94 (ili još nisu skenirali): jednom QR, pa sve stiže samo. */
+async function notConnectedFlow(list) {
+  const v = await dialog({ title: list.length === 1 ? t('box.ncTitle1', { name: list[0].name }) : t('box.ncTitle', { n: list.length }), body: t('box.ncBody'),
+    buttons: [{ label: t('common.later'), value: null }, ...(list.length === 1 ? [{ label: t('qr.copy'), value: 'copy' }] : []), { label: t('qr.btn'), value: 'qr', kind: 'primary' }] });
+  if (v === 'copy') await T.copyInvite(list[0]);
+  if (v === 'qr') for (const st of list) await showInviteQR(st);
 }
 /** Izbor pesme / set liste / snimka (pretraga). */
 async function pickItem(kind, students, query = '') {
@@ -266,26 +268,34 @@ export async function renderFromTeacher(root) {
   // v1.80: „Deli napredak“ — šta tačno nastavnik vidi (isti brojevi koji idu u fajl)
   const tn = m.name || t('tch.teacher');
   const progOn = !!(m.prog && m.prog.on);
+  // v1.94: „Novo od …“ — stiglo kroz sanduče, još neviđeno; „Sačuvaj u…“ = u bilo koji folder ili set listu
+  const newIds = new Set(m.boxNew || []);
+  const newSongs = songsFrom.filter((x) => newIds.has(x.id)), newSets = sets.filter((sl) => (sl.songIds || []).some((id) => newIds.has(id)));
+  const newSetSongs = new Set(newSets.flatMap((sl) => sl.songIds || []));
+  const freshSongs = newSongs.filter((x) => !newSetSongs.has(x.id));
+  const nNew = freshSongs.length + newSets.length;
   let progBody = `<p class="muted small tch-none">${t('prog.offBody', { t: tn })}</p>`;
   if (progOn) {
     const P = await import('./progress.js'), { fmtDur } = await import('./statsView.js');
     await prTexts();
     const w = { ...(await P.buildSummary()), cur: true };
+    // v1.94: samo Google; stari „porukom“ → kartica „Poveži Google“
     progBody = m.prog.mode === 'msg'
-      ? `${progressBodyHTML(w, fmtDur)}<div class="tch-pmsg"><button class="btn primary" id="tProgSend">📈 ${t('prog.sendNow', { t: tn })}</button><small class="muted">${m.prog.sentAt ? t('prog.sentWhen', { d: when(m.prog.sentAt) }) : t('prog.notSentYet')}</small></div><p class="tch-lock">🔒 ${t('prog.mineMsgNote', { t: tn })} <button class="linkish" id="tProgMode">${t('prog.changeMode')}</button></p>`
-      : `${progressBodyHTML(w, fmtDur)}<p class="tch-lock">🔒 ${m.prog.at ? t('prog.mineUpdated', { t: tn, d: when(m.prog.at) }) : t('prog.minePending', { t: tn })} ${t('prog.mineNote', { t: tn })} <button class="linkish" id="tProgMode">${t('prog.changeMode')}</button></p>`;
+      ? `<div class="card tch-gcard"><b>${t('prog.nudgeG', { t: tn })}</b><p class="small muted">${t('prog.gWhy', { t: tn })}</p><button class="btn primary" id="tProgG">${t('prog.nudgeGBtn')}</button></div>`
+      : `${progressBodyHTML(w, fmtDur)}<p class="tch-lock">🔒 ${m.prog.at ? t('prog.mineUpdated', { t: tn, d: when(m.prog.at) }) : t('prog.minePending', { t: tn })} ${t('prog.mineNote', { t: tn })} <button class="linkish" id="tProgQr">${t('prog.showQr', { t: tn })}</button></p>`;
   }
   root.innerHTML = `<section class="view tch-view">
     <a class="back tch-back" href="#/pesme">‹ ${t('lib.title')}</a>
     <header class="view-head tch-head"><h1>${t('tch.fromTeacher')}</h1></header>
     <div class="card tch-teacher">${T.avatarHTML({ name: m.name || '?', color: '#f5a524' }, 44)}<span><b>${esc(m.name || t('tch.teacher'))}</b><small class="muted">${t('tch.yourTeacher')}${m.contact ? ' · ' + esc(m.contact) : ''}</small></span></div>
+    ${nNew ? `<div class="card box-new"><div class="tch-sec"><span>${t('box.newFrom', { t: tn })} <em class="box-n">${nNew}</em></span></div><div class="set-grp">${newSets.map((sl) => `<div class="tch-row box-row"><a href="#/setlista/${encodeURIComponent(sl.id)}">${ic('list')}<span><b>${esc(sl.name)}</b><small>${songsCount((sl.songIds || []).length)} · ${t('box.arrivedToday', { d: when(sl.updatedAt || Date.now()) })}</small></span></a></div>`).join('')}${freshSongs.map((x) => `<div class="tch-row box-row"><a href="#/pesma/${encodeURIComponent(x.id)}">${ic('song')}<span><b>${esc(x.title)}</b><small>${esc([x.artist, t('box.arrivedToday', { d: when(x.updatedAt || x.createdAt) })].filter(Boolean).join(' · '))}</small></span></a><button class="btn small" data-save="${esc(x.id)}">+ ${t('box.saveIn')}</button></div>`).join('')}</div></div>` : ''}
     <div id="tMyPlan"></div>
     <div class="tch-ask"><button class="btn" id="tWish">⭐ ${t('tch.rq.wish')}</button><button class="btn" id="tAsk">❓ ${t('tch.rq.ask')}</button></div>
     <div class="tch-sec"><span>${t(progOn ? 'prog.sharing' : 'prog.share')}</span><label class="switch tch-psw"><input type="checkbox" id="tProgSw"${progOn ? ' checked' : ''} aria-label="${esc(t('prog.shareWith', { t: tn }))}"><span class="switch-track"><span class="switch-thumb"></span></span></label></div>
     ${progBody}
     ${mine.length ? `<div class="tch-sec"><span>${t('tch.rq.mine')}</span></div><div class="set-grp">${mine.map((r) => `<div class="tch-row"><span class="sr-ic tch-rq-ic2">${RQ_IC[r.type]}</span><span><b>${esc(r.title)}${r.artist ? ' — ' + esc(r.artist) : ''}</b><small>${esc(when(r.at))}</small></span><span class="tch-st${r.status === 'answered' || r.status === 'ok' ? ' ok' : ''}">${esc(t('tch.rq.my.' + r.status))}</span></div>`).join('')}</div>` : ''}
-    <div class="tch-sec"><span>${t('tch.arrived')}</span></div>
-    ${sets.length || songsFrom.length ? `<div class="set-grp">${sets.map((sl) => `<a class="tch-row" href="#/setlista/${encodeURIComponent(sl.id)}">${ic('list')}<span><b>${esc(sl.name)}</b><small>${songsCount((sl.songIds || []).length)}</small></span>${CHEV}</a>`).join('')}${songsFrom.map((s) => `<a class="tch-row" href="#/pesma/${encodeURIComponent(s.id)}">${ic('song')}<span><b>${esc(s.title)}</b><small>${esc(s.artist || '')}</small></span>${CHEV}</a>`).join('')}</div>` : `<p class="muted small tch-none">${t('tch.nothingArrived')}</p>`}
+    <div class="tch-sec"><span>${t(nNew ? 'box.earlier' : 'tch.arrived')}</span></div>
+    ${sets.length || songsFrom.length ? `<div class="set-grp">${sets.filter((sl) => !newSets.includes(sl)).map((sl) => `<a class="tch-row" href="#/setlista/${encodeURIComponent(sl.id)}">${ic('list')}<span><b>${esc(sl.name)}</b><small>${songsCount((sl.songIds || []).length)}</small></span>${CHEV}</a>`).join('')}${songsFrom.filter((x) => !newIds.has(x.id)).map((s) => `<a class="tch-row" href="#/pesma/${encodeURIComponent(s.id)}">${ic('song')}<span><b>${esc(s.title)}</b><small>${esc(s.artist || '')}</small></span>${CHEV}</a>`).join('')}</div>` : `<p class="muted small tch-none">${t('tch.nothingArrived')}</p>`}
     <button class="btn primary wide tch-sendback" id="tBack">🎙 ${t('tch.sendToTeacher')}</button>
     <p class="tch-lock">🔒 ${t('tch.lockStudentSide', { t: m.name || t('tch.teacher') })}</p>
     <button class="btn small tch-disc" id="tDisc">${t('tch.disconnect')}</button>
@@ -301,8 +311,15 @@ export async function renderFromTeacher(root) {
   root.querySelector('#tWish').addEventListener('click', async () => { if (await askTeacherFlow('wish')) renderFromTeacher(root); });
   root.querySelector('#tAsk').addEventListener('click', async () => { if (await askTeacherFlow('ask')) renderFromTeacher(root); });
   root.querySelector('#tDisc').addEventListener('click', () => disconnectTeacher());
-  root.querySelector('#tProgSend')?.addEventListener('click', async () => { const P = await import('./progress.js'); if (await P.sendProgressMsg().catch(() => false)) { toast(t('prog.sentToast', { t: tn })); renderFromTeacher(root); } });
-  root.querySelector('#tProgMode')?.addEventListener('click', async () => { const P = await import('./progress.js'); await P.setProgressShare(false); if (await P.setProgressShare(true).catch(() => false)) toast(t('prog.turnedOn', { t: tn })); renderFromTeacher(root); });
+  root.querySelector('#tProgG')?.addEventListener('click', async () => { const P = await import('./progress.js'); if (await P.setProgressShare(true).catch(() => false)) toast(t('prog.turnedOn', { t: tn })); renderFromTeacher(root); });
+  root.querySelector('#tProgQr')?.addEventListener('click', async () => { const P = await import('./progress.js'); const cur = await T.getMyTeacher(); if (cur.prog && cur.prog.fileId) await P.showBackQR(cur.prog.fileId); });
+  root.querySelectorAll('[data-save]').forEach((b) => b.addEventListener('click', async () => {
+    const song = await db.get(b.dataset.save); if (!song) return;
+    if (await saveInFlow(song)) { const B = await import('./teachBox.js'); await B.clearNew([song.id]); renderFromTeacher(root); }
+  }));
+  // pri otvaranju: proveri sanduče; kad se napusti ekran, „novo“ postaje „ranije“
+  if (m.box) import('./teachBox.js').then(async (B) => { if (await B.checkBox({ force: true }).catch(() => 0) && root.isConnected && location.hash === '#/od-nastavnika') renderFromTeacher(root); }).catch(() => {});
+  if (nNew) { const leave = () => { removeEventListener('hashchange', leave); import('./teachBox.js').then((B) => B.clearNew()).catch(() => {}); }; addEventListener('hashchange', leave); }
   root.querySelector('#tProgSw').addEventListener('change', async (e) => {
     const on = e.target.checked; e.target.disabled = true;
     const P = await import('./progress.js');
@@ -310,6 +327,21 @@ export async function renderFromTeacher(root) {
     if (ok) toast(t(on ? 'prog.turnedOn' : 'prog.turnedOff', { t: tn }));
     renderFromTeacher(root);
   });
+}
+/** v1.94: „Sačuvaj u…“ — folder ili set lista (pesma ostaje i u „Od nastavnika“). */
+async function saveInFlow(song) {
+  const v = await dialog({ title: t('box.saveInT', { name: song.title }), buttons: [{ label: t('box.toFolder'), value: 'f' }, { label: t('box.toSet'), value: 's' }, { label: t('common.cancel'), value: null, kind: 'ghost' }] });
+  if (v === 'f') return (await import('./setlistsView.js')).editSongFolders(song);
+  if (v !== 's') return false;
+  const c = await import('./collections.js');
+  const sets = (await c.getSetlists()).filter((sl) => !sl.fromT);
+  const id = await chooseFrom(t('box.toSet'), [{ id: '+', label: '+ ' + t('sl.new'), sub: '' }, ...sets.map((sl) => ({ id: sl.id, label: sl.name, sub: songsCount((sl.songIds || []).length) }))]);
+  if (!id) return false;
+  let sl = sets.find((x) => x.id === id);
+  if (id === '+') { const name = await (await import('./setlistsView.js')).askName(t('sl.new')); if (!name) return false; sl = await c.addSetlist(name); }
+  if (!(sl.songIds || []).includes(song.id)) await c.updateSetlist(sl.id, { songIds: [...(sl.songIds || []), song.id] });
+  toast(t('box.savedIn', { name: sl.name }));
+  return true;
 }
 export async function disconnectTeacher() {
   const m = await T.getMyTeacher(); if (!m) return;
@@ -334,9 +366,9 @@ export async function sendToTeacher(song = null) {
   }
   const res = await S.publishOnly(S.songItem(song));
   if (!res) return;
-  const link = res.link + (await T.toTeacherSuffix());
-  const text = await T.editMessage(t('tch.sendToTeacher'), t('tch.msgToTeacher', { t: m.name || '', name: song.title, link }), t('tch.lockMsg'));
-  if (text != null) await T.compose({ to: m.contact || '', subject: t('tch.subjectToTeacher'), text });
+  // v1.94: kroz fajl napretka — nastavnikova aplikacija ga sama stavi kod tebe (bez poruke)
+  const B = await import('./teachBox.js');
+  if (await B.outPush({ id: 'f' + res.fileId.slice(-10) + Date.now().toString(36), type: 'file', f: res.fileId, title: clip(song.title, 80) })) toast(t('box.recSent', { t: m.name || t('tch.teacher') }));
 }
 
 // ---------------- pozivnica (kod učenika) ----------------
@@ -348,20 +380,26 @@ export async function acceptInvite(hash) {
   const me = await T.getTeacher();
   if (me.id && me.id === decodeURIComponent(mm[1])) { toast(t('tch.ownInvite')); return; } // nastavnik otvorio svoj link
   const name = p.get('n') || '';
-  let wantProg = false;
+  let wantProg = true; // v1.94: uključeno — tako i želje i snimci stižu nastavniku sami
   const pInv = dialog({ title: name ? t('tch.inv.title', { t: name }) : t('tch.inv.titleAnon'), html: true, className: 'tch-dlg',
     body: `<p>${esc(t('tch.inv.body', { t: name || t('tch.teacher') }))}</p>
-      <label class="switch tch-sw tch-inv-prog"><input type="checkbox" id="invProg"><span class="switch-track"><span class="switch-thumb"></span></span><span><b>${esc(t('prog.shareWithT'))}</b><small class="muted">${esc(t('prog.offerSub'))}</small></span></label>
-      <p class="tch-lock">🔒 ${esc(t('tch.inv.lock', { t: name || t('tch.teacher') }))}</p>`,
-    buttons: [{ label: t('tch.inv.no'), value: null }, { label: t('tch.inv.yes'), value: 'y', kind: 'primary' }] });
-  [...document.querySelectorAll('.modal-backdrop')].pop()?.querySelector('#invProg')?.addEventListener('change', (e) => (wantProg = e.target.checked));
+      <label class="switch tch-sw tch-inv-prog"><input type="checkbox" id="invProg" checked><span class="switch-track"><span class="switch-thumb"></span></span><span><b>${esc(t('prog.shareWithT'))}</b><small class="muted">${esc(t('prog.offerSub2', { t: name || t('tch.teacher') }))}</small></span></label>
+      <p class="tch-lock">🔒 ${esc(t('tch.inv.lock2', { t: name || t('tch.teacher') }))}</p>`,
+    buttons: [{ label: t('tch.inv.no'), value: null }, { label: t('tch.inv.yesG'), value: 'y', kind: 'primary' }] });
+  const ibox = [...document.querySelectorAll('.modal-backdrop')].pop();
+  ibox?.querySelector('#invProg')?.addEventListener('change', (e) => { wantProg = e.target.checked; const b = ibox.querySelector('.btn.primary'); if (b) b.textContent = t(wantProg ? 'tch.inv.yesG' : 'tch.inv.yes'); });
   const ok = await pInv;
   if (ok !== 'y') return;
-  await T.setMyTeacher({ tid: decodeURIComponent(mm[1]), sid: decodeURIComponent(mm[2]), name, contact: p.get('c') || '', at: Date.now() });
+  const old = await T.getMyTeacher();
+  const same = old && old.tid === decodeURIComponent(mm[1]) && old.sid === decodeURIComponent(mm[2]);
+  const bx = /^[\w-]{6,}$/.test(p.get('b') || '') ? p.get('b') : '';
+  await T.setMyTeacher({ ...(same ? old : {}), tid: decodeURIComponent(mm[1]), sid: decodeURIComponent(mm[2]), name, contact: p.get('c') || '', at: Date.now(), ...(bx ? { box: bx } : {}) });
+  if (bx) import('./teachBox.js').then((B) => { B.initBox(); return B.checkBox({ force: true }); }).catch(() => {});
   toast(t('tch.inv.done', { t: name || t('tch.teacher') }));
   try { dispatchEvent(new Event('marli-invite-ok')); } catch {} // v1.87: posle prihvatanja — poziv „Instaliraj“ (telefon/tablet)
   location.hash = '#/od-nastavnika';
-  if (wantProg) { const P = await import('./progress.js'); if (await P.setProgressShare(true).catch(() => false)) toast(t('prog.turnedOn', { t: name || t('tch.teacher') })); location.hash === '#/od-nastavnika' && window.dispatchEvent(new HashChangeEvent('hashchange')); }
+  const cur = await T.getMyTeacher();
+  if (wantProg && !(same && cur.prog && cur.prog.on && cur.prog.mode !== 'msg')) { const P = await import('./progress.js'); if (await P.setProgressShare(true).catch(() => false)) toast(t('prog.turnedOn', { t: name || t('tch.teacher') })); location.hash === '#/od-nastavnika' && window.dispatchEvent(new HashChangeEvent('hashchange')); }
 }
 
 // ---------------- Podešavanja → Nastava ----------------
@@ -381,6 +419,8 @@ export async function renderTeachSettings(body, setRowValue) {
     <p class="tch-lock">🔒 ${t('tch.lockSettings')}</p>
     ${my ? `<div class="tch-sec"><span>${t('tch.myTeacher')}</span></div><div class="set-grp"><a class="tch-row" href="#/od-nastavnika">${T.avatarHTML({ name: my.name || '?', color: '#f5a524' }, 36)}<span><b>${esc(my.name || t('tch.teacher'))}</b><small>${t('tch.fromTeacher')}</small></span>${CHEV}</a></div><button class="btn small tch-disc" id="tDisc">${t('tch.disconnect')}</button>` : ''}`;
   setRowValue?.(tc.on ? t('tch.on', { n }) : my ? (my.name || t('tch.teacher')) : t('tch.off'));
+  // v1.94: učenik (nije nastavnik) — red glasi „Moj nastavnik · Mile“, ne „Ja sam nastavnik · Mile“
+  const lab = document.querySelector('[data-open="teach"] .sr-t'); if (lab) lab.textContent = t(!tc.on && my ? 'tch.rowMyTeacher' : 'tch.sectionRow');
   body.querySelector('#tOn').addEventListener('change', async (e) => {
     await T.setTeacher({ on: e.target.checked });
     toast(e.target.checked ? t('tch.turnedOn') : t('tch.turnedOff'));
@@ -456,7 +496,7 @@ export async function renderDashboard(root) {
     ...rows.filter((r) => r.w && r.w.idle != null && r.w.idle >= 7).map((r) => ({ c: 'tp red', n: '!', txt: t('prog.attIdle', { name: r.s.name, n: r.w.idle }) })),
     ...rows.filter((r) => r.open).map((r) => ({ c: 'tp', n: r.open, txt: t('tch.d.attOpen', { name: r.s.name, n: r.open }) })),
     ...rows.filter((r) => !r.s.prog || (r.p && r.p.gone)).map((r) => ({ c: 'tp gray', n: 'i', txt: t('prog.attNoShare', { name: r.s.name }) })),
-    ...rows.filter((r) => !r.s.contact).map((r) => ({ c: 'tp gray', n: 'i', txt: t('tch.d.attNoContact', { name: r.s.name }) })),
+    ...rows.filter((r) => !(r.s.box && r.s.box.f)).map((r) => ({ c: 'tp gray', n: 'i', txt: t('box.attNoBox', { name: r.s.name }) })),
   ].slice(0, 8);
   const progCells = (r) => {
     if (!r.s.prog || (r.p && r.p.gone)) return `<td colspan="4"><span class="tp gray">${t('prog.noShare')}</span></td>`;
@@ -669,7 +709,7 @@ async function renderStudentTouch(root, id) {
     <a class="back tch-back" href="#/ucenici">‹ ${t('tch.students')}</a>
     <div class="tch-hero">${T.avatarHTML(s, 56)}<div><h1>${esc(s.name)}</h1><small class="muted">${esc([s.contact, s.prog ? t('tch.sharesProg') : '', t('tch.since', { d: ((d) => `${d.getDate()}. ${d.getMonth() + 1}. ${d.getFullYear()}.`)(new Date(s.createdAt || Date.now())) })].filter(Boolean).join(' · '))}</small></div></div>
     <div class="tch-big"><button class="btn primary" id="tSend">↗ ${t('bulk.btnOne')}</button><button class="btn" id="tQr">▦ ${t('qr.btn')}</button></div>
-    <button class="linkish tch-more2" id="tMore">${t('tch.editStudent')} · ${t('tch.reinvite')}</button>
+    <button class="linkish tch-more2" id="tMore">${t('tch.editStudent')} · ${t('qr.copy')}</button>
     ${reqs.length ? `<div class="tch-sec"><span>${t('tch.rq.head')}</span></div><div class="set-grp tch-reqs">${reqs.map((r) => reqHTML(r)).join('')}</div>` : ''}
     <div id="tPlan" class="pl-tch"></div>
     ${recs.length ? `<div class="tch-sec"><span>${t('tch.recsFrom', { name: s.name })}</span></div><div class="set-grp">${recs.map((r) => `<a class="tch-row" href="#/pesma/${encodeURIComponent(r.id)}">${ic('play')}<span><b>${esc(when(r.createdAt))} <em class="tch-from">${esc(t('tch.fromName', { name: s.name }))}</em></b><small>${esc([r.recording ? '' : r.title, chordsOf(r), r.recording ? dur(r.recording.dur) : ''].filter(Boolean).join(' · '))}</small></span>${CHEV}</a>`).join('')}</div>` : ''}
@@ -677,9 +717,9 @@ async function renderStudentTouch(root, id) {
   root.querySelector('#tSend').addEventListener('click', () => bulkSend([s]));
   root.querySelector('#tQr').addEventListener('click', () => showInviteQR(s));
   root.querySelector('#tMore').addEventListener('click', async () => {
-    const v = await dialog({ title: s.name, buttons: [{ label: t('tch.editStudent'), value: 'edit' }, { label: t('tch.reinvite'), value: 'inv' }] });
+    const v = await dialog({ title: s.name, buttons: [{ label: t('tch.editStudent'), value: 'edit' }, { label: t('qr.copy'), value: 'inv' }] });
     if (v === 'edit') { await addStudentFlow(s); renderStudentTouch(root, id); }
-    if (v === 'inv') await T.sendInvite(s);
+    if (v === 'inv') await T.copyInvite(s);
   });
   bindReqs(root, () => renderStudentTouch(root, id));
   (async () => {
@@ -692,6 +732,8 @@ async function renderStudentTouch(root, id) {
 
 /** QR pozivnica: učenik je pored nastavnika → skenira kamerom i odmah prihvata (isti link kao poruka). */
 export async function showInviteQR(s) {
+  // v1.94: prvo sanduče (na nastavnikovom Google Drive-u) — njegov id je u QR-u, pa sve dalje stiže samo
+  try { await (await import('./teachBox.js')).ensureBox(s.id, { interactive: true }); } catch { toast(t('box.needGoogle'), 'error'); }
   const [{ qrSVG }, link] = await Promise.all([import('./qr.js'), T.inviteLink(s)]);
   return new Promise((resolve) => {
     const o = document.createElement('div');
@@ -702,7 +744,8 @@ export async function showInviteQR(s) {
       <div class="qr-box">${qrSVG(link, { margin: 1 })}</div>
       <p><b>${esc(t('qr.scan', { name: s.name }))}</b><br>${esc(t('qr.then'))}</p>
       <p class="qr-small">${esc(t('qr.after', { name: s.name }))}</p>
-      <div class="qr-row">${COMPUTER() ? `<button class="btn" data-q="copy">${t('qr.copy')}</button>` : ''}<button class="btn" data-q="msg">${t('qr.msgInstead')}</button><button class="btn primary" data-q="done">${t('qr.done')}</button></div></div>`;
+      <div class="qr-row"><button class="btn primary" data-q="done">${t('qr.done')}</button></div>
+      <button class="linkish qr-copy" data-q="copy">${esc(t('qr.notTogether'))}</button></div>`;
     const close = () => { o.remove(); document.removeEventListener('keydown', onKey); resolve(); };
     const onKey = (e) => { if (e.key === 'Escape') close(); };
     o.__close = close;
@@ -711,7 +754,6 @@ export async function showInviteQR(s) {
       if (e.target === o || e.target.closest('.qr-x')) return close();
       const b = e.target.closest('[data-q]'); if (!b) return;
       if (b.dataset.q === 'done') return close();
-      if (b.dataset.q === 'msg') { close(); return T.sendInvite(s); }
       if (b.dataset.q === 'copy') { try { await navigator.clipboard.writeText(link); toast(t('qr.copied')); } catch { toast(link); } }
     });
     document.body.appendChild(o);

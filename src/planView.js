@@ -204,8 +204,7 @@ export async function drawTeacherPlan(el, sid, prog = null) {
   const afterAdd = async () => {
     const cur = await (await import('./teach.js')).getStudent(sid);
     if (!cur.planFile) {
-      const go = await dialog({ title: t('plan.linkTitle'), body: t('plan.linkBody', { name: s.name }), buttons: [{ label: t('plan.later'), value: null }, { label: t('plan.sendLink'), value: 'y', kind: 'primary' }] });
-      if (go === 'y' && await P.sendPlanLink(sid)) toast(t('plan.linkSent', { name: s.name }));
+      if (await P.sendPlanLink(sid)) toast(t('plan.linkSent', { name: s.name })); // v1.94: sam, kroz sanduče
       drawTeacherPlan(el, sid, prog);
     } else toast(t('plan.willSee', { name: s.name }));
   };
@@ -283,12 +282,12 @@ export function dashCell(s, prog) {
   return `${t('plan.weekShort', { n: cw + 1 })}${prog ? ` · ${w.tasks.filter(isDone).length}/${w.tasks.length}` : ''}`;
 }
 
-/** v1.84: učenik šalje napredak porukom — podsetnik u Vežbama (jednom nedeljno, ako je vežbao). */
+/** v1.94: ko je delio napredak porukom (pre 1.94) — kartica „Poveži Google“ u Vežbama (poruka više ne postoji). */
 export async function drawNudge(el) {
   if (!el) return;
   const P = await import('./progress.js');
   const n = await P.progNudge().catch(() => null);
   if (!n) { el.innerHTML = ''; return; }
-  el.innerHTML = `<button class="pl-nudge" id="plNudge"><span class="pl-nudge-t"><span class="pl-k">${esc(t('prog.nudgeK'))}</span><b>${esc(t('prog.nudge', { t: n.name }))}</b></span><span class="pl-nudge-go">${t('prog.nudgeBtn')} ›</span></button>`;
-  el.querySelector('#plNudge').addEventListener('click', async () => { if (await P.sendProgressMsg().catch(() => false)) { toast(t('prog.sentToast', { t: n.name })); el.innerHTML = ''; } });
+  el.innerHTML = `<button class="pl-nudge" id="plNudge"><span class="pl-nudge-t"><span class="pl-k">${esc(t('prog.nudgeK'))}</span><b>${esc(t('prog.nudgeG', { t: n.name }))}</b></span><span class="pl-nudge-go">${t('prog.nudgeGBtn')} ›</span></button>`;
+  el.querySelector('#plNudge').addEventListener('click', async () => { if (await P.setProgressShare(true).catch(() => false)) { toast(t('prog.turnedOn', { t: n.name })); el.innerHTML = ''; } });
 }

@@ -281,18 +281,25 @@ export async function publishPlan(sid, { interactive = false } = {}) {
   if (id && id !== s.planFile) await tm.updateStudent(sid, { planFile: id });
   return id;
 }
-/** Prvi put: napravi fajl i pošalji učeniku link (poruka iz nastavnikove aplikacije). */
+/** Prvi put: napravi fajl plana i stavi ga u učenikovo sanduče — v1.94: bez poruke, učenik ga dobije sam. */
 export async function sendPlanLink(sid) {
   const tm = await TM(); const s = await tm.getStudent(sid); if (!s) return false;
+  if (!(s.box && s.box.f)) { toast(t('box.notConn', { name: s.name }), 'error'); return false; }
   let id = ''; try { id = await publishPlan(sid, { interactive: true }); } catch { id = ''; }
   if (!id) { toast(t('plan.failed'), 'error'); return false; }
-  const tc = await tm.setTeacher({});
-  const { SHARE_BASE } = await import('./shareConfig.js');
-  const link = `${SHARE_BASE}#plan/${tm.encodeLink({ v: 1, tt: tc.id, ts: s.id, f: id })}`;
-  const text = await tm.editMessage(t('plan.sendTitle'), t('plan.msg', { s: s.name, link }), t('plan.lockMsg'));
-  if (text == null) return false;
-  await tm.compose({ to: s.contact, subject: t('tch.subject', { t: (await tm.teacherName()) || 'MARLI' }), text });
+  const B = await import('./teachBox.js');
+  if (!(await B.boxPut(sid, [{ key: 'plan', kind: 'plan', f: id }]))) { toast(t('box.failed'), 'error'); return false; }
   await tm.updateStudent(sid, { planSent: Date.now() });
+  return true;
+}
+/** Učenik: plan stigao kroz sanduče. */
+export async function acceptPlanFile(f) {
+  if (!f || !/^[\w-]{6,}$/.test(f)) return false;
+  const tm = await TM(); const m = await tm.getMyTeacher(); if (!m) return false;
+  if (m.planFile !== f) await tm.setMyTeacher({ ...m, planFile: f });
+  watchTasks();
+  const ok = await refreshPlan({ force: true });
+  if (ok) toast(t('plan.gotLink', { t: m.name || t('tch.teacher') }));
   return true;
 }
 /** Nastavnik prekida (učenik obrisan / plan obrisan i nema zadataka): fajl se briše. */

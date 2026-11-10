@@ -47,11 +47,12 @@ async function T() { return import('./teach.js'); }
 export async function syncProgress({ force = false, interactive = false } = {}) {
   const tm = await T();
   const m = await tm.getMyTeacher();
-  if (!m || !m.prog || !m.prog.on || m.prog.mode === 'msg') return ''; // v1.84: „porukom“ = šalje učenik, ručno
+  if (!m || !m.prog || !m.prog.on || m.prog.mode === 'msg') return ''; // stari način „porukom“ (pre 1.94) — više se ne šalje
   const sum = await buildSummary();
-  const hash = hashOf(JSON.stringify(sum));
+  const out = (m.out || []).slice(-30); // v1.94: želje, „proveri“, snimci — nastavnik ih sam pročita
+  const hash = hashOf(JSON.stringify([sum, out]));
   if (!force && m.prog.fileId && (m.prog.hash === hash || Date.now() - (m.prog.at || 0) < MIN_GAP)) return m.prog.fileId;
-  const text = JSON.stringify({ app: 'marli', type: 'progress', tid: m.tid, sid: m.sid, at: Date.now(), ...sum });
+  const text = JSON.stringify({ app: 'marli', type: 'progress', tid: m.tid, sid: m.sid, at: Date.now(), ...sum, ...(out.length ? { out } : {}) });
   const S = await import('./shareService.js');
   let id = '';
   try { id = await S.putData(m.prog.fileId || '', text, { interactive, name: 'MARLI – napredak.json' }); } catch (e) { if (interactive) throw e; }
@@ -72,83 +73,77 @@ export function initProgress() {
 
 /**
  * Učenik: uključi ili isključi „Deli napredak“.
- * v1.84: dva načina — „automatski“ (fajl na učenikovom Google Drive-u, nastavnik vidi sam) ili „porukom“ (bez Google
- * naloga: učenik šalje brojeve linkom kad hoće — npr. deca, kod kojih Google traži roditelja ili ne dozvoljava).
- * Ako Google prijava ne uspe (ili zapne), nudi se „porukom“. Veza sa nastavnikom ostaje u svakom slučaju.
+ * v1.94: samo preko Google naloga (mali fajl na učenikovom Drive-u; za decu Google traži da roditelj odobri) — bez
+ * poruka. Kad se fajl napravi prvi put, prikaže se QR koji nastavnik skenira (jednom), ili „Kopiraj link“.
  */
-export async function setProgressShare(on, { mode = '' } = {}) {
+export async function setProgressShare(on, { quiet = false } = {}) {
   const tm = await T();
   const m = await tm.getMyTeacher(); if (!m) return false;
   const S = await import('./shareService.js');
   const { dialog, toast, esc } = await import('./ui.js');
-  const tn = m.name || t('tch.teacher');
   if (!on) {
     const fid = m.prog && m.prog.fileId;
-    await tm.setMyTeacher({ ...m, prog: { on: false, ...(m.prog && m.prog.mode ? { mode: m.prog.mode } : {}) } });
+    await tm.setMyTeacher({ ...m, prog: { on: false } });
     if (fid) await S.deleteData(fid).catch(() => {});
-    return true;
-  }
-  if (!mode) mode = await chooseMode(tn);
-  if (!mode) return false;
-  if (mode === 'msg') {
-    const cur = await tm.getMyTeacher();
-    if (cur.prog && cur.prog.fileId) await S.deleteData(cur.prog.fileId).catch(() => {});
-    await tm.setMyTeacher({ ...cur, prog: { on: true, mode: 'msg', sentAt: (cur.prog && cur.prog.sentAt) || 0 } });
-    await sendProgressMsg();
     return true;
   }
   for (;;) {
     const cur = await tm.getMyTeacher();
-    await tm.setMyTeacher({ ...cur, prog: { ...(cur.prog || {}), on: true, mode: 'drive' } });
+    const had = cur.prog && cur.prog.mode !== 'msg' && cur.prog.fileId ? cur.prog.fileId : '';
+    await tm.setMyTeacher({ ...cur, prog: { ...(had ? cur.prog : {}), on: true, mode: 'drive' } });
     let id = '', err = null;
     try { id = await syncProgress({ force: true, interactive: true }); } catch (e) { err = e; id = ''; }
-    if (id) { await tm.sendProgressLink(id); initProgress(); return true; }
+    if (id) {
+      initProgress();
+      if (id !== had || !(cur.prog && cur.prog.shown)) await showBackQR(id);
+      return true;
+    }
     const now = await tm.getMyTeacher(); await tm.setMyTeacher({ ...now, prog: { on: false } });
-    if (!err || err.code === 'cancelled') { if (!err) toast(t('prog.failed'), 'error'); return false; }
-    // v1.93: tačan razlog (npr. nije označena dozvola za Drive, prozor nije mogao da se otvori) — i u Dijagnostici
+    if (!err || err.code === 'cancelled') { if (!err && !quiet) toast(t('prog.failed'), 'error'); return false; }
     try { (await import('./drive.js')).logAuth('napredak: greška', `${err.code || ''} ${err.message || ''}`.trim()); } catch {}
-    const why = err.code === 'stuck' ? t('drive.e.stuck') : (err.message && err.message !== t('drive.e.auth') ? err.message : t('prog.gFailBody'));
-    const v = await dialog({ title: t('prog.gFailTitle'), html: true, className: 'tch-dlg dlg-stack', body: `<p>${esc(why)}</p>${err.code && err.code !== 'stuck' ? `<p class="small muted">${esc(t('prog.gFailCode', { c: err.code }))}</p>` : ''}<p class="tch-lock">${esc(t('prog.gFailKids'))}</p>`,
-      buttons: [{ label: t('prog.gFailRetry'), value: 'retry', kind: 'primary' }, { label: t('prog.gFailMsg'), value: 'msg' }, { label: t('common.cancel'), value: null, kind: 'ghost' }] });
-    if (v === 'msg') return setProgressShare(true, { mode: 'msg' });
+    const why = err.code === 'stuck' ? t('drive.e.stuck') : t('prog.gFailBody'); // tačan razlog ide u red ispod i u Dijagnostiku
+    const v = await dialog({ title: t('prog.gFailTitle'), html: true, className: 'tch-dlg dlg-stack', body: `<p>${esc(why)}</p><div class="tch-todo"><b>${esc(t('prog.todo'))}</b><ol><li>${esc(t('prog.todo1'))}</li><li>${esc(t('prog.todo2'))}</li></ol></div>${err.code && err.code !== 'stuck' ? `<p class="small muted">${esc(t('prog.gFailCode', { c: err.code }))}</p>` : ''}`,
+      buttons: [{ label: t('prog.gFailRetry'), value: 'retry', kind: 'primary' }, { label: t('prog.later'), value: null, kind: 'ghost' }] });
     if (v !== 'retry') return false;
   }
 }
-async function chooseMode(tn) {
-  const { dialog, esc } = await import('./ui.js');
-  let google = false; try { const d = await import('./drive.js'); const st = d.driveState(); google = !!(st.connected || st.email); } catch {}
-  let pick = google ? 'drive' : 'msg';
-  const opt = (k, ic) => `<button type="button" class="tch-opt${k === pick ? ' on' : ''}" data-o="${k}" role="radio" aria-checked="${k === pick}"><span class="tch-opt-ic">${ic}</span><span><b>${esc(t(k === 'msg' ? 'prog.modeMsg' : 'prog.modeDrive'))}</b><small>${esc(t(k === 'msg' ? 'prog.modeMsgSub' : 'prog.modeDriveSub', { t: tn }))}</small></span></button>`;
-  const p = dialog({ title: t('prog.modeTitle', { t: tn }), html: true, className: 'tch-dlg', body: `<p class="small muted">${esc(t('prog.modeBody'))}</p><div class="tch-opts" role="radiogroup">${opt('msg', '💬')}${opt('drive', '☁️')}</div>`,
-    buttons: [{ label: t('common.cancel'), value: null }, { label: t('prog.modeOk'), value: 'ok', kind: 'primary' }] });
-  const box = [...document.querySelectorAll('.modal-backdrop')].pop();
-  box?.querySelector('.tch-opts')?.addEventListener('click', (e) => { const b = e.target.closest('[data-o]'); if (!b) return; pick = b.dataset.o; box.querySelectorAll('.tch-opt').forEach((x) => { x.classList.toggle('on', x === b); x.setAttribute('aria-checked', String(x === b)); }); });
-  return (await p) === 'ok' ? pick : null;
-}
-
-/** Učenik („porukom“): brojevi ove nedelje u linku, kroz učenikovu aplikaciju za poruke. */
-export async function sendProgressMsg() {
-  const tm = await T(); const m = await tm.getMyTeacher(); if (!m) return false;
-  const sum = await buildSummary();
-  const z = await (await import('./shareService.js')).packLinkData({ v: 2, ft: m.tid, fs: m.sid, at: Date.now(), d: sum });
-  const { SHARE_BASE } = await import('./shareConfig.js');
-  const link = `${SHARE_BASE}#napredak/z.${z}`;
-  const text = await tm.editMessage(t('prog.sendTitle'), t('prog.msgNow', { t: m.name || '', link }), t('prog.lockMsgNow', { t: m.name || t('tch.teacher') }));
-  if (text == null) return false;
-  await tm.compose({ to: m.contact || '', subject: t('prog.subject'), text });
+/** Učenik: QR za nastavnika (jednom) — kad ga skenira, vidi napredak i želje stižu same. Na daljinu: „Kopiraj link“. */
+export async function showBackQR(fileId) {
+  const tm = await T(); const m = await tm.getMyTeacher(); if (!m) return;
+  const link = await tm.progressLink(fileId);
+  const { qrSVG } = await import('./qr.js');
+  const { esc, toast } = await import('./ui.js');
+  const tn = m.name || t('tch.teacher');
+  await new Promise((resolve) => {
+    const o = document.createElement('div');
+    o.className = 'qr-inv qr-back';
+    o.setAttribute('role', 'dialog'); o.setAttribute('aria-modal', 'true'); o.setAttribute('aria-label', t('prog.qrTitle', { t: tn }));
+    o.innerHTML = `<div class="qr-card"><button class="qr-x" aria-label="${esc(t('common.close'))}">✕</button>
+      <div class="qr-steps"><span class="ok">✓ ${esc(t('prog.qrS1'))}</span><span class="ok">✓ ${esc(t('prog.qrS2'))}</span><span class="cur">3 ${esc(t('prog.qrS3', { t: tn }))}</span></div>
+      <h2>${esc(t('prog.qrTitle', { t: tn }))}</h2>
+      <div class="qr-box">${qrSVG(link, { margin: 1 })}</div>
+      <p><b>${esc(t('prog.qrScan', { t: tn }))}</b><br>${esc(t('prog.qrThen'))}</p>
+      <div class="qr-row"><button class="btn primary" data-q="done">${esc(t('qr.done'))}</button></div>
+      <button class="linkish qr-copy" data-q="copy">${esc(t('prog.qrCopy'))}</button></div>`;
+    const close = () => { o.remove(); document.removeEventListener('keydown', onKey); resolve(); };
+    const onKey = (e) => { if (e.key === 'Escape') close(); };
+    o.__close = close;
+    document.addEventListener('keydown', onKey);
+    o.addEventListener('click', async (e) => {
+      if (e.target === o || e.target.closest('.qr-x')) return close();
+      const b = e.target.closest('[data-q]'); if (!b) return;
+      if (b.dataset.q === 'done') return close();
+      if (b.dataset.q === 'copy') { try { await navigator.clipboard.writeText(link); toast(t('qr.copied')); } catch { toast(link); } }
+    });
+    document.body.appendChild(o);
+  });
   const cur = await tm.getMyTeacher();
-  if (cur && cur.tid === m.tid) await tm.setMyTeacher({ ...cur, prog: { ...(cur.prog || {}), on: true, mode: 'msg', sentAt: Date.now() } });
-  return true;
+  if (cur && cur.prog) await tm.setMyTeacher({ ...cur, prog: { ...cur.prog, shown: Date.now() } });
 }
-/** Treba li podsetnik „Pošalji napredak“ (porukom, a poslednje slanje je starije od 6 dana i od tad je vežbano)? */
+/** v1.94: učenik je delio napredak porukom (pre 1.94) → treba da poveže Google. */
 export async function progNudge() {
   const tm = await T(); const m = await tm.getMyTeacher();
-  if (!m || !m.prog || !m.prog.on || m.prog.mode !== 'msg') return null;
-  const since = m.prog.sentAt || 0;
-  if (Date.now() - since < 6 * 864e5) return null;
-  const tot = await loadTotals(); const from = since ? dayNum(since) : dayNum() - 7;
-  const any = Object.entries(tot.days || {}).some(([k, v]) => Number(k) > from && ((v.p || 0) + (v.x || 0)) > 60000);
-  return any ? { name: m.name || t('tch.teacher') } : null;
+  return m && m.prog && m.prog.mode === 'msg' ? { name: m.name || t('tch.teacher') } : null;
 }
 /** Nastavnik: sažetak iz poruke — samo poznata polja i brojevi. */
 export function cleanSummary(d) {
@@ -173,6 +168,7 @@ export async function studentProgress(st, { fresh = false } = {}) {
   const S = await import('./shareService.js');
   const d = await S.readData(st.prog.fileId);
   const data = !d ? { err: true } : d.gone ? { gone: true } : d.type === 'progress' ? d : { err: true };
+  if (d && d.type === 'progress' && Array.isArray(d.out) && d.out.length) await (await import('./teachBox.js')).ingestOut(st, d.out).catch(() => 0); // v1.94
   cache.set(st.id, { at: Date.now(), data });
   return data;
 }

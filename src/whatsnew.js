@@ -5,6 +5,11 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '1.94', date: '2026-11-10', items: [
+    { i: '📥', sr: ['Pesme od nastavnika stižu same', 'Bez imejla i Vibera: šta nastavnik pošalje stiže pravo u aplikaciju, u „Od nastavnika“ (sa oznakom „Novo“). „Sačuvaj u…“ stavlja pesmu u bilo koji folder ili set listu.'], en: ['Songs from your teacher arrive by themselves', 'No email or Viber: what your teacher sends goes straight into the app, in “From teacher” (marked “New”). “Save to…” puts a song in any folder or set list.'] },
+    { i: '📈', sr: ['Napredak, želje i snimci — automatski', 'Pri prihvatanju pozivnice „Deli napredak“ je uključeno. Želje, „Imaš li ovu pesmu?“, „Proveri sa nastavnikom“ i snimci stižu nastavniku sami. Potreban je Google nalog — za decu ga odobrava roditelj.'], en: ['Progress, wishes and recordings — automatic', 'When you accept an invite, “Share progress” is on. Wishes, “Do you have this song?”, “Check with teacher” and recordings reach the teacher by themselves. A Google account is needed — for kids a parent approves.'] },
+    { i: '▦', sr: ['QR u oba smera', 'Prvi put: učenik skenira nastavnikov QR, pa pokaže svoj QR nastavniku. Za časove preko interneta ostaje „Kopiraj link“. Učenici povezani ranije treba jednom da skeniraju novi QR.'], en: ['QR both ways', 'First time: the student scans the teacher’s QR, then shows their own QR to the teacher. For online lessons there is still “Copy link”. Students connected earlier need to scan the new QR once.'] },
+  ] },
   { v: '1.93', date: '2026-11-10', items: [
     { i: '🛡', sr: ['Pouzdanije čuvanje', 'Kad telefon posle dugog rada u pozadini sam zatvori bazu, MARLI je sada odmah ponovo otvori — čuvanje pesama i podešavanja više ne zakaže do ponovnog pokretanja.'], en: ['More reliable saving', 'When the phone closes the database after a long time in the background, MARLI now reopens it at once — saving songs and settings no longer fails until a restart.'] },
     { i: '▦', sr: ['„Podeli MARLI“ opet lepo izgleda', 'QR kod u „Podeli MARLI“ (Podešavanja, gore desno) je na telefonu izlazio iz okvira — ispravljeno.'], en: ['“Share MARLI” looks right again', 'The QR code in “Share MARLI” (Settings, top right) spilled out of its frame on phones — fixed.'] },
