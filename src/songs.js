@@ -953,7 +953,7 @@ export async function renderSong(root, id, nav = null) {
         <button class="btn stb-listen" data-tb="listen" title="${esc(t('dock.listenTip'))}">${NOTE_ICON}<span>${t('dock.listen')}</span></button>
         <button class="btn" data-tb="video" title="${esc(t('stb.videoTip'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.6 7.2a2.5 2.5 0 0 0-1.8-1.8C18.2 5 12 5 12 5s-6.2 0-7.8.4A2.5 2.5 0 0 0 2.4 7.2 26 26 0 0 0 2 12a26 26 0 0 0 .4 4.8 2.5 2.5 0 0 0 1.8 1.8C5.8 19 12 19 12 19s6.2 0 7.8-.4a2.5 2.5 0 0 0 1.8-1.8A26 26 0 0 0 22 12a26 26 0 0 0-.4-4.8zM10 15V9l5.2 3L10 15z"/></svg><span>${t('stb.video')}</span></button>
         <button class="btn stb-tog" data-tb="easy" aria-pressed="false" title="${esc(t('song.easySub'))}"><i aria-hidden="true"></i><span>${t('sug.easyBtn')}</span></button>
-        <button class="btn" data-tb="share" aria-haspopup="true" title="${esc(t('stb.shareTip'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 16a3 3 0 0 0-2.4 1.2l-6.7-3.4a3 3 0 0 0 0-1.6l6.7-3.4A3 3 0 1 0 15 7l-6.7 3.4a3 3 0 1 0 0 3.2L15 17a3 3 0 1 0 3-1z"/></svg><span>${t('song.share')}</span> ▾</button>
+        <button class="btn" data-tb="share" aria-haspopup="true" title="${esc(t('stb.shareTip'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 16a3 3 0 0 0-2.4 1.2l-6.7-3.4a3 3 0 0 0 0-1.6l6.7-3.4A3 3 0 1 0 15 7l-6.7 3.4a3 3 0 1 0 0 3.2L15 17a3 3 0 1 0 3-1z"/></svg><span>${t('song.shareShort')}</span> ▾</button>
         <button class="btn stb-more" data-tb="more" title="${esc(t('song.more'))}" aria-label="${esc(t('song.more'))}">${MORE_ICON}</button>
       </div>`}
       ${stored.recording ? '' : practiceLineHTML(id)}
@@ -1118,6 +1118,7 @@ export async function renderSong(root, id, nav = null) {
         ${!stored.strum && ss ? `<div class="ss-pat" id="ssPat">${patternHTML(ss, { compact: true })}</div>` : ''}
         <div class="ss-r"><span class="ss-l">${t('ss.size')}</span>${step('ssZoom', Math.round(zoom * 100) + '%', 'z-', 'z+', t('ss.size'))}</div>
         ${pa_ ? `<div class="ss-r"><span class="ss-l">${t('ss.video')}</span>${go(esc(t(pa_.classList.contains('off') ? 'ss.connect' : 'ss.start')), 'video', ' acc')}</div>` : ''}
+        ${touchOk() ? `<div class="ss-r"><span class="ss-l">${t('ss.chords')}</span>${go(esc(t('ss.editChords')), 'chords', ' acc')}</div>` : ''}
         ${sp ? `<div class="ss-r"><span class="ss-l">${t('ss.practice')}</span>${go(esc(t('ss.parts')), 'practice', ' acc')}</div>` : ''}`;
     };
     const close = () => { stopStrum(); wrap.remove(); sheetRefresh = null; drawChips(); };
@@ -1141,6 +1142,7 @@ export async function renderSong(root, id, nav = null) {
       else if (a === 'rh-apply') { stopStrum(); const p = sugStrum(); if (p) stored.strum = { id: p.id, sig: p.sig, steps: p.steps, ...(p.swing ? { swing: true } : {}) }; await save(); draw(); }
       else if (a === 'video') { close(); return $('paBtn')?.click(); }
       else if (a === 'practice') { close(); return root.querySelector('.sp-line')?.click(); }
+      else if (a === 'chords') { close(); return editChords(); }
       if (sheetRefresh) render();
     });
     render();
@@ -1777,6 +1779,7 @@ export async function renderSong(root, id, nav = null) {
       { value: 'details', label: t('song.detailsMenu'), sub: t('song.detailsSub'), icon: 'details' },
       { value: 'share', label: t('song.share'), sub: t('stb.shareTip'), icon: 'share' },
       { value: 'pdf', label: t('song.pdf'), sub: t('ss.pdfSub'), icon: 'pdf' },
+      ...(touchOk() && root.querySelector('.song-view.calm') ? [{ value: 'chords', label: t('te.menu'), sub: t('te.menuSub'), icon: 'edit' }] : []),
       ...teachItems,
     ]));
     if (v && teachItems.some((x) => x.value === v)) { await (await import('./teachView.js')).handleTeachMenu(v, stored); return; }
@@ -1786,6 +1789,7 @@ export async function renderSong(root, id, nav = null) {
     if (v === 'details') { openPanel($('sDet'), t('song.detailsMenu')); }
     if (v === 'share') $('sShare')?.click();
     if (v === 'pdf') $('sPdf')?.click();
+    if (v === 'chords') editChords();
   });
   bindZoomPill(root, { get: () => zoom, apply: (z) => setZoom(z), save: () => saveZoom(), min: 0.8, max: 1.8 });
   // v1.82 (računar): traka umesto „⋯“ (Uredi · Uz video · Lakša verzija · Podeli · ⋯) i brza izmena akorda na pesmi
@@ -1818,6 +1822,17 @@ export async function renderSong(root, id, nav = null) {
   });
   $('sControls')?.addEventListener('click', () => setTimeout(tbSync, 50));
   tbSync();
+  // v1.89 (telefon i tablet): uređivanje akorda prstom — poseban režim (⋯, „Podešavanja pesme“ ili dug pritisak na akord)
+  let touch = null;
+  const touchOk = () => !stored.recording && stored.type !== 'tab';
+  if (touchOk()) import('./songTouchEdit.js').then(({ attachTouchEdit }) => { touch = attachTouchEdit({
+    root, lyrics: () => $('sLyrics'), stored: () => stored, setStored: (p) => { for (const k of Object.keys(stored)) delete stored[k]; Object.assign(stored, p); },
+    shift: () => tp - capo, save: () => db.put(stored),
+    redraw: () => { detDirty = true; drawLyrics(); drawChips(); },
+    canEnter: () => !!root.querySelector('.song-view.calm') && !playerUI && !document.body.classList.contains('pa-on') && !document.body.classList.contains('stage-mode'),
+    beforeEnter: () => { closePlayer(); stopScroll(); stopLoop(); stopStrum(); },
+  }); }).catch(() => {});
+  const editChords = () => { if (touch) touch.enter(); };
   if (!stored.recording) import('./songQuick.js').then(({ attachQuickEdit }) => attachQuickEdit({
     root, lyrics: () => $('sLyrics'), stored: () => stored, setStored: (p) => { for (const k of Object.keys(stored)) delete stored[k]; Object.assign(stored, p); },
     shift: () => tp - capo, save: () => db.put(stored), enabled: () => !!$('sLyrics') && !document.body.classList.contains('stage-mode'),

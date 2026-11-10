@@ -2455,3 +2455,7 @@ a.ds-it { text-decoration: none; }
   .mini-pl { bottom: 24px; }
   .song-tb .stb-listen svg { fill: var(--accent); }
 }
+/* v1.89: traka na računaru se prelama u drugi red kad nema mesta (⋯ nikad ispod dijagrama) */
+@media (min-width: 1100px) and (hover: hover) and (pointer: fine) {
+  .song-tb { flex-wrap: wrap; row-gap: 8px; min-width: 0; }
+}
