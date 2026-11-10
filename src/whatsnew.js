@@ -5,6 +5,10 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '1.87', date: '2026-11-10', items: [
+    { i: '📲', sr: ['Lakše instaliranje (telefon i tablet)', 'MARLI kratko predloži da ga instaliraš — posle ~20 s ili posle dobrog trenutka (nova pesma, završena runda, prihvaćena pozivnica), najviše par puta i nikad dok sviraš. Link otvoren u Viberu, WhatsApp-u ili Instagramu nudi „Otvori u Chrome-u / Safariju“. Na računaru samo u Podešavanjima.'], en: ['Easier installing (phone and tablet)', 'MARLI briefly suggests installing — after ~20 s or after a good moment (new song, finished round, accepted invite), only a few times and never while you play. A link opened in Viber, WhatsApp or Instagram offers “Open in Chrome / Safari”. On computers only in Settings.'] },
+    { i: '🖨', sr: ['QR kartica za učenike', 'Učenici → „QR kartica za učenike“: list za štampu sa QR kodom i tri koraka za instalaciju. Pozivnica sada savetuje Chrome/Safari i instalaciju.'], en: ['QR card for students', 'Students → “QR card for students”: a printable sheet with a QR code and three install steps. Invites now suggest Chrome/Safari and installing.'] },
+  ] },
   { v: '1.86', date: '2026-11-09', items: [
     { i: '📱', sr: ['Tablet: sređen izgled', 'Uspravno: stranice Podešavanja preko cele širine (ne više u gornjem levom uglu), malo veći tekst i razmaci. Položeno: Podešavanja kao na računaru — spisak levo, stranica desno. „O aplikaciji“ uredno centrirano. Telefon i računar isti.'], en: ['Tablet: tidier layout', 'Portrait: Settings pages use the full width (no longer stuck in the top-left corner), slightly larger text and spacing. Landscape: Settings like on a computer — list on the left, page on the right. “About” neatly centred. Phones and computers unchanged.'] },
     { i: '🔊', sr: ['Čistiji zvuk akorda', 'Lakši odjek sobe i malo tiše — manje posla za telefon, da akord ne „pucketa“ dok zvuči (na slabijim telefonima).'], en: ['Cleaner chord sound', 'A lighter room echo and slightly lower level — less work for the phone, so a ringing chord doesn’t crackle (on weaker phones).'] },

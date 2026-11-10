@@ -35,11 +35,32 @@ export async function renderStudents(root) {
   root.innerHTML = `<section class="view tch-view">
     <a class="back tch-back" href="#/pesme">‹ ${t('lib.title')}</a>
     <header class="view-head tch-head"><h1>${t('tch.students')}</h1><button class="btn small" id="tAdd">+ ${t('tch.student')}</button></header>
+    <button type="button" class="linkish tch-qrcard" id="tQrCard">🖨 ${t('inst.cardBtn')}</button>
     ${list.length ? `<div class="set-grp">${list.map((s) => `<a class="tch-row" href="#/ucenik/${encodeURIComponent(s.id)}">${T.avatarHTML(s)}<span><b>${esc(s.name)}</b><small>${esc(meta(s))}</small></span>${CHEV}</a>`).join('')}</div>`
       : `<div class="card tch-empty"><p>${t('tch.emptyBody')}</p></div>`}
     <p class="tch-lock">🔒 ${t('tch.lockList')}</p>
   </section>`;
   root.querySelector('#tAdd').addEventListener('click', async () => { const s = await addStudentFlow(); if (s) location.hash = '#/ucenik/' + encodeURIComponent(s.id); });
+  root.querySelector('#tQrCard')?.addEventListener('click', printInstallCard);
+}
+
+/** v1.87: kartica za štampu (A4 sa 4 kartice A6) — QR do aplikacije i tri koraka za instalaciju, za učionicu. */
+export async function printInstallCard() {
+  const { qrSVG } = await import('./qr.js'); const { SHARE_BASE } = await import('./shareConfig.js');
+  const name = await T.teacherName();
+  const qr = qrSVG(SHARE_BASE, { margin: 2 });
+  const one = `<div class="c"><div class="h"><img src="${new URL('icons/icon-192.png', location.href).href}" alt=""><div><b>MARLI</b><span>${esc(t('inst.cardSub'))}</span></div></div><div class="q">${qr}</div>
+    <ol><li>${esc(t('inst.card1'))}</li><li>${esc(t('inst.card2'))}</li><li>${esc(t('inst.card3'))}</li></ol>${name ? `<p class="t">${esc(t('inst.cardFrom', { t: name }))}</p>` : ''}<p class="u">${esc(SHARE_BASE.replace(/^https:\/\//, ''))}</p></div>`;
+  const html = `<!doctype html><html lang="sr"><head><meta charset="utf-8"><title>MARLI — ${esc(t('inst.cardBtn'))}</title><style>
+    @page { size: A4; margin: 8mm; } body { margin: 0; font-family: system-ui, sans-serif; color: #111; }
+    .g { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; } .c { border: 1px dashed #bbb; border-radius: 4mm; padding: 6mm; height: 128mm; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; text-align: center; break-inside: avoid; }
+    .h { display: flex; gap: 3mm; align-items: center; } .h img { width: 14mm; height: 14mm; border-radius: 3mm; } .h b { display: block; font-size: 6mm; letter-spacing: .1em; text-align: left; } .h span { font-size: 3.2mm; color: #555; }
+    .q { width: 52mm; margin: 5mm 0 3mm; } .q svg { width: 100%; height: auto; display: block; } ol { text-align: left; font-size: 3.6mm; line-height: 1.45; margin: 2mm 0; padding-left: 5mm; }
+    .t { font-size: 3.4mm; margin: auto 0 1mm; font-weight: 600; } .u { font-size: 3mm; color: #666; margin: 0; }
+  </style></head><body><div class="g">${one}${one}${one}${one}</div><script>onload = () => setTimeout(() => print(), 300);</` + `script></body></html>`;
+  const w = window.open('', '_blank');
+  if (!w) { toast(t('inst.cardBlocked'), 'error'); return; }
+  w.document.open(); w.document.write(html); w.document.close();
 }
 
 /** „Nov učenik“: ime, opcioni imejl/telefon, „Pošalji pozivnicu“. */
@@ -350,6 +371,7 @@ export async function acceptInvite(hash) {
   if (ok !== 'y') return;
   await T.setMyTeacher({ tid: decodeURIComponent(mm[1]), sid: decodeURIComponent(mm[2]), name, contact: p.get('c') || '', at: Date.now() });
   toast(t('tch.inv.done', { t: name || t('tch.teacher') }));
+  try { dispatchEvent(new Event('marli-invite-ok')); } catch {} // v1.87: posle prihvatanja — poziv „Instaliraj“ (telefon/tablet)
   location.hash = '#/od-nastavnika';
   if (wantProg) { const P = await import('./progress.js'); if (await P.setProgressShare(true).catch(() => false)) toast(t('prog.turnedOn', { t: name || t('tch.teacher') })); location.hash === '#/od-nastavnika' && window.dispatchEvent(new HashChangeEvent('hashchange')); }
 }
@@ -458,7 +480,7 @@ export async function renderDashboard(root) {
   };
   root.innerHTML = `<section class="view tch-view tch-dash">
     <a class="back tch-back" href="#/pesme">‹ ${t('lib.title')}</a>
-    <div class="db-h"><div><h1>${t('tch.students')}</h1><small class="muted">${t('prog.dSub')}</small></div><div class="db-h-btns"><button class="btn" id="dSendSet">${t('tch.d.sendSet')}</button><button class="btn primary" id="tAdd">+ ${t('tch.student')}</button></div></div>
+    <div class="db-h"><div><h1>${t('tch.students')}</h1><small class="muted">${t('prog.dSub')}</small></div><div class="db-h-btns"><button class="btn" id="dQrCard">🖨 ${t('inst.cardBtn')}</button><button class="btn" id="dSendSet">${t('tch.d.sendSet')}</button><button class="btn primary" id="tAdd">+ ${t('tch.student')}</button></div></div>
     <div class="db-kpis">
       <div class="db-kpi"><small>${t('tch.d.kStudents')}</small><b>${students.length}</b><em>${t('prog.kSharing', { n: students.filter((s) => s.prog).length })}</em></div>
       <div class="db-kpi"><small>${t('prog.kPracticed')}</small><b>${practiced} / ${sharing.length}</b>${diff(practiced, practicedLast, (n) => String(n))}</div>
@@ -489,6 +511,7 @@ export async function renderDashboard(root) {
   bindReqs(root, () => renderDashboard(root));
   root.querySelector('tbody')?.addEventListener('click', (e) => { const tr = e.target.closest('[data-go]'); if (tr) location.hash = '#/ucenik/' + encodeURIComponent(tr.dataset.go); });
   root.querySelector('#tAdd').addEventListener('click', async () => { const s = await addStudentFlow(); if (s) location.hash = '#/ucenik/' + encodeURIComponent(s.id); });
+  root.querySelector('#dQrCard').addEventListener('click', printInstallCard);
   root.querySelector('#dSendSet').addEventListener('click', async () => {
     const c2 = await import('./collections.js'); const sets2 = await c2.getSetlists();
     const id = await chooseFrom(t('tch.what.set'), sets2.map((sl) => ({ id: sl.id, label: sl.name, sub: songsCount((sl.songIds || []).length) })));

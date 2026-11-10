@@ -716,6 +716,7 @@ export async function renderEditor(root, id) {
     }
     if (base) await versions.save('song:' + base.id, base, 'rescan'); // stari sadržaj ostaje kao „Prethodna verzija“
     const rec = await db.save(rec0);
+    if (isNew) { try { dispatchEvent(new Event('marli-song-saved')); } catch {} } // v1.87: dobar trenutak za poziv „Instaliraj“ (telefon/tablet)
     draft = null; draftImage = null; drafts = { chords: null, tab: null }; draftImgs = null;
     toast(msg);
     location.replace(`#/pesma/${encodeURIComponent(rec.id)}`);

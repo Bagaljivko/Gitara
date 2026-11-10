@@ -379,6 +379,7 @@ idle(() => import('./songSync.js').then((m) => m.cleanupDuplicates({ settings })
 // Google Drive (~25 KB) se učitava samo ako je rezervna kopija uključena; inače tek kad se otvore Podešavanja
 idle(() => settings.get('drive', null).then((d) => { if (d && d.connected) return import('./drive.js').then((m) => m.initDrive()); }).catch(() => {}));
 idle(() => import('./backups.js').then(async (B) => { if (await B.isConnected()) B.initAutoBackup(); }).catch(() => {})); // v1.85: dnevna rezervna kopija
+idle(() => import('./installNudge.js').then((m) => m.initInstallNudge()).catch(() => {})); // v1.87: poziv „Instaliraj“ (samo telefon/tablet)
 // Već podeljene pesme / set liste: posle izmene isti link tiho dobija novi sadržaj (sledeće „Podeli“ je trenutno)
 {
   let shareT = 0;
