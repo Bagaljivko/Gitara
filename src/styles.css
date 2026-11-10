@@ -2464,3 +2464,49 @@ a.ds-it { text-decoration: none; }
 .ss-tog i { position: absolute; left: 3px; top: 3px; width: 22px; height: 22px; border-radius: 50%; background: var(--muted); transition: left .15s, background .15s; }
 .ss-tog.on { background: var(--accent-soft); border-color: var(--accent); }
 .ss-tog.on i { left: 23px; background: var(--accent); }
+/* ---- v1.92: nastavnik na dodir (telefon/tablet), QR pozivnica, slanje više pesama, „Poslate pesme“ ---- */
+.tch-touch .tch-sub { margin: -4px 0 14px; font-size: .9rem; }
+.tch-touch .tch-me { white-space: nowrap; }
+.tch-big { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 4px 0 18px; }
+.tch-big .btn { min-height: 54px; border-radius: 16px; font-weight: 800; }
+.tch-more2 { display: block; margin: -6px 0 14px; color: var(--muted); }
+.tch-pcnote { color: var(--muted); font-size: .84rem; margin: 18px 2px 0; padding-top: 12px; border-top: 1px dashed var(--line); }
+.qr-inv { position: fixed; inset: 0; z-index: 300; background: #000; display: flex; align-items: center; justify-content: center; padding: 24px 18px; animation: rise .18s ease-out; }
+.qr-inv.desk { background: rgba(0,0,0,.72); }
+.qr-card { position: relative; display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; max-width: 420px; width: 100%; }
+.qr-inv.desk .qr-card { background: var(--surface); border: 1px solid var(--line); border-radius: 24px; padding: 28px 30px; max-width: 460px; }
+.qr-x { position: absolute; top: -6px; right: -4px; width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); color: var(--text); font-size: 1.1rem; cursor: pointer; }
+.qr-inv.desk .qr-x { top: 12px; right: 12px; }
+.qr-who { display: flex; align-items: center; gap: 12px; font: 800 1.25rem var(--sans); }
+.qr-box { background: #fff; border-radius: 22px; padding: 16px; box-shadow: 0 0 0 6px rgba(245,165,36,.35); }
+.qr-box svg { display: block; width: min(74vw, 330px); height: auto; }
+.qr-card p { margin: 0; color: var(--muted); line-height: 1.4; }
+.qr-card p b { color: var(--text); }
+.qr-card .qr-small { font-size: .84rem; }
+.qr-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.bulk-sheet { max-height: 86dvh; display: flex; flex-direction: column; }
+.bulk-step { color: var(--muted); font-size: .84rem; margin: -4px 4px 10px; }
+.bulk-body { overflow-y: auto; min-height: 120px; flex: 1; }
+.bulk-find { width: 100%; margin-bottom: 8px; }
+.bulk-list { display: flex; flex-direction: column; }
+.bulk-it { appearance: none; display: flex; align-items: center; gap: 12px; width: 100%; padding: 11px 4px; border: 0; border-bottom: 1px solid var(--line); background: none; color: var(--text); text-align: left; cursor: pointer; font: inherit; }
+.bulk-cb { flex: none; width: 24px; height: 24px; border-radius: 7px; border: 2px solid var(--line); display: grid; place-items: center; font-weight: 900; color: #1a1203; font-size: .85rem; }
+.bulk-it.on .bulk-cb { background: var(--accent); border-color: var(--accent); }
+.bulk-t { min-width: 0; flex: 1; } .bulk-t b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .bulk-t small { color: var(--muted); font-size: .78rem; }
+.bulk-sent { flex: none; max-width: 42%; color: var(--muted); font-size: .72rem; text-align: right; }
+.bulk-go { margin-top: 12px; min-height: 52px; }
+.bulk-go:disabled { opacity: .5; }
+.db-sent { margin-top: 16px; }
+.ds-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.ds-top h2 { flex: 1; margin: 0; }
+.ds-top select, .ds-top .ds-find { width: auto; min-height: 34px; padding: 4px 10px; font-size: .85rem; }
+.ds-top .ds-find { width: 180px; }
+.ds-tbl tbody tr { cursor: pointer; }
+.ds-tbl tr.sel td { background: rgba(245,165,36,.07); }
+.ds-tbl .tch-av { margin-right: 3px; }
+.ds-cb { appearance: none; width: 20px; height: 20px; border-radius: 6px; border: 2px solid var(--line); display: inline-grid; place-items: center; font-size: .7rem; font-weight: 900; color: #1a1203; background: none; padding: 0; cursor: pointer; }
+.ds-cb.on { background: var(--accent); border-color: var(--accent); }
+.ds-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 12px; padding: 10px 12px; border-radius: 14px; background: rgba(245,165,36,.06); border: 1px solid rgba(245,165,36,.3); }
+.ds-bar b { flex: 1; font-weight: 700; }
+.ds-bar .btn:disabled { opacity: .45; }
+.set-tch .sr-t { color: var(--accent); font-weight: 700; }

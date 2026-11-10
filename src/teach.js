@@ -203,7 +203,20 @@ const b64d = (s) => JSON.parse(decodeURIComponent(escape(atob(String(s).replace(
 export const encodeLink = b64e, decodeLink = b64d; // v1.83: i za link plana
 export const REQ_TYPES = ['wish', 'ask'];
 /** Nastavnik: kratak zapis poslatog (za pregled) — samo kod nastavnika, najviše 300 poslednjih. */
-export async function logSent(sids, kind) { const tc = await getTeacher(); const at = Date.now(); await setTeacher({ sentLog: [...(tc.sentLog || []), ...sids.map((sid) => ({ sid, kind, at }))].slice(-300) }); }
+// v1.92: pamti i koje pesme su poslate (za „Poslate pesme“ na računaru i „već poslato“ pri slanju)
+export async function logSent(sids, kind, songs = []) {
+  const tc = await getTeacher(); const at = Date.now();
+  const ss = (songs || []).filter((x) => x && x.id).slice(0, 60).map((x) => ({ id: x.id, t: clip(x.title || '', 80), a: clip(x.artist || '', 60) }));
+  await setTeacher({ sentLog: [...(tc.sentLog || []), ...sids.map((sid) => ({ sid, kind, at, ...(ss.length ? { songs: ss } : {}) }))].slice(-600) });
+}
+/** Sve poslate pesme: { id, title, artist, sids: { [učenik]: kad }, last } — iz dnevnika slanja i poslatih set lista. */
+export async function sentSongs() {
+  const tc = await getTeacher(); const map = new Map();
+  const add = (id, title, artist, sid, at) => { if (!id || !sid) return; const e = map.get(id) || { id, title, artist, sids: {}, last: 0 }; if (title) e.title = title; if (artist) e.artist = artist; e.sids[sid] = Math.max(e.sids[sid] || 0, at); e.last = Math.max(e.last, at); map.set(id, e); };
+  for (const e of tc.sentLog || []) for (const x of e.songs || []) add(x.id, x.t, x.a, e.sid, e.at);
+  try { const c = await import('./collections.js'); for (const sl of await c.getSetlists()) for (const [sid, at] of Object.entries(sl.sentTo || {})) for (const id of sl.songIds || []) add(id, '', '', sid, at); } catch {}
+  return [...map.values()];
+}
 export async function getRequests() { return ((await settings.get('requests', [])) || []).filter((r) => r && r.id); }
 export async function setRequest(id, patch) {
   const list = await getRequests(); const i = list.findIndex((r) => r.id === id); if (i < 0) return null;

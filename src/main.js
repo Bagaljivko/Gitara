@@ -125,7 +125,7 @@ async function routeInner() {
   const shared = hasSharedSong();
   const hash = shared ? '#/primljena' : location.hash || '#/tuner';
   const [, page, arg] = hash.match(/^#\/([^/?]*)\/?(.*)$/) || [, 'tuner', ''];
-  const tab = { tuner: 'tuner', akordi: 'akordi', pesme: 'pesme', pesma: 'pesme', uredi: 'pesme', setlista: 'pesme', nastup: 'pesme', primljena: 'pesme', podesavanja: 'podesavanja', provera: 'podesavanja', vezbe: 'vezbe', ucenici: 'pesme', ucenik: 'pesme', 'od-nastavnika': 'pesme' }[page] || 'tuner';
+  const tab = { tuner: 'tuner', akordi: 'akordi', pesme: 'pesme', pesma: 'pesme', uredi: 'pesme', setlista: 'pesme', nastup: 'pesme', primljena: 'pesme', podesavanja: 'podesavanja', provera: 'podesavanja', vezbe: 'vezbe', ucenici: 'podesavanja', ucenik: 'podesavanja', 'od-nastavnika': 'pesme' }[page] || 'tuner';
   const tabT = (page === 'ucenici' || page === 'ucenik') && document.body.classList.contains('teach-nav') && DESK_NAV.matches ? 'ucenici' : tab; // v1.81
   refreshTeachNav();
   document.body.classList.toggle('tuner-screen', tab === 'tuner');

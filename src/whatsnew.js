@@ -5,6 +5,11 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '1.92', date: '2026-11-10', items: [
+    { i: '▦', sr: ['QR pozivnica', 'Učenik je pored tebe? Pokaži QR (stranica učenika ili posle „Nov učenik“) — učenik ga skenira kamerom telefona i odmah prihvata. Link porukom i dalje radi.'], en: ['QR invite', 'Student sitting next to you? Show the QR (student page or after “New student”) — the student scans it with the phone camera and accepts right away. The link by message still works.'] },
+    { i: '↗', sr: ['Pošalji više pesama odjednom (telefon i tablet)', 'Podešavanja → Nastava → Učenici → „Pošalji pesme“: označi pesme, izaberi učenike, pošalji. Vidiš i šta je već poslato. Na telefonu i tabletu nastava je samo slanje, QR i plan (označi nedelju) — pregled je na računaru.'], en: ['Send several songs at once (phone and tablet)', 'Settings → Teaching → Students → “Send songs”: tick songs, pick students, send. You also see what was already sent. On phone and tablet, teaching is just sending, QR and the plan (mark the week) — the overview is on the computer.'] },
+    { i: '💻', sr: ['Računar: Poslate pesme', 'U pregledu Učenika sve poslate pesme (ko, kad), filter po učeniku i mesecu; izaberi pesme → „Napravi set listu“ ili „Pošalji drugom učeniku“. „Moji podaci“ za ime i kontakt.'], en: ['Computer: Sent songs', 'In the Students overview, all sent songs (who, when), filter by student and month; pick songs → “Make a set list” or “Send to another student”. “My details” for name and contact.'] },
+  ] },
   { v: '1.91', date: '2026-11-10', items: [
     { i: '🎸', sr: ['Lakša verzija u Podešavanjima pesme', 'Prekidač odmah ispod Kapodastera: isti zvuk, lakši hvatovi uz kapodaster (npr. F → kapo 3, samo D, Hm, G, A). I dalje je i u „⋯“.'], en: ['Easier version in Song settings', 'A switch right under Capo: same sound, easier shapes with a capo (e.g. F → capo 3, only D, Bm, G, A). Still in “⋯” too.'] },
     { i: '▶️', sr: ['Jasniji „⋯“ meni', '„Poslušaj“ u meniju je sada „Snimak sa YouTube-a“, da se ne meša sa dugmetom „Poslušaj“ (zvuk gitare) dole desno.'], en: ['Clearer “⋯” menu', '“Listen” in the menu is now “YouTube recording”, so it isn’t confused with the “Listen” button (guitar sound) at the bottom right.'] },

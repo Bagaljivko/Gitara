@@ -289,7 +289,7 @@ export async function renderSettings(root) {
     <h3 class="set-sec">${t('set.s.play')}</h3><div class="set-grp">${rowH('tuner', t('set.tunerTitle'), 'g')}${rowH('songs', t('set.songsTitle'))}${rowH('screen', t('set.g.screen'))}</div>
     <h3 class="set-sec">${t('set.s.app')}</h3><div class="set-grp">${rowH('lang', t('set.g.lang'))}${rowH('scan', t('set.g.key'))}</div>
     <h3 class="set-sec">${t('set.s.data')}</h3><div class="set-grp">${rowH('drive', t('set.g.sync'))}${rowH('file', t('bk.title'), 'g')}${rowH('shared', t('shared.title'))}</div>
-    <h3 class="set-sec">${t('tch.section')}</h3><div class="set-grp">${rowH('teach', t('tch.sectionRow'), 'n')}</div>
+    <h3 class="set-sec">${t('tch.section')}</h3><div class="set-grp">${rowH('teach', t('tch.sectionRow'), 'n')}<a class="set-row set-tch" id="shTch" href="#/ucenici" hidden>${ico('teach', 'g')}<span class="sr-t">${t('tch.students')}</span><span class="sr-v" id="shTchN"></span><span class="sr-chev" aria-hidden="true">›</span></a></div>
     <h3 class="set-sec">${t('set.s.more')}</h3><div class="set-grp">
       <button type="button" class="set-row" data-act="fb">${ico('fb', 'g')}<span class="sr-t">${t('fb.title')}</span><span class="sr-v">${t('fb.rowSub')}</span><span class="sr-chev" aria-hidden="true">›</span></button>${rowH('pc', t('pc.title'), 'n')}${rowH('install', t('set.installTitle'), 'n')}
       ${isComputer() ? `<button type="button" class="set-row" data-act="keys">${ico('keys', 'n')}<span class="sr-t">${t('keys.title')}</span><span class="sr-chev" aria-hidden="true">›</span></button>` : ''}
@@ -297,6 +297,9 @@ export async function renderSettings(root) {
       <a class="set-row" href="privacy.html" target="_blank" rel="noopener">${ico('privacy', 'n')}<span class="sr-t">${t('set.privacy')}</span><span class="sr-chev" aria-hidden="true">↗</span></a></div>
     <button type="button" class="set-about" data-open="about"><img src="icons/icon-192.png" alt="" width="44" height="44"><span><b>MARLI ${APP_VERSION.split('.').slice(0, 2).join('.')}</b><small>${t('set.h.about')}</small></span><i class="wn-dot" id="shDot" aria-hidden="true" hidden></i><span class="sr-chev" aria-hidden="true">›</span></button>`;
   view.querySelector('.view-head').after(home);
+  // v1.92: Učenici (telefon i tablet: samo ovde) — red ispod „Ja sam nastavnik“ kad je uključeno
+  const drawTchRow = () => import('./teach.js').then(async (T) => { const tc = await T.getTeacher(); const r = home.querySelector('#shTch'); if (!r) return; r.hidden = !tc.on; if (tc.on) home.querySelector('#shTchN').textContent = t('tch.nStudents', { n: (await T.getStudents()).length }); }).catch(() => {});
+  drawTchRow();
   const wide = () => matchMedia('(min-width: 1000px)').matches; // v1.86: i tablet položeno (lista levo, stranica desno)
   const pushed = new Set();
   const openPage = (k, { push = true } = {}) => {
@@ -324,7 +327,7 @@ export async function renderSettings(root) {
 
   // trenutne vrednosti u redovima i u gornjoj kartici
   const setV = (k, txt, cls = '') => { const el = home.querySelector(`[data-v="${k}"]`); if (el) { el.textContent = txt; el.className = 'sr-v ' + cls; } };
-  const drawTeach = () => import('./teachView.js').then((m) => m.renderTeachSettings($('teachBody'), (v) => setV('teach', v))).catch((e) => console.error(e));
+  const drawTeach = () => import('./teachView.js').then((m) => m.renderTeachSettings($('teachBody'), (v) => { setV('teach', v); drawTchRow(); })).catch((e) => console.error(e));
   drawTeach();
   const drawVals = async () => {
     if (!root.isConnected && !home.isConnected) return;

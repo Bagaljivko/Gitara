@@ -293,7 +293,6 @@ function openGroupSheet({ all, folders, cur, inGroup, anchor, teach = null }) {
       ${rec.size ? row('auto:recent', t('lib.groupRecent'), GRP_ICONS['auto:recent'], n('auto:recent')) : ''}
       ${n('auto:tab') ? row('auto:tab', t('lib.groupTab'), GRP_ICONS['auto:tab'], n('auto:tab')) : ''}
       ${sys.map((f) => row(f.id, folderLabel(f), GRP_ICONS.rec, n(f.id))).join('')}
-      ${teach && teach.on ? `<button class="grp-row" role="menuitem" data-nav="#/ucenici"><span class="grp-ic">${GRP_ICONS.students}</span><span class="grp-name">${esc(t('tch.students'))}</span><span class="grp-n">${teach.n}</span></button>` : ''}
       ${teach && teach.my ? `<button class="grp-row" role="menuitem" data-nav="#/od-nastavnika"><span class="grp-ic">${GRP_ICONS.students}</span><span class="grp-name">${esc(t('tch.fromTeacher'))}</span><span class="grp-n">${all.filter((s) => s.fromT).length}</span></button>` : ''}
       <div class="grp-sep"></div>
       <div class="grp-head">${t('lib.groupsFolders')}</div>
