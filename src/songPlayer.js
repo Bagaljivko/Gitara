@@ -61,7 +61,7 @@ function css() {
  * Traka „Pusti“ u donjoj traci ekrana pesme. host = element trake; tl = događaji; onFrame(beat, segIndex, fired)
  * se zove ~30× u sekundi dok svira (isticanje i skrolovanje radi ekran). Vraća { player, startAt(beat), destroy }.
  */
-export function mountPlayerBar(host, tl, { bpm, partLabel = (p) => p.name, allowMute = false, onFrame, onStop, onClose = null }) {
+export function mountPlayerBar(host, tl, { bpm, partLabel = (p) => p.name, allowMute = false, onFrame, onStop, onClose = null, onSync = null }) {
   css();
   const player = createPlayer(tl, { bpm, onEnd: () => { sync(); onStop?.(); } });
   const bar = document.createElement('div');
@@ -89,6 +89,7 @@ export function mountPlayerBar(host, tl, { bpm, partLabel = (p) => p.name, allow
     q('.pl-play').classList.toggle('on', on);
     q('.pl-play').setAttribute('aria-label', t(on ? 'play.pause' : 'play.play'));
     if (on && !raf) raf = requestAnimationFrame(frame);
+    onSync?.(on);
   }
   q('.pl-play').addEventListener('click', () => {
     if (player.playing) { player.pause(); onStop?.(); } else { if (player.pos >= tl.total - 1e-3) player.pos = 0; player.play(); }
@@ -101,6 +102,7 @@ export function mountPlayerBar(host, tl, { bpm, partLabel = (p) => p.name, allow
   // mikrofon uključen negde (igra) → sviranje staje; i traka to pokaže
   const onMic = () => { sync(); onStop?.(); };
   window.addEventListener('gitara-mic', onMic);
+  if (onSync) sync();
   return {
     player,
     /** Sviraj od ove dobe (dodir na takt / red / akord). */

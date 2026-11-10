@@ -2379,3 +2379,79 @@ a.ds-it { text-decoration: none; }
 .in-iab-row { display: flex; gap: 8px; margin-top: 12px; } .in-iab-row .btn { flex: 1; }
 .ghost-btn { background: none !important; border-color: transparent !important; box-shadow: none !important; color: var(--muted) !important; }
 .tch-qrcard { display: inline-block; margin: -4px 4px 10px; font-size: .86rem; }
+
+/* ---- v1.88: mirniji ekran pesme (telefon i tablet), „Poslušaj · Skroluj“, mali plejer ---- */
+.song-chips { display: none; }
+.song-view.calm .song-chips { display: flex; align-items: center; gap: 6px; margin: 8px 0 14px; flex-wrap: nowrap; overflow: hidden; }
+.sc-chip { appearance: none; display: inline-flex; align-items: center; gap: 5px; flex: none; height: 34px; padding: 0 11px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); color: var(--text); font: 700 .82rem var(--sans); white-space: nowrap; cursor: pointer; }
+.sc-chip b { color: var(--accent); }
+.sc-chip small { color: var(--muted); font-weight: 600; font-size: .78rem; }
+.sc-chip.sc-rh { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; display: inline-block; line-height: 32px; }
+.sc-chip.sc-new { border-style: dashed; color: var(--accent); }
+.sc-chip.sc-set { margin-left: auto; width: 34px; padding: 0; justify-content: center; }
+.sc-chip.sc-set svg { width: 18px; height: 18px; fill: var(--muted); }
+.sc-chip:active { background: var(--surface-2); }
+.song-view.calm #sControls, .song-view.calm #sSuggest .sug-mini, .song-view.calm .zoom-wrap, .song-view.calm .pa-row { display: none !important; }
+.song-view.calm .sec:not(.tools) .sec-pat-add, .song-view.calm .sec:not(.tools):not(.looping) .loop-btn { display: none; }
+.song-view.calm .sec-name { cursor: pointer; }
+/* „Podešavanja pesme“ */
+.song-sheet { max-height: 86dvh; overflow-y: auto; }
+.ss-r { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 54px; padding: 6px 2px; border-top: 1px solid var(--line); }
+.ss-r:first-child { border-top: 0; }
+.ss-l { color: var(--muted); font-size: .92rem; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; }
+.ss-l small { font-size: .74rem; color: var(--muted); opacity: .85; }
+.ss-st { display: flex; align-items: center; gap: 12px; font-weight: 800; }
+.ss-st > b, .ss-v { color: var(--accent); min-width: 52px; text-align: center; font: 800 1rem var(--sans); }
+.ss-st > b small { color: var(--muted); font-size: .72rem; font-weight: 700; }
+.ss-v { appearance: none; background: none; border: 0; padding: 4px; cursor: pointer; text-decoration: underline dotted; text-underline-offset: 4px; }
+.ss-b { appearance: none; width: 38px; height: 38px; border-radius: 50%; border: 0; background: var(--surface-2); color: var(--text); font: 800 1.15rem var(--sans); cursor: pointer; display: grid; place-items: center; }
+.ss-b:active { background: var(--line); }
+.ss-reset { appearance: none; background: none; border: 0; padding: 0; color: var(--accent); font: 700 .78rem var(--sans); cursor: pointer; }
+.ss-go { appearance: none; background: none; border: 0; padding: 6px 0; color: var(--text); font: 700 .92rem var(--sans); cursor: pointer; max-width: 62%; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ss-go.acc { color: var(--accent); }
+.ss-go span { color: var(--muted); }
+.ss-sug { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.ss-sug b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .9rem; }
+.ss-pat { padding: 0 2px 8px; }
+/* „Poslušaj · Skroluj“ u donjem desnom uglu (telefon i tablet) */
+.sb-listen, .sb-lab { display: none; }
+.song-view.calm .scroll-bar { position: fixed; z-index: 50; right: 12px; left: auto; bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 14px); max-width: calc(100vw - 24px); margin: 0; padding: 6px; gap: 6px; flex-wrap: nowrap; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); box-shadow: 0 10px 28px rgba(0,0,0,.55); }
+.song-view.calm .scroll-bar > * { display: none; }
+.song-view.calm .scroll-bar > #sListen, .song-view.calm .scroll-bar > #sPlay { display: inline-flex; }
+.song-view.calm .scroll-bar > .loop-row:not([hidden]) { display: flex; }
+.song-view.calm .scroll-bar.scrolling > #sListen { display: none; }
+.song-view.calm .scroll-bar.scrolling > #sSpeed { display: block; flex: 1 1 120px; min-width: 110px; }
+.song-view.calm .scroll-bar.scrolling { left: 12px; border-radius: 22px; }
+.song-view.calm .scroll-bar:has(.loop-row:not([hidden])) { left: 12px; border-radius: 22px; flex-wrap: wrap; }
+.song-view.calm .scroll-bar #sListen, .song-view.calm .scroll-bar #sPlay { align-items: center; gap: 7px; width: auto; height: 42px; min-height: 42px; padding: 0 15px; border-radius: 999px; border: 0; font: 800 .9rem var(--sans); background: var(--surface-2); color: var(--text); white-space: nowrap; }
+.song-view.calm .scroll-bar #sListen { background: linear-gradient(135deg, #ffcc33, #f59e0b); color: #1a1203; }
+.song-view.calm .scroll-bar #sListen svg, .song-view.calm .scroll-bar #sPlay svg { width: 18px; height: 18px; fill: currentColor; }
+.song-view.calm .scroll-bar #sPlay.playing { background: var(--accent-soft); color: var(--accent); }
+.song-view.calm .sb-lab { display: inline; }
+.song-view.calm .song-lyrics-end, .song-view.calm #sDiagCol { margin-bottom: 0; }
+.song-view.pl-open .scroll-bar { display: none !important; }
+/* kraj pesme: PDF · Podeli */
+.song-end { display: flex; justify-content: center; gap: 8px; margin: 26px 0 10px; padding-top: 16px; border-top: 1px solid var(--line); }
+.song-view.calm .song-end { margin-bottom: 96px; }
+.end-chip { appearance: none; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 14px; border-radius: 999px; background: none; border: 1px solid var(--line); color: var(--muted); font: 600 .84rem var(--sans); cursor: pointer; }
+.end-chip svg { width: 16px; height: 16px; fill: currentColor; }
+.end-chip:active { background: var(--surface-2); }
+/* mali plejer (A) */
+.mini-pl { position: fixed; z-index: 55; left: 50%; transform: translateX(-50%); bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 12px); width: max-content; min-width: 290px; max-width: calc(100vw - 24px); }
+.mp-row { position: relative; display: flex; align-items: center; gap: 10px; padding: 6px 6px 6px 16px; border-radius: 999px; background: var(--surface); border: 1px solid rgba(245,165,36,.5); box-shadow: 0 12px 32px rgba(0,0,0,.55); }
+.mp-info { appearance: none; background: none; border: 0; padding: 0; color: inherit; text-align: left; display: flex; flex-direction: column; line-height: 1.2; min-width: 0; flex: 1; cursor: pointer; }
+.mp-info b { color: var(--accent); font-size: .88rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mp-info small { color: var(--muted); font-size: .76rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mp-pr { position: absolute; left: 18px; right: 100px; bottom: 5px; height: 3px; border-radius: 3px; background: var(--surface-2); overflow: hidden; pointer-events: none; }
+.mp-pr i { display: block; width: 0; height: 100%; background: var(--accent); }
+.mp-pp { appearance: none; flex: none; width: 44px; height: 44px; border-radius: 50%; border: 0; background: linear-gradient(135deg, #ffcc33, #f59e0b); display: grid; place-items: center; cursor: pointer; }
+.mp-pp svg { width: 20px; height: 20px; fill: #1a1203; }
+.mp-x { appearance: none; flex: none; width: 38px; height: 38px; border: 0; border-radius: 50%; background: none; display: grid; place-items: center; cursor: pointer; }
+.mp-x svg { width: 20px; height: 20px; fill: var(--muted); }
+.mp-more { margin-bottom: 8px; padding: 10px 12px; border-radius: 18px; background: var(--surface); border: 1px solid var(--line); box-shadow: 0 10px 28px rgba(0,0,0,.5); }
+.mp-more[hidden] { display: none; }
+.mp-more .pl-play { display: none; }
+@media (min-width: 1100px) and (hover: hover) and (pointer: fine) {
+  .mini-pl { bottom: 24px; }
+  .song-tb .stb-listen svg { fill: var(--accent); }
+}

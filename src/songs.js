@@ -34,6 +34,13 @@ import { srCompare } from './collate.js';
 let selectedId = null; // izabrana pesma u prikazu sa dva panela
 export function setSelectedSong(id) { selectedId = id; }
 
+// v1.88: mirniji ekran pesme — „Poslušaj“ (nota) i „Skroluj“ (strelica nadole) u donjem desnom uglu
+const NOTE_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3v10.6A3.5 3.5 0 1 0 11 17V7h5V3H9z"/></svg>';
+const SET_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg>';
+const sPlayHTML = (on) => (on ? '<svg viewBox="0 0 24 24"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>' : '<svg viewBox="0 0 24 24"><path d="M11 4h2v12l4-4 1.4 1.4L12 19.8 5.6 13.4 7 12l4 4z"/></svg>')
+  + `<span class="sb-lab">${t(on ? 'dock.stop' : 'dock.scroll')}</span>`;
+// računar (širok ekran, miš): kontrole ostaju u traci; telefon i tablet: mirna verzija
+const DESK_Q = '(min-width: 1100px) and (hover: hover) and (pointer: fine)';
 function localStorageGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
 function localStorageSet(k, v) { try { localStorage.setItem(k, v); } catch {} }
 
@@ -940,11 +947,13 @@ export async function renderSong(root, id, nav = null) {
     </div>
     <div id="sBody">
       <div id="sHead"></div>
+      <div class="song-chips" id="sChips"></div>
       ${stored.recording ? '' : `<div class="song-tb" id="sTb" role="toolbar" aria-label="${esc(t('stb.label'))}">
         <button class="btn primary" data-tb="edit" title="${esc(t('stb.editTip'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17.2V21h3.8l11-11-3.8-3.8-11 11zM20.7 7a1 1 0 0 0 0-1.4l-2.3-2.3a1 1 0 0 0-1.4 0l-1.8 1.8 3.8 3.8L20.7 7z"/></svg><span>${t('stb.edit')}</span></button>
+        <button class="btn stb-listen" data-tb="listen" title="${esc(t('dock.listenTip'))}">${NOTE_ICON}<span>${t('dock.listen')}</span></button>
         <button class="btn" data-tb="video" title="${esc(t('stb.videoTip'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.6 7.2a2.5 2.5 0 0 0-1.8-1.8C18.2 5 12 5 12 5s-6.2 0-7.8.4A2.5 2.5 0 0 0 2.4 7.2 26 26 0 0 0 2 12a26 26 0 0 0 .4 4.8 2.5 2.5 0 0 0 1.8 1.8C5.8 19 12 19 12 19s6.2 0 7.8-.4a2.5 2.5 0 0 0 1.8-1.8A26 26 0 0 0 22 12a26 26 0 0 0-.4-4.8zM10 15V9l5.2 3L10 15z"/></svg><span>${t('stb.video')}</span></button>
         <button class="btn stb-tog" data-tb="easy" aria-pressed="false" title="${esc(t('song.easySub'))}"><i aria-hidden="true"></i><span>${t('sug.easyBtn')}</span></button>
-        <button class="btn" data-tb="share" title="${esc(t('stb.shareTip'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 16a3 3 0 0 0-2.4 1.2l-6.7-3.4a3 3 0 0 0 0-1.6l6.7-3.4A3 3 0 1 0 15 7l-6.7 3.4a3 3 0 1 0 0 3.2L15 17a3 3 0 1 0 3-1z"/></svg><span>${t('song.share')}</span></button>
+        <button class="btn" data-tb="share" aria-haspopup="true" title="${esc(t('stb.shareTip'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 16a3 3 0 0 0-2.4 1.2l-6.7-3.4a3 3 0 0 0 0-1.6l6.7-3.4A3 3 0 1 0 15 7l-6.7 3.4a3 3 0 1 0 0 3.2L15 17a3 3 0 1 0 3-1z"/></svg><span>${t('song.share')}</span> ▾</button>
         <button class="btn stb-more" data-tb="more" title="${esc(t('song.more'))}" aria-label="${esc(t('song.more'))}">${MORE_ICON}</button>
       </div>`}
       ${stored.recording ? '' : practiceLineHTML(id)}
@@ -969,18 +978,16 @@ export async function renderSong(root, id, nav = null) {
         </span>
         <button class="icon-btn" id="sLoopStop" aria-label="${t('loop.stop')}" title="${t('loop.stop')}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z"/></svg></button>
       </div>
-      <button class="btn round small" id="sPlay" aria-label="${t('scroll.play')}"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
+      <button class="btn sb-listen" id="sListen" title="${esc(t('dock.listenTip'))}">${NOTE_ICON}<span>${t('dock.listen')}</span></button>
+      <button class="btn round small" id="sPlay" aria-label="${t('scroll.play')}">${sPlayHTML(false)}</button>
       <span class="small muted">${t('scroll.slower')}</span>
       <input type="range" id="sSpeed" min="1" max="10" step="1" value="${speed}" aria-label="${t('scroll.speed')}">
       <span class="small muted">${t('scroll.faster')}</span>
       <button class="icon-btn scroll-collapse" id="sCollapse" aria-label="${t('scroll.collapse')}" title="${t('scroll.collapse')}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.6 7.4 10 6l6 6-6 6-1.4-1.4L13.2 12z"/></svg></button>
     </div>
-    <div class="song-actions">
-      <button class="btn primary" id="sPlaySong"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg> ${t('song.play')}</button>
-      <button class="btn" id="sPdf">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z"/></svg> ${t('song.pdf')}</button>
-      <button class="btn" id="sShare">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 16a3 3 0 0 0-2.4 1.2l-6.7-3.4a3 3 0 0 0 0-1.6l6.7-3.4A3 3 0 1 0 15 7l-6.7 3.4a3 3 0 1 0 0 3.2L15 17a3 3 0 1 0 3-1z"/></svg> ${t('song.share')}</button>
+    <div class="song-end">
+      <button class="end-chip" id="sPdf"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z"/></svg> ${t('song.pdfShort')}</button>
+      <button class="end-chip" id="sShare"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 16a3 3 0 0 0-2.4 1.2l-6.7-3.4a3 3 0 0 0 0-1.6l6.7-3.4A3 3 0 1 0 15 7l-6.7 3.4a3 3 0 1 0 0 3.2L15 17a3 3 0 1 0 3-1z"/></svg> ${t('song.shareShort')}</button>
     </div>
   </section>`;
   const $ = (q) => root.querySelector('#' + q);
@@ -1064,9 +1071,81 @@ export async function renderSong(root, id, nav = null) {
         <button class="cs-b" id="sTempoUp" aria-label="${t('loop.faster')}">+</button>
       </div>
     </div>${capo && shapesKey ? `<p class="cs-note">${esc(t('capo.shapesShort', { k: dn(shapesKey) }))}</p>` : ''}`;
-    if (!Number(stored.bpm)) songBpm().then((b) => { if ($('sTempo')) $('sTempo').textContent = b; });
+    if (!Number(stored.bpm)) songBpm().then((b) => { if ($('sTempo')) $('sTempo').textContent = b; drawChips(); });
     syncEasyTop();
+    drawChips();
+    if (sheetRefresh) sheetRefresh();
   };
+  // v1.88: jedan red sa vrednostima (Ton · Kapo · BPM · ritam · ⚙); dodir otvara „Podešavanja pesme“
+  const drawChips = () => {
+    const el = $('sChips'); if (!el) return;
+    const key = soundingKey();
+    const bpm = Number(stored.bpm) || Number($('sTempo')?.textContent) || 0;
+    const rh = stored.strum ? patternName(stored.strum) : '';
+    el.innerHTML = `<button class="sc-chip" data-sheet="key"><small>${t('ctl.keyShort')}</small><b>${esc(dn(key) || '–')}</b>${tp ? `<small>${tp > 0 ? '+' + tp : '−' + Math.abs(tp)}</small>` : ''}</button>
+      <button class="sc-chip" data-sheet="capo"><small>${t('ctl.capoShort')}</small>${capo ? `<b>${capo}</b>` : esc(t('capo.none'))}</button>
+      ${bpm ? `<button class="sc-chip" data-sheet="tempo">${bpm} <small>BPM</small></button>` : ''}
+      ${rh ? `<button class="sc-chip sc-rh" data-sheet="rhythm">♪ ${esc(rh)}</button>` : sugStrum() ? `<button class="sc-chip sc-rh sc-new" data-sheet="rhythm">♪ ${esc(t('ss.rhythmQ'))}</button>` : ''}
+      <button class="sc-chip sc-set" data-sheet="all" aria-label="${esc(t('ss.title'))}" title="${esc(t('ss.title'))}">${SET_ICON}</button>`;
+  };
+  // predlog ritma (ako ga ima i nije odbijen)
+  const sugStrum = () => (strumOn && !stored.recording && !hasStrum() && !(stored.skipped && stored.skipped.strum) && stored.suggestStrum ? patternById(stored.suggestStrum.id) : null);
+  let sheetRefresh = null;
+  // „Podešavanja pesme“: ista dugmad kao u traci (ton, kapodaster, tempo), plus ritam, veličina teksta, „Uz video“ i vežbanje
+  function openSongSheet() {
+    if (sheetRefresh) return;
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-backdrop sheet-backdrop ss-backdrop';
+    wrap.innerHTML = `<div class="sheet song-sheet" role="dialog" aria-modal="true" aria-label="${esc(t('ss.title'))}"><div class="sheet-grip"></div>
+      <h2 class="sheet-title">${t('ss.title')}</h2><div class="ss-rows"></div></div>`;
+    const rows = wrap.querySelector('.ss-rows');
+    const step = (id, v, dn_, up, lab) => `<span class="ss-st"><button class="ss-b" data-ss="${dn_}" aria-label="${esc(lab)} −">−</button><b id="${id}">${v}</b><button class="ss-b" data-ss="${up}" aria-label="${esc(lab)} +">+</button></span>`;
+    const go = (txt, a, cls = '') => `<button class="ss-go${cls}" data-ss="${a}">${txt} <span aria-hidden="true">›</span></button>`;
+    const render = () => {
+      const key = soundingKey(), shapesKey = capo ? keyAt(tp - capo) : '';
+      const ss = sugStrum();
+      const pa_ = $('paBtn');
+      const sp = root.querySelector('.sp-line');
+      rows.innerHTML = `
+        <div class="ss-r"><span class="ss-l">${t('ss.key')}${tp ? ` <button class="ss-reset" data-ss="t0">↺ ${esc(t('ss.original'))}</button>` : ''}</span>
+          <span class="ss-st"><button class="ss-b" data-ss="t-" aria-label="${esc(t('song.transposeDown'))}">−</button><button class="ss-v" data-ss="wheel" aria-label="${esc(t('kw.open', { k: dn(key) || '?' }))}">${esc(dn(key) || '–')}</button><button class="ss-b" data-ss="t+" aria-label="${esc(t('song.transposeUp'))}">+</button></span></div>
+        <div class="ss-r"><span class="ss-l">${t('ss.capo')}${capo && shapesKey ? `<small>${esc(t('capo.shapesShort', { k: dn(shapesKey) }))}</small>` : ''}</span>${step('ssCapo', capo || esc(t('capo.none')), 'c-', 'c+', t('ss.capo'))}</div>
+        <div class="ss-r"><span class="ss-l">${t('ss.tempo')}</span>${step('ssBpm', (Number(stored.bpm) || Number($('sTempo')?.textContent) || '…') + ' <small>BPM</small>', 'b-', 'b+', t('ss.tempo'))}</div>
+        <div class="ss-r"><span class="ss-l">${t('ss.rhythm')}${!stored.strum && ss ? `<small>${esc(t('ss.suggested'))}</small>` : ''}</span>
+          ${stored.strum ? go(esc(patternName(stored.strum)), 'rh-edit')
+            : ss ? `<span class="ss-sug"><b>${esc(patternName(ss))}</b><button class="icon-btn pat-play" data-ss="rh-play" aria-label="${t('pat.play')}"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button><button class="sug-apply" data-ss="rh-apply">${t('sug.apply')}</button></span>`
+            : go(esc(t('ss.add')), 'rh-edit')}</div>
+        ${!stored.strum && ss ? `<div class="ss-pat" id="ssPat">${patternHTML(ss, { compact: true })}</div>` : ''}
+        <div class="ss-r"><span class="ss-l">${t('ss.size')}</span>${step('ssZoom', Math.round(zoom * 100) + '%', 'z-', 'z+', t('ss.size'))}</div>
+        ${pa_ ? `<div class="ss-r"><span class="ss-l">${t('ss.video')}</span>${go(esc(t(pa_.classList.contains('off') ? 'ss.connect' : 'ss.start')), 'video', ' acc')}</div>` : ''}
+        ${sp ? `<div class="ss-r"><span class="ss-l">${t('ss.practice')}</span>${go(esc(t('ss.parts')), 'practice', ' acc')}</div>` : ''}`;
+    };
+    const close = () => { stopStrum(); wrap.remove(); sheetRefresh = null; drawChips(); };
+    wrap.__close = close;
+    sheetRefresh = render;
+    wrap.addEventListener('click', async (e) => {
+      if (!e.target.closest('.sheet')) return close();
+      const b = e.target.closest('[data-ss]'); if (!b) return;
+      const a = b.dataset.ss;
+      if (a === 't-') await setT(tp - 1);
+      else if (a === 't+') await setT(tp + 1);
+      else if (a === 't0') await setT(0);
+      else if (a === 'c-') await setCapo(capo - 1);
+      else if (a === 'c+') await setCapo(capo + 1);
+      else if (a === 'b-') await setBpm(-5);
+      else if (a === 'b+') await setBpm(5);
+      else if (a === 'z-' || a === 'z+') { const z = Math.min(1.8, Math.max(0.8, Math.round((zoom + (a === 'z+' ? 0.1 : -0.1)) * 10) / 10)); if (z !== zoom) { await setZoom(z); await saveZoom(); } }
+      else if (a === 'wheel') { close(); return openWheel(false); }
+      else if (a === 'rh-edit') { close(); return editStrum(); }
+      else if (a === 'rh-play') return playPattern(sugStrum(), '#ssPat');
+      else if (a === 'rh-apply') { stopStrum(); const p = sugStrum(); if (p) stored.strum = { id: p.id, sig: p.sig, steps: p.steps, ...(p.swing ? { swing: true } : {}) }; await save(); draw(); }
+      else if (a === 'video') { close(); return $('paBtn')?.click(); }
+      else if (a === 'practice') { close(); return root.querySelector('.sp-line')?.click(); }
+      if (sheetRefresh) render();
+    });
+    render();
+    document.body.appendChild(wrap);
+  }
   // „Detalji“: ritam, akordi po delovima, dijagrami, YouTube. Crta se tek kada je otvoren.
   let detDirty = true;
   const drawDetails = () => {
@@ -1182,7 +1261,7 @@ export async function renderSong(root, id, nav = null) {
       <button class="icon-btn sug-x" data-sug="${it.x}" aria-label="${t('sug.dismiss')}" title="${t('sug.dismiss')}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z"/></svg></button></div>
       <div class="sug-group">${it.html}</div></div>`;
   }
-  const drawSuggest = () => { const el = $('sSuggest'); if (el) el.innerHTML = suggestHTML(); };
+  const drawSuggest = () => { const el = $('sSuggest'); if (el) el.innerHTML = suggestHTML(); drawChips(); };
 
   async function loadStrumSuggestion() {
     if (stored.recording || hasStrum() || stored.suggestStrum || (stored.skipped && stored.skipped.strum) || strumLoading) return;
@@ -1365,7 +1444,8 @@ export async function renderSong(root, id, nav = null) {
     const sb = $('sScrollBar'); if (sb && sb.classList.contains('collapsed')) { sb.classList.remove('collapsed'); autoOpened = true; }
     dimBar(true);
     $('sPlay').classList.add('playing');
-    $('sPlay').innerHTML = '<svg viewBox="0 0 24 24"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>';
+    $('sPlay').innerHTML = sPlayHTML(true);
+    $('sScrollBar')?.classList.add('scrolling');
     $('sPlay').setAttribute('aria-label', t('scroll.pause'));
     keepAwake('autoscroll');
     raf = requestAnimationFrame(step);
@@ -1380,7 +1460,8 @@ export async function renderSong(root, id, nav = null) {
     const b = $('sPlay');
     if (!b) return;
     b.classList.remove('playing');
-    b.innerHTML = '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
+    b.innerHTML = sPlayHTML(false);
+    $('sScrollBar')?.classList.remove('scrolling');
     b.setAttribute('aria-label', t('scroll.play'));
   }
   $('sPlay').addEventListener('click', (e) => {
@@ -1441,6 +1522,7 @@ export async function renderSong(root, id, nav = null) {
     if ($('sTempo')) $('sTempo').textContent = b;
     if (loopMet) loopMet.bpm = b;
     if (strumMet) strumMet.bpm = b;
+    drawChips();
     await save();
   };
   $('sBpmDown').addEventListener('click', (e) => { e.stopPropagation(); setBpm(-5); });
@@ -1534,31 +1616,64 @@ export async function renderSong(root, id, nav = null) {
     const segs = plLn ? [...plLn.querySelectorAll('.seg, .tx0')] : [], at = plCh ? segs.indexOf(plCh.closest('.seg')) : -1;
     if (at >= 0) for (let i = at; i < segs.length && (i === at || !segs[i].querySelector('.ch')); i++) { segs[i].classList.add('sung'); plSung.push(segs[i]); }
   }
-  let plOpened = false; // „Pusti“ živi u traci: skupljena traka se otvara dok svira, posle se opet skupi
-  function closePlayer() { if (!playerUI) return; playerUI.destroy(); playerUI = null; plMark(null); allowSleep('songplay'); if (plOpened) { $('sScrollBar')?.classList.add('collapsed'); plOpened = false; } }
+  // v1.88: dok svira — mali plejer iznad donje trake (deo pesme, vreme, tanka linija napretka, ❚❚, ✕);
+  // dodir na naziv otvara tempo i izbor dela (ista traka „Pusti“ kao ranije)
+  let mini = null;
+  function closePlayer() {
+    if (!playerUI) return;
+    playerUI.destroy(); playerUI = null; plMark(null); allowSleep('songplay');
+    mini?.remove(); mini = null;
+    root.querySelector('.song-view')?.classList.remove('pl-open');
+  }
+  const fmtT = (sec) => { sec = Math.max(0, Math.round(sec)); return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0'); };
   async function openPlayer() {
     if (playerUI) return playerUI;
     const [sp, pl] = await Promise.all([import('./songPlay.js'), import('./songPlayer.js')]);
     plTl = sp.chordTimeline(stored, { tp, capo });
     if (!plTl.events.length) { toast(t('pr.pesma.noChords'), 'error'); return null; }
     stopScroll();
-    if ($('sScrollBar').classList.contains('collapsed')) { $('sScrollBar').classList.remove('collapsed'); plOpened = true; }
-    let lastSeg = -1;
-    playerUI = pl.mountPlayerBar($('sScrollBar'), plTl, {
-      bpm: await songBpm(), partLabel: (p) => (p.name ? sectionLabel(p.name) : t('song.chordsFallback')),
+    const bpm = await songBpm();
+    const partName = (p) => (p && p.name ? sectionLabel(p.name) : t('song.chordsFallback'));
+    mini = document.createElement('div');
+    mini.className = 'mini-pl';
+    mini.id = 'sMini';
+    mini.innerHTML = `<div class="mp-more" hidden></div><div class="mp-row">
+      <button class="mp-info" aria-expanded="false" title="${esc(t('mini.more'))}"><b class="mp-part">♪ ${esc(partName(plTl.parts[0]))}</b><small class="mp-time">0:00 / ${fmtT(plTl.total * 60 / bpm)} · ${bpm} BPM</small></button>
+      <span class="mp-pr" aria-hidden="true"><i></i></span>
+      <button class="mp-pp" aria-label="${esc(t('play.play'))}"></button>
+      <button class="mp-x" aria-label="${esc(t('common.close'))}" title="${esc(t('common.close'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z"/></svg></button></div>`;
+    root.querySelector('.song-view').appendChild(mini);
+    root.querySelector('.song-view').classList.add('pl-open');
+    const q = (x) => mini.querySelector(x);
+    const PP = { on: '<svg viewBox="0 0 24 24"><path d="M7 5h4v14H7zm6 0h4v14h-4z"/></svg>', off: '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>' };
+    const rate = () => (+(q('.pl-rate')?.value) || 100) / 100;
+    let lastSeg = -1, lastPart = null;
+    const showAt = (b) => {
+      q('.mp-pr i').style.width = Math.min(100, (b / (plTl.total || 1)) * 100).toFixed(1) + '%';
+      const k = 60 / bpm / rate();
+      q('.mp-time').textContent = `${fmtT(b * k)} / ${fmtT(plTl.total * k)} · ${Math.round(bpm * rate())} BPM`;
+      const part = plTl.parts.find((p) => b >= p.from && b < p.to) || null;
+      if (part !== lastPart) { lastPart = part; q('.mp-part').textContent = '♪ ' + partName(part || plTl.parts[0]); }
+    };
+    playerUI = pl.mountPlayerBar(q('.mp-more'), plTl, {
+      bpm, partLabel: partName,
       onFrame: (b, si) => {
+        showAt(b);
         if (si === lastSeg) return;
         lastSeg = si; plMark(plTl.segs[si]);
         if (plLn) { const d = plLn.getBoundingClientRect().top - window.innerHeight * 0.3; if (Math.abs(d) > 40) window.scrollBy({ top: d, behavior: 'smooth' }); }
       },
       onStop: () => { lastSeg = -1; },
-      onClose: closePlayer,
+      onSync: (on) => { const b = q('.mp-pp'); if (!b) return; b.innerHTML = on ? PP.on : PP.off; b.classList.toggle('on', on); b.setAttribute('aria-label', t(on ? 'play.pause' : 'play.play')); },
     });
-    $('sScrollBar').classList.add('pl-host');
+    q('.mp-pp').addEventListener('click', () => q('.pl-play')?.click());
+    q('.mp-x').addEventListener('click', closePlayer);
+    q('.mp-info').addEventListener('click', () => { const m = q('.mp-more'); m.hidden = !m.hidden; q('.mp-info').setAttribute('aria-expanded', String(!m.hidden)); });
     keepAwake('songplay');
     return playerUI;
   }
-  $('sPlaySong').addEventListener('click', async () => { const u = await openPlayer(); if (u && !u.playing) u.startAt(0); });
+  const listen = async () => { const u = await openPlayer(); if (u && !u.playing) u.startAt(0); };
+  $('sListen').addEventListener('click', (e) => { e.stopPropagation(); listen(); });
   window.addEventListener('hashchange', function offPl() { closePlayer(); window.removeEventListener('hashchange', offPl); });
   /** Dok je „Pusti“ otvoren: dodir na red ili akord = sviranje odatle (inače akord otvara dijagram, kao i pre). */
   function seekFrom(target) {
@@ -1660,6 +1775,8 @@ export async function renderSong(root, id, nav = null) {
     const v = await moreMenu('song:' + id, songMenuItems(stored, [
       { value: 'easy', label: t('sug.easyBtn'), sub: easyActive() ? t('song.easyOnSub') : t('song.easySub'), icon: 'easy', on: easyActive() },
       { value: 'details', label: t('song.detailsMenu'), sub: t('song.detailsSub'), icon: 'details' },
+      { value: 'share', label: t('song.share'), sub: t('stb.shareTip'), icon: 'share' },
+      { value: 'pdf', label: t('song.pdf'), sub: t('ss.pdfSub'), icon: 'pdf' },
       ...teachItems,
     ]));
     if (v && teachItems.some((x) => x.value === v)) { await (await import('./teachView.js')).handleTeachMenu(v, stored); return; }
@@ -1667,6 +1784,8 @@ export async function renderSong(root, id, nav = null) {
     if (v === 'edit') { location.hash = '#/uredi/' + encodeURIComponent(id); return; }
     if (v === 'easy') { await toggleEasy(); return; }
     if (v === 'details') { openPanel($('sDet'), t('song.detailsMenu')); }
+    if (v === 'share') $('sShare')?.click();
+    if (v === 'pdf') $('sPdf')?.click();
   });
   bindZoomPill(root, { get: () => zoom, apply: (z) => setZoom(z), save: () => saveZoom(), min: 0.8, max: 1.8 });
   // v1.82 (računar): traka umesto „⋯“ (Uredi · Uz video · Lakša verzija · Podeli · ⋯) i brza izmena akorda na pesmi
@@ -1677,8 +1796,25 @@ export async function renderSong(root, id, nav = null) {
     if (a === 'edit') location.hash = '#/uredi/' + encodeURIComponent(id);
     else if (a === 'video') $('paBtn')?.click();
     else if (a === 'easy') { await toggleEasy(); tbSync(); }
-    else if (a === 'share') $('sShare')?.click();
+    else if (a === 'share') {
+      // v1.88: „Podeli ▾“ — link ili PDF
+      const v = await moreMenu(null, [{ value: 'link', label: t('stb.shareLink'), sub: t('stb.shareTip'), icon: 'share' }, { value: 'pdf', label: t('song.pdf'), sub: t('ss.pdfSub'), icon: 'pdf' }]);
+      if (v === 'link') $('sShare')?.click(); else if (v === 'pdf') $('sPdf')?.click();
+    }
+    else if (a === 'listen') listen();
     else if (a === 'more') $('sMore')?.click();
+  });
+  // v1.88: mirna verzija na telefonu i tabletu (računar zadržava traku sa kontrolama)
+  const deskMq = matchMedia(DESK_Q);
+  const setCalm = () => { root.querySelector('.song-view')?.classList.toggle('calm', !deskMq.matches && !globalThis.__marliTest?.classicSong); }; // stari testovi kontrola: ranija traka
+  setCalm();
+  deskMq.addEventListener?.('change', setCalm);
+  window.addEventListener('hashchange', function offMq() { deskMq.removeEventListener?.('change', setCalm); window.removeEventListener('hashchange', offMq); });
+  $('sChips').addEventListener('click', (e) => { if (e.target.closest('[data-sheet]')) openSongSheet(); });
+  // dugmad uz deo pesme („+ Ritam“, ponavljanje) — u mirnoj verziji tek na dodir naziva dela
+  $('sLyrics').addEventListener('click', (e) => {
+    const n = e.target.closest('.sec-name'); if (!n || !root.querySelector('.song-view.calm')) return;
+    n.closest('.sec')?.classList.toggle('tools');
   });
   $('sControls')?.addEventListener('click', () => setTimeout(tbSync, 50));
   tbSync();
