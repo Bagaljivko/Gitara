@@ -47,6 +47,10 @@ export const GAMES = [
   { id: 'promena', color: '#5aa9ff', load: () => import('./pChords.js'),
     icon: '<rect x="3" y="4" width="7" height="10" rx="1.5"/><rect x="14" y="10" width="7" height="10" rx="1.5"/><path d="M10 17h3.5l-1.6-1.6M14 7h-3.5l1.6 1.6"/>',
     prev: `${LINES}${HIT}<g class="pv-slide pv-slow">${[0, 1].map((k) => [28, 56].map((x, i) => { const X = x + k * 56; return `<rect x="${X - 7}" y="15" width="22" height="50" rx="6" class="pv-block"/><circle cx="${X}" cy="${i ? 22 : 34}" r="4" class="pv-f1"/><circle cx="${X + 8}" cy="${i ? 46 : 46}" r="4" class="pv-f2"/><circle cx="${X}" cy="${i ? 58 : 58}" r="4" class="pv-f3"/>`; }).join('')).join('')}</g>` },
+  // v2.1: Ritam i promene — blok akorda + strelice udaraca
+  { id: 'rp', color: '#ff9f43', load: () => import('./pRP.js'),
+    icon: '<rect x="3" y="5" width="7" height="14" rx="1.5"/><path d="M15 6v9M12.5 12.5 15 15l2.5-2.5M20 18V9M17.5 11.5 20 9l2.5 2.5"/>',
+    prev: `${LINES}${HIT}<g class="pv-slide pv-slow">${[0, 1].map((k) => { const X = 28 + k * 56; return `<rect x="${X - 7}" y="15" width="22" height="50" rx="6" class="pv-block"/><circle cx="${X}" cy="34" r="4" class="pv-f1"/><circle cx="${X + 8}" cy="46" r="4" class="pv-f2"/><path class="pv-arrow" d="M${X + 30} 24v32M${X + 25} 50l5 6 5-6"/><path class="pv-arrow" d="M${X + 44} 56V24M${X + 39} 30l5-6 5 6"/>`; }).join('')}</g>` },
   { id: 'sluh', color: '#4fd1c5', load: () => import('./pEar.js'),
     icon: '<path d="M8 15c-1.6-1.4-2.5-3.4-2.5-5.5A6.5 6.5 0 0 1 18.5 9.5c0 2.4-1.3 3.7-2.5 4.7-1.1.9-1.6 1.8-1.8 3.2A2.9 2.9 0 0 1 11.3 20"/><path d="M9.5 9.5a2.5 2.5 0 0 1 5 0c0 1.2-.8 1.9-1.6 2.4"/>',
     prev: '<g transform="translate(2 14) scale(2.1)"><path class="pv-ear" d="M8 15c-1.6-1.4-2.5-3.4-2.5-5.5A6.5 6.5 0 0 1 18.5 9.5c0 2.4-1.3 3.7-2.5 4.7-1.1.9-1.6 1.8-1.8 3.2A2.9 2.9 0 0 1 11.3 20"/></g><path class="pv-wave pv-w1" d="M60 30q6 10 0 20"/><path class="pv-wave pv-w2" d="M66 24q10 16 0 32"/><path class="pv-wave pv-w3" d="M72 18q14 22 0 44"/>' },
@@ -258,7 +262,7 @@ async function renderGame(root, game, args, params) {
   root.innerHTML = `
   <section class="view practice-view pr-game" data-game="${game.id}" style="--gc:${game.color}">
     <header class="topbar">
-      <a href="#/vezbe" class="back">‹ ${t('pr.title')}</a>
+      <a href="#/vezbe" class="back">‹ ${document.body.classList.contains('nastava-on') ? t('nav.teaching') : t('pr.title')}</a>
       <span class="pr-gtitle">${ico(game)}<b>${t('pr.g.' + game.id)}</b></span>
     </header>
     <div class="pr-explain" id="prExplain" hidden></div>

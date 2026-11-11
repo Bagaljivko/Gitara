@@ -616,7 +616,7 @@ export function runTrack({ api, track, t, items, bpm, wait = null, mode = 'norma
     const dt = at - best.at, tm = judgeTiming(dt, beatMs * Math.min(1, (best.winBeats || 0.5) * 2));
     best.score = (tm.kind === 'off' ? 0.6 : 0.6 + 0.4 * tm.score) * (best.wrong ? 0.7 : 1);
     const kind = tm.kind === 'hit' ? 'hit' : dt < 0 ? 'early' : 'late';
-    best.kindHit = kind;
+    best.kindHit = kind; best.dt = dt; // v2.1: koliko rano/kasno (Ritam i promene: „žuriš / kasniš“)
     judgeIt(best, kind, kind === 'hit' ? t('pr.trk.hit') : t(kind === 'early' ? 'pr.trk.early' : 'pr.trk.late'));
   }
 
@@ -835,9 +835,9 @@ export function trackGame(api, cfg) {
   };
 }
 
-/** Blok akorda za stazu: prvi (najlakši) hvat, prsti u bojama. */
+/** Blok akorda za stazu: prvi (najlakši) hvat — ili extra.voicing (v2.1: nastavnik bira hvat), prsti u bojama. */
 export function chordItem(chord, beat, dur, extra = {}) {
-  const v = getVoicings(chord)[0];
+  const vs = getVoicings(chord); const v = vs[extra.voicing | 0] || vs[0];
   return { kind: 'chord', beat, dur, chord, label: dn(chord), frets: v ? v.frets : [-1, -1, -1, -1, -1, -1], fingers: v ? v.fingers.map((f, i) => (v.barre && v.frets[i] === v.barre.fret && i >= v.barre.from && i <= v.barre.to ? 1 : f)) : [], winBeats: 0.45, winCap: 450, ...extra };
 }
 /** Prsti koje akord koristi (za ruku). */

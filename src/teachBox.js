@@ -73,6 +73,7 @@ export function checkBox({ force = false } = {}) {
           if (it.rq) await tm.markAnswered(it.rq, pkg.name || pkg.songs[0].title || '');
         } else if (it.kind === 'ans') await tm.answerFromBox(it.id, it.s);
         else if (it.kind === 'plan') await (await import('./plan.js')).acceptPlanFile(it.f);
+        else if (it.kind === 'rp') { if (!(await (await import('./pRP.js')).receive(it.rp, fromT))) continue; } // v2.1: Ritam i promene od nastavnika
         else if (it.kind === 'ex') { if (!(await (await import('./myEx.js')).receive(it.ex, fromT))) continue; } // v1.97: vežba od nastavnika
         seen[it.key] = it.at || Date.now(); n++;
         notes.push(it);
@@ -93,6 +94,7 @@ export function checkBox({ force = false } = {}) {
       if (got.length) await N.add({ id: 'box:' + got.map((x) => x.key + x.at).join('|').slice(-70), who, c: '#f5a524', t: got.length === 1 && got[0].kind === 'set' ? t('nt.gotSet', { t: tn, name: got[0].name || '' }) : t('nt.gotSongs', { t: tn, n: songsCount(got.length) }), s: got.length === 1 && got[0].kind === 'set' ? t('nt.inFrom') : got.map((x) => x.name).filter(Boolean).slice(0, 3).join(', '), href: '#/od-nastavnika' });
       for (const x of notes.filter((y) => y.kind === 'ans')) { const r = (await tm.getMyRequests()).find((q) => q.id === x.id); await N.add({ id: 'ans:' + x.id + ':' + x.at, who, c: '#f5a524', t: t(x.s === 'none' ? 'nt.ansNone' : 'nt.ansOk', { t: tn }), s: r ? r.title : '', href: '#/od-nastavnika' }); }
       for (const x of notes.filter((y) => y.kind === 'ex')) await N.add({ id: 'ex:' + x.key + x.at, who, c: '#f5a524', t: t('nt.ex', { t: tn, name: x.name || '' }), s: x.ex && x.ex.goal ? t('ex.goalShort', { n: x.ex.goal.n, bpm: x.ex.goal.bpm || '' }) : '', href: '#/vezbe' });
+      for (const x of notes.filter((y) => y.kind === 'rp')) await N.add({ id: 'rp:' + x.key + x.at, who, c: '#f5a524', t: t('nt.rp', { t: tn, name: x.name || '' }), s: t('nt.rpSub'), href: '#/vezbe/rp?ex=' + encodeURIComponent((x.rp && x.rp.id) || '') });
       for (const x of notes.filter((y) => y.kind === 'plan')) await N.add({ id: 'plan:' + x.at, who, c: '#f5a524', t: t('nt.plan', { t: tn }), s: t('nt.planSub'), href: '#/vezbe' });
     }
     return n;
@@ -166,6 +168,10 @@ export async function ingestOut(st, out) {
         await I.importTagged(pkg, o.f, (song) => ({ student: st.id, fromStudent: 1, ...(song.recording ? { folders: [REC_FOLDER] } : {}) }));
         toast(t('box.gotRec', { name: st.name }));
         await note(st, 'rec:' + o.id, t('nt.rec', { name: st.name }), o.title || '');
+      } else if (o.type === 'rp' && o.ex) { // v2.1: napredak u „Ritam i promene“ (korak n od m)
+        const cur = (await tm.getStudent(st.id)) || st; const step = Math.max(0, Math.min(20, Number(o.step) || 0)), of = Math.max(1, Math.min(20, Number(o.of) || 1));
+        await tm.updateStudent(st.id, { rp: { ...(cur.rp || {}), [clip(o.ex, 40)]: { step, of, name: clip(o.name, 60), at: Number(o.at) || Date.now() } } });
+        if (step >= of) await note(st, 'rp:' + o.id, t('nt.rpDone', { name: st.name }), clip(o.name, 80));
       } else continue;
       if (o.type === 'wish' || o.type === 'ask') await note(st, 'rq:' + o.id, t(o.type === 'wish' ? 'nt.wish' : 'nt.ask', { name: st.name, title: clip(o.title, 80) }), [clip(o.artist, 60), o.note ? '„' + clip(o.note, 80) + '“' : ''].filter(Boolean).join(' · '));
       else if (o.type === 'check') await note(st, 'chk:' + o.id, t('nt.check', { name: st.name }), [clip(o.title, 80), o.note ? '„' + clip(o.note, 80) + '“' : ''].filter(Boolean).join(' · '));

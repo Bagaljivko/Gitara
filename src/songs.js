@@ -935,6 +935,7 @@ function showChord(name, opts = {}) {
 }
 
 // ---------------- Prikaz pesme ----------------
+let curFitChips = null, fitResizeOn = false; // v2.1: red čipova se ponovo uklapa kad se promeni veličina ekrana
 export async function renderSong(root, id, nav = null) {
   let stored = await db.get(id);
   if (!stored) {
@@ -1120,7 +1121,19 @@ export async function renderSong(root, id, nav = null) {
       ${bpm ? `<button class="sc-chip" data-sheet="tempo">${bpm} <small>BPM</small></button>` : ''}
       ${rh ? `<button class="sc-chip sc-rh" data-sheet="rhythm">♪ ${esc(rh)}</button>` : sugStrum() ? `<button class="sc-chip sc-rh sc-new" data-sheet="rhythm">♪ ${esc(t('ss.rhythmQ'))}</button>` : ''}
       <button class="sc-chip sc-set" data-sheet="all" aria-label="${esc(t('ss.title'))}" title="${esc(t('ss.title'))}">${SET_ICON}</button>`;
+    fitChips();
   };
+  // v2.1: red uvek staje u jedan red (bez odsečenih čipova): ako ne staje — prvo se skloni ritam (vidi se strelicama
+  // iznad svakog dela, a menja se u ⚙), pa „Uz video“ ostaje samo ikonica, pa uži čipovi. ⚙ je uvek vidljiv.
+  const fitChips = () => {
+    const el = $('sChips'); if (!el || !el.isConnected) return;
+    if (!el.clientWidth) { requestAnimationFrame(() => { if (el.isConnected && el.clientWidth) fitChips(); }); return; } // red još nije prikazan
+    el.classList.remove('fit1', 'fit2', 'fit3');
+    const over = () => el.scrollWidth > el.clientWidth + 1 || [...el.children].some((c) => c.offsetWidth && c.scrollWidth > c.clientWidth + 1); // i čip koji se skratio („♪ P…“)
+    for (const c of ['fit1', 'fit2', 'fit3']) { if (!over()) break; el.classList.add(c); }
+  };
+  curFitChips = fitChips; // jedan zajednički osluškivač veličine ekrana (bez novog po pesmi — memorija ostaje ista)
+  if (!fitResizeOn) { fitResizeOn = true; let tm = 0; window.addEventListener('resize', () => { clearTimeout(tm); tm = setTimeout(() => curFitChips?.(), 120); }); window.addEventListener('hashchange', () => { curFitChips = null; }); } // stara pesma se ne drži u memoriji
   // predlog ritma (ako ga ima i nije odbijen)
   const sugStrum = () => (strumOn && !stored.recording && !hasStrum() && !(stored.skipped && stored.skipped.strum) && stored.suggestStrum ? patternById(stored.suggestStrum.id) : null);
   let sheetRefresh = null;
@@ -1845,12 +1858,14 @@ export async function renderSong(root, id, nav = null) {
   });
   // v1.88: mirna verzija na telefonu i tabletu (računar zadržava traku sa kontrolama)
   const deskMq = matchMedia(DESK_Q);
-  const setCalm = () => { root.querySelector('.song-view')?.classList.toggle('calm', !deskMq.matches && !globalThis.__marliTest?.classicSong); }; // stari testovi kontrola: ranija traka
+  const setCalm = () => { root.querySelector('.song-view')?.classList.toggle('calm', !deskMq.matches && !globalThis.__marliTest?.classicSong); fitChips(); }; // stari testovi kontrola: ranija traka
   setCalm();
   deskMq.addEventListener?.('change', setCalm);
   window.addEventListener('hashchange', function offMq() { deskMq.removeEventListener?.('change', setCalm); window.removeEventListener('hashchange', offMq); });
   $('sChips').addEventListener('click', (e) => { if (e.target.closest('[data-pa]')) { $('paBtn')?.click(); return; } if (e.target.closest('[data-sheet]')) openSongSheet(); });
   if ($('paBtn')) new MutationObserver(() => drawChips()).observe($('paBtn'), { attributes: true, attributeFilter: ['class'] }); // video povezan / uklonjen → čip se osveži
+  // v2.1: „Ritam i promene“ → poslednji korak „Sviraj pesmu uz video“ otvara pesmu i odmah „Uz video“
+  try { if ($('paBtn') && sessionStorage.getItem('marli-open-pa') === stored.id) { sessionStorage.removeItem('marli-open-pa'); setTimeout(() => $('paBtn')?.click(), 400); } } catch {}
   // dugmad uz deo pesme („+ Ritam“, ponavljanje) — u mirnoj verziji tek na dodir naziva dela
   $('sLyrics').addEventListener('click', (e) => {
     const n = e.target.closest('.sec-name'); if (!n || !root.querySelector('.song-view.calm')) return;
