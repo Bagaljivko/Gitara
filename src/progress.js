@@ -69,6 +69,7 @@ export function initProgress() {
   const later = (ms) => { clearTimeout(timer); timer = setTimeout(() => syncProgress().catch(() => {}), ms); };
   addEventListener('marli-act', () => later(20000));
   later(8000);
+  resumePending();
 }
 
 /**
@@ -98,15 +99,36 @@ export async function setProgressShare(on, { quiet = false } = {}) {
       if (id !== had || !(cur.prog && cur.prog.shown)) await showBackQR(id);
       return true;
     }
+    try { if (err) (await import('./drive.js')).logAuth('napredak: greška', `${err.code || ''} ${err.reason || ''} ${err.message || ''}`.replace(/\s+/g, ' ').trim()); } catch {} // v1.99.2: i tačan Google razlog
+    // v1.99.2: privremeno ograničenje / server / mreža — deljenje ostaje uključeno, MARLI sam pokuša ponovo (ne „zamoli roditelja“)
+    if (err && ['rate', 'server', 'offline'].includes(err.code)) {
+      const now = await tm.getMyTeacher(); await tm.setMyTeacher({ ...now, prog: { ...(now.prog || {}), on: true, mode: 'drive', pending: Date.now() } });
+      initProgress(); retryLater(0);
+      if (!quiet) toast(t(err.code === 'offline' ? 'prog.laterNet' : 'prog.laterRate'), 'info');
+      return true;
+    }
     const now = await tm.getMyTeacher(); await tm.setMyTeacher({ ...now, prog: { on: false } });
     if (!err || err.code === 'cancelled') { if (!err && !quiet) toast(t('prog.failed'), 'error'); return false; }
-    try { (await import('./drive.js')).logAuth('napredak: greška', `${err.code || ''} ${err.message || ''}`.trim()); } catch {}
     const why = err.code === 'stuck' ? t('drive.e.stuck') : t('prog.gFailBody'); // tačan razlog ide u red ispod i u Dijagnostiku
     const v = await dialog({ title: t('prog.gFailTitle'), html: true, className: 'tch-dlg dlg-stack', body: `<p>${esc(why)}</p><div class="tch-todo"><b>${esc(t('prog.todo'))}</b><ol><li>${esc(t('prog.todo1'))}</li><li>${esc(t('prog.todo2'))}</li></ol></div>${err.code && err.code !== 'stuck' ? `<p class="small muted">${esc(t('prog.gFailCode', { c: err.code }))}</p>` : ''}`,
       buttons: [{ label: t('prog.gFailRetry'), value: 'retry', kind: 'primary' }, { label: t('prog.later'), value: null, kind: 'ghost' }] });
     if (v !== 'retry') return false;
   }
 }
+/** v1.99.2: deljenje je uključeno, ali fajl još nije napravljen (Google privremeno ograničio) — pokušaj posle 3, 10, 30 min. */
+let retryT = 0;
+function retryLater(k) {
+  clearTimeout(retryT); const waits = [3, 10, 30]; if (k >= waits.length) return;
+  retryT = setTimeout(async () => {
+    const tm = await T(); const m = await tm.getMyTeacher(); if (!m || !m.prog || !m.prog.on || !m.prog.pending) return;
+    let id = m.prog.fileId || ''; if (!id) { try { id = await syncProgress({ force: true }); } catch { id = ''; } } // možda ga je već napravila redovna sinhronizacija
+    if (!id) return retryLater(k + 1);
+    const cur = await tm.getMyTeacher(); if (cur && cur.prog) await tm.setMyTeacher({ ...cur, prog: { ...cur.prog, pending: 0 } });
+    try { (await import('./notify.js')).add({ id: 'prog-ready:' + id, who: ((m.name || 'M')[0] || 'M').toUpperCase(), c: '#3dd68c', t: t('prog.readyT', { t: m.name || t('tch.teacher') }), s: t('prog.readyS'), href: '#/od-nastavnika' }); } catch {}
+  }, waits[k] * (globalThis.__marliTest?.progRetryMs || 60000));
+}
+/** Pri pokretanju: ako je ostalo „na čekanju“, nastavi pokušaje. */
+export function resumePending() { T().then(async (tm) => { const m = await tm.getMyTeacher(); if (m && m.prog && m.prog.on && m.prog.pending) retryLater(0); }).catch(() => {}); }
 /** Učenik: QR za nastavnika (jednom) — kad ga skenira, vidi napredak i želje stižu same. Na daljinu: „Kopiraj link“. */
 export async function showBackQR(fileId) {
   const tm = await T(); const m = await tm.getMyTeacher(); if (!m) return;

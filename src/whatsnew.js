@@ -5,6 +5,10 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '1.99.2', date: '2026-11-11', items: [
+    { i: '📈', sr: ['Deli napredak: Google privremeno usporio', 'Ako Google na trenutak ograniči pristup dok uključuješ „Deli napredak“, deljenje ostaje uključeno i MARLI sam pokuša ponovo (posle 3, 10 i 30 minuta). Kad uspe, zvonce javi „Napredak je spreman — pokaži QR“.'], en: ['Share progress: Google slowed down', 'If Google briefly limits access while you turn on “Share progress”, sharing stays on and MARLI tries again by itself (after 3, 10 and 30 minutes). When it works, the bell says “Progress is ready — show the QR”.'] },
+    { i: '🩺', sr: ['Dijagnostika: tačan razlog', 'Kod greške Google Drive-a (napredak i sinhronizacija) dijagnostika sada beleži i tačan Google razlog, da brže nađemo uzrok.'], en: ['Diagnostics: exact reason', 'For Google Drive errors (progress and sync) diagnostics now also record Google’s exact reason, so we find the cause faster.'] },
+  ] },
   { v: '1.99.1', date: '2026-11-11', items: [
     { i: '🔔', sr: ['Zvonce i na Učenicima na telefonu', 'Na telefonu nastavnika zvonce se sada vidi i na ekranu Učenici.'], en: ['Bell on Students on the phone', 'On the teacher’s phone the bell now also shows on the Students screen.'] },
     { i: '👥', sr: ['Računar: tabela učenika staje', 'Uz bočnu traku je kolona Zahtevi bila odsečena — sada sve staje. Ispod imena piše da li je učenik povezan (umesto „bez kontakta“).'], en: ['Computer: student table fits', 'With the side bar the Requests column was cut off — now everything fits. Under each name it says whether the student is connected (instead of “no contact”).'] },

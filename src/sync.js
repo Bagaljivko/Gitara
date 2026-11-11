@@ -144,6 +144,7 @@ function done(m) {
     else if (m.code === 'AUTH') setStatus('connect');
     else if (m.code === 'QUOTA') setStatus('quota'); // Drive pun: sve ostaje ovde, status se pokaže jednom
     else setStatus(navigator.onLine === false ? 'offline' : 'error');
+    if (m.code !== 'OFFLINE' && m.code !== 'PAUSED') { const e = `${m.code || ''} ${m.msg || ''}`.trim().slice(0, 120); if (e !== st.err) { st.err = e; import('./drive.js').then((d) => d.logAuth('sinhronizacija: greška', e)).catch(() => {}); } } // v1.99.2
     failures = m.code === 'QUOTA' ? Math.max(failures + 1, 4) : failures + 1;
   }
   schedule();

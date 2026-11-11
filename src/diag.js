@@ -66,7 +66,7 @@ async function geminiLines(share = false) {
   try { const q = JSON.parse(localStorage.getItem('marli-pdf-queue') || '[]'); if (q.length) L.push(`  PDF red: ${q.map((x) => x.st).join(', ')}`); } catch {}
   try {
     const y = (await import('./sync.js')).syncState();
-    L.push('', `Sinhronizacija: ${y.on ? 'uključena' : 'isključena'} · ${y.status}${y.pending ? ' · čeka ' + y.pending : ''}${y.last ? ' · poslednja ' + iso(y.last) : ''}`);
+    L.push('', `Sinhronizacija: ${y.on ? 'uključena' : 'isključena'} · ${y.status}${y.pending ? ' · čeka ' + y.pending : ''}${y.last ? ' · poslednja ' + iso(y.last) : ''}${y.status === 'error' && y.err ? ' · razlog: ' + y.err : ''}`);
   } catch {}
   return L;
 }
