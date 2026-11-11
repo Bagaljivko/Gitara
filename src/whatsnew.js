@@ -5,6 +5,11 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '1.99.1', date: '2026-11-11', items: [
+    { i: '🔔', sr: ['Zvonce i na Učenicima na telefonu', 'Na telefonu nastavnika zvonce se sada vidi i na ekranu Učenici.'], en: ['Bell on Students on the phone', 'On the teacher’s phone the bell now also shows on the Students screen.'] },
+    { i: '👥', sr: ['Računar: tabela učenika staje', 'Uz bočnu traku je kolona Zahtevi bila odsečena — sada sve staje. Ispod imena piše da li je učenik povezan (umesto „bez kontakta“).'], en: ['Computer: student table fits', 'With the side bar the Requests column was cut off — now everything fits. Under each name it says whether the student is connected (instead of “no contact”).'] },
+    { i: '⌕', sr: ['Ispravka: pretraga se zatvara pri prelasku', 'Ako je pretraga (Ctrl K) bila otvorena a ti pređeš na drugi ekran (npr. bočnom trakom), ostajala je preko stranice. Sada se sama zatvori.'], en: ['Fix: search closes when you move on', 'If search (Ctrl K) was open and you went to another screen (e.g. with the side bar), it stayed on top of the page. Now it closes by itself.'] },
+  ] },
   { v: '1.99', date: '2026-11-11', items: [
     { i: '⌕', sr: ['Računar: pretraga svega (Ctrl K)', 'Gore „Pretraži sve…“ ili Ctrl K: pesme (i po tekstu), set liste, Moje vežbe, igre, delovi aplikacije, podešavanja i učenici. ↑ ↓ biraj, Enter otvori, Esc zatvori.'], en: ['Computer: search everything (Ctrl K)', '“Search everything…” at the top or Ctrl K: songs (also by lyrics), set lists, My exercises, games, app sections, settings and students. ↑ ↓ choose, Enter open, Esc close.'] },
     { i: '🎚', sr: ['Računar: podešavanja tunera sa strane', 'Dugme klizača na tuneru otvara podešavanja kao panel desno, bez zatamnjenja — štimuješ dok menjaš štimovanje, sobu ili A4.'], en: ['Computer: tuner settings at the side', 'The sliders button on the tuner opens its settings as a panel on the right, without dimming — keep tuning while you change the tuning, room or A4.'] },

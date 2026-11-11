@@ -1057,6 +1057,8 @@ const sr = {
   'qr.howTitle': "Kako da {name} dobije pozivnicu?",
   'qr.howBody': "Ako ste zajedno, pokaži QR — učenik ga skenira kamerom. Ako je čas preko interneta, kopiraj link i pošalji ga kako želiš.",
   'qr.howMsg': "Pošalji porukom",
+  'box.connected': "povezan/a",
+  'box.notConnShort': "nije povezan/a — pokaži QR",
   'srch.btn': "Pretraži sve…",
   'srch.title': "Pretraga",
   'srch.ph': "Pesme, tekst, set liste, vežbe, podešavanja…",

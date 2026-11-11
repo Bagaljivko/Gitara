@@ -1043,6 +1043,8 @@ export default {
   'qr.howTitle': "How should {name} get the invite?",
   'qr.howBody': "If you’re together, show the QR — the student scans it with the camera. For an online lesson, copy the link and send it however you like.",
   'qr.howMsg': "Send by message",
+  'box.connected': "connected",
+  'box.notConnShort': "not connected — show the QR",
   'srch.btn': "Search everything…",
   'srch.title': "Search",
   'srch.ph': "Songs, lyrics, set lists, exercises, settings…",

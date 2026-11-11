@@ -2674,3 +2674,14 @@ a.ds-it { text-decoration: none; }
   body.desk-shell .pr-prev { height: 120px; }
   body.desk-shell .pr-desc { font-size: .82rem; }
 }
+
+/* v1.99.1: računar — tabela učenika staje i uz bočnu traku (širi se vodoravno u svojoj kartici ako mora) */
+@media (min-width: 1100px) and (hover: hover) and (pointer: fine) {
+  body.desk-shell .tch-dash .db-tbl { font-size: .84rem; }
+  body.desk-shell .tch-dash .db-tbl th, body.desk-shell .tch-dash .db-tbl td { padding-left: 6px; padding-right: 6px; }
+  body.desk-shell .tch-dash .db-tbl .who small { max-width: 170px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  body.desk-shell .tch-dash .db-tbl td:has(> .tp), body.desk-shell .tch-dash .db-tbl td { white-space: nowrap; }
+  body.desk-shell .tch-dash .db { grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); }
+  body.desk-shell .tch-dash .db-card:has(.db-tbl) { overflow-x: auto; }
+  body.desk-shell .tch-dash .db-tbl th { white-space: normal; }
+}

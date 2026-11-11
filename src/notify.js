@@ -69,14 +69,17 @@ async function paint() {
 }
 const DESK = () => matchMedia('(min-width: 1100px) and (hover: hover) and (pointer: fine)').matches;
 // gde ide zvonce: računar = gornja traka pored naloga; telefon/tablet = zaglavlje ekrana (Pesme, Vežbe, Učenici, Od nastavnika)
+let tries = 0;
 async function mount() {
   if (!(await relevant())) { document.querySelectorAll('.nt-bell').forEach((b) => b.remove()); return; }
   if (DESK()) {
     const acct = document.getElementById('navAcct');
     if (acct && !acct.previousElementSibling?.classList.contains('nt-bell')) acct.before(bellBtn());
   } else {
-    const h = document.querySelector('#app .lib-head .head-icons, #app .pr-hub-head, #app .tch-head');
+    // v1.99.1: samo vidljivo zaglavlje (skriveni ekrani ostaju u pozadini, npr. Pesme ili tuner)
+    const h = [...document.querySelectorAll('#app .lib-head .head-icons, #app .pr-hub-head, #app .tch-head')].find((x) => x.offsetParent !== null);
     if (h && !h.querySelector('.nt-bell')) { const b = bellBtn(); b.classList.add('nt-in'); h.appendChild(b); }
+    else if (!h && tries < 3) { tries++; setTimeout(() => mount().catch(() => {}), 400); } // ekran još nije iscrtan (najviše 3 puta)
   }
   paint();
 }
@@ -86,7 +89,7 @@ export function initBell() {
   const app = document.getElementById('app');
   let q = 0; const later = () => { cancelAnimationFrame(q); q = requestAnimationFrame(() => mount().catch(() => {})); };
   if (app) new MutationObserver(later).observe(app, { childList: true });
-  addEventListener('hashchange', later);
+  addEventListener('hashchange', () => { tries = 0; later(); });
   addEventListener('marli-notes', () => { later(); });
   later();
   // klik na sistemsko obaveštenje (sw.js šalje poruku sa adresom)

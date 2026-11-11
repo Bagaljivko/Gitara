@@ -52,7 +52,8 @@ export async function openSearch(q0 = '') {
       : `<p class="srch-none">${esc(t('srch.none', { q }))}</p>`;
     box.querySelector('.srch-it.on')?.scrollIntoView({ block: 'nearest' });
   };
-  const close = () => { wrap.remove(); open = false; removeEventListener('keydown', onKey, true); };
+  const close = () => { wrap.remove(); open = false; removeEventListener('keydown', onKey, true); removeEventListener('hashchange', close); };
+  addEventListener('hashchange', close); // v1.99.1: prelazak na drugi ekran zatvara pretragu
   const go = (x) => { if (!x) return; close(); if (x.run) x.run(); else location.hash = x.href; };
   const onKey = (e) => {
     if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); return; }

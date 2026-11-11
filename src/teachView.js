@@ -517,7 +517,7 @@ export async function renderDashboard(root) {
     <div class="db">
       <div class="db-card"><h2>${t('tch.d.all')}</h2>
         ${students.length ? `<table class="db-tbl"><thead><tr><th>${t('tch.d.cStudent')}</th><th>${t('prog.cWeek')}</th><th>${t('prog.cStreak')}</th><th>${t('prog.cBest')}</th><th>${t('prog.cLast')}</th><th>${t('plan.col')}</th><th>${t('tch.d.cOpen')}</th></tr></thead><tbody>
-        ${rows.map((r) => `<tr data-go="${esc(r.s.id)}"><td><div class="who">${T.avatarHTML(r.s, 34)}<span><b>${esc(r.s.name)}</b><small>${esc(r.s.contact || t('tch.noContact'))}</small></span></div></td>${progCells(r)}<td>${esc(V.dashCell(r.s, r.p && !r.p.err && !r.p.gone ? r.p : null))}</td><td>${r.open ? `<span class="tp">${r.open}</span>` : ''}</td></tr>`).join('')}
+        ${rows.map((r) => `<tr data-go="${esc(r.s.id)}"><td><div class="who">${T.avatarHTML(r.s, 34)}<span><b>${esc(r.s.name)}</b><small>${esc(r.s.box && r.s.box.f ? (r.s.contact || t('box.connected')) : t('box.notConnShort'))}</small></span></div></td>${progCells(r)}<td>${esc(V.dashCell(r.s, r.p && !r.p.err && !r.p.gone ? r.p : null))}</td><td>${r.open ? `<span class="tp">${r.open}</span>` : ''}</td></tr>`).join('')}
         </tbody></table>` : `<p class="muted db-empty">${t('tch.emptyBody')}</p>`}
       </div>
       <div class="db-side">
