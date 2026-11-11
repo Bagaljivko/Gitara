@@ -396,7 +396,7 @@ export async function acceptInvite(hash) {
   await T.setMyTeacher({ ...(same ? old : {}), tid: decodeURIComponent(mm[1]), sid: decodeURIComponent(mm[2]), name, contact: p.get('c') || '', at: Date.now(), ...(bx ? { box: bx } : {}) });
   if (bx) import('./teachBox.js').then((B) => { B.initBox(); return B.checkBox({ force: true }); }).catch(() => {});
   toast(t('tch.inv.done', { t: name || t('tch.teacher') }));
-  try { dispatchEvent(new Event('marli-invite-ok')); } catch {} // v1.87: posle prihvatanja — poziv „Instaliraj“ (telefon/tablet)
+  try { dispatchEvent(new CustomEvent('marli-invite-ok', { detail: { link: location.origin + location.pathname + hash } })); } catch {} // v2.0: link za iPhone (aplikacija sa početnog ekrana ima svoju memoriju) // v1.87: posle prihvatanja — poziv „Instaliraj“ (telefon/tablet)
   location.hash = '#/od-nastavnika';
   const cur = await T.getMyTeacher();
   if (wantProg && !(same && cur.prog && cur.prog.on && cur.prog.mode !== 'msg')) { const P = await import('./progress.js'); if (await P.setProgressShare(true).catch(() => false)) toast(t('prog.turnedOn', { t: name || t('tch.teacher') })); location.hash === '#/od-nastavnika' && window.dispatchEvent(new HashChangeEvent('hashchange')); }
@@ -418,6 +418,8 @@ export async function renderTeachSettings(body, setRowValue) {
     <ul class="tch-feats"><li><b>${t('tch.students')}</b> — ${t('tch.f1')}</li><li><b>${t('tch.forWhom')}</b> — ${t('tch.f2')}</li><li><b>${t('tch.forStudents')}</b> — ${t('tch.f3')}</li></ul>
     <p class="tch-lock">🔒 ${t('tch.lockSettings')}</p>
     ${my ? `<div class="tch-sec"><span>${t('tch.myTeacher')}</span></div><div class="set-grp"><a class="tch-row" href="#/od-nastavnika">${T.avatarHTML({ name: my.name || '?', color: '#f5a524' }, 36)}<span><b>${esc(my.name || t('tch.teacher'))}</b><small>${t('tch.fromTeacher')}</small></span>${CHEV}</a></div><button class="btn small tch-disc" id="tDisc">${t('tch.disconnect')}</button>` : ''}`;
+  // v2.0: učenik bez nastavnika — poveži se ovde (QR ili nalepi link), radi i u aplikaciji sa početnog ekrana na iPhone-u
+  if (!my && !tc.on) { body.insertAdjacentHTML('beforeend', `<div class="tch-sec"><span>${t('tch.myTeacher')}</span></div><button type="button" class="btn wide" id="tConnect">🎓 ${t('nas.pasteTitle')}</button>`); body.querySelector('#tConnect').addEventListener('click', async () => { const N = await import('./nastava.js'); if ('BarcodeDetector' in window && navigator.mediaDevices?.getUserMedia && (await dialog({ title: t('nas.pasteTitle'), buttons: [{ label: t('nas.paste'), value: 'p' }, { label: t('nas.scan'), value: 's', kind: 'primary' }] })) === 's') N.scanInvite(); else N.pasteInvite(); }); }
   setRowValue?.(tc.on ? t('tch.on', { n }) : my ? (my.name || t('tch.teacher')) : t('tch.off'));
   // v1.94: učenik (nije nastavnik) — red glasi „Moj nastavnik · Mile“, ne „Ja sam nastavnik · Mile“
   const lab = document.querySelector('[data-open="teach"] .sr-t'); if (lab) lab.textContent = t(!tc.on && my ? 'tch.rowMyTeacher' : 'tch.sectionRow');

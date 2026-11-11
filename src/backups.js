@@ -13,7 +13,7 @@ import { APP_VERSION } from './version.js';
 const EXCL_SETTINGS = new Set(['driveToken', 'driveRT', 'drive', 'syncCfg', 'syncMigrated', 'syncOffered', 'geminiModels', 'shareFolder', 'held:secret']);
 const LOCAL_RE = /^(gitara-|marli-)/;
 const EXCL_LOCAL = new Set(['gitara-diag', 'gitara-boots', 'gitara-lastscan', 'gitara-sync', 'gitara-echo-clean', 'marli-keycheck', 'marli-pdf-queue', 'marli-bk',
-  'marli-autobk', 'marli-def1701', 'marli-def-test', 'marli-dev', 'marli-intro', 'marli-intro-gate', 'marli-invite-test', 'marli-fb-q', 'marli-fb-url-test']);
+  'marli-autobk', 'marli-def1701', 'marli-def-test', 'marli-dev', 'marli-intro', 'marli-intro-gate', 'marli-invite-test', 'marli-fb-q', 'marli-fb-url-test', 'marli-last-tab']); // v2.0: poslednja kartica je samo navigacija na ovom uređaju — ne u kopiju
 const KEY_RE = /^[\w.\-]{10,300}$/; // stari (AIza…, 39) i novi Google oblik (AQ.…, sa tačkom)
 const LAST = 'marli-bk'; // kada je poslednja kopija napravljena (na ovom uređaju)
 
@@ -56,7 +56,7 @@ export async function buildFull() {
     if (v !== undefined) st[k] = v;
   }
   const local = {};
-  try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (LOCAL_RE.test(k) && !EXCL_LOCAL.has(k)) local[k] = localStorage.getItem(k); } } catch {}
+  try { const ks = []; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (LOCAL_RE.test(k) && !EXCL_LOCAL.has(k)) ks.push(k); } for (const k of ks.sort()) local[k] = localStorage.getItem(k); } catch {} // v2.0: stalni redosled (pregledač menja redosled ključeva) — ista kopija = isti otisak
   return { app: 'marli', type: 'full', version: 2, appVersion: APP_VERSION, exportedAt: new Date().toISOString(),
     songs: await drive.backupSongs(), deleted: await drive.backupDeleted(), settings: st, local };
 }

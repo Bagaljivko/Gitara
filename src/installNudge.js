@@ -37,12 +37,14 @@ function busy() {
 // ---------------- prozor „Instaliraj MARLI“ ----------------
 const SHARE_IC = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 7.5 6.5l1.4 1.4L11 5.8V15h2V5.8l2.1 2.1 1.4-1.4zM5 10v11h14V10h-3v2h1v7H7v-7h1v-2z"/></svg>';
 const PLUS_IC = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm6 4v4H7v2h4v4h2v-4h4v-2h-4V7z"/></svg>';
+let invLink = ''; // v2.0: iPhone — aplikacija sa početnog ekrana ne vidi šta je prihvaćeno u Safariju, pa link pozivnice ide u nju
 function sheetBody() {
   const why = `<ul class="in-why"><li><b>${t('inst.w1')}</b><small>${t('inst.w1s')}</small></li><li><b>${t('inst.w2')}</b><small>${t('inst.w2s')}</small></li><li><b>${t('inst.w3')}</b><small>${t('inst.w3s')}</small></li></ul>`;
   const how = canPromptInstall() ? '' : isIOS()
     ? `<ol class="in-steps"><li><span class="in-ic">${SHARE_IC}</span><span>${t('inst.ios1')}</span></li><li><span class="in-ic">${PLUS_IC}</span><span>${t('inst.ios2')}</span></li></ol>`
     : `<ol class="in-steps"><li><span class="in-ic">⋮</span><span>${t('inst.and1')}</span></li><li><span class="in-ic">${PLUS_IC}</span><span>${t('inst.and2')}</span></li></ol>`;
-  return `<div class="in-head"><img src="icons/icon-192.png" alt="" width="56" height="56"><div><b>MARLI</b><small>${t('inst.sub')}</small></div></div>${why}${how}`;
+  const inv = isIOS() && invLink ? `<div class="in-inv"><b>${t('inst.iosInvT')}</b><small>${t('inst.iosInv')}</small><button type="button" class="btn small" data-copy-inv>🔗 ${t('inst.iosInvBtn')}</button></div>` : '';
+  return `<div class="in-head"><img src="icons/icon-192.png" alt="" width="56" height="56"><div><b>MARLI</b><small>${t('inst.sub')}</small></div></div>${why}${how}${inv}`;
 }
 let sheetOpen = false;
 /** Prikaži prozor. why: 'time' | 'moment' | 'settings'. Vraća true ako je prikazan. */
@@ -52,6 +54,7 @@ export async function showInstallSheet(why = 'time') {
   sheetOpen = true;
   if (why !== 'settings') save({ n: (st().n || 0) + 1, last: Date.now() });
   const prompt = canPromptInstall();
+  setTimeout(() => { const bx = [...document.querySelectorAll('.modal-backdrop')].pop(); bx?.querySelector('[data-copy-inv]')?.addEventListener('click', async (ev) => { try { await navigator.clipboard.writeText(invLink); ev.target.textContent = '✓ ' + t('inst.iosInvDone'); } catch {} }); }, 0);
   const v = await dialog({ title: t('inst.title'), html: true, className: 'tch-dlg dlg-stack in-dlg', body: sheetBody(),
     buttons: prompt ? [{ label: t('inst.btn'), value: 'go', kind: 'primary' }, { label: t('inst.later'), value: 'no', kind: 'ghost' }] : [{ label: t('inst.ok'), value: 'ok', kind: 'primary' }, { label: t('inst.later'), value: 'no', kind: 'ghost' }] });
   sheetOpen = false;
@@ -140,5 +143,6 @@ export function initInstallNudge() {
   };
   addEventListener('marli-act', moment); // završena runda u Vežbama
   addEventListener('marli-song-saved', moment); // sačuvana nova pesma
+  addEventListener('marli-invite-ok', (e) => { invLink = (e && e.detail && e.detail.link) || ''; }); // v2.0
   addEventListener('marli-invite-ok', () => setTimeout(() => whenCalm(() => { if (!st().done) showInstallSheet('moment'); }), 2500)); // prihvaćena pozivnica
 }

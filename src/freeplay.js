@@ -6,6 +6,7 @@
 // Performanse (kao u igrama): raspored se pravi jednom; tačke su elementi iz bazena (12, najstarija se ponovo
 // koristi), pomeraju se samo transform/opacity; jedna requestAnimationFrame petlja (talas + ponavljanje snimka);
 // jeftin sjaj (radijalni gradijent / dve linije, bez blura); slušanje 50×/s, a težak deo samo posle trzaja.
+import { legendHTML, legendAfter } from './fingerLegend.js'; // v2.0: legenda prstiju
 import { t, LANGS, onLangChange, getLang } from './i18n.js';
 import * as TEXTS from './freeplayText.js';
 import { esc, toast } from './ui.js';
@@ -154,7 +155,8 @@ function createStage({ mode = 'live', rec = null, onExit, onSaved }) {
     </div>
     <div class="fpv-rotate"><div class="fpv-phone" aria-hidden="true"><i></i></div><b>${t('fp.rotate')}</b>
       <small>${t('fp.rotateWhy')}</small><small class="fpv-rot-hint" hidden>${t('fp.autoRotate')}</small>
-      <button class="btn small fpv-x2">${t('fp.exit')}</button></div>`;
+      <button class="btn small fpv-x2">${t('fp.exit')}</button></div>
+    ${legendHTML('fleg-stage')}`;
   document.body.appendChild(el);
   document.body.classList.add('fpv-open');
   const q = (s) => el.querySelector(s);
@@ -754,12 +756,12 @@ export async function createFreePane(host) {
   async function drawList() {
     await migrateRecs().catch(() => {});
     const list = await recSongs();
-    $('fpRecs').innerHTML = list.length ? list.slice(0, 20).map((r) => `<li data-id="${esc(r.id)}">
+    $('fpRecs').innerHTML = list.length ? list.slice(0, 3).map((r) => `<li data-id="${esc(r.id)}">
         <a class="fp-open" href="#/pesma/${encodeURIComponent(r.id)}"><b>${esc(r.title)}</b><small>${new Date(r.createdAt || 0).toLocaleDateString(getLang() === 'en' ? 'en' : 'sr-Latn')}${r.hasTabs ? ' · ' + t('fp.tab') : ''}</small></a>
         <button class="icon-btn" data-act="play" aria-label="${t('fp.replay')}" title="${t('fp.replay')}"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
-      </li>`).join('') : `<li class="muted fp-empty">${t('fp.noRecs')}</li>`;
+      </li>`).join('') + (list.length > 3 ? `<li class="fp-more"><a href="#/pesme" data-fp-all>${t('fp.allInSongs')} (${list.length})</a></li>` : '') : `<li class="muted fp-empty">${t('fp.noRecs')}</li>`; // v2.0: poslednja 3 ovde, svi u Pesmama
   }
-  $('fpAll').addEventListener('click', () => { try { localStorage.setItem('gitara-folder', REC_FOLDER); } catch {} });
+  host.addEventListener('click', (e) => { if (e.target.closest('#fpAll, [data-fp-all]')) { try { localStorage.setItem('gitara-folder', REC_FOLDER); } catch {} } });
   $('fpRecs').addEventListener('click', async (e) => {
     const b = e.target.closest('[data-act="play"]'); if (!b || active) return;
     const song = await songsDb.get(b.closest('li').dataset.id);

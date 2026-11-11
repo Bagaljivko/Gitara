@@ -16,7 +16,7 @@ let bar = null;
 const lastSet = { id: '', name: '' }; // set lista iz koje je pesma otvorena (za putanju)
 function crumbs() {
   const pg = pageOf(), sec = SECT[pg]; if (!sec) return [];
-  const out = [{ label: t(sec), href: ROOT[pg] }];
+  const out = [{ label: t(pg === 'vezbe' && document.body.classList.contains('nastava-on') ? 'nav.teaching' : sec), href: ROOT[pg] }]; // v2.0: Nastava
   const h1 = [...document.querySelectorAll('#app h1:not(.lib-h1)')].filter((h) => h.offsetParent !== null && !h.closest('[hidden]')).map((h) => h.textContent.trim()).filter(Boolean).pop() || ''; // samo vidljiv naslov (tuner ostaje u pozadini)
   if (pg === 'setlista') { const nm = h1 || ''; lastSet.id = location.hash.split('/')[2] || ''; lastSet.name = nm; out.push({ label: t('lib.tabSetlists'), href: '#/pesme?tab=sl' }); if (nm) out.push({ label: nm }); }
   else if (pg === 'pesma') { if (lastSet.name && /[?&]set=/.test(location.hash) === false && history.state?.fromSet) out.push({ label: lastSet.name, href: '#/setlista/' + lastSet.id }); if (h1) out.push({ label: h1 }); }

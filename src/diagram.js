@@ -13,7 +13,7 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
 // Već nacrtani dijagrami (isti akord se ne crta ponovo pri svakom osvežavanju ekrana)
 const cache = new Map();
 export function chordSVG(name, opts = {}) {
-  const k = [name, opts.voicing || 0, opts.showName !== false, opts.showFingers !== false, !!opts.colorFingers, dn(name), t('diagram.chord', { name: '' })].join('|');
+  const k = [name, opts.voicing || 0, opts.showName !== false, opts.showFingers !== false, opts.colorFingers !== false, dn(name), t('diagram.chord', { name: '' })].join('|');
   let svg = cache.get(k);
   if (svg === undefined) {
     svg = drawChordSVG(name, opts);
@@ -24,7 +24,7 @@ export function chordSVG(name, opts = {}) {
 }
 
 // colorFingers: tačke u bojama prstiju (Vežbe): fc1 plavo, fc2 žuto, fc3 roze, fc4 ljubičasto
-function drawChordSVG(name, { voicing = 0, showName = true, showFingers = true, colorFingers = false } = {}) {
+function drawChordSVG(name, { voicing = 0, showName = true, showFingers = true, colorFingers = true } = {}) { // v2.0: boje prstiju svuda (kao legenda)
   const list = getVoicings(name);
   const v = list[voicing % Math.max(list.length, 1)];
   const W = 100, H = 124;

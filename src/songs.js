@@ -90,6 +90,7 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
     </div>
     <div id="lSlPane" ${tab === 'sl' ? '' : 'hidden'}></div>
     <div id="lSongsPane" ${tab === 'sl' ? 'hidden' : ''}>
+    <div class="lib-chips" id="lChips" role="toolbar" aria-label="${t('lib.groups')}"></div>
     <div class="lib-search" id="lSearchRow" hidden>
       <input type="search" id="lSearch" placeholder="${t('lib.search')}" aria-label="${t('lib.searchLabel')}" enterkeyhint="search">
       <button class="icon-btn" id="lSearchX" aria-label="${t('common.close')}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z"/></svg></button>
@@ -134,10 +135,30 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
   // Grupa pesama u naslovu („Sve pesme ▾“): dodir otvara panel sa grupama (automatske + moji folderi)
   const groupLabel = (g) => !g ? t('lib.groupAll') : g === 'auto:tab' ? t('lib.groupTab') : g === 'auto:recent' ? t('lib.groupRecent')
     : g.startsWith('artist:') ? (all.find((s) => artistKey(s) === g.slice(7))?.artist || g.slice(7)) : folderLabel(folders.find((f) => f.id === g) || { name: '' });
+  // v2.0: čipovi grupa ispod naslova (telefon) — Sve, Od nastavnika, folderi (i Moji snimci), TAB; jedan dodir
+  let myT = null; import('./teach.js').then((T) => T.getMyTeacher()).then((m) => { myT = m; drawChips(); }).catch(() => {});
+  const drawChips = () => {
+    const box = $('lChips'); if (!box) return;
+    const n = (g) => all.filter((x) => inGroup(x, g)).length;
+    const fo = [...folders].sort((a, b) => (isSystemFolder(b.id) ? 1 : 0) - (isSystemFolder(a.id) ? 1 : 0));
+    const chips = [['', t('lib.chipAll'), n('')]];
+    if (myT && myT.tid) chips.push(['nav:#/od-nastavnika', '🎓 ' + t('tch.fromTeacher'), all.filter((x) => x.fromT).length, 't']);
+    for (const f of fo) chips.push([f.id, (isSystemFolder(f.id) ? '' : '📁 ') + folderLabel(f), n(f.id)]);
+    const nt = n('auto:tab'); if (nt) chips.push(['auto:tab', t('lib.groupTab'), nt]);
+    box.innerHTML = chips.map(([g, label, c, cls]) => `<button type="button" class="lib-chip${g === folderFilter ? ' on' : ''}${cls ? ' ' + cls : ''}" data-chip="${esc(g)}">${esc(label)}${c != null ? `<i>${c}</i>` : ''}</button>`).join('');
+  };
+  $('lChips').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-chip]'); if (!b) return;
+    const g = b.dataset.chip;
+    if (g.startsWith('nav:')) { location.hash = g.slice(4); return; }
+    folderFilter = g; localStorageSet('gitara-folder', folderFilter); drawFolders(); draw();
+    b.scrollIntoView({ inline: 'nearest', block: 'nearest' });
+  });
   const drawFolders = () => {
     const sl = !$('lSlPane').hidden;
     $('lGroupName').textContent = sl ? t('lib.tabSetlists') : groupLabel(folderFilter);
     $('lGroup').disabled = sl;
+    drawChips();
   };
   $('lGroup').addEventListener('click', async () => {
     let teach = null;
@@ -188,7 +209,7 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
       return;
     }
     if (!list.length && folderFilter && !q) { $('lList').innerHTML = `<li class="empty muted">${t('folder.emptyFolder')}</li>`; return; }
-    if (!list.length) { $('lList').innerHTML = `<li class="empty muted">${esc(t('lib.noResults', { q: $('lSearch').value }))}</li>`; return; }
+    if (!list.length) { $('lList').innerHTML = `<li class="empty muted">${esc(t('lib.noResults', { q: $('lSearch').value }))}</li>`; othersFor($('lSearch').value); return; }
     $('lList').innerHTML = list.map((s) => `
       <li class="song-item${s.id === selectedId ? ' selected' : ''}" data-id="${esc(s.id)}">
         <a href="#/pesma/${encodeURIComponent(s.id)}" class="song-link">
@@ -199,7 +220,19 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm0 6a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm0 6a2 2 0 1 1 0-4 2 2 0 0 1 0 4z"/></svg>
         </button>
       </li>`).join('');
+    othersFor($('lSearch').value);
   };
+  // v2.0: pretraga na telefonu traži i „u ostatku aplikacije“ (set liste, vežbe, igre, delovi aplikacije, podešavanja, učenici)
+  let others = [];
+  function othersFor(raw) {
+    if (!raw || !raw.trim()) return;
+    import('./deskSearch.js').then((m) => m.searchOthers(raw)).then((r) => {
+      if ($('lSearch').value !== raw || !r.length) return;
+      others = r;
+      $('lList').insertAdjacentHTML('beforeend', `<li class="lib-others-h">${esc(t('lib.others'))}</li>` + r.map((x, i) => `<li class="lib-other"><a href="${esc(x.href || '#')}" data-oi="${i}"><span class="ic">${esc(x.ic)}</span><span><b>${esc(x.label)}</b><small>${esc(x.group)}${x.sub && x.sub !== x.group ? ' · ' + esc(x.sub) : ''}</small></span></a></li>`).join(''));
+    }).catch(() => {});
+  }
+  $('lList').addEventListener('click', (e) => { const a = e.target.closest('[data-oi]'); if (!a) return; const x = others[+a.dataset.oi]; if (x && x.run) { e.preventDefault(); x.run(); } });
 
   // kucanje: jedno crtanje po sličici ekrana (bez kašnjenja, samo se spoje pritisci u istom trenutku)
   let searchQ = 0;

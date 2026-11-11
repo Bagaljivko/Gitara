@@ -6,10 +6,10 @@ import { esc } from './ui.js';
 const fold = (x) => String(x || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'dj');
 let open = false;
 
-async function sources() {
+async function sources({ noSongs = false } = {}) {
   const out = [];
   const { songs } = await import('./db.js');
-  const all = (await songs.all().catch(() => [])).filter((s) => !s.deleted && !s.demo);
+  const all = noSongs ? [] : (await songs.all().catch(() => [])).filter((s) => !s.deleted && !s.demo);
   for (const s of all) {
     const text = (s.sections || []).flatMap((x) => (x.lines || []).map((l) => l.text || '')).join(' ');
     out.push({ k: 'song', ic: '♪', label: s.title, sub: s.artist || '', href: '#/pesma/' + encodeURIComponent(s.id), hay: fold(s.title + ' ' + (s.artist || '')), body: fold(text) });
@@ -31,6 +31,12 @@ function rank(items, q) {
     if (sc > 0) res.push({ ...it, sc: sc + (it.k === 'page' || it.k === 'game' ? 0.3 : 0), inBody });
   }
   return res.sort((a, b) => b.sc - a.sc || a.label.localeCompare(b.label, 'sr')).slice(0, 30);
+}
+/** v2.0: telefon — Pesme pretraga traži i „u ostatku aplikacije“ (set liste, vežbe, igre, delovi, podešavanja, učenici). */
+let otherCache = null, otherAt = 0;
+export async function searchOthers(q) {
+  if (!otherCache || Date.now() - otherAt > 30000) { otherCache = await sources({ noSongs: true }); otherAt = Date.now(); }
+  return rank(otherCache, q).slice(0, 8).map((x) => ({ ...x, group: t(GROUP[x.k]) }));
 }
 const GROUP = { song: 'srch.g.songs', set: 'srch.g.sets', ex: 'srch.g.ex', game: 'srch.g.games', page: 'srch.g.pages', 'set-row': 'srch.g.settings', student: 'srch.g.students' };
 

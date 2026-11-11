@@ -7,7 +7,7 @@ const PAGES = [['.practice-view:not(.pr-game) > .pr-hub-head h1', 'dhd.vezbe'], 
 function paint() {
   for (const [sel, key] of PAGES) {
     const h1 = document.querySelector('#app ' + sel);
-    if (h1 && !h1.parentElement.querySelector('.dhd-sub')) h1.insertAdjacentHTML('afterend', `<span class="dhd-sub">${esc(t(key))}</span>`);
+    if (h1 && !h1.parentElement.querySelector('.dhd-sub')) { const intro = key === 'dhd.vezbe' && document.body.classList.contains('nastava-on') ? document.querySelector('#app .practice-view .pr-intro')?.textContent : ''; h1.insertAdjacentHTML('afterend', `<span class="dhd-sub">${esc(intro || t(key))}</span>`); } // v2.0: Nastava — opis iz Vežbi
   }
 }
 let inited = false;

@@ -201,6 +201,7 @@ async function renderHub(root) {
     <header class="view-head pr-hub-head"><h1>${t('pr.title')}</h1></header>
     <p class="muted pr-intro">${t('pr.intro')}</p>
     <div id="stWeekBox"></div>
+    <div id="prTeach"></div>
     <div id="prNudge"></div>
     <div id="prPlan"></div>
     <div id="prMyEx"></div>
@@ -224,6 +225,7 @@ async function renderHub(root) {
     <div id="stSongsBox"></div>
   </section>`;
   import('./myEx.js').then((X) => X.drawHub(root.querySelector('#prMyEx'))).catch(() => {}); // v1.97: Moje vežbe
+  import('./nastava.js').then((N) => N.drawHub(root.querySelector('#prTeach'), root.querySelector('.pr-hub-head'))).catch(() => {}); // v2.0: Nastava (nastavnik / učenici / poveži se)
   // v1.83: zadaci od nastavnika (samo kod učenika koji ima plan)
   settings.get('myTeacher', null).then(async (m) => {
     if (m && m.prog && m.prog.mode === 'msg') import('./planView.js').then((V) => V.drawNudge(root.querySelector('#prNudge'))).catch(() => {}); // v1.84

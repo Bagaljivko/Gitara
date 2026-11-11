@@ -2769,3 +2769,102 @@ a.ds-it { text-decoration: none; }
   body.desk-shell .settings-view .dhd-sub { color: var(--muted); font-size: .95rem; margin-right: auto; }
   body.desk-shell .settings-view { max-width: 1180px; margin-left: auto; margin-right: auto; }
 }
+
+/* v2.0: Nastava — kartica nastavnika (učenik), učenici (nastavnik), „Imaš nastavnika?“ */
+.nas-card { margin: 0 0 14px; padding: 14px; border-radius: 18px; border: 1px solid rgba(245, 165, 36, .45); background: linear-gradient(160deg, rgba(245, 165, 36, .12), var(--surface) 60%); }
+.nas-top { display: flex; align-items: center; gap: 12px; }
+.nas-top b { display: block; font-size: 1.05rem; } .nas-top small { color: var(--muted); font-size: .82rem; }
+.nas-all { margin-left: auto; color: var(--accent); font-weight: 750; font-size: .9rem; text-decoration: none; white-space: nowrap; }
+.nas-lbl { font: 800 .7rem var(--sans); letter-spacing: .12em; text-transform: uppercase; color: var(--accent); margin: 14px 0 6px; }
+.nas-row { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--line); margin-bottom: 6px; color: var(--text); text-decoration: none; }
+.nas-row b { font-size: .95rem; } .nas-row small { display: block; color: var(--muted); font-size: .8rem; }
+.nas-row em { margin-left: auto; font: 800 .65rem var(--sans); letter-spacing: .08em; font-style: normal; color: var(--accent-ink); background: var(--accent); border-radius: 6px; padding: 2px 6px; }
+.nas-ic { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: rgba(245, 165, 36, .15); flex: none; }
+.nas-ic-lg { width: 44px; height: 44px; font-size: 20px; }
+.nas-none { color: var(--muted); font-size: .88rem; margin: 12px 0 4px; }
+.nas-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.nas-btns .btn { min-height: 42px; font-size: .9rem; }
+.nas-sec { display: flex; align-items: center; font: 800 .72rem var(--sans); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 6px 0 8px; }
+.nas-sec a { margin-left: auto; color: var(--accent); text-transform: none; letter-spacing: 0; font-size: .85rem; text-decoration: none; }
+.nas-sec.nas-mine { margin-top: 20px; }
+.nas-stu { display: flex; align-items: center; gap: 12px; padding: 11px 12px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); margin-bottom: 8px; color: var(--text); text-decoration: none; }
+.nas-stu b { display: block; } .nas-stu small { color: var(--muted); font-size: .8rem; }
+.nas-badge { margin-left: auto; min-width: 22px; height: 22px; border-radius: 11px; background: var(--accent); color: var(--accent-ink); font: 800 .75rem/22px var(--sans); font-style: normal; text-align: center; padding: 0 6px; }
+.nas-chev { margin-left: auto; color: var(--muted); font-style: normal; }
+.nas-conn { margin: 0 0 10px; padding: 16px; border-radius: 18px; border: 1px dashed rgba(245, 165, 36, .55); background: var(--surface); display: flex; gap: 14px; align-items: center; }
+.nas-conn b { display: block; } .nas-conn small { color: var(--muted); font-size: .85rem; }
+.nas-conn-btns { margin: 0 0 4px; }
+.nas-no { display: block; margin: 4px auto 14px; color: var(--muted); font-size: .85rem; }
+.nas-scan .nas-scan-box { position: relative; width: min(92vw, 420px); background: #000; border-radius: 18px; overflow: hidden; text-align: center; padding-bottom: 14px; }
+.nas-scan video { width: 100%; display: block; aspect-ratio: 1; object-fit: cover; }
+.nas-scan .nas-frame { position: absolute; left: 18%; right: 18%; top: 12%; aspect-ratio: 1; border: 3px solid var(--accent); border-radius: 18px; }
+.nas-scan p { color: #fff; margin: 12px; }
+body.nastava-teacher .nav a.nav-teach { display: none !important; }
+@media (min-width: 1100px) and (hover: hover) and (pointer: fine) {
+  body.desk-shell .practice-view:not(.pr-game) > #prTeach { grid-column: 1 / -1; grid-row: 4; margin-top: 18px; }
+  body.desk-shell #prTeach .nas-card { padding: 18px 20px; margin: 0; }
+  body.desk-shell #prTeach .nas-card { display: grid; grid-template-columns: 1fr 1fr; gap: 0 18px; }
+  body.desk-shell #prTeach .nas-top { grid-column: 1 / -1; }
+  body.desk-shell #prTeach .nas-lbl, body.desk-shell #prTeach .nas-row, body.desk-shell #prTeach .nas-none { grid-column: 1; }
+  body.desk-shell #prTeach .nas-btns { grid-column: 2; grid-row: 2; align-self: start; margin-top: 34px; }
+  body.desk-shell #prTeach > .nas-stu { display: inline-flex; width: calc(33.33% - 6px); margin-right: 6px; vertical-align: top; }
+  body.desk-shell #prTeach > .nas-btns { max-width: 520px; }
+  body.desk-shell #prTeach > .nas-conn { margin-bottom: 8px; }
+  body.desk-shell #prTeach > .nas-conn-btns { max-width: 520px; }
+  body.desk-shell #prTeach > .nas-no { margin: 4px 0 0; }
+}
+/* v2.0: Pesme — čipovi grupa (telefon) i „U ostatku aplikacije“ u pretrazi */
+.lib-chips { display: flex; gap: 8px; overflow-x: auto; padding: 2px 0 10px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.lib-chips::-webkit-scrollbar { display: none; }
+.lib-chip { flex: none; appearance: none; padding: 7px 13px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); font: 650 .88rem var(--sans); color: #d4d8de; cursor: pointer; white-space: nowrap; }
+.lib-chip.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.lib-chip i { font-style: normal; color: var(--muted); font-weight: 600; margin-left: 4px; }
+.lib-chip.t { border-color: rgba(245, 165, 36, .5); }
+.lib-others-h { list-style: none; font: 800 .7rem var(--sans); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); padding: 16px 4px 6px; }
+.lib-other { list-style: none; }
+.lib-other a { display: flex; gap: 12px; align-items: center; padding: 10px 4px; color: var(--text); text-decoration: none; border-bottom: 1px solid var(--line); }
+.lib-other a span.ic { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; background: var(--surface-2); color: var(--accent); flex: none; }
+.lib-other a small { display: block; color: var(--muted); font-size: .8rem; }
+@media (min-width: 1100px) and (hover: hover) and (pointer: fine) { .lib-chips { display: none; } }
+.in-inv { margin-top: 12px; padding: 12px; border-radius: 12px; border: 1px solid rgba(245, 165, 36, .45); background: var(--accent-soft); display: grid; gap: 6px; }
+.in-inv small { color: var(--muted); } .in-inv .btn { justify-self: start; }
+
+/* v2.0: boje prstiju na svim hvatovima + legenda prstiju (ista ruka kao u igrama, bez teksta) */
+:root { --f0: #dfe3e8; --f1: #5aa9ff; --f2: #ffd75e; --f3: #ff7cc3; --f4: #b48cff; }
+.chord-svg.fcolors .cd-dot.fc1 { fill: var(--f1); } .chord-svg.fcolors .cd-dot.fc2 { fill: var(--f2); }
+.chord-svg.fcolors .cd-dot.fc3 { fill: var(--f3); } .chord-svg.fcolors .cd-dot.fc4 { fill: var(--f4); }
+.chord-svg.fcolors .cd-finger { fill: #0b0c10; }
+.fleg { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 8px 0 4px auto; /* uvek dole desno, ispod vrata / hvata */ padding: 4px 10px; width: fit-content; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); }
+.fleg-hand { width: 46px; flex: none; display: block; }
+.fleg-hand svg { width: 100%; height: auto; display: block; overflow: visible; }
+.fleg-hand .h-skin { fill: #4f3a30; stroke: #7a543d; stroke-width: 1.3; stroke-linejoin: round; opacity: .7; }
+.fleg-hand .h-tip .h-f { stroke: #fff8e6; stroke-width: 1.1; }
+.fleg-hand .h-tip.fc1 .h-f { fill: var(--f1); } .fleg-hand .h-tip.fc2 .h-f { fill: var(--f2); } .fleg-hand .h-tip.fc3 .h-f { fill: var(--f3); } .fleg-hand .h-tip.fc4 .h-f { fill: var(--f4); } /* pune boje (gradijent iz skrivene kopije ne radi) */
+.fleg-hand .h-tip .h-sh { fill: rgba(0,0,0,.16); } .fleg-hand .h-tip .h-glow { fill: none; stroke: none; }
+.fleg-hand .h-tip text { fill: #1d1e23; font: 800 13px system-ui, sans-serif; }
+.fleg-s { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font: 800 .8rem var(--sans); flex: none; }
+.fleg-0 { background: none; border: 2px solid var(--f0); color: var(--f0); }
+.fleg-x { background: none; color: #9aa1ad; font-size: 1.1rem; }
+.fleg-t { appearance: none; border: 0; background: none; color: var(--muted); width: 26px; height: 26px; padding: 0; cursor: pointer; font-size: .9rem; }
+.fleg-t::before { content: '▾'; }
+.fleg.min { gap: 6px; padding: 3px 8px; }
+.fleg.min .fleg-hand { width: 26px; }
+.fleg.min .fleg-s { display: none; }
+.fleg.min .fleg-t::before { content: '▸'; }
+.fpv .fleg-stage { position: absolute; right: 8px; bottom: 4px; margin: 0; padding: 0; display: grid; grid-template-columns: auto auto; grid-template-rows: auto auto auto; align-items: center; justify-items: center; gap: 4px 6px; background: none; border: 0; z-index: 6; opacity: .62; pointer-events: none; } /* Samo sviraj: preko vrata dole desno, providno — kao ruka u igrama */
+.fpv .fleg-stage .fleg-hand { grid-column: 1; grid-row: 1 / 4; align-self: end; } .fpv .fleg-stage .fleg-0 { grid-column: 2; grid-row: 1; } .fpv .fleg-stage .fleg-x { grid-column: 2; grid-row: 2; } .fpv .fleg-stage .fleg-t { grid-column: 2; grid-row: 3; }
+.fpv .fleg-stage .fleg-t { pointer-events: auto; opacity: 1; } .fpv .fleg-stage.min { opacity: .8; }
+.fleg-stage .fleg-hand { width: clamp(84px, 13vw, 124px); } .fleg-stage .fleg-s { width: 22px; height: 22px; font-size: .75rem; } .fleg-stage .fleg-t { width: 28px; height: 28px; background: rgba(15,16,19,.8); border-radius: 50%; } .fleg-stage.min .fleg-hand { width: 34px; }
+@media (orientation: portrait) { .fpv .fleg-stage { display: none; } } /* v2.0: ruka samo kad je telefon položen (vrat se vidi) — ne na „Okreni telefon“ */
+/* v2.0: broj zahteva na kartici Nastava (telefon: gore desno od ikonice) */
+.nav a[data-tab="vezbe"] { position: relative; }
+@media not ((min-width: 1100px) and (hover: hover) and (pointer: fine)) { .nav a[data-tab="vezbe"] .nav-badge { position: absolute; top: 2px; left: calc(50% + 6px); min-width: 18px; height: 18px; padding: 0 5px; font-size: .66rem; line-height: 18px; } }
+/* v2.0: računar — „Imaš nastavnika?“ u jednom redu (igre ostaju na ekranu bez skrolovanja) */
+@media (min-width: 1100px) and (hover: hover) and (pointer: fine) {
+  body.desk-shell #prTeach:has(.nas-conn) { display: flex; align-items: center; gap: 14px; padding: 10px 16px; border: 1px dashed rgba(245, 165, 36, .55); border-radius: 16px; background: var(--surface); }
+  body.desk-shell #prTeach .nas-conn { flex: 1; min-width: 0; margin: 0; padding: 0; border: 0; background: none; }
+  body.desk-shell #prTeach .nas-conn .nas-ic-lg { width: 36px; height: 36px; font-size: 17px; }
+  body.desk-shell #prTeach .nas-conn-btns { display: flex; margin: 0; flex: none; }
+  body.desk-shell #prTeach .nas-conn-btns .btn { min-height: 38px; padding: 0 14px; }
+  body.desk-shell #prTeach .nas-no { margin: 0; flex: none; }
+}

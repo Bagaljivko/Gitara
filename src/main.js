@@ -15,6 +15,9 @@ function refreshTeachNav() {
       document.body.classList.toggle('teach-nav', !!tc.on);
       const n = tc.on ? ((await settings.get('requests', [])) || []).filter((r) => r && (r.status === 'open' || r.status === 'editing')).length : 0;
       const b = document.getElementById('navTeachN'); if (b) { b.hidden = !n; b.textContent = n > 99 ? '99+' : String(n); }
+      // v2.0: nastavnik — broj otvorenih zahteva i na kartici Nastava (Učenici su sada tamo)
+      const v = document.querySelector('.nav a[data-tab="vezbe"]');
+      if (v) { let vb = v.querySelector('.nav-badge'); const on = !!n && document.body.classList.contains('nastava-teacher'); if (!vb && on) { vb = document.createElement('b'); vb.className = 'nav-badge'; v.appendChild(vb); } if (vb) { vb.hidden = !on; vb.textContent = n > 99 ? '99+' : String(n); } }
       const a = document.querySelector('.nav a[data-tab="ucenici"]'); if (a) a.classList.toggle('active', /^#\/(ucenici|ucenik)(\/|\?|$)/.test(location.hash) && DESK_NAV.matches);
       if (/^#\/(ucenici|ucenik)(\/|\?|$)/.test(location.hash) && DESK_NAV.matches && tc.on) document.querySelectorAll('.nav a[data-tab="pesme"], .nav a[data-tab="podesavanja"]').forEach((x) => x.classList.remove('active')); // v1.93: na računaru samo Učenici
     } catch {}
@@ -126,7 +129,9 @@ async function routeInner() {
   const hash = shared ? '#/primljena' : location.hash || '#/tuner';
   const [, page, arg] = hash.match(/^#\/([^/?]*)\/?(.*)$/) || [, 'tuner', ''];
   const tab = { tuner: 'tuner', akordi: 'akordi', pesme: 'pesme', pesma: 'pesme', uredi: 'pesme', setlista: 'pesme', nastup: 'pesme', primljena: 'pesme', podesavanja: 'podesavanja', provera: 'podesavanja', vezbe: 'vezbe', ucenici: 'podesavanja', ucenik: 'podesavanja', 'od-nastavnika': 'pesme' }[page] || 'tuner';
-  const tabT = (page === 'ucenici' || page === 'ucenik') && document.body.classList.contains('teach-nav') && DESK_NAV.matches ? 'ucenici' : tab; // v1.81
+  const tabT = document.body.classList.contains('nastava-on') && (page === 'ucenici' || page === 'ucenik' || page === 'od-nastavnika') ? 'vezbe' // v2.0: Nastava
+    : (page === 'ucenici' || page === 'ucenik') && document.body.classList.contains('teach-nav') && DESK_NAV.matches ? 'ucenici' : tab; // v1.81
+  if (!shared) { try { localStorage.setItem('marli-last-tab', '#/' + tab); } catch {} } // v2.0: sledeći put otvori ovde
   refreshTeachNav();
   document.body.classList.toggle('tuner-screen', tab === 'tuner');
   document.querySelectorAll('.nav a').forEach((a) => {
@@ -339,6 +344,12 @@ settings.get('lang', null).then((v) => { if (v && v !== getLang()) setLang(v, { 
 // Podeljeno iz YouTube aplikacije (Android, „Podeli“ → Gitara): izbor pesme uz koju ide video
 const ytShare = (() => { try { const p = new URLSearchParams(location.search); return p.get('yt-share') ? p : null; } catch { return null; } })();
 if (ytShare) { history.replaceState(null, '', location.pathname + '#/pesme'); }
+// v2.0: otvori gde si poslednji put bio (Akordi, Pesme, Vežbe/Nastava, Podešavanja); inače Tuner kao do sada
+if (!location.hash && !location.search) { try { const l = localStorage.getItem('marli-last-tab'); if (l && /^#\/(akordi|pesme|vezbe|podesavanja)$/.test(l)) history.replaceState(null, '', location.pathname + l); } catch {} }
+// v2.0: „Vežbe“ → „Nastava“ (učenik povezan sa nastavnikom ili nastavnik); modul se učitava samo kad treba
+const nastavaNav = () => Promise.all([settings.get('teacher', null), settings.get('myTeacher', null)]).then(([tc, m]) => { if ((tc && tc.on) || (m && m.tid) || document.body.classList.contains('nastava-on')) return import('./nastava.js').then((N) => N.applyNav()); }).catch(() => {});
+nastavaNav();
+dbEvents.addEventListener('settings-changed', (e) => { if (e.detail === 'teacher' || e.detail === 'myTeacher') nastavaNav(); });
 route();
 if (ytShare) import('./ytShare.js').then((m) => m.linkShared(ytShare)).catch(() => {});
 // v1.74: prvi put na ovom uređaju → „Dobrodošao u MARLI“: Poveži Google (vraća sve) ili Prvi put sam ovde (obilazak)
