@@ -203,6 +203,7 @@ async function renderHub(root) {
     <div id="stWeekBox"></div>
     <div id="prNudge"></div>
     <div id="prPlan"></div>
+    <div id="prMyEx"></div>
     ${todayCardHTML(sug, streak, doneToday)}
     <div class="pr-cards">
       ${GAMES.map((g) => {
@@ -222,6 +223,7 @@ async function renderHub(root) {
     </div>
     <div id="stSongsBox"></div>
   </section>`;
+  import('./myEx.js').then((X) => X.drawHub(root.querySelector('#prMyEx'))).catch(() => {}); // v1.97: Moje vežbe
   // v1.83: zadaci od nastavnika (samo kod učenika koji ima plan)
   settings.get('myTeacher', null).then(async (m) => {
     if (m && m.prog && m.prog.mode === 'msg') import('./planView.js').then((V) => V.drawNudge(root.querySelector('#prNudge'))).catch(() => {}); // v1.84

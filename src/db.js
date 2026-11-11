@@ -91,7 +91,7 @@ export function notifyRemote(keys) {
 // Više izmena iste stavke pre slanja = jedna promena. Verzija (hibridni sat) je uvek veća od one koju zamenjuje.
 export const PREF_KEYS = ['a4', 'lang', 'metBpm', 'tunerRoom', 'tuning', 'wakeMode', 'wakeMinutes', 'noteNames', 'geminiModel', 'geminiModelSel', 'syncMigrated', 'myRhythms', 'strumSuggest', 'weekGoal'];
 const LIST_KEYS = { setlists: 'set:', folders: 'folder:' }; // nizovi: svaka set lista / folder je posebna stavka
-const WHOLE_KEYS = ['practice', 'skale', 'activity', 'teacher', 'students', 'myTeacher', 'requests', 'myRequests']; // v1.73: activity = svirano/vežbano po uređaju; v1.78: nastava
+const WHOLE_KEYS = ['practice', 'skale', 'activity', 'teacher', 'students', 'myTeacher', 'requests', 'myRequests', 'myEx']; // v1.97: Moje vežbe // v1.73: activity = svirano/vežbano po uređaju; v1.78: nastava
 export function SYNC_SETTING_OF(k) {
   if (k.startsWith('set:')) return 'setlists';
   if (k.startsWith('folder:')) return 'folders';

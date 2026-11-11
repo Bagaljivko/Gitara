@@ -73,6 +73,7 @@ export function checkBox({ force = false } = {}) {
           if (it.rq) await tm.markAnswered(it.rq, pkg.name || pkg.songs[0].title || '');
         } else if (it.kind === 'ans') await tm.answerFromBox(it.id, it.s);
         else if (it.kind === 'plan') await (await import('./plan.js')).acceptPlanFile(it.f);
+        else if (it.kind === 'ex') { if (!(await (await import('./myEx.js')).receive(it.ex, fromT))) continue; } // v1.97: vežba od nastavnika
         seen[it.key] = it.at || Date.now(); n++;
         notes.push(it);
       } catch (e) { console.warn('box', e); }
@@ -91,6 +92,7 @@ export function checkBox({ force = false } = {}) {
       const got = notes.filter((x) => x.kind === 'song' || x.kind === 'set');
       if (got.length) await N.add({ id: 'box:' + got.map((x) => x.key + x.at).join('|').slice(-70), who, c: '#f5a524', t: got.length === 1 && got[0].kind === 'set' ? t('nt.gotSet', { t: tn, name: got[0].name || '' }) : t('nt.gotSongs', { t: tn, n: songsCount(got.length) }), s: got.length === 1 && got[0].kind === 'set' ? t('nt.inFrom') : got.map((x) => x.name).filter(Boolean).slice(0, 3).join(', '), href: '#/od-nastavnika' });
       for (const x of notes.filter((y) => y.kind === 'ans')) { const r = (await tm.getMyRequests()).find((q) => q.id === x.id); await N.add({ id: 'ans:' + x.id + ':' + x.at, who, c: '#f5a524', t: t(x.s === 'none' ? 'nt.ansNone' : 'nt.ansOk', { t: tn }), s: r ? r.title : '', href: '#/od-nastavnika' }); }
+      for (const x of notes.filter((y) => y.kind === 'ex')) await N.add({ id: 'ex:' + x.key + x.at, who, c: '#f5a524', t: t('nt.ex', { t: tn, name: x.name || '' }), s: x.ex && x.ex.goal ? t('ex.goalShort', { n: x.ex.goal.n, bpm: x.ex.goal.bpm || '' }) : '', href: '#/vezbe' });
       for (const x of notes.filter((y) => y.kind === 'plan')) await N.add({ id: 'plan:' + x.at, who, c: '#f5a524', t: t('nt.plan', { t: tn }), s: t('nt.planSub'), href: '#/vezbe' });
     }
     return n;

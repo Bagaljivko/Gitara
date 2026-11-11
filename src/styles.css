@@ -2584,3 +2584,19 @@ a.ds-it { text-decoration: none; }
 .cs-dlg .seg-tabs button { white-space: nowrap; }
 .chip.k { color: var(--accent); }
 .pl-seq { width: 100%; margin-top: 6px; font-family: var(--mono); }
+
+/* v1.97: ritam u Promeni akorda, Moje vežbe */
+.cs-per { display: inline-flex; gap: 6px; align-items: center; font: 600 .8rem var(--sans); color: var(--muted); text-transform: none; letter-spacing: 0; cursor: pointer; }
+.cs-per input { appearance: auto; width: 18px; height: 18px; min-height: 0; margin: 0; padding: 0; accent-color: var(--accent); flex: none; }
+.cs-per { white-space: nowrap; }
+.cs-head { align-items: center; }
+.cs-perlist { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+.cs-perrow { appearance: none; display: flex; justify-content: space-between; align-items: center; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); font: inherit; cursor: pointer; }
+.cs-perrow b { color: var(--accent); } .cs-perrow span { color: var(--muted); font-size: .85rem; }
+.cs-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.ex-card { margin: 0 0 14px; padding: 12px 14px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); }
+.ex-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+.ex-row { display: flex; align-items: center; gap: 6px; border-top: 1px solid var(--line); }
+.ex-play { appearance: none; flex: 1; display: flex; gap: 12px; align-items: center; padding: 10px 2px; border: 0; background: none; color: var(--text); text-align: left; font: inherit; cursor: pointer; min-width: 0; }
+.ex-ic { flex: none; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); font-size: .8rem; }
+.ex-tx { min-width: 0; } .ex-tx b { display: block; } .ex-tx small { color: var(--muted); font-size: .78rem; }
