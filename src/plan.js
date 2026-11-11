@@ -21,7 +21,7 @@ const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-
 export function cleanTask(x) {
   if (!x || typeof x !== 'object' || !KINDS.includes(x.k)) return null;
   const o = { id: clip(x.id, 24) || uid(), k: x.k, at: Number(x.at) || Date.now() };
-  if (x.k === 'g') { if (!GAME_IDS.includes(x.g)) return null; o.g = x.g; if (x.g === 'promena' && Array.isArray(x.pr) && x.pr.length === 2) o.pr = x.pr.map((c) => clip(c, 8)); }
+  if (x.k === 'g') { if (!GAME_IDS.includes(x.g)) return null; o.g = x.g; if (x.g === 'promena' && Array.isArray(x.pr) && x.pr.length >= 2) o.pr = x.pr.slice(0, 16).map((c) => clip(c, 10)); }
   if (x.k === 'p' || x.k === 'n') { const s = x.song || {}; if (!clip(s.t, 80)) return null; o.song = { t: clip(s.t, 80), a: clip(s.a, 60) }; if (x.part) o.part = clip(x.part, 40); }
   if (x.k === 's') { if (!STEPS.includes(x.st)) return null; o.st = x.st; }
   const g = x.goal || {};
@@ -40,7 +40,7 @@ export function cleanPlan(p) {
 
 /** Naziv zadatka (za oba kraja). */
 export function taskTitle(x) {
-  if (x.k === 'g') return t('pr.g.' + x.g) + (x.pr ? `: ${x.pr[0]} ⇄ ${x.pr[1]}` : '');
+  if (x.k === 'g') return t('pr.g.' + x.g) + (x.pr ? ': ' + (x.pr.length === 2 ? `${x.pr[0]} ⇄ ${x.pr[1]}` : x.pr.join(' – ')) : '');
   if (x.k === 's') return `${t('pr.g.skale')}: ${t('sk.step.' + x.st)}`;
   return x.song.t + (x.part ? ` — ${x.part}` : '');
 }
@@ -76,7 +76,7 @@ export function findSong(lib, song) {
   return hits.find((s) => !na || norm(s.artist) === na) || hits[0] || null;
 }
 const sinceRows = (wk, from) => Object.entries(wk || {}).filter(([k]) => Number(k) >= from);
-export const pairKey = (pr) => [...pr].sort().join('-');
+export const pairKey = (pr) => (pr.length === 2 ? [...pr].sort().join('-') : pr.join('-')); // v1.96: niz — redosled je bitan
 const totalMs = (c) => Object.values(c.tot.days || {}).reduce((a, d) => a + (d.p || 0) + (d.x || 0), 0);
 /** Ukupan broj odigranih rundi za taj zadatak do sada (za početnu vrednost). null = još se ne može (nema pesme). */
 function cumOf(x, c) {
@@ -208,7 +208,7 @@ export async function refreshPlan({ force = false } = {}) {
 async function countPair() {
   if (!/^#\/vezbe\/promena/.test(location.hash)) return;
   let pr = null; try { pr = JSON.parse(localStorage.getItem('gitara-pr-promena') || '{}').pair; } catch {}
-  if (!Array.isArray(pr) || pr.length !== 2) return;
+  if (!Array.isArray(pr) || pr.length < 2) return;
   const tm = await TM(); const m = await tm.getMyTeacher(); if (!m || !m.plan) return;
   const k = pairKey(pr), map = { ...(m.planPairs || {}) }; map[k] = (Number(map[k]) || 0) + 1;
   await tm.setMyTeacher({ ...m, planPairs: map });
@@ -232,7 +232,7 @@ export function watchTasks() {
 /** Učenik: „Vežbaj“ — otvori tačno tu vežbu. */
 export async function openTask(x) {
   if (x.k === 'g') {
-    if (x.g === 'promena' && x.pr) { try { const o = JSON.parse(localStorage.getItem('gitara-pr-promena') || '{}') || {}; localStorage.setItem('gitara-pr-promena', JSON.stringify({ ...o, pair: x.pr })); } catch {} }
+    if (x.g === 'promena' && x.pr) { try { const o = JSON.parse(localStorage.getItem('gitara-pr-promena') || '{}') || {}; localStorage.setItem('gitara-pr-promena', JSON.stringify({ ...o, pair: x.pr, seq: x.pr.map((c) => ({ c, b: x.pr.length === 2 ? 2 : 4 })) })); } catch {} }
     location.hash = '#/vezbe/' + x.g; return;
   }
   if (x.k === 's') {

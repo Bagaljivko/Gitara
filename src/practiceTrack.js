@@ -662,7 +662,7 @@ export function runTrack({ api, track, t, items, bpm, wait = null, mode = 'norma
  * Rezultat runde na stazi + čuvanje; vraća izbor: 'faster' | 'again' | 'tryNormal' | 'back' | dodatna dugmad.
  * extra: [{ id, label, primary }] (npr. „Sledeći deo“) — idu ispred ostalih.
  */
-export async function roundResults({ api, track, t, stats, key = null, extra = [], step = 5 }) {
+export async function roundResults({ api, track, t, stats, key = null, extra = [], step = 5, more = [] }) {
   const info = await api.finish({ score: stats.score, tempo: stats.tempo, accuracy: stats.accuracy, metric: stats.metric ?? null, quiet: true, noTempoUp: stats.beginner }, key);
   if (!track) return { choice: 'back' };
   const stars = starsOf(stats.score);
@@ -687,6 +687,7 @@ export async function roundResults({ api, track, t, stats, key = null, extra = [
   lines.push({ label: t('pr.trk.maxCombo'), value: String(stats.maxCombo) });
   if (!stats.beginner) lines.push({ label: t('pr.tempoReached'), value: `${stats.tempo} BPM` });
   if (stats.metric != null && stats.metricLabel) lines.push({ label: stats.metricLabel, value: t('pr.unit.perMin', { n: stats.metric }) });
+  lines.push(...more); // v1.96: npr. „Najteža promena“
   // v1.76: retko pitanje „Kako ti se čini…?“ (najviše dva puta, ikad) — ispod dugmadi, ne gura ih
   let fb = null, ask = null;
   try { fb = await import('./feedback.js'); ask = api.gameId ? fb.askAfterRound(api.gameId) : null; } catch {}
@@ -778,7 +779,7 @@ export function trackGame(api, cfg) {
     if (!api.running || !track) return;
     if (cfg.onRoundEnd && (await cfg.onRoundEnd(stats, round, ctl))) return;
     if (cfg.metric && !stats.beginner) { stats.metric = Math.round(cfg.metric(stats, round)); stats.metricLabel = cfg.metricLabel; }
-    const { choice, next } = await roundResults({ api, track, t, stats, key: round.key || null, extra: round.extra ? round.extra(stats) : [] });
+    const { choice, next } = await roundResults({ api, track, t, stats, key: round.key || null, extra: round.extra ? round.extra(stats) : [], more: round.lines ? round.lines(stats) : [] });
     if (handleChoice(api, choice, next, close)) return;
     cfg.onChoice?.(choice, round, ctl);
   }

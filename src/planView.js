@@ -3,6 +3,8 @@
 // zadaci se prevlače mišem). Logika je u plan.js.
 import { t, LANGS, countOf, ROUNDS } from './i18n.js';
 import { esc, dialog, toast } from './ui.js';
+import * as CS from './chordSeq.js';
+import { dn } from './naming.js';
 import { songs as db } from './db.js';
 import * as P from './plan.js';
 
@@ -102,7 +104,8 @@ export async function suggestFlow(student, { week = null, hasPlan = false, edit 
     const rows = [];
     if (v.k === 'g') {
       rows.push([t('plan.f.game'), P.GAME_IDS.map((g) => chip(v.g === g, `data-g="${g}"`, t('pr.g.' + g))).join('')]);
-      if (v.g === 'promena') rows.push([t('plan.f.pair'), P.PAIRS.map((p) => chip(v.pr && v.pr.join() === p.join(), `data-pr="${p.join()}"`, `${p[0]} ⇄ ${p[1]}`)).join('')]);
+      // v1.96: bilo koji niz akorda (gotovi ili svoj: „G D Em C“)
+      if (v.g === 'promena') rows.push([t('plan.f.pair'), CS.PRESETS.map((p) => chip(v.pr && v.pr.join() === p.seq.join(), `data-pr="${p.seq.join()}"`, CS.presetLabel(p))).join('') + `<input id="plSeq" class="pl-seq" maxlength="80" autocomplete="off" spellcheck="false" placeholder="${esc(t('cs.ownPh'))}" value="${esc(v.pr && !CS.PRESETS.some((p) => p.seq.join() === v.pr.join()) ? v.pr.map(dn).join(' ') : '')}">`]);
     }
     if (v.k === 'p') rows.push([t('plan.f.song'), lib.length ? `<select id="plSong">${lib.map((s) => `<option value="${esc(s.id)}"${s.title === v.song.t ? ' selected' : ''}>${esc(s.title)}${s.artist ? ' — ' + esc(s.artist) : ''}</option>`).join('')}</select>` : `<span class="muted small">${t('plan.noLib')}</span>`],
       [t('plan.f.part'), `<input id="plPart" maxlength="40" placeholder="${esc(t('plan.partPh'))}" value="${esc(v.part || '')}">`]);
@@ -127,11 +130,12 @@ export async function suggestFlow(student, { week = null, hasPlan = false, edit 
   const read = () => {
     const q = (s) => root.querySelector(s);
     if (q('#plNote')) v.note = q('#plNote').value;
+    if (q('#plSeq') && q('#plSeq').value.trim()) { const pr = q('#plSeq').value.split(/[\s,–-]+/).map(CS.normName).filter(CS.known).slice(0, CS.MAX_SEQ); if (pr.length >= 2) v.pr = pr; }
     if (q('#plPart')) v.part = q('#plPart').value;
     if (q('#plSong')) { const s = lib.find((x) => x.id === q('#plSong').value); if (s) v.song = { t: s.title, a: s.artist || '' }; }
     if (q('#plTitle')) { v.song = { t: q('#plTitle').value, a: q('#plArtist')?.value || '' }; const s = lib.find((x) => x.title === v.song.t); if (s && !v.song.a) v.song.a = s.artist || ''; }
   };
-  root.addEventListener('input', read);
+  root.addEventListener('input', (e) => { read(); if (e.target.id === 'plSeq') root.querySelectorAll('[data-pr]').forEach((x) => x.classList.toggle('active', !!v.pr && x.dataset.pr === v.pr.join())); });
   root.addEventListener('change', read);
   root.addEventListener('click', (e) => {
     const b = e.target.closest('button'); if (!b) return;
