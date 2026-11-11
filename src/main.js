@@ -354,7 +354,7 @@ idle(() => import('./activity.js').then((m) => m.startActivity()).catch(() => {}
 idle(() => import('./feedback.js').then((m) => m.initFeedback()).catch(() => {})); // v1.76: utisci koji čekaju se pošalju
 idle(() => import('./db.js').then(async ({ settings }) => { const m = await settings.get('myTeacher', null); if (m && m.prog && m.prog.on) (await import('./progress.js')).initProgress(); if (m && m.planFile) { const P = await import('./plan.js'); P.watchTasks(); P.refreshPlan().catch(() => {}); } if (m && m.box) (await import('./teachBox.js')).initBox(); const tc = await settings.get('teacher', null); if (tc && tc.on) (await import('./teachBox.js')).initTeacherPoll(); if (m || (tc && tc.on) || ((await settings.get('notes', [])) || []).length) (await import('./notify.js')).initBell(); }).catch(() => {})); // v1.94: sanduče (učenik) i zahtevi iz fajlova napretka (nastavnik) // v1.80: napredak za nastavnika (samo ako je uključeno)
 const DESK = matchMedia('(min-width: 1100px) and (hover: hover) and (pointer: fine)');
-const deskAcct = () => { if (DESK.matches) import('./navAcct.js').then((m) => m.initNavAcct()).catch(() => {}); };
+const deskAcct = () => { if (DESK.matches) { import('./navAcct.js').then((m) => m.initNavAcct()).catch(() => {}); import('./deskShell.js').then((m) => m.initDeskShell()).catch(() => {}); } }; // v1.98: bočna traka + ‹ › putanja
 deskAcct(); DESK.addEventListener?.('change', deskAcct); // v1.77: nalog u gornjoj traci (samo računar)
 // v1.70.1: jednom — „Prenesi ključ na moje uređaje“ uključeno i model „Automatski“ (i na već instaliranim; stari ručni izbor modela se ne vraća preko sinhronizacije)
 idle(async () => {

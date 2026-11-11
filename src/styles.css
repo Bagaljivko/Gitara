@@ -2600,3 +2600,42 @@ a.ds-it { text-decoration: none; }
 .ex-play { appearance: none; flex: 1; display: flex; gap: 12px; align-items: center; padding: 10px 2px; border: 0; background: none; color: var(--text); text-align: left; font: inherit; cursor: pointer; min-width: 0; }
 .ex-ic { flex: none; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); font-size: .8rem; }
 .ex-tx { min-width: 0; } .ex-tx b { display: block; } .ex-tx small { color: var(--muted); font-size: .78rem; }
+
+/* ================= v1.98: računar — bočna traka + gornja traka sa ‹ › i putanjom ================= */
+.dsh-bar { display: none; }
+@media (min-width: 1100px) and (hover: hover) and (pointer: fine) {
+  body.desk-shell { --side-w: 224px; --top-h: 56px; padding-left: var(--side-w); }
+  body.desk-shell.side-mini { --side-w: 72px; }
+  body.desk-shell.stage-mode, body.desk-shell.pa-on { --side-w: 0px; --top-h: 0px; }
+  body.desk-shell .nav {
+    top: 0; bottom: 0; left: 0; right: auto; width: var(--side-w); height: auto;
+    flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 2px; padding: 14px 10px;
+    border: 0; border-right: 1px solid var(--line); background: #0b0c0f; overflow-y: auto;
+  }
+  body.desk-shell .nav-brand { margin: 2px 6px 16px; }
+  body.desk-shell .nav a { justify-content: flex-start; width: 100%; height: 42px; padding: 0 12px; border-radius: 10px; flex: none; }
+  body.desk-shell .nav a.nav-teach { order: 0; }
+  body.desk-shell.side-mini .nav a span, body.desk-shell.side-mini .nav-brand span { display: none; }
+  body.desk-shell.side-mini .nav a { justify-content: center; padding: 0; }
+  body.desk-shell.side-mini .nav-brand { justify-content: center; margin: 2px 0 16px; }
+  body.desk-shell.side-mini .nav a .nav-badge { position: absolute; margin: -18px 0 0 22px; }
+  body.desk-shell.stage-mode .nav, body.desk-shell.pa-on .nav, body.desk-shell.stage-mode .dsh-bar, body.desk-shell.pa-on .dsh-bar { display: none; }
+  body.desk-shell .dsh-bar { display: flex; align-items: center; gap: 8px; position: fixed; z-index: 55; top: 0; left: var(--side-w); right: 0; height: var(--top-h); padding: 0 20px 0 16px; background: rgba(10, 11, 14, .94); border-bottom: 1px solid var(--line); backdrop-filter: blur(8px); }
+  .dsh-nav { appearance: none; width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); font: 800 1.15rem/1 var(--sans); display: grid; place-items: center; padding: 0 0 2px; }
+  .dsh-nav:disabled { opacity: .35; cursor: default; }
+  .dsh-nav:not(:disabled):hover { border-color: var(--accent); color: var(--accent); }
+  .dsh-crumb { display: flex; align-items: center; gap: 8px; min-width: 0; margin-left: 6px; font-weight: 650; color: var(--muted); white-space: nowrap; overflow: hidden; }
+  .dsh-crumb a { color: var(--muted); text-decoration: none; }
+  .dsh-crumb a:hover { color: var(--accent); }
+  .dsh-crumb b { color: var(--text); overflow: hidden; text-overflow: ellipsis; }
+  .dsh-sep { opacity: .5; }
+  .dsh-sp { flex: 1; }
+  body.desk-shell .dsh-bar .nav-acct:not([hidden]) { margin-left: 4px; }
+  body.desk-shell .dsh-bar .nt-bell { margin-left: 4px; }
+  body.desk-shell .drive-banner { left: calc(var(--side-w) + 12px); }
+  body.desk-shell .pq-pill { left: calc(var(--side-w) + 24px); }
+}
+/* v1.98: tablet (i veći ekran na dodir) — lupa − 🔍 + i na mirnom ekranu pesme */
+@media (min-width: 700px) {
+  .song-view.calm .zoom-wrap { display: flex !important; }
+}

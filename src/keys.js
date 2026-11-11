@@ -61,8 +61,9 @@ function onKey(e) {
   if (e.key === '-' || e.key === '_') { e.preventDefault(); zoomStep(sv, -1); return; }
   if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft') && !e.repeat) { if (nextSong(e.key === 'ArrowRight' ? 1 : -1)) e.preventDefault(); return; }
   if (e.key === 'Escape') {
-    if (playing) { document.getElementById('sPlay')?.click(); return; }
-    if (!document.body.classList.contains('two-pane-mode')) sv.querySelector('.topbar .back')?.click();
+    if (playing) { e.preventDefault(); document.getElementById('sPlay')?.click(); return; } // v1.98: obrađeno — bočna traka ne vraća nazad
+    const back = !document.body.classList.contains('two-pane-mode') && sv.querySelector('.topbar .back');
+    if (back) { e.preventDefault(); back.click(); }
   }
 }
 
