@@ -2868,3 +2868,10 @@ body.nastava-teacher .nav a.nav-teach { display: none !important; }
   body.desk-shell #prTeach .nas-conn-btns .btn { min-height: 38px; padding: 0 14px; }
   body.desk-shell #prTeach .nas-no { margin: 0; flex: none; }
 }
+/* v2.0.1: „Uz video“ kao prvi čip na ekranu pesme (telefon) */
+.sc-chip.sc-pa { display: inline-flex; align-items: center; gap: 6px; }
+.sc-chip.sc-pa svg { width: 18px; height: 18px; fill: #6d7380; flex: none; }
+.sc-chip.sc-pa.on { border-color: rgba(245, 165, 36, .6); color: var(--text); }
+.sc-chip.sc-pa.on svg { fill: #f59e0b; }
+.sc-chip.sc-pa:not(.on) { border-style: dashed; color: var(--muted); }
+@media (min-width: 1100px) and (hover: hover) and (pointer: fine) { .sc-chip.sc-pa { display: none; } } /* računar: dugme „Uz video“ je u traci */

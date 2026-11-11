@@ -5,6 +5,9 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '2.0.1', date: '2026-11-11', items: [
+    { i: '▶', sr: ['„Uz video“ se opet vidi na pesmi', 'Na telefonu je „Uz video“ prvi u redu sa Ton · Kapo · BPM — jedan dodir pušta pesmu uz YouTube snimak. Ako pesma još nema video, piše „Poveži video“.'], en: ['“Play along” is visible on the song again', 'On the phone “Play along” is first in the row with Key · Capo · BPM — one tap plays along with the YouTube clip. If the song has no video yet, it says “Link video”.'] },
+  ] },
   { v: '2.0', date: '2026-11-11', items: [
     { i: '🎓', sr: ['Nastava — sve na jednom mestu', 'Kad si povezan sa nastavnikom, kartica Vežbe postaje Nastava: na vrhu nedelja, pa nastavnik — nove pesme od njega, Pitaj nastavnika, Pošalji snimak — a ispod Danas i sve igre. Nastavnik ovde odmah vidi svoje učenike (broj = novi zahtevi).'], en: ['Teaching — all in one place', 'When you are connected with a teacher, the Practice tab becomes Teaching: the week on top, then your teacher — new songs from them, Ask your teacher, Send a recording — and Today and all games below. A teacher sees their students here right away (number = new requests).'] },
     { i: '🔗', sr: ['Poveži se sa nastavnikom u aplikaciji', '„Imaš nastavnika?“ u Vežbama: skeniraj njegov QR ili nalepi link — radi i u aplikaciji sa početnog ekrana na iPhone-u. Može i iz Podešavanja → Nastava.'], en: ['Connect with your teacher in the app', '“Have a teacher?” in Practice: scan their QR or paste the link — works in the iPhone home-screen app too. Also in Settings → Teaching.'] },

@@ -356,6 +356,7 @@ const sr = {
   'pa.btn': 'Uz video',
   'pa.start': 'Sviraj uz video',
   'pa.link': 'Poveži video sa pesmom (za sviranje uz video)',
+  'pa.chipLink': "Poveži video",
   'pa.close': 'Zatvori video',
   'pa.back10': '10 sekundi nazad',
   'pa.fwd10': '10 sekundi napred',

@@ -3,7 +3,7 @@ const loadEditor = () => import('./songEditor.js');
 import { sectionLabel } from './sectionLabel.js';
 import { practiceLineHTML, fillPractice } from './songPracticeCard.js';
 import { MORE_ICON, moreMenu, attachPinch, versionTipOnce, openPanel, zoomPillHTML, bindZoomPill, songMenuItems } from './songChrome.js';
-import { paButtonHTML, bindPlayAlong } from './playAlong.js';
+import { paButtonHTML, bindPlayAlong, YT_ICON } from './playAlong.js';
 import { songs as db } from './db.js';
 import { esc, toast, dialog, confirmDialog, pickFile, pickFiles, closeXHTML } from './ui.js';
 import { chordSVG, voicingCount, shapeNavHTML, onShapeSwipe } from './diagram.js';
@@ -1114,7 +1114,8 @@ export async function renderSong(root, id, nav = null) {
     const key = soundingKey();
     const bpm = Number(stored.bpm) || Number($('sTempo')?.textContent) || 0;
     const rh = stored.strum ? patternName(stored.strum) : '';
-    el.innerHTML = `<button class="sc-chip" data-sheet="key"><small>${t('ctl.keyShort')}</small><b>${esc(dn(key) || '–')}</b>${tp ? `<small>${tp > 0 ? '+' + tp : '−' + Math.abs(tp)}</small>` : ''}</button>
+    const paOn = !!$('paBtn') && !$('paBtn').classList.contains('off'); // v2.0.1: „Uz video“ vidljivo na telefonu (prvi čip)
+    el.innerHTML = `${$('paBtn') ? `<button class="sc-chip sc-pa${paOn ? ' on' : ''}" data-pa="1" aria-label="${esc(t(paOn ? 'pa.start' : 'pa.link'))}">${YT_ICON}<span>${esc(t(paOn ? 'pa.btn' : 'pa.chipLink'))}</span></button>` : ''}<button class="sc-chip" data-sheet="key"><small>${t('ctl.keyShort')}</small><b>${esc(dn(key) || '–')}</b>${tp ? `<small>${tp > 0 ? '+' + tp : '−' + Math.abs(tp)}</small>` : ''}</button>
       <button class="sc-chip" data-sheet="capo"><small>${t('ctl.capoShort')}</small>${capo ? `<b>${capo}</b>` : esc(t('capo.none'))}</button>
       ${bpm ? `<button class="sc-chip" data-sheet="tempo">${bpm} <small>BPM</small></button>` : ''}
       ${rh ? `<button class="sc-chip sc-rh" data-sheet="rhythm">♪ ${esc(rh)}</button>` : sugStrum() ? `<button class="sc-chip sc-rh sc-new" data-sheet="rhythm">♪ ${esc(t('ss.rhythmQ'))}</button>` : ''}
@@ -1848,7 +1849,8 @@ export async function renderSong(root, id, nav = null) {
   setCalm();
   deskMq.addEventListener?.('change', setCalm);
   window.addEventListener('hashchange', function offMq() { deskMq.removeEventListener?.('change', setCalm); window.removeEventListener('hashchange', offMq); });
-  $('sChips').addEventListener('click', (e) => { if (e.target.closest('[data-sheet]')) openSongSheet(); });
+  $('sChips').addEventListener('click', (e) => { if (e.target.closest('[data-pa]')) { $('paBtn')?.click(); return; } if (e.target.closest('[data-sheet]')) openSongSheet(); });
+  if ($('paBtn')) new MutationObserver(() => drawChips()).observe($('paBtn'), { attributes: true, attributeFilter: ['class'] }); // video povezan / uklonjen → čip se osveži
   // dugmad uz deo pesme („+ Ritam“, ponavljanje) — u mirnoj verziji tek na dodir naziva dela
   $('sLyrics').addEventListener('click', (e) => {
     const n = e.target.closest('.sec-name'); if (!n || !root.querySelector('.song-view.calm')) return;

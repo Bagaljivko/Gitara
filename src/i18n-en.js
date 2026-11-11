@@ -347,6 +347,7 @@ export default {
   'pa.btn': 'Play along',
   'pa.start': 'Play along with the video',
   'pa.link': 'Link a video to this song (to play along)',
+  'pa.chipLink': "Link video",
   'pa.close': 'Close video',
   'pa.back10': '10 seconds back',
   'pa.fwd10': '10 seconds forward',
