@@ -5,6 +5,11 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '1.99', date: '2026-11-11', items: [
+    { i: '⌕', sr: ['Računar: pretraga svega (Ctrl K)', 'Gore „Pretraži sve…“ ili Ctrl K: pesme (i po tekstu), set liste, Moje vežbe, igre, delovi aplikacije, podešavanja i učenici. ↑ ↓ biraj, Enter otvori, Esc zatvori.'], en: ['Computer: search everything (Ctrl K)', '“Search everything…” at the top or Ctrl K: songs (also by lyrics), set lists, My exercises, games, app sections, settings and students. ↑ ↓ choose, Enter open, Esc close.'] },
+    { i: '🎚', sr: ['Računar: podešavanja tunera sa strane', 'Dugme klizača na tuneru otvara podešavanja kao panel desno, bez zatamnjenja — štimuješ dok menjaš štimovanje, sobu ili A4.'], en: ['Computer: tuner settings at the side', 'The sliders button on the tuner opens its settings as a panel on the right, without dimming — keep tuning while you change the tuning, room or A4.'] },
+    { i: '▶', sr: ['Računar: Vežbe preglednije', 'Igre su 4 u redu — sve se vide bez skrolovanja.'], en: ['Computer: clearer Practice', 'Games are 4 per row — all visible without scrolling.'] },
+  ] },
   { v: '1.98.1', date: '2026-11-11', items: [
     { i: '🖥', sr: ['Računar: donje trake ne idu ispod bočne trake', 'Traka sa „Počni“ u vežbama, „Osveži“ i poziv za instalaciju sada počinju desno od bočne trake — opis vežbe se više ne seče.'], en: ['Computer: bottom bars no longer go under the side bar', 'The “Start” bar in practice, “Refresh” and the install prompt now start to the right of the side bar — the exercise summary is no longer cut off.'] },
   ] },

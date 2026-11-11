@@ -42,10 +42,12 @@ export function initDeskShell() {
   document.body.classList.add('desk-shell');
   bar = document.createElement('header');
   bar.className = 'dsh-bar'; bar.setAttribute('aria-label', t('ds.bar'));
-  bar.innerHTML = `<button type="button" class="dsh-nav" data-dsh="back" aria-label="${esc(t('ds.back'))}" title="${esc(t('ds.backTip'))}">‹</button><button type="button" class="dsh-nav" data-dsh="fwd" aria-label="${esc(t('ds.fwd'))}" title="${esc(t('ds.fwdTip'))}">›</button><nav class="dsh-crumb" aria-label="${esc(t('ds.where'))}"></nav><span class="dsh-sp"></span>`;
+  bar.innerHTML = `<button type="button" class="dsh-nav" data-dsh="back" aria-label="${esc(t('ds.back'))}" title="${esc(t('ds.backTip'))}">‹</button><button type="button" class="dsh-nav" data-dsh="fwd" aria-label="${esc(t('ds.fwd'))}" title="${esc(t('ds.fwdTip'))}">›</button><nav class="dsh-crumb" aria-label="${esc(t('ds.where'))}"></nav><span class="dsh-sp"></span><button type="button" class="dsh-search" data-dsh="search"><span aria-hidden="true">⌕</span><span>${esc(t('srch.btn'))}</span><kbd>Ctrl K</kbd></button>`;
   document.body.appendChild(bar);
   const acct = document.getElementById('navAcct'); if (acct) bar.appendChild(acct); // nalog (i 🔔 ispred njega) gore desno
-  bar.addEventListener('click', (e) => { const b = e.target.closest('[data-dsh]'); if (!b) return; if (b.dataset.dsh === 'back') history.back(); else history.forward(); });
+  bar.addEventListener('click', (e) => { const b = e.target.closest('[data-dsh]'); if (!b) return; if (b.dataset.dsh === 'search') { import('./deskSearch.js').then((m) => m.openSearch()); return; } if (b.dataset.dsh === 'back') history.back(); else history.forward(); });
+  // v1.99: Ctrl K (⌘K) = pretraga svega
+  addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === 'k' || e.key === 'K')) { e.preventDefault(); import('./deskSearch.js').then((m) => m.openSearch()); } });
   // Esc / Backspace: jedan korak nazad sa „dubokih“ stranica, kad ništa drugo nije otvoreno i ne kucaš
   addEventListener('keydown', (e) => {
     if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
