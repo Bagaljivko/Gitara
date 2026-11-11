@@ -2744,3 +2744,28 @@ a.ds-it { text-decoration: none; }
   body.desk-shell #dictPane > .dict-roots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
   body.desk-shell #dictPane > .dict-card { grid-column: 2; grid-row: 1 / 5; margin: 0; padding: 22px; }
 }
+
+/* v1.99.6: računar — Vežbe: beli naslov + opis, „Danas“ kao uska traka, nedelja u jednom redu pored; Podešavanja: beli naslov + opis,
+   ista širina kao ostale strane. Samo raspored; telefon nepromenjen. */
+@media (min-width: 1100px) and (hover: hover) and (pointer: fine) {
+  body.desk-shell .practice-view:not(.pr-game) { max-width: 1180px; margin: 0 auto; padding: 18px 8px 24px; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); row-gap: 0; }
+  body.desk-shell .practice-view .pr-hub-head { margin: 0 0 18px; align-items: baseline; }
+  body.desk-shell .practice-view .pr-hub-head h1 { background: none !important; color: var(--text) !important; -webkit-text-fill-color: currentColor; font-size: 1.9rem; margin: 0; }
+  body.desk-shell .practice-view .dhd-sub { color: var(--muted); font-size: .95rem; margin: 0 auto 0 12px; }
+  body.desk-shell .practice-view .pr-hub-head { justify-content: flex-start; }
+  body.desk-shell .practice-view:not(.pr-game) > .pr-intro { display: none; }
+  body.desk-shell .practice-view:not(.pr-game) > #prToday { grid-row: 3; min-height: 0; padding: 18px 22px; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 0 22px; }
+  body.desk-shell #prToday .td-top { flex-direction: column; align-items: flex-start; margin: 0; gap: 6px; padding-right: 22px; border-right: 1px solid rgba(245, 158, 11, .25); }
+  body.desk-shell #prToday .td-main b, body.desk-shell #prToday .td-main .td-t { font-size: 1.3rem; }
+  body.desk-shell .practice-view:not(.pr-game) > #stWeekBox { grid-row: 3; }
+  body.desk-shell #stWeek { grid-template-columns: 1fr 1fr 1.2fr; height: 100%; gap: 10px; margin: 0; }
+  body.desk-shell #stWeek > .st-goal { grid-column: auto; }
+  body.desk-shell #stWeek .st-wk { padding: 12px 14px; display: flex; flex-direction: column; justify-content: center; }
+  body.desk-shell #stWeek .st-wk b { font-size: 1.25rem; }
+  body.desk-shell .practice-view .pr-cards { margin-top: 20px; }
+  /* Podešavanja */
+  body.desk-shell .settings-view > .view-head { align-items: baseline; justify-content: flex-start; gap: 12px; }
+  body.desk-shell .settings-view > .view-head h1 { background: none !important; color: var(--text) !important; -webkit-text-fill-color: currentColor; font-size: 1.9rem; }
+  body.desk-shell .settings-view .dhd-sub { color: var(--muted); font-size: .95rem; margin-right: auto; }
+  body.desk-shell .settings-view { max-width: 1180px; margin-left: auto; margin-right: auto; }
+}

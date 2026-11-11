@@ -1916,6 +1916,8 @@ export default {
   'dch.free': "Play freely, see it on the neck, record.",
   'dch.dict': "All chord shapes, with fingers and sound.",
   'dch.rhythm': "Strumming patterns with a metronome.",
+  'dhd.vezbe': "Short games for fingers, rhythm and ear — MARLI listens and tells you if it is right.",
+  'dhd.podesavanja': "Account, sound, screen, data and teaching.",
   'tuning.pick': 'Choose a tuning. The labels on the pegs and the reference tones change with it.',
   'tuning.standard': 'Standard',
   'tuning.dropD': 'Drop D',

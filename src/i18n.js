@@ -1952,6 +1952,8 @@ const sr = {
   'dch.free': "Sviraj slobodno, vidi na vratu, snimi.",
   'dch.dict': "Svi hvatovi, sa prstima i zvukom.",
   'dch.rhythm': "Obrasci udaranja uz metronom.",
+  'dhd.vezbe': "Kratke igre za prste, ritam i sluh — MARLI sluša i kaže da li je tačno.",
+  'dhd.podesavanja': "Nalog, zvuk, ekran, podaci i nastava.",
   'tuning.pick': 'Izaberi štimovanje. Oznake na ključevima i referentni tonovi se menjaju.',
   'tuning.standard': 'Standardno',
   'tuning.dropD': 'Drop D',

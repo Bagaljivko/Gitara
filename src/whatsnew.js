@@ -5,6 +5,10 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '1.99.6', date: '2026-11-11', items: [
+    { i: '▶', sr: ['Računar: Vežbe preglednije', '„Danas“ je uska traka (igra dana i „Kreni“), a nedelja (svirano, vežbano, cilj) je pored, u jednom redu — sve igre se vide bez skrolovanja. Beli naslov sa kratkim opisom, kao Tuner i Akordi.'], en: ['Computer: clearer Practice', '“Today” is a slim strip (game of the day and “Go”), with the week (played, practiced, goal) next to it in one row — all games fit without scrolling. White title with a short description, like Tuner and Chords.'] },
+    { i: '⚙', sr: ['Računar: Podešavanja u istom stilu', 'Beli naslov sa kratkim opisom i ista širina kao ostale strane.'], en: ['Computer: Settings in the same style', 'White title with a short description and the same width as the other pages.'] },
+  ] },
   { v: '1.99.5', date: '2026-11-11', items: [
     { i: '▦', sr: ['Računar: Akordi u karticama', 'Umesto trake: četiri kartice (Prepoznavanje, Samo sviraj, Rečnik, Ritam) sa ikonicom i jednim redom opisa. Svaki deo koristi celu širinu — npr. u Rečniku su tonovi i vrste akorda levo, hvat desno, bez skrolovanja. Sve radi isto kao do sada.'], en: ['Computer: Chords as cards', 'Instead of a strip: four cards (Recognize, Just play, Dictionary, Rhythm) with an icon and a one-line description. Each part uses the full width — e.g. in Dictionary the notes and chord types are on the left, the shape on the right, no scrolling. Everything works as before.'] },
   ] },
