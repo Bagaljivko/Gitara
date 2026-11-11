@@ -48,6 +48,8 @@ const fmtDate = (ts) => { if (!ts) return ''; const d = new Date(ts), n = new Da
 
 // ---------------- Levo ----------------
 const FOLDER_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8z"/></svg>';
+const PEOPLE_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm8 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM9 13c-4 0-7 2-7 4.5V20h14v-2.5C16 15 13 13 9 13zm8 0c-.5 0-1 0-1.4.1 1.4 1 2.4 2.5 2.4 4.4V20h4v-2.5c0-2.5-2.5-4.5-5-4.5z"/></svg>'; // v1.99.3
+const TEACH_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 1 9l11 6 9-4.9V17h2V9L12 3zM5 13.2V17c0 1.7 3.1 3 7 3s7-1.3 7-3v-3.8l-7 3.8-7-3.8z"/></svg>';
 const SET_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h12v2H3zm0 6h12v2H3zm0 6h8v2H3zm14-6v8l6-4z"/></svg>';
 function sideHTML() {
   const L = st.all.filter((s) => !s.demo), cnt = (f) => L.filter(f).length;
@@ -62,8 +64,8 @@ function sideHTML() {
     <div class="ds-sec"><div class="ds-ttl">${t('desk.setlists')}<button type="button" class="ds-add" data-a="newSet" title="${t('desk.newSet')}" aria-label="${t('desk.newSet')}">+</button></div>
       ${st.sets.map((x) => `<button type="button" class="ds-it" data-set="${esc(x.id)}" data-drop="s:${esc(x.id)}">${SET_SVG}<span class="ds-name">${esc(x.name)}</span><b>${(x.songIds || []).length}</b></button>`).join('') || `<p class="ds-empty">${t('desk.noSets')}</p>`}</div>
     ${st.teach && (st.teach.on || st.teach.my) ? `<div class="ds-sec"><div class="ds-ttl">${t('tch.section')}</div>
-      ${st.teach.on ? `<a class="ds-it" href="#/ucenici"><span class="ds-name">${t('tch.students')}</span><b>${st.teach.sts.length}</b></a>` : ''}
-      ${st.teach.my ? `<a class="ds-it" href="#/od-nastavnika"><span class="ds-name">${t('tch.fromTeacher')}</span><b>${st.all.filter((s) => s.fromT).length}</b></a>` : ''}</div>` : ''}
+      ${st.teach.on ? `<a class="ds-it" href="#/ucenici">${PEOPLE_SVG}<span class="ds-name">${t('tch.students')}</span><b>${st.teach.sts.length}</b></a>` : ''}
+      ${st.teach.my ? `<a class="ds-it" href="#/od-nastavnika">${TEACH_SVG}<span class="ds-name">${t('tch.fromTeacher')}</span><b>${st.all.filter((s) => s.fromT).length}</b></a>` : ''}</div>` : ''}
     <div class="ds-conn" id="dsConn" hidden></div>`;
 }
 

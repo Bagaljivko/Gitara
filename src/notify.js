@@ -74,6 +74,10 @@ async function mount() {
   if (!(await relevant())) { document.querySelectorAll('.nt-bell').forEach((b) => b.remove()); return; }
   if (DESK()) {
     const acct = document.getElementById('navAcct');
+    // v1.99.3: samo jedno zvonce, odmah ispred naloga u gornjoj traci (ranije je moglo da ostane i u bočnoj traci,
+    // ako se zvonce uključilo pre nego što je nalog premešten gore)
+    if (acct && !acct.closest('.dsh-bar')) return; // gornja traka još nije spremna — deskShell javi (marli-notes) kad premesti nalog
+    document.querySelectorAll('.nt-bell').forEach((b) => { if (!acct || b.nextElementSibling !== acct) b.remove(); });
     if (acct && !acct.previousElementSibling?.classList.contains('nt-bell')) acct.before(bellBtn());
   } else {
     // v1.99.1: samo vidljivo zaglavlje (skriveni ekrani ostaju u pozadini, npr. Pesme ili tuner)

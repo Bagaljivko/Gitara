@@ -5,6 +5,10 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '1.99.3', date: '2026-11-11', items: [
+    { i: '🔔', sr: ['Računar: samo jedno zvonce', 'Kad se MARLI sporije pokrene, zvonce je moglo da ostane i u bočnoj traci ispod Podešavanja. Sada je uvek samo jedno — gore, pored naloga.'], en: ['Computer: just one bell', 'When MARLI started slowly, a bell could also stay in the side bar under Settings. Now there is always just one — at the top, next to the account.'] },
+    { i: '🎓', sr: ['Pesme: ikonice za Nastavu', 'U bočnom delu Pesama „Od nastavnika“ i „Učenici“ imaju ikonice kao folderi i set liste.'], en: ['Songs: icons for Teaching', 'In the Songs side panel “From teacher” and “Students” have icons like folders and set lists.'] },
+  ] },
   { v: '1.99.2', date: '2026-11-11', items: [
     { i: '📈', sr: ['Deli napredak: Google privremeno usporio', 'Ako Google na trenutak ograniči pristup dok uključuješ „Deli napredak“, deljenje ostaje uključeno i MARLI sam pokuša ponovo (posle 3, 10 i 30 minuta). Kad uspe, zvonce javi „Napredak je spreman — pokaži QR“.'], en: ['Share progress: Google slowed down', 'If Google briefly limits access while you turn on “Share progress”, sharing stays on and MARLI tries again by itself (after 3, 10 and 30 minutes). When it works, the bell says “Progress is ready — show the QR”.'] },
     { i: '🩺', sr: ['Dijagnostika: tačan razlog', 'Kod greške Google Drive-a (napredak i sinhronizacija) dijagnostika sada beleži i tačan Google razlog, da brže nađemo uzrok.'], en: ['Diagnostics: exact reason', 'For Google Drive errors (progress and sync) diagnostics now also record Google’s exact reason, so we find the cause faster.'] },
