@@ -76,16 +76,6 @@ export async function inviteLink(student) {
   const st = (await getStudent(student.id)) || student; // v1.94: b = sanduče (pesme stižu same, bez poruka)
   return `${SHARE_BASE}#poziv/${encodeURIComponent(tc.id)}/${encodeURIComponent(student.id)}?${qs({ n: await teacherName(), c: tc.contact || '', b: (st.box && st.box.f) || '' })}`;
 }
-/** Nastavnik → učenik: dodatak linku poslatog fajla. */
-export async function toStudentSuffix(student, rq = '', rp = '') {
-  const tc = await setTeacher({});
-  return '?' + qs({ tt: tc.id, ts: student.id, tn: await teacherName(), tc: tc.contact || '', rq, rp }); // v1.80: rp = učenikova pesma koju ovo zamenjuje
-}
-/** Učenik → nastavnik. */
-export async function toTeacherSuffix() {
-  const m = await getMyTeacher();
-  return m ? '?' + qs({ ft: m.tid, fs: m.sid }) : '';
-}
 /** Parametri iz linka (posle #d/<fajl>?…). */
 export function linkParams(hash = location.hash) {
   const i = hash.indexOf('?');
@@ -94,10 +84,6 @@ export function linkParams(hash = location.hash) {
   try { for (const [k, v] of new URLSearchParams(location.search)) if (k !== 'd' && !p.has(k)) p.set(k, v); } catch {}
   return p;
 }
-
-// ---------------- otvaranje poruke (uvek preko korisnikove aplikacije) ----------------
-/** Otvori poruku za jednu osobu — preko shareService.composeMessage (jedino mesto koje otvara meni za deljenje). */
-export async function compose(m) { return (await import('./shareService.js')).composeMessage(m); }
 
 /** v1.94: pozivnica bez poruke — sanduče (ako može), pa link za kopiranje (za časove preko interneta). */
 export async function copyInvite(student) {
@@ -299,6 +285,7 @@ export async function receiveProgress(hash) {
   if (!d.f || !/^[\w-]{6,}$/.test(d.f)) { toast(t('tch.rq.bad')); return null; }
   await updateStudent(st.id, { prog: { fileId: d.f, since: Date.now() } });
   toast(t('prog.got', { name: st.name }));
+  (await import('./notify.js')).add({ id: st.id + ':conn:' + d.f, who: (st.name[0] || '?').toUpperCase(), c: st.color || '', t: t('nt.conn', { name: st.name }), s: t('nt.connSub'), href: '#/ucenik/' + encodeURIComponent(st.id) }).catch(() => {});
   return st;
 }
 async function receiveProgressMsg(z) {

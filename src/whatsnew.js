@@ -5,6 +5,11 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '1.95', date: '2026-11-10', items: [
+    { i: '🔔', sr: ['Obaveštenja', 'Zvonce gore desno (Pesme, Vežbe, Učenici, Od nastavnika; na računaru pored naloga): šta je stiglo — pesme, plan i odgovori od nastavnika, želje, snimci, provere i urađeni zadaci od učenika. Dodir vodi tačno na to mesto.'], en: ['Notifications', 'A bell at the top right (Songs, Practice, Students, From teacher; next to your account on a computer): what arrived — songs, plan and answers from your teacher, wishes, recordings, checks and finished tasks from students. A tap takes you straight there.'] },
+    { i: '📳', sr: ['I na telefonu', 'U Obaveštenjima „Uključi“: sistemsko obaveštenje dok je MARLI otvoren ili u pozadini. Kad je potpuno zatvoren, sve čeka u zvoncu.'], en: ['On the phone too', 'In Notifications tap “Turn on”: a system notification while MARLI is open or in the background. When it is fully closed, everything waits in the bell.'] },
+    { i: '🔗', sr: ['Bez linkova u nastavi', 'Pozivnica ostaje link ili QR; posle povezivanja sve ide kroz aplikaciju i Google Drive — nikakvi linkovi između nastavnika i učenika.'], en: ['No links in teaching', 'The invite is still a link or QR; once connected, everything goes through the app and Google Drive — no links between teacher and student.'] },
+  ] },
   { v: '1.94.1', date: '2026-11-10', items: [
     { i: '✍️', sr: ['Akord posle kraja reda', 'U „Uredi akorde“ (telefon i tablet) akord može i posle poslednje reči: dodirni desno od teksta → „+ Dodaj akord“, ili prevuci akord (ili ▶) preko kraja reda. Hvala na predlogu!'], en: ['Chord after the end of a line', 'In “Edit chords” (phone and tablet) a chord can also go after the last word: tap to the right of the text → “+ Add chord”, or drag a chord (or ▶) past the end of the line. Thanks for the suggestion!'] },
   ] },

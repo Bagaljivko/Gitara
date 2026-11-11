@@ -169,6 +169,7 @@ export async function studentProgress(st, { fresh = false } = {}) {
   const d = await S.readData(st.prog.fileId);
   const data = !d ? { err: true } : d.gone ? { gone: true } : d.type === 'progress' ? d : { err: true };
   if (d && d.type === 'progress' && Array.isArray(d.out) && d.out.length) await (await import('./teachBox.js')).ingestOut(st, d.out).catch(() => 0); // v1.94
+  if (d && d.type === 'progress' && d.tasks) await (await import('./teachBox.js')).ingestDone(st, d).catch(() => {}); // v1.95: 🔔 urađeni zadaci
   cache.set(st.id, { at: Date.now(), data });
   return data;
 }

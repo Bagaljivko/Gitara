@@ -4,7 +4,7 @@
 // zahteve i plan. Učenikova aplikacija ga sama proverava i pesme stižu u „Od nastavnika“.
 // Učenik → nastavnik: želje, „Proveri sa nastavnikom“ i snimci idu u učenikov fajl napretka (polje „out“), koji
 // nastavnikova aplikacija ionako čita. Nijedna poruka (imejl, Viber…) više ne učestvuje.
-import { t } from './i18n.js';
+import { t, songsCount } from './i18n.js';
 import { toast } from './ui.js';
 
 const TM = () => import('./teach.js');
@@ -58,7 +58,7 @@ export function checkBox({ force = false } = {}) {
     const S = await S_();
     const d = await S.readData(m.box);
     if (!d || d.gone || d.type !== 'box' || d.tid !== m.tid) return 0;
-    const seen = { ...(m.boxSeen || {}) }; const fresh = []; let n = 0;
+    const seen = { ...(m.boxSeen || {}) }; const fresh = []; let n = 0; const notes = [];
     const fromT = { tid: m.tid, name: m.name };
     for (const it of (d.items || []).slice(-MAX_ITEMS)) {
       if (!it || !it.key || (seen[it.key] || 0) >= (it.at || 1)) continue;
@@ -74,6 +74,7 @@ export function checkBox({ force = false } = {}) {
         } else if (it.kind === 'ans') await tm.answerFromBox(it.id, it.s);
         else if (it.kind === 'plan') await (await import('./plan.js')).acceptPlanFile(it.f);
         seen[it.key] = it.at || Date.now(); n++;
+        notes.push(it);
       } catch (e) { console.warn('box', e); }
     }
     if (n) {
@@ -85,6 +86,12 @@ export function checkBox({ force = false } = {}) {
       const songs = (d.items || []).filter((it) => (it.kind === 'song' || it.kind === 'set') && seen[it.key] === it.at && !(m.boxSeen || {})[it.key]).length;
       if (songs) toast(t('box.got', { t: m.name || t('tch.teacher'), n: songs }));
       try { dispatchEvent(new Event('marli-box')); } catch {}
+      // v1.95: 🔔 — šta je stiglo (pesme zajedno u jednoj stavci)
+      const N = await import('./notify.js'); const tn = m.name || t('tch.teacher'), who = (tn[0] || 'M').toUpperCase();
+      const got = notes.filter((x) => x.kind === 'song' || x.kind === 'set');
+      if (got.length) await N.add({ id: 'box:' + got.map((x) => x.key + x.at).join('|').slice(-70), who, c: '#f5a524', t: got.length === 1 && got[0].kind === 'set' ? t('nt.gotSet', { t: tn, name: got[0].name || '' }) : t('nt.gotSongs', { t: tn, n: songsCount(got.length) }), s: got.length === 1 && got[0].kind === 'set' ? t('nt.inFrom') : got.map((x) => x.name).filter(Boolean).slice(0, 3).join(', '), href: '#/od-nastavnika' });
+      for (const x of notes.filter((y) => y.kind === 'ans')) { const r = (await tm.getMyRequests()).find((q) => q.id === x.id); await N.add({ id: 'ans:' + x.id + ':' + x.at, who, c: '#f5a524', t: t(x.s === 'none' ? 'nt.ansNone' : 'nt.ansOk', { t: tn }), s: r ? r.title : '', href: '#/od-nastavnika' }); }
+      for (const x of notes.filter((y) => y.kind === 'plan')) await N.add({ id: 'plan:' + x.at, who, c: '#f5a524', t: t('nt.plan', { t: tn }), s: t('nt.planSub'), href: '#/vezbe' });
     }
     return n;
   })().finally(() => { checking = null; });
@@ -124,6 +131,20 @@ export async function outPush(item, { interactive = true } = {}) {
 
 // ---------------- nastavnik: primi ono što su učenici poslali (iz njihovih fajlova napretka) ----------------
 /** Iz učenikovog fajla napretka: želje/pitanja, „proveri“, snimci — svaka stavka samo jednom. Vraća broj novih. */
+async function note(st, id, title, sub) { const N = await import('./notify.js'); return N.add({ id: st.id + ':' + id, who: (String(st.name || '?')[0] || '?').toUpperCase(), c: st.color || '', t: title, s: sub, href: '#/ucenik/' + encodeURIComponent(st.id) }); }
+/** v1.95: nastavnik — urađeni zadaci iz učenikovog napretka (svaki samo jednom). */
+export async function ingestDone(st, d) {
+  if (!st || !d || !d.tasks) return;
+  const tm = await TM(); const tc = await tm.getTeacher(); const seen = { ...(tc.doneSeen || {}) }; let any = false;
+  const P = await import('./plan.js');
+  const all = [...(st.tasks || []), ...((st.plan && st.plan.weeks) || []).flatMap((w) => w.tasks || [])];
+  for (const [id, v] of Object.entries(d.tasks)) {
+    if (!Array.isArray(v) || !v[1] || seen[st.id + ':' + id]) continue;
+    const x = all.find((y) => y.id === id); seen[st.id + ':' + id] = Date.now(); any = true;
+    if (x) await note(st, 'done:' + id, t('nt.done', { name: st.name }), P.taskTitle(x));
+  }
+  if (any) await tm.setTeacher({ doneSeen: Object.fromEntries(Object.entries(seen).sort((a, b) => b[1] - a[1]).slice(0, 800)) });
+}
 export async function ingestOut(st, out) {
   if (!st || !Array.isArray(out) || !out.length) return 0;
   const tm = await TM(); const tc = await tm.getTeacher();
@@ -142,7 +163,10 @@ export async function ingestOut(st, out) {
         await ensureRecFolder();
         await I.importTagged(pkg, o.f, (song) => ({ student: st.id, fromStudent: 1, ...(song.recording ? { folders: [REC_FOLDER] } : {}) }));
         toast(t('box.gotRec', { name: st.name }));
+        await note(st, 'rec:' + o.id, t('nt.rec', { name: st.name }), o.title || '');
       } else continue;
+      if (o.type === 'wish' || o.type === 'ask') await note(st, 'rq:' + o.id, t(o.type === 'wish' ? 'nt.wish' : 'nt.ask', { name: st.name, title: clip(o.title, 80) }), [clip(o.artist, 60), o.note ? '„' + clip(o.note, 80) + '“' : ''].filter(Boolean).join(' · '));
+      else if (o.type === 'check') await note(st, 'chk:' + o.id, t('nt.check', { name: st.name }), [clip(o.title, 80), o.note ? '„' + clip(o.note, 80) + '“' : ''].filter(Boolean).join(' · '));
       seen[st.id + ':' + o.id] = Date.now(); n++;
     } catch (e) { console.warn('ingest', e); }
   }

@@ -198,6 +198,7 @@ export async function refreshPlan({ force = false } = {}) {
     const nu = [...plan.tasks, ...((plan.plan?.weeks) || []).flatMap((w) => w.tasks)].filter((x) => !before.has(x.id)).length;
     await tm.setMyTeacher({ ...cur, plan });
     if (nu && cur.plan) toast(t('plan.newTasks', { n: nu, t: cur.name || t('tch.teacher') }));
+    if (nu && cur.plan) (await import('./notify.js')).add({ id: 'tasks:' + plan.at, who: ((cur.name || 'M')[0] || 'M').toUpperCase(), c: '#f5a524', t: t('nt.tasks', { n: nu, t: cur.name || t('tch.teacher') }), s: plan.name || '', href: '#/vezbe' }).catch(() => {}); // v1.95: 🔔
     try { dispatchEvent(new Event('marli-plan')); } catch {}
   }
   return changed;

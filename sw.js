@@ -1,6 +1,6 @@
 // Rad bez interneta: cela aplikacija se čuva u kešu i služi iz njega (uvek ista, usklađena verzija).
 // Nova verzija = novi broj u CACHE (scripts/update-sw.mjs). Aplikacija tada prikaže „Osveži“.
-const CACHE = "gitara-v142";
+const CACHE = "gitara-v143";
 const SHELL = [
   "./",
   "index.html",
@@ -45,6 +45,7 @@ const SHELL = [
   "src/music.js",
   "src/naming.js",
   "src/navAcct.js",
+  "src/notify.js",
   "src/pChords.js",
   "src/pEar.js",
   "src/pHunter.js",
@@ -189,6 +190,17 @@ self.addEventListener("activate", e => {
   // Aktivacija mora biti trenutna: dok traje, pregledač drži sve zahteve (i ponovno učitavanje posle „Osveži“) —
   // to je bio beli ekran sa kružićem posle ažuriranja. Zato ovde SAMO preuzimanje stranice; ostalo posle (fetch).
   e.waitUntil(self.clients.claim());
+});
+// v1.95: dodir na obaveštenje → otvori MARLI (ili već otvoren prozor) na tom mestu
+self.addEventListener("notificationclick", e => {
+  e.notification.close();
+  const href = (e.notification.data && e.notification.data.href) || "";
+  e.waitUntil((async () => {
+    const all = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    const c = all[0];
+    if (c) { await c.focus(); c.postMessage({ type: "marli-open", href }); return; }
+    await self.clients.openWindow("./" + href);
+  })());
 });
 self.addEventListener("fetch", e => {
   if (e.request.method !== "GET") return;
