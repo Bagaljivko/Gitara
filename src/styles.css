@@ -2634,6 +2634,9 @@ a.ds-it { text-decoration: none; }
   body.desk-shell .dsh-bar .nt-bell { margin-left: 4px; }
   body.desk-shell .drive-banner { left: calc(var(--side-w) + 12px); }
   body.desk-shell .pq-pill { left: calc(var(--side-w) + 24px); }
+  /* v1.98.1: trake preko cele širine počinju desno od bočne trake */
+  body.desk-shell .pr-bar { left: var(--side-w); padding-left: max(32px, calc((100vw - var(--side-w) - 1160px) / 2)); padding-right: max(32px, calc((100vw - var(--side-w) - 1160px) / 2)); }
+  body.desk-shell .update-bar, body.desk-shell .in-bar { left: calc(var(--side-w) + 12px); }
 }
 /* v1.98: tablet (i veći ekran na dodir) — lupa − 🔍 + i na mirnom ekranu pesme */
 @media (min-width: 700px) {

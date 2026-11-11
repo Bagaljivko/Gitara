@@ -5,6 +5,9 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '1.98.1', date: '2026-11-11', items: [
+    { i: '🖥', sr: ['Računar: donje trake ne idu ispod bočne trake', 'Traka sa „Počni“ u vežbama, „Osveži“ i poziv za instalaciju sada počinju desno od bočne trake — opis vežbe se više ne seče.'], en: ['Computer: bottom bars no longer go under the side bar', 'The “Start” bar in practice, “Refresh” and the install prompt now start to the right of the side bar — the exercise summary is no longer cut off.'] },
+  ] },
   { v: '1.98', date: '2026-11-11', items: [
     { i: '🖥', sr: ['Računar: bočna traka i dugme nazad', 'Delovi aplikacije su levo, uvek jednim klikom. Gore: ‹ › nazad i napred i putanja (Pesme › Subota u klubu › Lane moje) — klik na deo putanje vraća tamo. Na pesmi se traka skupi u ikone. Važno za instaliranu aplikaciju na Windows-u, gde nema dugmeta nazad.'], en: ['Computer: side bar and back button', 'App sections are on the left, always one click away. At the top: ‹ › back and forward and the path (Songs › Saturday gig › Lane moje) — click part of the path to go there. On a song the bar shrinks to icons. Important for the installed app on Windows, which has no back button.'] },
     { i: '⌨️', sr: ['Esc, Alt + ← i naslov prozora', 'Esc ili Backspace vraća korak nazad sa pesme ili set liste (kad nije otvoren prozorčić); Alt + ← / → i bočni tasteri miša takođe. Naslov prozora pokazuje gde si.'], en: ['Esc, Alt + ← and window title', 'Esc or Backspace goes one step back from a song or set list (when no dialog is open); so do Alt + ← / → and the mouse side buttons. The window title shows where you are.'] },
