@@ -2935,3 +2935,13 @@ body.nastava-teacher .nav a.nav-teach { display: none !important; }
 .song-chips.fit3 .sc-chip small { font-size: .72rem; }
 /* „Svirano · Vežbano“: tiha linija ispod „Vežbaj“ umesto posebne kartice */
 .song-view.calm .st-line { background: none; border: 0; padding: 0 0 0 25px; margin: -4px 0 10px; border-radius: 0; font-size: .78rem; }
+/* v2.1.1: telefon položeno i tablet (dodir): bez kolone hvatova — ceo prostor tekstu, veća slova.
+   Hvat se i dalje vidi dodirom na akord u tekstu. Računar (miš) zadržava kolonu. */
+@media (min-width: 700px) and (pointer: coarse) {
+  #sBody { grid-template-columns: minmax(0, 1fr); }
+  #sBody > .diag-col, #sBody > .diag-col:not(:empty) { display: none; }
+  .song-view { --lyr-base: 1.42rem; }
+}
+@media (min-width: 1000px) and (pointer: coarse) {
+  .song-view { --lyr-base: 1.6rem; }
+}
