@@ -64,6 +64,7 @@ export function initDeskShell() {
   const app = document.getElementById('app'); let q = 0;
   if (app) new MutationObserver(() => { cancelAnimationFrame(q); q = requestAnimationFrame(paint); }).observe(app, { childList: true });
   import('./i18n.js').then((m) => m.onLangChange?.(() => { bar.querySelector('[data-dsh="back"]').setAttribute('aria-label', t('ds.back')); paint(); })).catch(() => {});
-  import('./deskTuner.js').then((m) => m.initDeskTuner()).catch(() => {}); // v1.99.4: Tuner u dve kartice (čipovi u zaglavlju)
+  import('./deskTuner.js').then((m) => m.initDeskTuner()).catch(() => {});
+  import('./deskChords.js').then((m) => m.initDeskChords()).catch(() => {}); // v1.99.5: Akordi u karticama // v1.99.4: Tuner u dve kartice (čipovi u zaglavlju)
   paint();
 }

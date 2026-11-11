@@ -5,6 +5,9 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '1.99.5', date: '2026-11-11', items: [
+    { i: '▦', sr: ['Računar: Akordi u karticama', 'Umesto trake: četiri kartice (Prepoznavanje, Samo sviraj, Rečnik, Ritam) sa ikonicom i jednim redom opisa. Svaki deo koristi celu širinu — npr. u Rečniku su tonovi i vrste akorda levo, hvat desno, bez skrolovanja. Sve radi isto kao do sada.'], en: ['Computer: Chords as cards', 'Instead of a strip: four cards (Recognize, Just play, Dictionary, Rhythm) with an icon and a one-line description. Each part uses the full width — e.g. in Dictionary the notes and chord types are on the left, the shape on the right, no scrolling. Everything works as before.'] },
+  ] },
   { v: '1.99.4', date: '2026-11-11', items: [
     { i: '🎸', sr: ['Računar: novi izgled Tunera', 'Merač i nota su veliki, u svojoj kartici levo; glava gitare je cela, desno. „Pokreni tuner“ je samo preko merača — gitara ostaje svetla. Štimovanje i A4 su gore desno, dodir ih menja. Tuner sluša i radi isto kao do sada.'], en: ['Computer: new Tuner look', 'The meter and note are big, in their own card on the left; the whole guitar headstock is on the right. “Start tuner” covers only the meter — the guitar stays bright. Tuning and A4 are at the top right, tap to change. The tuner listens and works exactly as before.'] },
   ] },

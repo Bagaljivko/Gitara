@@ -2706,3 +2706,41 @@ a.ds-it { text-decoration: none; }
   body.desk-shell .tuner-head .dtu-chip { cursor: pointer; font-family: inherit; }
   body.desk-shell .tuner-head .dtu-chip:hover { border-color: var(--accent); color: var(--text); }
 }
+
+/* v1.99.5: računar — Akordi: četiri kartice (ikonica + opis) umesto trake; svaki režim u dve kolone.
+   Samo raspored; prepoznavanje, slobodno sviranje, rečnik i ritam rade isto. Telefon nepromenjen. */
+@media (min-width: 1100px) and (hover: hover) and (pointer: fine) {
+  body.desk-shell .chordrec-view { max-width: 1180px; margin: 0 auto; padding: 18px 8px 24px; }
+  body.desk-shell .chordrec-view > .view-head { display: flex; align-items: baseline; justify-content: flex-start; gap: 12px; margin: 0 0 16px; }
+  body.desk-shell .chordrec-view > .view-head h1 { color: var(--text) !important; -webkit-text-fill-color: currentColor; background: none; font-size: 1.9rem; margin: 0; }
+  body.desk-shell .chordrec-view .dch-sub { color: var(--muted); font-size: .95rem; }
+  body.desk-shell .chordrec-view > .seg-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; background: none; border: 0; padding: 0; margin-bottom: 20px; height: auto; }
+  body.desk-shell .chordrec-view > .seg-tabs > button { display: grid; grid-template-columns: 44px 1fr; grid-template-rows: auto auto; column-gap: 12px; align-items: center; text-align: left; padding: 14px 16px; min-height: 80px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); color: var(--text); font-size: 1rem; font-weight: 800; position: relative; white-space: normal; overflow: visible; }
+  body.desk-shell .chordrec-view > .seg-tabs > button.active { border-color: var(--accent); background: linear-gradient(180deg, rgba(245,165,36,.12), var(--surface)); box-shadow: none; }
+  body.desk-shell .chordrec-view > .seg-tabs > button:hover:not(.active) { border-color: #3a3d44; }
+  body.desk-shell .seg-tabs .dch-ic { grid-row: 1 / 3; width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; font-size: 20px; background: var(--surface-2); }
+  body.desk-shell .seg-tabs .dch-d { grid-column: 2; font-weight: 500; font-size: .8rem; color: var(--muted); line-height: 1.3; }
+  body.desk-shell .seg-tabs .beta-dot { position: absolute; top: 12px; right: 12px; }
+  /* Prepoznavanje */
+  body.desk-shell #crPane:not([hidden]) { display: grid; grid-template-columns: 1.1fr 1fr; gap: 0 22px; align-items: start; }
+  body.desk-shell #crPane > * { grid-column: 2; }
+  body.desk-shell #crPane > .cr-result { grid-column: 1; grid-row: 1 / 7; min-height: 520px; margin: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  body.desk-shell #crPane .cr-name { font-size: 6rem; }
+  body.desk-shell #crPane > #crBtn { width: auto; justify-self: start; padding: 0 40px; }
+  body.desk-shell #crPane > p.muted { margin-top: 0; }
+  /* Samo sviraj */
+  body.desk-shell .fp-pane { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto auto 1fr; gap: 0 22px; position: relative; }
+  body.desk-shell .fp-pane::before, body.desk-shell .fp-pane::after { z-index: 0; }
+  body.desk-shell .fp-pane > * { z-index: 1; }
+  body.desk-shell .fp-pane::before { content: ''; grid-column: 1; grid-row: 1 / 4; background: linear-gradient(160deg, rgba(90,169,255,.10), var(--surface) 60%); border: 1px solid var(--line); border-radius: 18px; }
+  body.desk-shell .fp-pane::after { content: ''; grid-column: 2; grid-row: 1 / 4; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; }
+  body.desk-shell .fp-pane > p.muted { grid-column: 1; grid-row: 1; padding: 26px 28px 8px; margin: 0; font-size: 1.05rem; color: var(--text); position: relative; }
+  body.desk-shell .fp-pane > .fp-go { grid-column: 1; grid-row: 2; justify-self: start; width: auto; margin: 10px 28px 28px; padding: 0 36px; position: relative; }
+  body.desk-shell .fp-pane > .fp-h { grid-column: 2; grid-row: 1; padding: 18px 20px 6px; margin: 0; position: relative; }
+  body.desk-shell .fp-pane > .fp-recs { grid-column: 2; grid-row: 2 / 4; padding: 0 12px 12px; margin: 0; position: relative; }
+  /* Rečnik */
+  body.desk-shell #dictPane:not([hidden]) { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 22px; align-items: start; }
+  body.desk-shell #dictPane > * { grid-column: 1; margin: 0; }
+  body.desk-shell #dictPane > .dict-roots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  body.desk-shell #dictPane > .dict-card { grid-column: 2; grid-row: 1 / 5; margin: 0; padding: 22px; }
+}
