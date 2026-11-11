@@ -1945,6 +1945,8 @@ const sr = {
   'dict.notes': 'tonovi',
   'dict.approx': 'približan hvat',
   'tuning.label': 'Štimovanje',
+  'dtu.sub': "Odsviraj žicu — MARLI sam prepozna koju.",
+  'dtu.change': "Promeni štimovanje ili A4",
   'tuning.pick': 'Izaberi štimovanje. Oznake na ključevima i referentni tonovi se menjaju.',
   'tuning.standard': 'Standardno',
   'tuning.dropD': 'Drop D',

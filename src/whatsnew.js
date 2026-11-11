@@ -5,6 +5,9 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '1.99.4', date: '2026-11-11', items: [
+    { i: '🎸', sr: ['Računar: novi izgled Tunera', 'Merač i nota su veliki, u svojoj kartici levo; glava gitare je cela, desno. „Pokreni tuner“ je samo preko merača — gitara ostaje svetla. Štimovanje i A4 su gore desno, dodir ih menja. Tuner sluša i radi isto kao do sada.'], en: ['Computer: new Tuner look', 'The meter and note are big, in their own card on the left; the whole guitar headstock is on the right. “Start tuner” covers only the meter — the guitar stays bright. Tuning and A4 are at the top right, tap to change. The tuner listens and works exactly as before.'] },
+  ] },
   { v: '1.99.3', date: '2026-11-11', items: [
     { i: '🔔', sr: ['Računar: samo jedno zvonce', 'Kad se MARLI sporije pokrene, zvonce je moglo da ostane i u bočnoj traci ispod Podešavanja. Sada je uvek samo jedno — gore, pored naloga.'], en: ['Computer: just one bell', 'When MARLI started slowly, a bell could also stay in the side bar under Settings. Now there is always just one — at the top, next to the account.'] },
     { i: '🎓', sr: ['Pesme: ikonice za Nastavu', 'U bočnom delu Pesama „Od nastavnika“ i „Učenici“ imaju ikonice kao folderi i set liste.'], en: ['Songs: icons for Teaching', 'In the Songs side panel “From teacher” and “Students” have icons like folders and set lists.'] },

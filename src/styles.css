@@ -1487,7 +1487,7 @@ body.stage-mode main { padding-left: max(16px, env(safe-area-inset-left)); paddi
 .pa-b:active { background: var(--surface-2); }
 .pa-b.pa-play { width: 50px; height: 50px; background: #121316; border: 1.5px solid rgba(245, 158, 11, .7); color: #ffcc33; }
 .pa-b.pa-play svg { width: 24px; height: 24px; }
-.pa-x { appearance: none; flex: none; align-self: flex-start; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: #16181c; border: 1px solid #2a2d34; cursor: pointer; }
+.pa-x { appearance: none; flex: none; align-self: flex-start; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--surface-2); border: 1px solid #2a2d34; cursor: pointer; }
 .pa-x svg { width: 16px; height: 16px; fill: #c9ccd2; }
 body.pa-on { padding-top: calc(var(--pa-h) + env(safe-area-inset-top)); }
 body.pa-on .song-view > .topbar, body.pa-on .scroll-bar { display: none !important; }
@@ -1744,7 +1744,7 @@ body.desk-lib-mode main { max-width: none; padding-left: 0; padding-right: 0; }
 .dk-table th { text-align: left; font: 700 .7rem var(--sans); color: var(--muted); letter-spacing: .06em; text-transform: uppercase; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; user-select: none; }
 .dk-table th[data-sort] { cursor: pointer; }
 .dk-table th.asc::after { content: ' ▴'; color: var(--accent); } .dk-table th.desc::after { content: ' ▾'; color: var(--accent); }
-.dk-table td { padding: 9px 10px; border-bottom: 1px solid #16181c; white-space: nowrap; max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
+.dk-table td { padding: 9px 10px; border-bottom: 1px solid var(--surface-2); white-space: nowrap; max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
 .dk-table tr[data-id] { cursor: pointer; }
 .dk-table tr[data-id]:hover td { background: var(--surface); }
 .dk-table tr.sel td { background: rgba(245, 165, 36, .09); }
@@ -1790,7 +1790,7 @@ body.desk-lib-mode main { max-width: none; padding-left: 0; padding-right: 0; }
 .pq-bar { height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; margin: 6px 0 10px; }
 .pq-bar b { display: block; height: 100%; background: linear-gradient(90deg, #ffcc33, #f59e0b); transition: width .3s; }
 .pq-list { max-height: 50vh; overflow-y: auto; }
-.pq-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #16181c; font-size: .9rem; }
+.pq-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--surface-2); font-size: .9rem; }
 .pq-pdf { flex: none; display: inline-grid; place-items: center; width: 24px; height: 28px; border-radius: 4px; background: #3a1d1d; color: #ff8a80; font: 800 .5rem var(--sans); }
 .pq-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pq-st { flex: none; max-width: 55%; text-align: right; font-size: .78rem; font-weight: 700; }
@@ -1808,7 +1808,7 @@ body.desk-lib-mode main { max-width: none; padding-left: 0; padding-right: 0; }
 .wn-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px var(--accent); margin-left: 6px; vertical-align: middle; }
 .nav a { position: relative; }
 .nav a .wn-dot { position: absolute; top: 6px; right: calc(50% - 18px); margin: 0; }
-.wn-modal .wn-it { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid #16181c; text-align: left; }
+.wn-modal .wn-it { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--surface-2); text-align: left; }
 .wn-modal .wn-it i { flex: none; width: 30px; height: 30px; border-radius: 9px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; font-style: normal; font-weight: 800; }
 .wn-modal .wn-it b { display: block; }
 .wn-modal .wn-it span { color: var(--muted); font-size: .88rem; }
@@ -2684,4 +2684,25 @@ a.ds-it { text-decoration: none; }
   body.desk-shell .tch-dash .db { grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); }
   body.desk-shell .tch-dash .db-card:has(.db-tbl) { overflow-x: auto; }
   body.desk-shell .tch-dash .db-tbl th { white-space: normal; }
+}
+
+/* v1.99.4: računar — Tuner u dve kartice: merač levo (veliki), glava gitare desno (cela), podešavanja kao čipovi gore desno.
+   Samo raspored; tuner radi isto. Dugme „Pokreni tuner“ samo preko merača, gitara ostaje svetla. */
+@media (min-width: 1100px) and (hover: hover) and (pointer: fine) {
+  body.desk-shell .tuner-view { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); gap: 18px 22px; max-width: 1180px; margin: 0 auto; height: calc(100dvh - var(--top-h) - 36px); padding: 18px 8px 0; }
+  body.desk-shell .tuner-view > .view-head.tuner-head { grid-column: 1 / 3; grid-row: 1; display: flex; align-items: center; gap: 10px; margin: 0; }
+  body.desk-shell .tuner-head h1 { color: var(--text); font-size: 1.9rem; margin: 0 !important; flex: none; line-height: 1.2; }
+  body.desk-shell .tuner-head .dtu-sub { color: var(--muted); margin-right: auto; font-size: .95rem; padding-top: 6px; }
+  body.desk-shell .tuner-head .dtu-chip { padding: 7px 13px; border-radius: 999px; background: var(--surface-2, var(--surface-2)); border: 1px solid var(--line, var(--line)); font-weight: 650; font-size: .85rem; color: #d4d8de; white-space: nowrap; }
+  body.desk-shell .tuner-head .tuner-set { grid-column: auto; grid-row: auto; }
+  body.desk-shell .tuner-view > .nwrap { grid-column: 1; grid-row: 2; max-width: none; width: 100%; margin: 0; align-self: stretch; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #0f1013; border: 1px solid var(--line); border-radius: 20px; padding: 24px 36px; }
+  body.desk-shell .tuner-view > .nwrap > svg { width: min(100%, 560px); height: auto; }
+  body.desk-shell .nnote { font-size: 7.5rem; margin-top: 4px; }
+  body.desk-shell .ncents { font-size: 1.05rem; margin-top: 8px; }
+  body.desk-shell .tuner-view > .headstock-wrap { grid-column: 2; grid-row: 2; margin: 0; align-items: center; background: #000; border: 1px solid var(--line); border-radius: 20px; padding: 18px 10px 0; }
+  body.desk-shell .tuner-view > .mic-overlay { grid-column: 1 / 2; grid-row: 2 / 3; position: absolute; inset: 0; border-radius: 20px; background: rgba(12,13,15,.86); }
+  body.desk-shell .mic-overlay .mic-btn { width: 120px; height: 120px; }
+  body.desk-shell .mic-label { font-size: 1.15rem; }
+  body.desk-shell .tuner-head .dtu-chip { cursor: pointer; font-family: inherit; }
+  body.desk-shell .tuner-head .dtu-chip:hover { border-color: var(--accent); color: var(--text); }
 }

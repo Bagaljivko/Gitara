@@ -1909,6 +1909,8 @@ export default {
   'dict.notes': 'notes',
   'dict.approx': 'approximate shape',
   'tuning.label': 'Tuning',
+  'dtu.sub': "Play a string — MARLI recognizes which one.",
+  'dtu.change': "Change tuning or A4",
   'tuning.pick': 'Choose a tuning. The labels on the pegs and the reference tones change with it.',
   'tuning.standard': 'Standard',
   'tuning.dropD': 'Drop D',
