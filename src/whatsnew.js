@@ -5,6 +5,9 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '2.3.1', date: '2026-11-12', items: [
+    { i: 'Aa', sr: ['„Aa“ bez procenta', 'Čip za veličinu teksta na pesmi sada piše samo „Aa“. Procenat se vidi samo dok menjaš veličinu i nestaje 2 s posle poslednjeg dodira, zajedno sa trakom −/+.'], en: ['“Aa” without the percent', 'The text-size chip on a song now just says “Aa”. The percent shows only while you change the size and disappears 2 s after your last tap, together with the −/+ bar.'] },
+  ] },
   { v: '2.3.0', date: '2026-11-12', items: [
     { i: '👆', sr: ['Čipovi na pesmi rade odmah', 'Dodir na Aa, Kapo ili BPM otvara malu traku − vrednost + odmah ispod čipa: tekst (ili kapo, tempo) se menja dok tapkaš, a traka se sama skloni 2 s posle poslednjeg dodira. Ton odmah otvara krug tonaliteta, Ritam izbor ritma. ⚙ i dalje otvara sva podešavanja pesme.'], en: ['Song chips work right there', 'Tapping Aa, Capo or BPM opens a small − value + bar right under the chip: the text (or capo, tempo) changes as you tap, and the bar hides itself 2 s after your last tap. Key opens the key wheel straight away, Rhythm the rhythm picker. ⚙ still opens all song settings.'] },
   ] },

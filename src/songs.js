@@ -943,7 +943,8 @@ function barOrder() { try { const v = JSON.parse(localStorage.getItem('marli-son
 async function setBarOrder(v) { try { localStorage.setItem('marli-songbar', JSON.stringify(v)); } catch {} await settings.set('songBar', v).catch(() => {}); }
 const syncBar = () => settings.get('songBar', null).then((v) => { if (Array.isArray(v)) try { localStorage.setItem('marli-songbar', JSON.stringify(v.filter((k) => BAR_ALL.includes(k)))); } catch {} }).catch(() => {});
 syncBar(); import('./db.js').then(({ events }) => events?.addEventListener('settings-changed', (e) => { if (e.detail === 'songBar') syncBar(); })).catch(() => {}); // izmena sa drugog uređaja
-let curFitChips = null, fitResizeOn = false; // v2.1: red čipova se ponovo uklapa kad se promeni veličina ekrana
+let curFitChips = null, fitResizeOn = false;
+let chipPop = null; // v2.3: otvorena mala traka ispod čipa (jedna u isto vreme) // v2.1: red čipova se ponovo uklapa kad se promeni veličina ekrana
 export async function renderSong(root, id, nav = null) {
   let stored = await db.get(id);
   if (!stored) {
@@ -1131,7 +1132,7 @@ export async function renderSong(root, id, nav = null) {
       easy: () => (stored.recording ? '' : `<button class="sc-chip sc-easy${easyActive() ? ' on' : ''}" data-sca="easy" aria-pressed="${easyActive()}">${esc(t('sug.easyBtn'))}</button>`),
       tempo: () => (bpm ? `<button class="sc-chip" data-sheet="tempo">${bpm} <small>BPM</small></button>` : ''),
       rhythm: () => (rh ? `<button class="sc-chip sc-rh" data-sheet="rhythm">♪ ${esc(rh)}</button>` : sugStrum() ? `<button class="sc-chip sc-rh sc-new" data-sheet="rhythm">♪ ${esc(t('ss.rhythmQ'))}</button>` : ''),
-      size: () => `<button class="sc-chip" data-sheet="size">Aa <b>${Math.round(zoom * 100)}%</b></button>`,
+      size: () => `<button class="sc-chip sc-size" data-sheet="size" aria-label="${esc(t('ss.size'))} ${Math.round(zoom * 100)}%">Aa${chipPop && chipPop.k === 'size' ? ` <b>${Math.round(zoom * 100)}%</b>` : ''}</button>`, // v2.3.1: % samo dok se menja
       chords: () => (!stored.recording && stored.type !== 'tab' ? `<button class="sc-chip" data-sca="chords">✎ ${esc(t('ss.chords'))}</button>` : ''),
       practice: () => (root.querySelector('.sp-line') ? `<button class="sc-chip" data-sca="practice">▶ ${esc(t('sp.short'))}</button>` : ''),
     };
@@ -1901,8 +1902,7 @@ export async function renderSong(root, id, nav = null) {
     openSongSheet();
   });
   // mala traka ispod čipa: −/+ odmah menja (tekst se vidi uživo); zatvara se 2 s posle poslednjeg dodira, dodirom van nje ili skrolom
-  let chipPop = null;
-  function closeChipPop() { if (!chipPop) return; clearTimeout(chipPop.t); chipPop.el.remove(); document.removeEventListener('pointerdown', chipPop.out, true); removeEventListener('scroll', chipPop.out, true); $('sChips')?.querySelectorAll('.sc-active').forEach((c) => c.classList.remove('sc-active')); chipPop = null; }
+  function closeChipPop() { if (!chipPop) return; const k = chipPop.k; clearTimeout(chipPop.t); chipPop.el.remove(); document.removeEventListener('pointerdown', chipPop.out, true); removeEventListener('scroll', chipPop.out, true); $('sChips')?.querySelectorAll('.sc-active').forEach((c) => c.classList.remove('sc-active')); chipPop = null; if (k === 'size') drawChips(); } // „Aa“ bez % kad se traka skloni
   function openChipPop(k, chip) {
     const same = chipPop && chipPop.k === k; closeChipPop(); if (same) return;
     const el = document.createElement('div'); el.className = 'chip-pop'; el.setAttribute('role', 'group');
@@ -1916,6 +1916,7 @@ export async function renderSong(root, id, nav = null) {
     const arm = () => { clearTimeout(chipPop.t); chipPop.t = setTimeout(closeChipPop, 2000); };
     const out = (ev) => { if (ev.type === 'scroll' || !el.contains(ev.target)) { if (ev.type === 'pointerdown' && chip.contains(ev.target)) return; closeChipPop(); } };
     chipPop = { k, el, t: 0, out };
+    if (k === 'size') { drawChips(); const c2 = $('sChips')?.querySelector('[data-sheet="size"]'); if (c2) { chip = c2; c2.classList.add('sc-active'); place(); } }
     el.addEventListener('click', async (ev) => {
       const b = ev.target.closest('[data-cp]'); if (!b) return;
       const d = +b.dataset.cp; arm();
