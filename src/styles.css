@@ -1527,7 +1527,7 @@ body.pa-on .zoom-wrap { top: calc(var(--pa-h) + env(safe-area-inset-top) + 8px);
 .sp-line .sp-stars { color: #f5b31f; font-size: .78rem; letter-spacing: 1px; }
 .sp-line .sp-stars i { font-style: normal; color: #3a3d44; } .sp-line .sp-stars i.on { color: #f5b31f; }
 .sp-line .sp-num { color: #9ea2aa; font-weight: 600; font-size: .84rem; white-space: nowrap; }
-.sp-line .sp-go { width: 18px; height: 18px; fill: #80848c; margin-left: auto; flex: none; }
+.sp-line .sp-go { width: 18px; height: 18px; fill: #80848c; margin-left: -3px; flex: none; }
 
 /* Tonalitet / kapodaster / tempo: jedan tanak red */
 .ctl-slim { display: grid; grid-template-columns: 1.12fr 1fr 1fr; height: 42px; margin: 8px 0; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); overflow: hidden; }
@@ -2302,7 +2302,7 @@ a.ds-it { text-decoration: none; }
 .pl-it b { display: block; font-size: .88rem; padding-right: 54px; }
 .pl-it small { display: block; color: var(--muted); font-size: .76rem; margin-top: 2px; }
 .pl-it .pl-st { position: absolute; right: 9px; top: 9px; }
-.pl-it.drag { opacity: .5; }
+.pl-it.drag { opacity: .85; background: var(--surface-2); border-radius: 14px; box-shadow: 0 10px 26px rgba(0, 0, 0, .6); outline: 1.5px solid rgba(245, 165, 36, .75); } /* v2.2: isti izgled kao zajedničko prevlačenje */
 .pl-st { display: inline-block; font-size: .72rem; font-weight: 800; padding: 1px 8px; border-radius: 999px; background: var(--surface-2); color: var(--muted); white-space: nowrap; }
 .pl-st.ok { background: rgba(126, 224, 138, .15); color: #7ee08a; }
 .pl-st.mid { background: var(--accent-soft); color: var(--accent); }
@@ -2945,3 +2945,26 @@ body.nastava-teacher .nav a.nav-teach { display: none !important; }
 @media (min-width: 1000px) and (pointer: coarse) {
   .song-view { --lyr-base: 1.6rem; }
 }
+
+/* v2.2: zajedničko prevlačenje (dragList.js) — isti izgled u svim listama */
+.dl-grip { flex: none; display: grid; place-items: center; width: 34px; min-height: 40px; margin-left: -6px; color: #80848c; cursor: grab; touch-action: none; -webkit-user-select: none; user-select: none; border-radius: 10px; }
+.dl-grip svg { width: 20px; height: 20px; fill: currentColor; }
+.dl-grip:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.dl-on { -webkit-user-select: none; user-select: none; }
+.dl-on .dl-grip, .dl-lift .dl-grip { cursor: grabbing; }
+.dl-lift { position: relative; z-index: 3; background: var(--surface-2) !important; border-radius: 14px; box-shadow: 0 10px 26px rgba(0, 0, 0, .6); outline: 1.5px solid rgba(245, 165, 36, .75); transform: scale(1.02); transition: transform .12s, box-shadow .12s; }
+.dl-lift .dl-grip { color: var(--accent); }
+/* Podešavanja pesme: dva odeljka */
+.ss-sep { display: flex; align-items: baseline; gap: 8px; margin: 14px 0 4px; color: var(--muted); font: 800 .72rem var(--sans); text-transform: uppercase; letter-spacing: .12em; }
+.ss-sep:first-child { margin-top: 4px; }
+.ss-sep small { text-transform: none; letter-spacing: 0; font-weight: 600; font-size: .74rem; opacity: .8; }
+.ss-item > .ss-r { padding-left: 0; }
+.ss-item > .ss-r:first-child { border-top: 1px solid var(--line); }
+.ss-sep + .ss-item > .ss-r:first-child, .ss-item.dl-lift > .ss-r { border-top-color: transparent; }
+.ss-item .ss-l { flex: 1; text-align: left; }
+.song-chips .sc-ov { display: none; }
+.sc-chip.sc-easy.on { border-color: rgba(245, 165, 36, .6); color: var(--accent); }
+/* čipovi akorda (Promena akorda, Ritam i promene): mala ručica levo */
+.cs-cb.dl-it { position: relative; padding-left: 20px; }
+.cs-cb .dl-grip { position: absolute; left: 1px; top: 0; bottom: 0; width: 18px; min-height: 0; margin: 0; }
+.cs-cb .dl-grip svg { width: 14px; height: 14px; }

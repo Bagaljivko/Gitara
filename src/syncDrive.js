@@ -28,8 +28,9 @@ export function createDrive(getToken, { fetchFn = (...a) => fetch(...a), tries =
       if (res.status === 403 && /storageQuotaExceeded|quotaExceeded/i.test(reason + msg) && !/rate/i.test(reason)) throw new SyncError('quota', 'QUOTA');
       if (res.status === 403 && /insufficient|appNotAuthorized|scope|forbidden|domainPolicy/i.test(reason + msg)) throw new SyncError('scope', 'AUTH');
       if (res.status === 429 || res.status >= 500 || (res.status === 403 && /rate|limit/i.test(reason + msg))) {
-        if (attempt + 1 >= tries) throw new SyncError(`busy ${res.status} ${reason}`.trim(), 'RETRY'); // v1.99.2: tačan Google razlog za dijagnostiku
-        await sleep(baseDelay * 2 ** attempt * (0.5 + Math.random())); // rastuće čekanje + slučajni pomak
+        const rate = res.status === 429 || res.status === 403; // v2.2: „uspori“ — samo jedan novi pokušaj (posle 2–4 s), pa čeka raspored (~1 min), ne zasipa Google
+        if (attempt + 1 >= (rate ? Math.min(2, tries) : tries)) throw new SyncError(`busy ${res.status} ${reason}`.trim(), 'RETRY'); // v1.99.2: tačan Google razlog za dijagnostiku
+        await sleep((rate ? baseDelay * 2.5 : baseDelay) * 2 ** attempt * (0.5 + Math.random())); // rastuće čekanje + slučajni pomak
         continue;
       }
       if ((res.status === 400 || res.status === 404 || res.status === 410) && /pageToken|token/i.test(msg + reason) && /changes/.test(url)) throw new SyncError('token', 'TOKEN');

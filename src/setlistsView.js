@@ -1,5 +1,6 @@
 // Setliste (spisak setlista, detalj sa prevlačenjem za redosled) i dijalozi za foldere.
 import { songs as db } from './db.js';
+import { dragList } from './dragList.js';
 import { setWakeZone } from './wakelock.js';
 import { esc, toast, dialog, confirmDialog } from './ui.js';
 import { t, songsCount } from './i18n.js';
@@ -211,44 +212,11 @@ export async function renderSetlist(root, id) {
       if (Number.isInteger(i)) { e.preventDefault(); ids.splice(i, 1); draw(); $('slList').querySelector(`[data-move="${Math.min(i, ids.length - 1)}"]`)?.focus(); await save(); }
       return;
     }
-    if (!h || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
-    e.preventDefault();
-    const i = +h.dataset.move, k = e.key === 'ArrowUp' ? i - 1 : i + 1;
-    if (k < 0 || k >= ids.length) return;
-    [ids[i], ids[k]] = [ids[k], ids[i]];
-    draw();
-    $('slList').querySelector(`[data-move="${k}"]`)?.focus();
-    await save();
+    void h; // ↑/↓ na ručici (ili Alt + ↑/↓ na redu) rešava dragList
   });
 
-  // Prevlačenje za promenu redosleda (dodir ili miš, za ručicu ⋮⋮)
-  let drag = null;
-  $('slList').addEventListener('pointerdown', (e) => {
-    const h = e.target.closest('.drag');
-    if (!h) return;
-    const li = h.closest('.sl-item');
-    e.preventDefault();
-    drag = { li, pointerId: e.pointerId };
-    li.classList.add('dragging');
-    $('slList').setPointerCapture(e.pointerId);
-  });
-  $('slList').addEventListener('pointermove', (e) => {
-    if (!drag) return;
-    const items = [...$('slList').querySelectorAll('.sl-item:not(.dragging)')];
-    const after = items.find((it) => { const r = it.getBoundingClientRect(); return e.clientY < r.top + r.height / 2; });
-    // pomeri samo ako se mesto promenilo (inače bez nepotrebnog preračunavanja rasporeda)
-    if (after ? drag.li.nextElementSibling !== after : drag.li !== $('slList').lastElementChild) { if (after) $('slList').insertBefore(drag.li, after); else $('slList').appendChild(drag.li); }
-  });
-  const endDrag = async () => {
-    if (!drag) return;
-    drag.li.classList.remove('dragging');
-    drag = null;
-    ids = [...$('slList').querySelectorAll('.sl-item')].map((li) => li.dataset.id);
-    draw();
-    await save();
-  };
-  $('slList').addEventListener('pointerup', endDrag);
-  $('slList').addEventListener('pointercancel', endDrag);
+  // Prevlačenje za promenu redosleda (dodir ili miš, za ručicu ⋮⋮; Alt + ↑/↓ tastaturom) — v2.2: zajedničko za sve liste
+  dragList($('slList'), { item: '.sl-item', handle: '.drag', onDrop: async (els) => { ids = els.map((li) => li.dataset.id); draw(); await save(); } });
 
   $('slAdd').addEventListener('click', async () => {
     const items = [...all].sort((a, b) => srCompare(a.title, b.title)).map((s) => ({ value: s.id, label: s.title, sub: s.artist }));

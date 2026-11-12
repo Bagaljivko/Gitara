@@ -26,8 +26,7 @@ const GAME_ICON = '<svg class="sp-line-ico" viewBox="0 0 24 24" aria-hidden="tru
 
 /** v1.62: jedan tanak red ispod izvođača (umesto velike kartice): ikonica igre, „Vežbaj“, zvezdice i „2 od 4 dela“. */
 export function practiceLineHTML(id) {
-  return `<a class="sp-line" href="#/vezbe/pesma/${encodeURIComponent(id)}" aria-label="${esc(t('sp.title'))}">${GAME_ICON}<b>${t('sp.short')}</b><span class="sp-meta"></span>
-    <svg class="sp-go" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.6 7.4 10 6l6 6-6 6-1.4-1.4L13.2 12z"/></svg></a>`;
+  return `<a class="sp-line" href="#/vezbe/pesma/${encodeURIComponent(id)}" aria-label="${esc(t('sp.title'))}">${GAME_ICON}<b>${t('sp.short')}</b><svg class="sp-go" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.6 7.4 10 6l6 6-6 6-1.4-1.4L13.2 12z"/></svg><span class="sp-meta"></span></a>`; // v2.2: strelica odmah uz „Vežbaj“
 }
 /** Napredak: { good, total, played } → zvezdice i „2 od 4 dela“; bez vežbanja ostaje NOVO. */
 export function fillPractice(card, { good = 0, total = 0, played = false, done = false } = {}) {

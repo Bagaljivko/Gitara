@@ -17,7 +17,8 @@ import { mergePractice, mergeSkale, mergeActivity } from './syncMerge.js';
 export const SCHEMA = 1;
 export const TOMB_DAYS = 90;
 export const SNAPSHOT = 'snapshot';
-const PAR = 4;                 // istovremeni zahtevi
+const PAR = 4;                 // istovremeni zahtevi (čitanje)
+const PAR_W = 2, W_GAP = 300;  // v2.2: slanje — najviše 2 odjednom i bar 0,3 s razmaka (Google Drive ograničava upise)
 const SNAP_EVERY = 120;        // posle toliko pojedinačnih fajlova — nov snapshot (novi uređaj brže kreće)
 
 // ---------------- Hibridni logički sat ----------------
@@ -53,6 +54,9 @@ const MERGE = {
 const mergeFor = (key) => MERGE[key] || null;
 
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+let wLast = 0;
+/** Upisi na Drive: najviše PAR_W odjednom, sa razmakom između početaka. */
+async function wpool(list, fn) { let i = 0; await Promise.all(Array.from({ length: Math.min(PAR_W, list.length) }, async () => { while (i < list.length) { const x = list[i++]; const w = wLast + W_GAP - Date.now(); wLast = Math.max(Date.now(), wLast + W_GAP); if (w > 0) await new Promise((r) => setTimeout(r, w)); await fn(x); } })); }
 async function pool(list, fn) { const out = []; let i = 0; await Promise.all(Array.from({ length: Math.min(PAR, list.length) }, async () => { while (i < list.length) { const k = i++; out[k] = await fn(list[k], k); } })); return out; }
 
 export class SyncError extends Error { constructor(msg, code) { super(msg); this.code = code; } }
@@ -261,7 +265,7 @@ export function createEngine(local, remote, { node, ask = async () => true, onSt
       return dirty.length;
     }
     let sent = 0;
-    await pool(dirty, async ([k, m]) => {
+    await wpool(dirty, async ([k, m]) => {
       const p = await payloadOf(k, m);
       const bytes = await gzip(p);
       const x = await sha(bytes);
@@ -312,7 +316,7 @@ export function createEngine(local, remote, { node, ask = async () => true, onSt
     const re = (await local.state('refetch')) || [];
     if (re.length) { await local.setState('refetch', []); await fetchApplyList(re.map((fileId) => ({ fileId, props: null }))).catch(() => {}); }
     const pulled = await pull();
-    if (stale.length) { const ids = stale.splice(0); await pool(ids, (id) => remote.del(id).catch(() => {})); }
+    if (stale.length) { const ids = stale.splice(0); await wpool(ids, (id) => remote.del(id).catch(() => {})); }
     const sent = await push();
     if (Math.random() < 0.05) await cleanTombs();
     await saveClock();

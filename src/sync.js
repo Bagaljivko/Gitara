@@ -95,7 +95,9 @@ async function updateApp() {
 
 // ---------------- Raspored (prilagodljivo osvežavanje) ----------------
 let timer = 0, failures = 0, lastInput = Date.now(), lastRun = 0;
-const ACTIVE = 20000, IDLE = 90000;
+const ACTIVE = 60000, IDLE = 180000; // v2.2: ređe provere (Google Drive ograničava broj zahteva)
+const GAP = 30000, SOON = 8000; // posle izmene: najranije 8 s, a između dva kruga najmanje 30 s (više izmena = jedno slanje)
+let rateHit = false;
 function delay() {
   const idle = Date.now() - lastInput > 120000;
   let d = idle ? IDLE : ACTIVE;
@@ -110,6 +112,8 @@ function schedule(ms) {
   if (document.hidden && ms == null) return; // sakrivena aplikacija: pauza (nastavlja se kad se vrati)
   timer = setTimeout(runNow, ms == null ? delay() : ms);
 }
+/** Izmena ili poruka sa druge kartice: pošalji uskoro, ali ne češće od jednom u 30 s. */
+function scheduleSoon() { const T = globalThis.__marliTest || {}, soon = T.syncSoon ?? SOON, gap = T.syncGap ?? GAP; schedule(Math.max(soon, lastRun + gap - Date.now())); } // testovi mogu da skrate
 function runNow() {
   clearTimeout(timer);
   if (!st.on || !st.leader) return;
@@ -145,7 +149,8 @@ function done(m) {
     else if (m.code === 'QUOTA') setStatus('quota'); // Drive pun: sve ostaje ovde, status se pokaže jednom
     else setStatus(navigator.onLine === false ? 'offline' : 'error');
     if (m.code !== 'OFFLINE' && m.code !== 'PAUSED') { const e = `${m.code || ''} ${m.msg || ''}`.trim().slice(0, 120); if (e !== st.err) { st.err = e; import('./drive.js').then((d) => d.logAuth('sinhronizacija: greška', e)).catch(() => {}); } } // v1.99.2
-    failures = m.code === 'QUOTA' ? Math.max(failures + 1, 4) : failures + 1;
+    rateHit = /rate|busy|429/i.test(m.msg || '');
+    failures = m.code === 'QUOTA' ? Math.max(failures + 1, 4) : rateHit ? Math.max(failures + 1, 3) : failures + 1; // v2.2: Google „uspori“ → prvi novi pokušaj tek posle ~1 min
   }
   schedule();
 }
@@ -157,7 +162,7 @@ function localChange(e) {
   if (e.type === 'settings-changed' && !SYNCED_SETTING(e.detail)) return; // podešavanja samo ovog uređaja (token, keš…)
   clearTimeout(pendT);
   pendT = setTimeout(() => syncMeta.pending().then((n) => { st.pending = n; emit(); }).catch(() => {}), 300);
-  if (st.leader) { if (st.status !== 'connect') schedule(2500); }
+  if (st.leader) { if (st.status !== 'connect') scheduleSoon(); }
   else bc && bc.postMessage({ t: 'dirty' });
   if (navigator.onLine === false) setStatus('offline');
 }
@@ -228,7 +233,7 @@ bc && (bc.onmessage = (e) => {
   const m = e.data || {};
   if (m.t === 'applied') applied(m.keys || []);
   else if (m.t === 'status' && !st.leader) { st.status = m.s; st.last = m.last || st.last; emit(); }
-  else if (m.t === 'dirty' && st.leader) schedule(2500);
+  else if (m.t === 'dirty' && st.leader) scheduleSoon();
   else if (m.t === 'cfg') loadCfg().then(() => { if (st.on && !started) begin(); emit(); });
   else if (m.t === 'syncNow' && st.leader) runNow();
 });
@@ -270,7 +275,7 @@ function begin() {
   const wake = () => {
     if (document.hidden) return;
     if (!st.leader) { if (Date.now() - lastWake > 5000) { lastWake = Date.now(); bc && bc.postMessage({ t: 'syncNow' }); } return; }
-    if (Date.now() - lastRun > 5000) runNow(); else schedule();
+    if (Date.now() - lastRun > GAP) runNow(); else scheduleSoon();
   };
   document.addEventListener('visibilitychange', () => { if (document.hidden) clearTimeout(timer); else wake(); });
   addEventListener('focus', wake);

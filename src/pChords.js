@@ -8,6 +8,7 @@ import { dn } from './naming.js';
 import { esc } from './ui.js';
 import { trackGame, chordItem, chordFingers } from './practiceTrack.js';
 import * as CS from './chordSeq.js';
+import { dragList, gripHTML } from './dragList.js';
 
 export const PAIRS = [['Em', 'G'], ['G', 'C'], ['C', 'Am'], ['D', 'A'], ['G', 'D'], ['Am', 'E'], ['C', 'F']];
 const ROUND_MS = 60000;
@@ -53,7 +54,7 @@ export function createGame(api) {
     const h = CS.hardest(seq);
     const allLen = seq.every((x) => x.b === seq[0].b) ? seq[0].b : 0;
     api.opts.innerHTML = `<div class="pr-optlabel cs-head"><span>${t('cs.order')}</span><span class="muted small">${t('cs.tapToEdit')}</span></div>
-      <div class="cs-seq">${seq.map((x, i) => `<button type="button" class="cs-cb${h && x.c === h.b && seq[(i - 1 + seq.length) % seq.length].c === h.a ? ' hard' : ''}" data-i="${i}"><b>${esc(dn(x.c))}</b><small>${esc(CS.lenLabel(x.b))}</small></button>`).join('')}${seq.length < CS.MAX_SEQ ? `<button type="button" class="cs-cb add" data-add="1">+ ${t('cs.chord')}</button>` : ''}</div>
+      <div class="cs-seq">${seq.map((x, i) => `<button type="button" class="cs-cb dl-it${h && x.c === h.b && seq[(i - 1 + seq.length) % seq.length].c === h.a ? ' hard' : ''}" data-i="${i}">${gripHTML(esc(t('dl.drag')))}<b>${esc(dn(x.c))}</b><small>${esc(CS.lenLabel(x.b))}</small></button>`).join('')}${seq.length < CS.MAX_SEQ ? `<button type="button" class="cs-cb add" data-add="1">+ ${t('cs.chord')}</button>` : ''}</div>
       ${seq.length <= 4 ? `<div class="pc-pair cs-dg">${[...new Set(seq.map((x) => x.c))].slice(0, 4).map((c) => `<div class="pc-ch target"><div class="chord-big">${chordSVG(c, { colorFingers: true })}</div></div>`).join('')}</div>` : ''}
       <div class="pr-optlabel">${t('cs.ready')}</div>
       <div class="pr-chips">${CS.PRESETS.map((pr) => `<button class="chip${pkey(pr) === key(seq) ? ' active' : ''}" data-pr="${pr.id}">${esc(CS.presetLabel(pr))}</button>`).join('')}</div>
@@ -64,6 +65,9 @@ export function createGame(api) {
         : `<div class="pr-chips">${RHYTHMS.map((id) => `<button class="chip${rhythm === id ? ' active' : ''}" data-rh="${id}">${esc(rhythmLabel(t, id))}</button>`).join('')}</div>`}
       ${h ? `<div class="cs-hard"><b>${esc(t('cs.hardest', { a: dn(h.a), b: dn(h.b) }))}</b><small>${esc(CS.tipOf(h))}</small></div>` : ''}
       <div class="cs-acts"><button type="button" class="btn small" data-act="song">♪ ${t('ex.fromSong')}</button><button type="button" class="btn small" data-act="save">💾 ${t('ex.saveBtn')}</button>${teacher ? `<button type="button" class="btn small" data-act="send">↗ ${t('ex.send')}</button>` : ''}</div>`;
+    // v2.2: redosled akorda — prevuci ≡ (isto kao u svim listama)
+    const box = api.opts.querySelector('.cs-seq');
+    if (box) dragList(box, { item: '.cs-cb[data-i]', grid: true, onDrop: (els) => { const q = els.map((el) => seq[+el.dataset.i]).filter(Boolean); if (q.length === seq.length && q.some((x, k) => x !== seq[k])) { seq = q; save(); } drawOpts(); } });
   }
   let teacher = false;
   drawOpts();

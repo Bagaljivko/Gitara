@@ -14,6 +14,7 @@ import { getVoicings } from './chords.js';
 import { trackGame, chordItem, chordFingers } from './practiceTrack.js';
 import { checkChord } from './pChords.js';
 import * as CS from './chordSeq.js';
+import { dragList, gripHTML } from './dragList.js';
 import { settings, events } from './db.js';
 import { t as tt } from './i18n.js';
 
@@ -240,7 +241,7 @@ export function createGame(api) {
     const sent = all.filter((x) => x.src === 'sent' || x.src === 'me');
     return `<div class="rx-card rx-mk">
       <div class="pr-optlabel">${t('rp.mk.chords')}</div>
-      <div class="cs-seq rx-chs">${d.chords.map((x, i) => { const n = getVoicings(x.c).length; return `<button type="button" class="cs-cb" data-ch="${i}"><b>${esc(dn(x.c))}</b><small>${esc(t('rp.shape', { n: (x.v || 0) + 1, of: n }))} ▾</small></button>`; }).join('')}${d.chords.length < 8 ? `<button type="button" class="cs-cb add" data-add="1">+ ${t('cs.chord')}</button>` : ''}</div>
+      <div class="cs-seq rx-chs">${d.chords.map((x, i) => { const n = getVoicings(x.c).length; return `<button type="button" class="cs-cb dl-it" data-ch="${i}">${gripHTML(esc(t('dl.drag')))}<b>${esc(dn(x.c))}</b><small>${esc(t('rp.shape', { n: (x.v || 0) + 1, of: n }))} ▾</small></button>`; }).join('')}${d.chords.length < 8 ? `<button type="button" class="cs-cb add" data-add="1">+ ${t('cs.chord')}</button>` : ''}</div>
       <div class="pr-optlabel">${t('rp.rhythm')}</div>
       <div class="rx-rhs"><button type="button" class="rx-rh active" data-rhpick="1"><b>${esc(patternName(PAT(d.rhythm) || PAT('downs')))} ▾</b><span>${esc(arrows(stepsOf(d)))}</span></button></div>
       <div class="pr-optlabel">${t('rp.steps')}</div>
@@ -256,6 +257,8 @@ export function createGame(api) {
     api.opts.innerHTML = `<div class="rx-tabs" role="tablist">${T.map((x) => `<button type="button" role="tab" class="chip${st.tab === x.id ? ' active' : ''}" data-tab="${x.id}" aria-selected="${st.tab === x.id}"><span aria-hidden="true">${x.ic}</span> ${esc(x.l)}</button>`).join('')}</div>
       <div class="rx-body">${bodyHTML()}</div>
       <p class="rx-info small">${t('rp.info')}</p>`;
+    const box = api.opts.querySelector('.rx-chs'); // v2.2: redosled akorda — prevuci ≡
+    if (box) dragList(box, { item: '.cs-cb[data-ch]', grid: true, onDrop: (els) => { const q = els.map((el) => draft.chords[+el.dataset.ch]).filter(Boolean); if (q.length === draft.chords.length) { draft = cleanRp({ ...draft, chords: q }); saveDraft(); } drawOpts(); } });
   }
   const saveDraft = () => { st.draft = draft; saveSt(); };
 
