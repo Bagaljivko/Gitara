@@ -5,6 +5,12 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '2.3.2', date: '2026-11-12', items: [
+    { i: '🧭', sr: ['Novi obilazak', 'Prvi put: kratko i redom — koliko sviraš, mikrofon, tuner, Samo sviraj, skeniranje, kako pesma postaje igra, „odsviraj E“, nastavnik, Gemini ključ, Google Drive i instalacija. Na računaru drugačiji: biblioteka i priprema pesama prvo. Svaki korak pokazuje pravo dugme na ekranu.'], en: ['A new tour', 'First time: short and in order — how much you play, microphone, tuner, Just play, scanning, how a song becomes a game, “play E”, teacher, Gemini key, Google Drive and installing. Different on a computer: library and preparing songs first. Every step points at the real button on screen.'] },
+    { i: '✨', sr: ['„Sve što MARLI ume“', 'U Podešavanja → O aplikaciji: obilazak kroz sve mogućnosti, redom od najzanimljivijeg (telefon i računar posebno). Tu je i kratki uvod, kad god hoćeš.'], en: ['“Everything MARLI can do”', 'In Settings → About: a tour of every feature, most interesting first (separate for phone and computer). The short intro is there too, any time.'] },
+    { i: '🧑‍🏫', sr: ['Obilazak za nastavnike', 'Kako dodaješ učenike, šalješ pesme, vežbe i plan, pratiš napredak — i šta vidi učenik. Radi na primer-podacima (i kad nisi nastavnik), pa je dobar i za pokazivanje drugima. Nudi se sam kad prvi put uključiš Nastavu.'], en: ['Tour for teachers', 'How you add students, send songs, exercises and plans, follow progress — and what the student sees. Runs on example data (even if you are not a teacher), so it is good for showing others. Offered when you first turn on Lessons.'] },
+    { i: '👋', sr: ['„Dobro došli u MARLI“', 'Pozdrav pri prvom otvaranju je sada za sve.'], en: ['“Welcome to MARLI”', 'The first-open greeting now fits everyone.'] },
+  ] },
   { v: '2.3.1', date: '2026-11-12', items: [
     { i: 'Aa', sr: ['„Aa“ bez procenta', 'Čip za veličinu teksta na pesmi sada piše samo „Aa“. Procenat se vidi samo dok menjaš veličinu i nestaje 2 s posle poslednjeg dodira, zajedno sa trakom −/+.'], en: ['“Aa” without the percent', 'The text-size chip on a song now just says “Aa”. The percent shows only while you change the size and disappears 2 s after your last tap, together with the −/+ bar.'] },
   ] },

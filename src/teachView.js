@@ -427,6 +427,8 @@ export async function renderTeachSettings(body, setRowValue) {
     await T.setTeacher({ on: e.target.checked });
     toast(e.target.checked ? t('tch.turnedOn') : t('tch.turnedOff'));
     renderTeachSettings(body, setRowValue);
+    // v2.3.2: prvi put uključena Nastava → ponudi obilazak za nastavnike
+    if (e.target.checked) { let seen = false; try { seen = !!localStorage.getItem('marli-teach-tour'); localStorage.setItem('marli-teach-tour', '1'); } catch {} if (!seen) { const { dialog } = await import('./ui.js'); if ((await dialog({ title: t('tour.tOfferT'), body: t('tour.tOfferB'), buttons: [{ label: t('tour.later'), value: null }, { label: t('tour.tOfferGo'), value: 'go', kind: 'primary' }] })) === 'go') (await import('./tour2.js')).startTour('teacher'); } }
   });
   body.querySelector('#tMyName')?.addEventListener('change', (e) => T.setTeacher({ name: e.target.value.trim().slice(0, 60) }));
   body.querySelector('#tMyContact')?.addEventListener('change', (e) => T.setTeacher({ contact: e.target.value.trim().slice(0, 120) }));

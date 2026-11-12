@@ -18,6 +18,6 @@ export async function firstRunWelcome() {
     catch (e) { if (e && e.code !== 'cancelled') toast((e && e.message) || t('common.error'), 'error'); }
     return;
   }
-  const m = await import('./tour.js');
-  if (!m.tourSeen()) m.startTour();
+  const m = await import('./tour2.js'); // v2.3.2: novi obilazak (telefon / računar)
+  if (!m.tourSeen()) m.startTour('first');
 }

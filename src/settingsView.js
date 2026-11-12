@@ -186,6 +186,8 @@ export async function renderSettings(root) {
       <p class="about-acr">${t('about.acr')}</p>
       <p class="about-ver" id="aboutVer">${t('about.version', { v: APP_VERSION })}</p>
       <button type="button" class="btn small wn-btn" id="aboutNew">${t('wn.btn', { v: APP_VERSION.split('.').slice(0, 2).join('.') })} ›</button>
+      <div class="about-tours"><button type="button" class="btn small about-tour" id="aboutTour">🧭 ${t('tour.full')}</button><button type="button" class="btn small" id="aboutTourT">🧑‍🏫 ${t('tour.teacher')}</button></div>
+      <button type="button" class="link-btn small" id="aboutTourS">${t('tour.short')}</button>
       <p class="about-off">${t('about.offline')}</p>
       <p class="about-hint">${t('about.hint')}</p>
     </div>
@@ -212,6 +214,10 @@ export async function renderSettings(root) {
   // v1.70: „Šta je novo“ (zlatna tačka dok se ne pogleda)
   import('./whatsnew.js').then((W) => { if (W.unseen()) $('aboutNew')?.insertAdjacentHTML('beforeend', '<i class="wn-dot" aria-hidden="true"></i>'); });
   $('aboutNew').addEventListener('click', async () => (await import('./whatsnew.js')).showWhatsNew());
+  // v2.3.2: obilasci — uvek dostupni (i stari korisnici); za nastavnike radi na primer-podacima
+  $('aboutTour')?.addEventListener('click', async () => (await import('./tour2.js')).startTour('full'));
+  $('aboutTourT')?.addEventListener('click', async () => (await import('./tour2.js')).startTour('teacher'));
+  $('aboutTourS')?.addEventListener('click', async () => (await import('./tour2.js')).startTour('first'));
   // O aplikaciji: dodir na naslov (ili ikonicu) ponovo pušta uvodnu animaciju
   const replayIntro = () => { if (window.__marliIntro) window.__marliIntro(true); };
   $('aboutName').addEventListener('click', replayIntro);

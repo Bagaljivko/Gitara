@@ -2978,3 +2978,72 @@ body.nastava-teacher .nav a.nav-teach { display: none !important; }
 .chip-pop b small { font-size: .7em; color: var(--muted); }
 .sc-chip.sc-active { border-color: rgba(245, 165, 36, .7); background: rgba(245, 165, 36, .12); }
 @keyframes chipPopIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+/* v2.3.2: obilasci (tour2.js) — spotlight na pravi element + panel; računar: panel desno */
+.tg-back { position: fixed; inset: 0; z-index: 400; pointer-events: auto; }
+.tg-shade { position: fixed; inset: 0; background: rgba(0, 0, 0, .72); }
+.tg-shade[hidden] { display: none; }
+.tg-hole { position: fixed; border-radius: 16px; box-shadow: 0 0 0 9999px rgba(0, 0, 0, .72); outline: 2px solid var(--accent); outline-offset: 3px; transition: left .25s, top .25s, width .25s, height .25s; pointer-events: none; }
+.tg-panel { position: fixed; left: max(12px, env(safe-area-inset-left)); right: max(12px, env(safe-area-inset-right)); max-width: 560px; margin: 0 auto; max-height: min(72dvh, 640px); overflow: auto; background: #15171b; border: 1px solid rgba(245, 165, 36, .45); border-radius: 22px; padding: 16px 16px 12px; box-shadow: 0 18px 40px rgba(0, 0, 0, .6); color: var(--text); animation: rise .2s ease-out; }
+.tg-panel.top { top: calc(env(safe-area-inset-top) + 12px); }
+.tg-panel.bottom { bottom: calc(env(safe-area-inset-bottom) + 12px); }
+.tg-panel.mid { top: 50%; transform: translateY(-50%); animation: none; }
+.tg-back.desk .tg-panel { left: auto; right: 28px; width: 440px; margin: 0; }
+.tg-back.desk .tg-panel.mid { left: 50%; right: auto; top: 50%; transform: translate(-50%, -50%); animation: none; }
+.tg-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.tg-step { font: 700 .72rem var(--sans); color: var(--muted); letter-spacing: .08em; text-transform: uppercase; }
+.tg-dots { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+.tg-dots i { width: 7px; height: 7px; border-radius: 50%; background: #3a3d44; }
+.tg-dots i.past { background: rgba(245, 165, 36, .45); }
+.tg-dots i.on { width: 18px; border-radius: 4px; background: var(--accent); }
+.tg-prog { flex: 0 0 120px; height: 5px; border-radius: 3px; background: #2a2d33; overflow: hidden; }
+.tg-prog i { display: block; height: 100%; background: linear-gradient(90deg, #f59e0b, #ffcc33); }
+.tg-panel h2 { margin: 2px 0 6px; font: 800 1.22rem var(--sans); display: flex; gap: 8px; align-items: center; }
+.tg-ic { font-size: 1.2em; }
+.tg-body { color: #c9ccd2; line-height: 1.45; font-size: .94rem; }
+.tg-body p { margin: 0 0 8px; }
+.tg-body ul, .tg-body ol { margin: 6px 0 8px; padding-left: 20px; }
+.tg-body li { margin: 4px 0; }
+.tg-body b { color: var(--text); }
+.tg-ok { display: inline-flex; font: 700 .8rem var(--sans); color: #2fd38c; background: rgba(47, 211, 140, .12); padding: 4px 10px; border-radius: 999px; margin-bottom: 6px; }
+.tg-badge { display: inline-flex; font: 800 .74rem var(--sans); color: #06121f; background: #5aa9ff; padding: 4px 10px; border-radius: 999px; margin-bottom: 6px; }
+.tg-choices { display: grid; gap: 8px; margin: 10px 0 4px; }
+.tg-choice { appearance: none; display: flex; gap: 12px; align-items: center; width: 100%; padding: 11px 13px; border-radius: 16px; background: var(--surface-2); border: 1px solid var(--line); color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.tg-choice:hover, .tg-choice:focus-visible { border-color: rgba(245, 165, 36, .6); }
+.tg-choice .ic { font-size: 1.3rem; flex: none; }
+.tg-choice b { display: block; font-size: .96rem; }
+.tg-choice small { display: block; color: var(--muted); font-size: .8rem; margin-top: 2px; }
+.tg-acts { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0 2px; }
+.tg-live { display: flex; align-items: center; gap: 10px; margin: 10px 0 2px; flex-wrap: wrap; }
+.tg-meter { flex: 1 1 120px; height: 8px; border-radius: 4px; background: #2a2d33; overflow: hidden; }
+.tg-meter i { display: block; height: 100%; background: linear-gradient(90deg, #2fd38c, #f5a524); transform: scaleX(0); transform-origin: left; transition: transform .08s; }
+.tg-heard { font: 700 .9rem var(--sans); color: var(--muted); }
+.tg-heard.ok { color: #2fd38c; }
+.tg-bar { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+.tg-bar .sp { flex: 1; }
+.tg-skip { appearance: none; background: none; border: 0; color: var(--muted); font: 700 .9rem var(--sans); padding: 10px 4px; cursor: pointer; }
+.tg-bar .btn { min-height: 44px; }
+/* primer-podaci u obilasku za nastavnike */
+.tg-demo { margin: 10px 0 2px; }
+.tgd-card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 10px 12px; display: grid; gap: 6px; font-size: .88rem; }
+.tgd-card small { color: var(--muted); }
+.tgd-row { display: flex; gap: 10px; align-items: center; }
+.tgd-row > span:nth-child(2) { flex: 1; min-width: 0; }
+.tgd-row b { display: block; }
+.tgd-row small { display: block; }
+.tgd-av { flex: none; width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: #1a1200; font-weight: 800; display: grid; place-items: center; }
+.tgd-b { font-style: normal; font: 800 .7rem var(--sans); color: #1a1200; background: var(--accent); padding: 2px 7px; border-radius: 999px; }
+.tgd-lbl { font: 800 .7rem var(--sans); color: var(--accent); letter-spacing: .1em; }
+.tgd-two { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.tgd-two span, .tgd-btn { text-align: center; padding: 8px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--line); font-weight: 700; }
+.tgd-btn { background: var(--accent); color: #1a1200; border: 0; }
+.tgd-chk { padding: 2px 0; }
+.tgd-steps { display: grid; gap: 4px; margin-top: 4px; }
+.tgd-steps span, .tgd-step { padding: 6px 10px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line); }
+.tgd-step.done { border-color: rgba(47, 211, 140, .5); }
+.tgd-step.cur { border-color: var(--accent); }
+.tgd-bars { display: flex; gap: 6px; align-items: flex-end; height: 44px; }
+.tgd-bars i { flex: 1; background: linear-gradient(180deg, #ffcc33, #f59e0b); border-radius: 4px 4px 0 0; min-height: 2px; }
+.about-tours { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin: 10px 0 4px; }
+.about-tour { border-color: rgba(245, 165, 36, .6); color: var(--accent); }
+.tg-back[hidden] { display: none; }
