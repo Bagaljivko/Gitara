@@ -34,7 +34,15 @@ function paint() {
   bar.querySelector('[data-dsh="fwd"]').disabled = !canFwd();
   const last = c.length ? c[c.length - 1].label : '';
   document.title = last && last !== 'MARLI' ? `${last} — MARLI` : 'MARLI';
-  document.body.classList.toggle('side-mini', /^#\/(pesma|uredi)\//.test(location.hash));
+  const mini = /^#\/(pesma|uredi)\//.test(location.hash);
+  if (mini === document.body.classList.contains('side-mini')) return;
+  // v2.3.3: bočna traka se skuplja/širi — sadržaj klizne sa starog mesta (samo transform, bez preračunavanja strane po sličici)
+  const nav = document.querySelector('.nav'); const w0 = nav ? nav.offsetWidth : 0;
+  document.body.classList.toggle('side-mini', mini);
+  const d = w0 - (nav ? nav.offsetWidth : 0);
+  if (!d || !document.body.classList.contains('desk-shell') || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const o = { duration: 220, easing: 'cubic-bezier(.2,.7,.2,1)' };
+  for (const el of [document.getElementById('app'), bar]) el?.animate?.([{ transform: `translateX(${d}px)` }, { transform: 'none' }], o);
 }
 let inited = false;
 export function initDeskShell() {

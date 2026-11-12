@@ -299,9 +299,9 @@ async function duplicate(id) {
 }
 
 // ---------------- Događaji ----------------
-let bound = null;
+let bound = null, prevOff = null;
 function bind() {
-  if (bound === st.root) return; bound = st.root;
+  if (bound === st.root) return; prevOff?.(true); bound = st.root; // v2.3.3: nova tabela → stara se odjavi (bez duplih prečica)
   side.addEventListener('click', async (e) => {
     const a = e.target.closest('[data-a]'); if (a) { e.stopPropagation(); return act(a.dataset.a, a); }
     const g = e.target.closest('[data-g]'); if (g) { st.group = g.dataset.g; st.sel.clear(); draw(); return; }
@@ -341,7 +341,8 @@ function bind() {
     st.edit = null;
     location.hash = '#/pesma/' + encodeURIComponent(id);
   });
-  list.addEventListener('input', (e) => { if (e.target.id === 'lSearch') { st.q = e.target.value; draw(); } });
+  let qT = 0; // v2.3.3: velika biblioteka — tabela se crta 120 ms posle poslednjeg slova
+  list.addEventListener('input', (e) => { if (e.target.id === 'lSearch') { st.q = e.target.value; clearTimeout(qT); if (st.all.length > 150) qT = setTimeout(draw, 120); else draw(); } });
   // v1.82: desni klik na pesmu → meni (kao u aplikacijama na računaru)
   list.addEventListener('contextmenu', (e) => {
     const tr = e.target.closest('tr[data-id]'); if (!tr) return;
@@ -363,8 +364,8 @@ function bind() {
   // izmene (sinhronizacija, ekran pesme, uvoz): osveži tabelu i brojeve
   let rT = 0; const re = () => { clearTimeout(rT); rT = setTimeout(() => deskReload(), 250); };
   events.addEventListener('songs-changed', re); events.addEventListener('settings-changed', re);
-  const off = () => { if (location.hash.startsWith('#/pesm')) return; document.removeEventListener('keydown', onKey); removeEventListener('hashchange', off); bound = null; };
-  addEventListener('hashchange', off);
+  const off = (force) => { if (force !== true && location.hash.startsWith('#/pesm')) return; prevOff = null; document.removeEventListener('keydown', onKey); events.removeEventListener('songs-changed', re); events.removeEventListener('settings-changed', re); clearTimeout(rT); removeEventListener('hashchange', off); bound = null; }; // v2.3.3: i odjava izmena (inače stara tabela ostaje u memoriji)
+  addEventListener('hashchange', off); prevOff = off;
 }
 let drag = null;
 function typingIn(el) { return !!(el && el.closest && el.closest('input, textarea, select, [contenteditable="true"]')); }

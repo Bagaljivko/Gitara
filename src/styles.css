@@ -3047,3 +3047,5 @@ body.nastava-teacher .nav a.nav-teach { display: none !important; }
 .about-tours { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin: 10px 0 4px; }
 .about-tour { border-color: rgba(245, 165, 36, .6); color: var(--accent); }
 .tg-back[hidden] { display: none; }
+.pr-game.pr-loading > :not(.topbar) { visibility: hidden; } /* v2.3.3: bez skakanja dok se igra učitava */
+.sh-who b:empty::before, .sh-who small:empty::before, .sh-st b:empty::before { content: "\a0"; } /* v2.3.3: zaglavlje Podešavanja ne raste kad stignu podaci */

@@ -228,8 +228,12 @@ async function renderHub(root) {
     </div>
     <div id="stSongsBox"></div>
   </section>`;
-  import('./myEx.js').then((X) => X.drawHub(root.querySelector('#prMyEx'))).catch(() => {}); // v1.97: Moje vežbe
-  import('./nastava.js').then((N) => N.drawHub(root.querySelector('#prTeach'), root.querySelector('.pr-hub-head'))).catch(() => {}); // v2.0: Nastava (nastavnik / učenici / poveži se)
+  // v2.3.3: kartice iznad igara (Nastava, nedelja, moje vežbe) stižu malo kasnije — ekran se pokaže kad su tu
+  // (najviše ~0,35 s), da se igre ne pomere naniže ispod prsta
+  const sec = root.querySelector('.practice-view'); sec.style.visibility = 'hidden';
+  const ready = [];
+  ready.push(import('./myEx.js').then((X) => X.drawHub(root.querySelector('#prMyEx'))).catch(() => {})); // v1.97: Moje vežbe
+  ready.push(import('./nastava.js').then((N) => N.drawHub(root.querySelector('#prTeach'), root.querySelector('.pr-hub-head'))).catch(() => {})); // v2.0: Nastava (nastavnik / učenici / poveži se)
   // v1.83: zadaci od nastavnika (samo kod učenika koji ima plan)
   settings.get('myTeacher', null).then(async (m) => {
     if (m && m.prog && m.prog.mode === 'msg') import('./planView.js').then((V) => V.drawNudge(root.querySelector('#prNudge'))).catch(() => {}); // v1.84
@@ -241,17 +245,20 @@ async function renderHub(root) {
     if (await P.refreshPlan().catch(() => false)) draw();
   }).catch(() => {});
   // v1.73: ova nedelja (+ cilj), moje pesme, dugo nisi svirao — posle prvog prikaza, da hub ne čeka
-  import('./statsView.js').then(async (S) => {
+  ready.push(import('./statsView.js').then(async (S) => {
     let all = false;
     const drawWeek = async () => { const b = root.querySelector('#stWeekBox'); if (!b) return; b.innerHTML = await S.weekHTML(); S.bindWeek(b, drawWeek); };
     const drawSongs = async () => { const b = root.querySelector('#stSongsBox'); if (!b) return; b.innerHTML = await S.mySongsHTML({ all }); };
     await (await import('./activity.js')).flush().catch(() => {});
-    drawWeek(); drawSongs();
+    drawSongs();
     root.querySelector('#stSongsBox')?.addEventListener('click', (e) => {
       if (e.target.closest('#stAll')) { all = !all; drawSongs(); return; }
       const b = e.target.closest('[data-stsong]'); if (b) S.openSongStats(b.dataset.stsong);
     });
-  }).catch(() => {});
+    await drawWeek();
+  }).catch(() => {}));
+  await Promise.race([Promise.allSettled(ready), new Promise((r) => setTimeout(r, 350))]);
+  sec.style.visibility = '';
 }
 
 /**
@@ -293,6 +300,9 @@ async function renderGame(root, game, args, params) {
     <div class="pr-bar"><span class="pr-sum" id="prSum" aria-hidden="true"></span><button class="btn primary big wide" id="prGo">${t('pr.start')}</button></div>
     <div class="card pr-result" id="prRes" hidden></div>
   </section>`;
+  // v2.3.3: dok se igra učitava, delovi ispod naslova su nevidljivi (najviše 0,4 s) — bez skakanja dugmeta Počni
+  const secG = root.querySelector('.pr-game'); secG.classList.add('pr-loading');
+  const unhide = setTimeout(() => secG.classList.remove('pr-loading'), 400);
   const $ = (q) => root.querySelector('#' + q);
   // v1.77: računar — u traci „Počni“ kratak pregled izabranog (akordi, promena, brzina, tempo); telefon ga nema
   if (matchMedia('(min-width: 1100px) and (hover: hover) and (pointer: fine)').matches) {
@@ -546,6 +556,7 @@ async function renderGame(root, game, args, params) {
     if (on && !shown) { const { dialog } = await import('./ui.js'); dialog({ title: t('pr.wait.tipTitle'), body: t('pr.wait.tip'), buttons: [{ label: t('common.ok'), value: true, kind: 'primary' }] }); }
   });
   if (gameObj.noStart) $('prGo').hidden = true; // npr. izbor pesme pre igre
+  clearTimeout(unhide); requestAnimationFrame(() => secG.classList.remove('pr-loading'));
   // fino podešavanje (mali −/+ uz broj): brzina ostaje izabrana, samo tempo malo drugačiji
   $('prSlower').addEventListener('click', () => api.setBpm(bpm - B.step * B.dir));
   $('prFaster').addEventListener('click', () => api.setBpm(bpm + B.step * B.dir));

@@ -3,7 +3,7 @@ import { settings, songs as db } from './db.js';
 import { testKey, diagnose, explain, quotaResetAt, GeminiError, cleanModelName, AUTO, getModelSetting, listModels } from './gemini.js';
 import { esc, toast, confirmDialog, pickFile, dialog } from './ui.js';
 import { parseBackup, SongFormatError } from './songformat.js';
-import { APP_VERSION } from './version.js';
+import { APP_VERSION, wnUnseen } from './version.js';
 import { tunerSettingsHTML, bindTunerSettings, loadTunerSettings } from './tunerSettings.js';
 import { t, getLang, setLang } from './i18n.js';
 import { canShareNative } from './shareService.js';
@@ -212,7 +212,7 @@ export async function renderSettings(root) {
   // Pesme → „Predlaži ritam“ (isto se isključuje i preko „Ne predlaži više“ na samom predlogu)
   $('strumSuggestSw').addEventListener('change', (e) => settings.set('strumSuggest', e.target.checked));
   // v1.70: „Šta je novo“ (zlatna tačka dok se ne pogleda)
-  import('./whatsnew.js').then((W) => { if (W.unseen()) $('aboutNew')?.insertAdjacentHTML('beforeend', '<i class="wn-dot" aria-hidden="true"></i>'); });
+  if (wnUnseen()) $('aboutNew')?.insertAdjacentHTML('beforeend', '<i class="wn-dot" aria-hidden="true"></i>');
   $('aboutNew').addEventListener('click', async () => (await import('./whatsnew.js')).showWhatsNew());
   // v2.3.2: obilasci — uvek dostupni (i stari korisnici); za nastavnike radi na primer-podacima
   $('aboutTour')?.addEventListener('click', async () => (await import('./tour2.js')).startTour('full'));
@@ -329,6 +329,7 @@ export async function renderSettings(root) {
   }));
   const onPop = () => { if (!root.isConnected) { removeEventListener('popstate', onPop); return; } if (!wide()) closePages(); };
   addEventListener('popstate', onPop);
+  addEventListener('hashchange', function offPop() { setTimeout(() => { if (!root.isConnected) { removeEventListener('popstate', onPop); removeEventListener('hashchange', offPop); } }, 0); }); // v2.3.3
   if (wide()) openPage('tuner', { push: false });
 
   // trenutne vrednosti u redovima i u gornjoj kartici
@@ -364,13 +365,14 @@ export async function renderSettings(root) {
     const n = root.querySelectorAll('#sharedList > li.shared-item').length; setV('shared', n ? String(n) : '');
     let errs = 0; try { errs = JSON.parse(localStorage.getItem('gitara-diag') || '[]').filter((e) => e.k !== 'discarded' && e.k !== 'repair').length; } catch {}
     setV('diag', errs ? String(errs) : '');
-    import('./whatsnew.js').then((W) => { $('shDot').hidden = !W.unseen(); }).catch(() => {});
+    const shDot = $('shDot'); if (shDot) shDot.hidden = !wnUnseen();
   };
   drawVals();
   root.addEventListener('set-vals', drawVals);
   root.addEventListener('click', () => setTimeout(drawVals, 60), true);
   root.addEventListener('change', () => setTimeout(drawVals, 60), true);
   const unsubV = onSyncChange(() => { if (!root.isConnected) return unsubV(); drawVals(); });
+  addEventListener('hashchange', function offV() { setTimeout(() => { if (!root.isConnected) { unsubV(); removeEventListener('hashchange', offV); } }, 0); }); // v2.3.3: bez zadržavanja starog ekrana
 
   // ---- Dijagnostika: greške i brzina pokretanja (samo na uređaju) ----
   const diagSum = () => {
@@ -717,6 +719,8 @@ export async function renderSettings(root) {
   initSync().catch(() => {}); // stanje (nalog, status) — sama sinhronizacija se ne pokreće ponovo ako već radi
   const unsub = onDriveChange(() => { if (!document.body.contains(driveCard)) return unsub(); drawDrive(); });
   const unsubSync = onSyncChange(() => { if (!document.body.contains(driveCard)) return unsubSync(); drawDrive(); });
+  // v2.3.3: odjava i kad se ništa ne promeni dok je ekran otvoren — inače svaka poseta Podešavanjima ostaje u memoriji
+  addEventListener('hashchange', function offDr() { setTimeout(() => { if (!driveCard.isConnected) { unsub(); unsubSync(); removeEventListener('hashchange', offDr); } }, 0); });
   driveCard.addEventListener('click', async (e) => {
     const b = e.target.closest('[data-d]');
     if (!b) return;

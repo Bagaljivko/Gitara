@@ -236,8 +236,9 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
   $('lList').addEventListener('click', (e) => { const a = e.target.closest('[data-oi]'); if (!a) return; const x = others[+a.dataset.oi]; if (x && x.run) { e.preventDefault(); x.run(); } });
 
   // kucanje: jedno crtanje po sličici ekrana (bez kašnjenja, samo se spoje pritisci u istom trenutku)
-  let searchQ = 0;
-  $('lSearch').addEventListener('input', () => { cancelAnimationFrame(searchQ); searchQ = requestAnimationFrame(draw); });
+  // v2.3.3: velika biblioteka (150+ pesama) — crta se 120 ms posle poslednjeg slova, da kucanje ostane glatko na starom telefonu
+  let searchQ = 0, searchT = 0;
+  $('lSearch').addEventListener('input', () => { cancelAnimationFrame(searchQ); clearTimeout(searchT); const go = () => { searchQ = requestAnimationFrame(draw); }; if (all.length > 150) searchT = setTimeout(go, 120); else go(); });
   $('lSort').addEventListener('change', () => { localStorageSet('gitara-sort', $('lSort').value); draw(); });
   $('lList').addEventListener('click', async (e) => {
     // „⋯“ uz pesmu: folderi / brisanje (umesto dve ikonice u svakom redu — manje gužve, teže je obrisati slučajno)
@@ -1141,7 +1142,10 @@ export async function renderSong(root, id, nav = null) {
   };
   // v2.1: red uvek staje u jedan red (bez odsečenih čipova): ako ne staje — uži čipovi, pa „Uz video“ samo ikonica,
   // pa (v2.2) se sklanjaju poslednji po redosledu iz ⚙ (ostaju u ⚙). ⚙ je uvek vidljiv.
-  const fitChips = () => {
+  // v2.3.3: više poziva u istom trenutku (crtanje, mirna verzija, video) → jedno merenje pre iscrtavanja
+  let fitQ = 0;
+  const fitChips = () => { if (!fitQ) fitQ = requestAnimationFrame(() => { fitQ = 0; fitNow(); }); };
+  const fitNow = () => {
     const el = $('sChips'); if (!el || !el.isConnected) return;
     if (!el.clientWidth) { requestAnimationFrame(() => { if (el.isConnected && el.clientWidth) fitChips(); }); return; } // red još nije prikazan
     el.classList.remove('fit1', 'fit2', 'fit3'); el.querySelectorAll('.sc-ov').forEach((c) => c.classList.remove('sc-ov'));
