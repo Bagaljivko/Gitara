@@ -1892,8 +1892,43 @@ export async function renderSong(root, id, nav = null) {
     if (a === 'easy') { await toggleEasy(); syncEasyTop(); drawChips(); return; }
     if (a === 'chords') return editChords();
     if (a === 'practice') return root.querySelector('.sp-line')?.click();
-    if (e.target.closest('[data-sheet]')) openSongSheet();
+    // v2.3: čip radi odmah — Ton otvara krug tonaliteta, Ritam izbor ritma, Aa/Kapo/BPM mala traka − vrednost + ispod čipa
+    const sh = e.target.closest('[data-sheet]'); if (!sh) return;
+    const k = sh.dataset.sheet;
+    if (k === 'key') { closeChipPop(); return openWheel(false); }
+    if (k === 'rhythm') { closeChipPop(); return editStrum(); }
+    if (k === 'size' || k === 'capo' || k === 'tempo') return openChipPop(k, sh);
+    openSongSheet();
   });
+  // mala traka ispod čipa: −/+ odmah menja (tekst se vidi uživo); zatvara se 2 s posle poslednjeg dodira, dodirom van nje ili skrolom
+  let chipPop = null;
+  function closeChipPop() { if (!chipPop) return; clearTimeout(chipPop.t); chipPop.el.remove(); document.removeEventListener('pointerdown', chipPop.out, true); removeEventListener('scroll', chipPop.out, true); $('sChips')?.querySelectorAll('.sc-active').forEach((c) => c.classList.remove('sc-active')); chipPop = null; }
+  function openChipPop(k, chip) {
+    const same = chipPop && chipPop.k === k; closeChipPop(); if (same) return;
+    const el = document.createElement('div'); el.className = 'chip-pop'; el.setAttribute('role', 'group');
+    const val = () => (k === 'size' ? Math.round(zoom * 100) + '%' : k === 'capo' ? (capo ? String(capo) : esc(t('capo.none'))) : `${Number(stored.bpm) || Number($('sTempo')?.textContent) || '…'} <small>BPM</small>`);
+    const lab = t(k === 'size' ? 'ss.size' : k === 'capo' ? 'ss.capo' : 'ss.tempo');
+    el.innerHTML = `<button type="button" data-cp="-1" aria-label="${esc(lab)} −">−</button><b aria-live="polite">${val()}</b><button type="button" data-cp="1" aria-label="${esc(lab)} +">+</button>`;
+    document.body.appendChild(el);
+    const place = () => { const r = chip.getBoundingClientRect(), w = el.offsetWidth; const left = Math.max(8, Math.min(r.left + r.width / 2 - w / 2, innerWidth - w - 8)); el.style.left = left + 'px'; el.style.top = (r.bottom + 10) + 'px'; el.style.setProperty('--ax', (r.left + r.width / 2 - left - 6) + 'px'); };
+    place();
+    chip.classList.add('sc-active');
+    const arm = () => { clearTimeout(chipPop.t); chipPop.t = setTimeout(closeChipPop, 2000); };
+    const out = (ev) => { if (ev.type === 'scroll' || !el.contains(ev.target)) { if (ev.type === 'pointerdown' && chip.contains(ev.target)) return; closeChipPop(); } };
+    chipPop = { k, el, t: 0, out };
+    el.addEventListener('click', async (ev) => {
+      const b = ev.target.closest('[data-cp]'); if (!b) return;
+      const d = +b.dataset.cp; arm();
+      if (k === 'size') { const z = Math.min(1.8, Math.max(0.8, Math.round((zoom + d * 0.1) * 10) / 10)); if (z !== zoom) { await setZoom(z); await saveZoom(); } }
+      else if (k === 'capo') await setCapo(capo + d);
+      else await setBpm(d * 5);
+      el.querySelector('b').innerHTML = val();
+      drawChips(); const c2 = $('sChips')?.querySelector(`[data-sheet="${k}"]`); if (c2) { chip = c2; c2.classList.add('sc-active'); place(); }
+    });
+    setTimeout(() => { if (chipPop && chipPop.el === el) { document.addEventListener('pointerdown', out, true); addEventListener('scroll', out, true); } }, 0);
+    arm();
+  }
+  window.addEventListener('hashchange', closeChipPop, { once: true });
   if ($('paBtn')) new MutationObserver(() => drawChips()).observe($('paBtn'), { attributes: true, attributeFilter: ['class'] }); // video povezan / uklonjen → čip se osveži
   // v2.1: „Ritam i promene“ → poslednji korak „Sviraj pesmu uz video“ otvara pesmu i odmah „Uz video“
   try { if ($('paBtn') && sessionStorage.getItem('marli-open-pa') === stored.id) { sessionStorage.removeItem('marli-open-pa'); setTimeout(() => $('paBtn')?.click(), 400); } } catch {}

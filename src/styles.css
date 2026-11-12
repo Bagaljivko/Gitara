@@ -2968,3 +2968,13 @@ body.nastava-teacher .nav a.nav-teach { display: none !important; }
 .cs-cb.dl-it { position: relative; padding-left: 20px; }
 .cs-cb .dl-grip { position: absolute; left: 1px; top: 0; bottom: 0; width: 18px; min-height: 0; margin: 0; }
 .cs-cb .dl-grip svg { width: 14px; height: 14px; }
+
+/* v2.3: mala traka ispod čipa na pesmi (Aa / Kapo / BPM) — menja odmah, sama se zatvara */
+.chip-pop { position: fixed; z-index: 60; display: flex; align-items: center; gap: 6px; padding: 6px; border-radius: 999px; background: #1b1d22; border: 1px solid rgba(245, 165, 36, .55); box-shadow: 0 12px 28px rgba(0, 0, 0, .6); animation: chipPopIn .14s ease-out; }
+.chip-pop::before { content: ''; position: absolute; top: -7px; left: var(--ax, 40px); width: 12px; height: 12px; background: #1b1d22; border-left: 1px solid rgba(245, 165, 36, .55); border-top: 1px solid rgba(245, 165, 36, .55); transform: rotate(45deg); }
+.chip-pop button { appearance: none; width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); font: 800 1.3rem var(--sans); cursor: pointer; }
+.chip-pop button:active { background: var(--accent-soft); }
+.chip-pop b { min-width: 72px; text-align: center; color: var(--accent); font: 800 1.15rem var(--sans); }
+.chip-pop b small { font-size: .7em; color: var(--muted); }
+.sc-chip.sc-active { border-color: rgba(245, 165, 36, .7); background: rgba(245, 165, 36, .12); }
+@keyframes chipPopIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
