@@ -5,3 +5,5 @@ _site/
 .env.*
 *.local
 .DS_Store
+tests/e2e/last-report.txt
+tests/e2e/shots/

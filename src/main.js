@@ -111,10 +111,18 @@ function showRouteError(e) {
 
 let routeId = 0;
 async function route() {
-  try { await routeInner(); }
+  try { await routeInner(); hintSoon(); }
   catch (e) { console.error(e); showRouteError(e); }
   finally { bootDone(); }
 }
+// v2.4: savet pri prvoj poseti ekranu (posle crtanja, ako je korisnik i dalje tu)
+function hintSoon() {
+  const h = location.hash; const page = (h.match(/^#\/([^/?]*)/) || [, ''])[1];
+  if (!['pesme', 'pesma', 'vezbe', 'akordi', 'podesavanja'].includes(page) || (page === 'vezbe' && /^#\/vezbe\/./.test(h))) return import('./hints.js').then((m) => m.maybeHint('')).catch(() => {});
+  setTimeout(() => { if (location.hash === h) import('./hints.js').then((m) => m.maybeHint(page)).catch(() => {}); }, 900);
+}
+// v2.4: „Prvi koraci“ — prvi put pokrenut tuner (bez izmene koda tunera: samo klik na dugme)
+document.addEventListener('click', (e) => { if (e.target.closest?.('#tStartBtn')) { try { localStorage.setItem('marli-fs-tuner', '1'); } catch {} } }, true);
 async function routeInner() {
   const myRoute = ++routeId;
   // v1.78: pozivnica nastavnika (#poziv/…): pita učenika da li prihvata, pa nastavlja na Pesme

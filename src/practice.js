@@ -190,6 +190,14 @@ function todayCardHTML(sug, streak, doneToday) {
   </a>`;
 }
 
+/** v2.4: kostur ekrana dok stižu delovi (umesto praznog ekrana) — vidi se kroz nevidljiv ekran */
+function skeleton(sec, kind) {
+  if (!sec.isConnected || sec.querySelector('.pr-skel')) return;
+  const rows = kind === 'hub' ? '<i class="sk-row3"><i></i><i></i><i></i></i><i class="sk-card tall"></i><i class="sk-card"></i><i class="sk-card"></i><i class="sk-card"></i>'
+    : '<i class="sk-card tall"></i><i class="sk-line"></i><i class="sk-card"></i><i class="sk-card"></i><i class="sk-btn"></i>';
+  sec.insertAdjacentHTML('beforeend', `<div class="pr-skel pr-skel-${kind}" aria-hidden="true">${rows}</div>`);
+}
+
 async function renderHub(root) {
   setWakeZone(null);
   const st = await loadStats();
@@ -204,6 +212,7 @@ async function renderHub(root) {
   <section class="view practice-view">
     <header class="view-head pr-hub-head"><h1>${t('pr.title')}</h1></header>
     <p class="muted pr-intro">${t('pr.intro')}</p>
+    <div id="prFirst"></div>
     <div id="stWeekBox"></div>
     <div id="prTeach"></div>
     <div id="prNudge"></div>
@@ -231,7 +240,9 @@ async function renderHub(root) {
   // v2.3.3: kartice iznad igara (Nastava, nedelja, moje vežbe) stižu malo kasnije — ekran se pokaže kad su tu
   // (najviše ~0,35 s), da se igre ne pomere naniže ispod prsta
   const sec = root.querySelector('.practice-view'); sec.style.visibility = 'hidden';
+  const skT = setTimeout(() => skeleton(sec, 'hub'), 120); // v2.4: kostur samo ako čekanje potraje (na brzom uređaju se ne vidi)
   const ready = [];
+  ready.push(import('./firstSteps.js').then((F) => F.drawFirstSteps(root.querySelector('#prFirst'), st)).catch(() => {})); // v2.4: Prvi koraci
   ready.push(import('./myEx.js').then((X) => X.drawHub(root.querySelector('#prMyEx'))).catch(() => {})); // v1.97: Moje vežbe
   ready.push(import('./nastava.js').then((N) => N.drawHub(root.querySelector('#prTeach'), root.querySelector('.pr-hub-head'))).catch(() => {})); // v2.0: Nastava (nastavnik / učenici / poveži se)
   // v1.83: zadaci od nastavnika (samo kod učenika koji ima plan)
@@ -258,6 +269,7 @@ async function renderHub(root) {
     await drawWeek();
   }).catch(() => {}));
   await Promise.race([Promise.allSettled(ready), new Promise((r) => setTimeout(r, 350))]);
+  clearTimeout(skT); sec.querySelector('.pr-skel')?.remove();
   sec.style.visibility = '';
 }
 
@@ -302,7 +314,9 @@ async function renderGame(root, game, args, params) {
   </section>`;
   // v2.3.3: dok se igra učitava, delovi ispod naslova su nevidljivi (najviše 0,4 s) — bez skakanja dugmeta Počni
   const secG = root.querySelector('.pr-game'); secG.classList.add('pr-loading');
-  const unhide = setTimeout(() => secG.classList.remove('pr-loading'), 400);
+  const skG = setTimeout(() => skeleton(secG, 'game'), 120); // v2.4
+  const reveal = () => { clearTimeout(skG); secG.querySelector('.pr-skel')?.remove(); secG.classList.remove('pr-loading'); };
+  const unhide = setTimeout(reveal, 400);
   const $ = (q) => root.querySelector('#' + q);
   // v1.77: računar — u traci „Počni“ kratak pregled izabranog (akordi, promena, brzina, tempo); telefon ga nema
   if (matchMedia('(min-width: 1100px) and (hover: hover) and (pointer: fine)').matches) {
@@ -556,7 +570,7 @@ async function renderGame(root, game, args, params) {
     if (on && !shown) { const { dialog } = await import('./ui.js'); dialog({ title: t('pr.wait.tipTitle'), body: t('pr.wait.tip'), buttons: [{ label: t('common.ok'), value: true, kind: 'primary' }] }); }
   });
   if (gameObj.noStart) $('prGo').hidden = true; // npr. izbor pesme pre igre
-  clearTimeout(unhide); requestAnimationFrame(() => secG.classList.remove('pr-loading'));
+  clearTimeout(unhide); requestAnimationFrame(reveal);
   // fino podešavanje (mali −/+ uz broj): brzina ostaje izabrana, samo tempo malo drugačiji
   $('prSlower').addEventListener('click', () => api.setBpm(bpm - B.step * B.dir));
   $('prFaster').addEventListener('click', () => api.setBpm(bpm + B.step * B.dir));

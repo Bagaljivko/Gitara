@@ -160,7 +160,7 @@ export function openKeyWheel({ song, tp, capo, onPick }) {
   let drag = null;
   const angleAt = (e) => { const r = svg.getBoundingClientRect(); const cx = r.left + r.width / 2, cy = r.top + (r.height * 174) / 324; return (Math.atan2(e.clientY - cy, e.clientX - cx) * 180) / Math.PI; };
   svg.addEventListener('pointerdown', (e) => {
-    drag = { a0: angleAt(e), rot0: rot, x: e.clientX, y: e.clientY, moved: false, lastIdx: sel };
+    drag = { a0: angleAt(e), rot0: rot, x: e.clientX, y: e.clientY, moved: false, lastIdx: sel, key: e.target.closest && e.target.closest('.kw-key') }; // v2.4: ton zapamćen pri dodiru (posle hvatanja pokazivača „pointerup“ stiže na ceo krug)
     svg.setPointerCapture(e.pointerId);
   });
   svg.addEventListener('pointermove', (e) => {
@@ -179,7 +179,7 @@ export function openKeyWheel({ song, tp, capo, onPick }) {
     const d = drag; drag = null;
     if (!d.moved) {
       // dodir na tonalitet → okreni ga gore
-      const k = e.target.closest && e.target.closest('.kw-key');
+      const k = d.key || (e.target.closest && e.target.closest('.kw-key'));
       if (k) pick(+k.dataset.i);
       return;
     }

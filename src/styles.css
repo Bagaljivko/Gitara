@@ -3049,3 +3049,58 @@ body.nastava-teacher .nav a.nav-teach { display: none !important; }
 .tg-back[hidden] { display: none; }
 .pr-game.pr-loading > :not(.topbar) { visibility: hidden; } /* v2.3.3: bez skakanja dok se igra učitava */
 .sh-who b:empty::before, .sh-who small:empty::before, .sh-st b:empty::before { content: "\a0"; } /* v2.3.3: zaglavlje Podešavanja ne raste kad stignu podaci */
+/* v2.4: tap tempo u traci BPM */
+.chip-pop .cp-tap { width: auto; min-width: 64px; padding: 0 14px; border-radius: 999px; font: 800 .95rem var(--sans); color: #1a1205; background: var(--accent); border-color: var(--accent); touch-action: manipulation; }
+.chip-pop .cp-tap.hit { animation: cpTap .18s ease-out; }
+@keyframes cpTap { from { transform: scale(.88); box-shadow: 0 0 0 6px rgba(245, 165, 36, .35); } to { transform: none; box-shadow: none; } }
+/* v2.4: telefon položen — − 🔍 + u donjoj traci */
+.scroll-bar > .zoom-pill.zp-bar { display: inline-flex !important; height: 40px; background: none !important; border: 0 !important; box-shadow: none !important; margin-right: 2px; }
+.scroll-bar > .zoom-pill.zp-bar button { height: 38px; width: 36px; }
+/* v2.4: kostur ekrana dok se učitava (Vežbe, ekran igre) */
+.practice-view:has(> .pr-skel) { position: relative; }
+.pr-skel { visibility: visible; position: absolute; left: 16px; right: 16px; top: var(--sk-top, 96px); display: flex; flex-direction: column; gap: 12px; pointer-events: none; animation: skIn .2s ease-out both; }
+.pr-skel-game { --sk-top: 64px; }
+.pr-skel i { display: block; }
+.pr-skel .sk-row3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.pr-skel .sk-row3 i, .pr-skel .sk-card, .pr-skel .sk-line, .pr-skel .sk-btn { height: 92px; border-radius: 18px; background: linear-gradient(90deg, var(--surface) 0%, var(--surface-2) 50%, var(--surface) 100%) 0 0 / 200% 100%; animation: skShine 1.2s linear infinite; }
+.pr-skel .sk-row3 i { height: 74px; border-radius: 14px; }
+.pr-skel .sk-card.tall { height: 150px; }
+.pr-skel .sk-line { height: 20px; width: 55%; border-radius: 10px; }
+.pr-skel .sk-btn { height: 56px; border-radius: 999px; }
+@keyframes skShine { to { background-position: -200% 0; } }
+@keyframes skIn { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .pr-skel i, .pr-skel .sk-row3 i { animation: none; } }
+.pr-game.pr-loading > .pr-skel { visibility: visible; }
+/* v2.4: savet pri prvoj poseti ekranu */
+.hint-card { position: fixed; z-index: 58; left: 12px; right: 12px; bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 12px); max-width: 520px; margin: 0 auto; display: flex; align-items: center; gap: 10px; padding: 12px 12px 12px 14px; border-radius: 18px; background: #1b1d22; border: 1px solid rgba(245, 165, 36, .45); box-shadow: 0 14px 34px rgba(0, 0, 0, .6); animation: hintIn .22s ease-out both; }
+.hint-card.on-song { bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 84px); }
+.hint-card.out { opacity: 0; transform: translateY(8px); transition: opacity .18s, transform .18s; }
+.hint-card .hint-ic { font-size: 1.3rem; flex: none; }
+.hint-card p { margin: 0; flex: 1; font-size: .92rem; line-height: 1.4; color: var(--text); }
+.hint-card p b { color: var(--accent); margin-right: 2px; }
+.hint-card .hint-ok { flex: none; }
+@keyframes hintIn { from { opacity: 0; transform: translateY(10px); } }
+@media (orientation: landscape) and (max-height: 520px) { .hint-card, .hint-card.on-song { bottom: calc(env(safe-area-inset-bottom) + 76px); left: calc(var(--nav-w, 76px) + 12px); } }
+body.desk-shell .hint-card { left: auto; right: 24px; bottom: 24px; margin: 0; width: 420px; }
+body.desk-shell .hint-card.on-song { bottom: 96px; }
+@media (prefers-reduced-motion: reduce) { .hint-card { animation: none; } }
+/* v2.4: Prvi koraci (Vežbe) */
+.fs-card { margin: 0 0 14px; padding: 14px; border-radius: 20px; border: 1px solid rgba(245, 165, 36, .35); background: radial-gradient(120% 120% at 100% 0%, rgba(245, 165, 36, .14), transparent 55%), var(--surface); }
+.fs-head { display: flex; align-items: center; gap: 8px; }
+.fs-head b { font-size: 1.02rem; }
+.fs-of { color: var(--accent); font-weight: 800; font-size: .85rem; }
+.fs-x { margin-left: auto; appearance: none; width: 36px; height: 36px; border-radius: 50%; border: 0; background: none; color: var(--muted); font: 700 1.35rem var(--sans); cursor: pointer; }
+.fs-x:hover { color: var(--text); }
+.fs-bar { height: 6px; border-radius: 99px; background: var(--surface-2); margin: 8px 0 6px; overflow: hidden; }
+.fs-bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #ffcc33, #f59e0b); }
+.fs-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.fs-step { display: flex; align-items: center; gap: 12px; padding: 9px 4px; border-radius: 12px; color: var(--text); text-decoration: none; }
+.fs-step:hover { background: rgba(255, 255, 255, .03); }
+.fs-ic { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--surface-2); border: 1px solid var(--line); font-size: 1rem; }
+.fs-step.done .fs-ic { background: var(--accent); border-color: var(--accent); }
+.fs-step.done .fs-ic svg { width: 20px; height: 20px; fill: #1a1205; }
+.fs-t { flex: 1; min-width: 0; }
+.fs-t b { display: block; font-size: .95rem; }
+.fs-t small { display: block; color: var(--muted); font-size: .8rem; }
+.fs-step.done .fs-t b { color: var(--muted); text-decoration: line-through; text-decoration-color: rgba(245, 165, 36, .6); }
+@media (min-width: 1000px) { .fs-list { grid-template-columns: 1fr 1fr; column-gap: 12px; } }

@@ -1657,6 +1657,12 @@ export async function renderSong(root, id, nav = null) {
   });
   ro.observe(root.querySelector('.song-view'));
   { const zw = root.querySelector('.song-view .zoom-wrap'), cb = $('sCols'); if (zw && cb) zw.prepend(cb); } // ▥ odmah levo od − 🔍 +
+  // v2.4: telefon položen — − 🔍 + prelazi u donju traku (Poslušaj / Skroluj), tekst dobija ceo vrh ekrana
+  { const landQ = matchMedia('(orientation: landscape) and (max-height: 520px) and (pointer: coarse)');
+    const pill = root.querySelector('.song-view .zoom-pill'), zw = root.querySelector('.song-view .zoom-wrap');
+    const place = () => { const bar = $('sScrollBar'); if (!pill || !bar || !zw) return; if (landQ.matches) { if (pill.parentElement !== bar) bar.prepend(pill); pill.classList.add('zp-bar'); } else if (pill.parentElement !== zw) { zw.append(pill); pill.classList.remove('zp-bar'); } };
+    place(); landQ.addEventListener?.('change', place);
+    window.addEventListener('hashchange', function offLand() { landQ.removeEventListener?.('change', place); window.removeEventListener('hashchange', offLand); }); }
   $('sCols')?.addEventListener('click', () => { localStorageSet('gitara-cols', colsPref() ? '0' : '1'); const w = $('sLyrics').clientWidth; setCols(w); fitAndTabs(lyricsMetrics($('sLyrics'), w)); });
   // Ekran ostaje upaljen dok koristiš pesmu (Podešavanja → Ekran); ikonica u traci ga isključuje za ovu pesmu
   setWakeZone('song');
@@ -1912,7 +1918,8 @@ export async function renderSong(root, id, nav = null) {
     const el = document.createElement('div'); el.className = 'chip-pop'; el.setAttribute('role', 'group');
     const val = () => (k === 'size' ? Math.round(zoom * 100) + '%' : k === 'capo' ? (capo ? String(capo) : esc(t('capo.none'))) : `${Number(stored.bpm) || Number($('sTempo')?.textContent) || '…'} <small>BPM</small>`);
     const lab = t(k === 'size' ? 'ss.size' : k === 'capo' ? 'ss.capo' : 'ss.tempo');
-    el.innerHTML = `<button type="button" data-cp="-1" aria-label="${esc(lab)} −">−</button><b aria-live="polite">${val()}</b><button type="button" data-cp="1" aria-label="${esc(lab)} +">+</button>`;
+    el.innerHTML = `<button type="button" data-cp="-1" aria-label="${esc(lab)} −">−</button><b aria-live="polite">${val()}</b><button type="button" data-cp="1" aria-label="${esc(lab)} +">+</button>`
+      + (k === 'tempo' ? `<button type="button" class="cp-tap" data-tap title="${esc(t('ss.tapHint'))}" aria-label="${esc(t('ss.tapHint'))}">${esc(t('ss.tap'))}</button>` : ''); // v2.4: tap tempo
     document.body.appendChild(el);
     const place = () => { const r = chip.getBoundingClientRect(), w = el.offsetWidth; const left = Math.max(8, Math.min(r.left + r.width / 2 - w / 2, innerWidth - w - 8)); el.style.left = left + 'px'; el.style.top = (r.bottom + 10) + 'px'; el.style.setProperty('--ax', (r.left + r.width / 2 - left - 6) + 'px'); };
     place();
@@ -1921,6 +1928,23 @@ export async function renderSong(root, id, nav = null) {
     const out = (ev) => { if (ev.type === 'scroll' || !el.contains(ev.target)) { if (ev.type === 'pointerdown' && chip.contains(ev.target)) return; closeChipPop(); } };
     chipPop = { k, el, t: 0, out };
     if (k === 'size') { drawChips(); const c2 = $('sChips')?.querySelector('[data-sheet="size"]'); if (c2) { chip = c2; c2.classList.add('sc-active'); place(); } }
+    // v2.4: tap tempo — tapkanje u ritmu; posle 3 tapa BPM = srednji razmak poslednjih tapova (pauza > 2 s počinje iznova)
+    let taps = [];
+    el.querySelector('[data-tap]')?.addEventListener('pointerdown', async (ev) => {
+      ev.preventDefault(); arm();
+      const now = performance.now();
+      if (taps.length && now - taps[taps.length - 1] > 2000) taps = [];
+      taps.push(now); taps = taps.slice(-6);
+      const btn = ev.currentTarget; btn.classList.remove('hit'); void btn.offsetWidth; btn.classList.add('hit');
+      if (taps.length < 3) return;
+      const iv = taps.slice(1).map((x, i) => x - taps[i]).sort((a, b) => a - b);
+      const med = iv[Math.floor(iv.length / 2)];
+      const target = Math.max(40, Math.min(220, Math.round(60000 / med)));
+      const cur = loopSec >= 0 ? loopBpm : await songBpm(); // isto polazište kao setBpm
+      if (target !== cur) await setBpm(target - cur);
+      el.querySelector('b').innerHTML = val();
+      drawChips(); const c2 = $('sChips')?.querySelector(`[data-sheet="${k}"]`); if (c2) { chip = c2; c2.classList.add('sc-active'); place(); }
+    });
     el.addEventListener('click', async (ev) => {
       const b = ev.target.closest('[data-cp]'); if (!b) return;
       const d = +b.dataset.cp; arm();
