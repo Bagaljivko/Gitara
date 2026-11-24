@@ -11,14 +11,21 @@ import { getSetlist } from './collections.js';
 import { t } from './i18n.js';
 import { esc, dialog } from './ui.js';
 import { transposeSong } from './songformat.js';
-import { renderSectionsHTML, fitLyrics } from './songs.js';
+import { renderSectionsHTML, fitLyrics, METRO_ICON } from './songs.js';
+import { songChords } from './songformat.js';
+import { chordSVG } from './diagram.js';
+import { Metronome } from './rhythm.js';
 import { layoutTabs } from './tabs.js';
 import { keepAwake, allowSleep } from './wakelock.js';
 import { cleanTuning } from './tunings.js';
 import { dn } from './naming.js';
 
-const ZOOM_KEY = 'gitara-stage-zoom';
-const getZoom = () => { try { return Number(localStorage.getItem(ZOOM_KEY)) || 1.3; } catch { return 1.3; } };
+// v2.4.8: tekst uvek popunjava širinu ekrana (najveća veličina pri kojoj najduži red staje); A−/A+ je faktor na to (1 = popunjeno)
+const ZOOM_KEY = 'marli-stage-fit';
+const getZoom = () => { try { const v = Number(localStorage.getItem(ZOOM_KEY)); return v >= 0.5 && v <= 1.6 ? v : 1; } catch { return 1; } };
+const RAIL_KEY = 'marli-stage-rail';
+const railPref = () => { try { return localStorage.getItem(RAIL_KEY) !== '0'; } catch { return true; } };
+const RAIL_MQ = '(min-width: 1000px)';
 const setZoomPref = (z) => { try { localStorage.setItem(ZOOM_KEY, String(z)); } catch {} };
 const POS_KEY = (id) => `gitara-set-pos-${id}`;
 /** Gde je set lista stala (indeks pesme) — za „Nastavi od pesme N“. */
@@ -65,6 +72,8 @@ export async function renderStage(root, setlistId, params) {
       <button class="icon-btn" id="stExit" aria-label="${t('stage.exit')}" title="${t('stage.exit')}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z"/></svg></button>
       <button class="stage-info" id="stJump" aria-label="${t('stage.jump')}"><b id="stTitle"></b><span><span class="st-counter" id="stCounter"></span><span id="stMeta"></span></span></button>
       <button class="st-tool st-tog" id="stScroll" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="st-play" d="M7 4.5v9l7-4.5z"/><path d="M5 17.5l7 3.5 7-3.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <span class="st-met-w"><button class="st-tool st-tog st-met" id="stMet" aria-pressed="false" aria-label="${esc(t('ss.metro'))}" title="${esc(t('ss.metroSub'))}">${METRO_ICON}<b id="stMetBpm"></b></button><span class="st-met-adj" id="stMetAdj" hidden><button class="st-tool" id="stMetDn" aria-label="${esc(t('loop.slower'))}">−</button><button class="st-tool" id="stMetUp" aria-label="${esc(t('loop.faster'))}">+</button></span></span>
+      <button class="st-tool st-tog st-rail-btn" id="stRailBtn" aria-pressed="false" aria-label="${esc(t('stage.rail'))}" title="${esc(t('stage.rail'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14v2H5zm1 4h2v14H6zm5 0h2v14h-2zm5 0h2v14h-2zM5 11h14v1.6H5zm0 4h14v1.6H5z"/></svg></button>
       <span class="st-zoom"><button class="st-tool" id="stAa" aria-haspopup="true" aria-expanded="false" aria-label="${t('song.textSize')}">Aa</button>
         <span class="st-zoom-pop" id="stAaPop" role="group" aria-label="${t('song.textSize')}" hidden><button class="st-tool" id="stDown" aria-label="${t('song.fontDown')}">A−</button><button class="st-tool" id="stUp" aria-label="${t('song.fontUp')}">A+</button></span></span>
     </header>
@@ -94,23 +103,82 @@ export async function renderStage(root, setlistId, params) {
     const next = ids[i + 1] ? all.get(ids[i + 1]) : null;
     $('stNextUp').innerHTML = next ? `<small>${esc(t('stage.nextUp', { title: '' }).replace(/[:\s]+$/, ''))}</small><b>${esc(next.title)}</b>${firstChord(next) ? `<span class="st-ch">${esc(firstChord(next))}</span>` : ''}` : `<small>${esc(t('stage.lastSong'))}</small>`;
     $('stPrev').disabled = i === 0; $('stNext').disabled = !next;
+    const chords = s.type === 'tab' ? [] : songChords(shapes);
+    const rail = chords.length && matchMedia(RAIL_MQ).matches;
+    root.querySelector('.stage').classList.toggle('st-rail-on', !!rail && railPref());
+    $('stRailBtn').hidden = !rail; $('stRailBtn').classList.toggle('on', !!rail && railPref()); $('stRailBtn').setAttribute('aria-pressed', String(!!rail && railPref()));
     $('stBody').innerHTML = `
-      <div class="lyrics stage-lyrics" style="--zoom:${zoom}">${s.type === 'tab' ? '' : renderSectionsHTML(shapes.sections)}</div>
+      ${rail ? `<aside class="st-rail" aria-label="${esc(t('song.diagrams'))}"><div class="st-rail-h"><span>${esc(t('stage.rail'))}</span><button type="button" class="st-rail-x" id="stRailHide">${esc(t('stage.railHide'))} ›</button></div><div class="st-rail-g">${chords.map((c) => `<div class="st-d" data-c="${esc(c)}">${chordSVG(c, { voicing: (s.shapes || {})[c] || 0 })}</div>`).join('')}</div></aside>` : ''}
+      <div class="lyrics stage-lyrics">${s.type === 'tab' ? '' : renderSectionsHTML(shapes.sections)}</div>
       <div class="stage-end">${next ? '' : `<p class="muted center">${t('stage.end')}</p>`}</div>`;
     if (s.type === 'tab') {
       const l = root.querySelector('.stage-lyrics');
       l.className = 'tab-staff2';
-      (tabView ? Promise.resolve(tabView) : import('./tabView.js').then((m) => (tabView = m))).then((tv) => { if (all.get(ids[i]) === s) tv.drawStaff(l, s.tab, { zoom: Math.max(1, zoom) }); });
+      (tabView ? Promise.resolve(tabView) : import('./tabView.js').then((m) => (tabView = m))).then((tv) => { if (all.get(ids[i]) === s) tv.drawStaff(l, s.tab, { zoom: Math.max(1, 1.3 * zoom) }); });
     } else {
-      fitLyrics(root.querySelector('.stage-lyrics'));
+      fill(root.querySelector('.stage-lyrics'));
       layoutTabs($('stBody'));
+      railNow();
     }
+    metSong(s);
     window.scrollTo(0, 0);
     try { localStorage.setItem(POS_KEY(setlistId), String(i)); } catch {}
     history.replaceState(null, '', `#/nastup/${encodeURIComponent(setlistId)}?i=${i}`);
     if (mode.scroll) startFlow(2000);
     padFoot();
   }
+  // v2.4.8: tekst popunjava širinu — najveći (do ~1/15 visine ekrana) pri kome najduži red staje; × A−/A+ faktor
+  function fill(l) {
+    if (!l) return;
+    const base = parseFloat(getComputedStyle(document.documentElement).fontSize) * 1.15 || 18.4;
+    const cap = Math.max(20, Math.min(64, innerHeight / 15));
+    l.style.setProperty('--zoom', (cap / base).toFixed(3));
+    fitLyrics(l, 13); // smanji dok najduži red ne stane
+    const px = parseFloat(l.style.fontSize) || cap;
+    l.style.fontSize = Math.max(12, Math.round(px * zoom * 10) / 10) + 'px'; // A+ preko širine: dugi redovi prelaze u novi red (akordi ostaju na svom slogu)
+  }
+  // akordi pesme sa strane (široki ekrani): istaknut je akord prvog reda koji se vidi
+  let railRaf = 0;
+  function railNow() {
+    railRaf = 0;
+    const g = root.querySelector('.st-rail-g'); if (!g || !root.querySelector('.st-rail-on')) return;
+    const top = (root.querySelector('#stBar')?.getBoundingClientRect().bottom || 0) + 4;
+    const ch = [...root.querySelectorAll('.stage-lyrics .ch')].find((x) => x.getBoundingClientRect().top >= top);
+    const c = ch && ch.dataset.chord;
+    g.querySelectorAll('.st-d').forEach((d) => d.classList.toggle('now', d.dataset.c === c));
+  }
+  const railTick = () => { if (!railRaf) railRaf = requestAnimationFrame(railNow); };
+  addEventListener('scroll', railTick, { passive: true });
+  const setRail = (on) => {
+    try { localStorage.setItem(RAIL_KEY, on ? '1' : '0'); } catch {}
+    root.querySelector('.stage').classList.toggle('st-rail-on', on);
+    $('stRailBtn').classList.toggle('on', on); $('stRailBtn').setAttribute('aria-pressed', String(on));
+    fill(root.querySelector('.stage-lyrics')); layoutTabs($('stBody')); railNow(); padFoot();
+  };
+  $('stRailBtn').addEventListener('click', () => setRail(!root.querySelector('.st-rail-on')));
+  $('stBody').addEventListener('click', (e) => { if (e.target.closest('#stRailHide')) { e.stopPropagation(); setRail(false); } }, true);
+  let fillT = 0;
+  const onResize = () => { clearTimeout(fillT); fillT = setTimeout(() => { const s = all.get(ids[i]); if (s && s.type !== 'tab') { fill(root.querySelector('.stage-lyrics')); layoutTabs($('stBody')); railNow(); } padFoot(); }, 150); };
+  addEventListener('resize', onResize);
+  // v2.4.8: metronom — tempo pesme (prelazi na tempo sledeće pesme), − / + menja samo ovu pesmu
+  let met = null, metBpmNow = 0;
+  function metShow() {
+    const on = !!met; $('stMet').classList.toggle('on', on); $('stMet').setAttribute('aria-pressed', String(on));
+    $('stMetBpm').textContent = on ? String(metBpmNow) : ''; $('stMetAdj').hidden = !on;
+    $('stMet').style.setProperty('--beat', (60 / (metBpmNow || 90)).toFixed(3) + 's');
+  }
+  function metSong(s) {
+    metBpmNow = Number(s.bpm) || metBpm;
+    if (met) { met.bpm = metBpmNow; const sig = s.strum && s.strum.sig; if (sig && sig !== met.sig) { met.stop(); met = new Metronome(); met.bpm = metBpmNow; met.sig = sig; met.start(); } }
+    metShow();
+  }
+  $('stMet').addEventListener('click', () => {
+    if (met) { met.stop(); met = null; } else { const s = all.get(ids[i]); met = new Metronome(); met.bpm = metBpmNow || Number(s.bpm) || metBpm; const sig = s.strum && s.strum.sig; if (sig) met.sig = sig; met.start(); }
+    metShow();
+  });
+  const metAdj = (d) => { metBpmNow = Math.max(40, Math.min(220, metBpmNow + d)); if (met) met.bpm = metBpmNow; metShow(); };
+  $('stMetDn').addEventListener('click', () => metAdj(-5));
+  $('stMetUp').addEventListener('click', () => metAdj(5));
   // tekst nikad ne ostaje ispod donje trake: dno stranice = visina trake + bezbedna zona (meri se, menja se sa A−/A+)
   if (one) { root.querySelector('.stage')?.classList.add('st-one'); } // v2.4.7: jedna pesma — bez donje trake i brojača
   const padFoot = () => { const h = $('stFoot')?.offsetHeight || 0; root.querySelector('.stage')?.style.setProperty('--st-foot', h + 'px'); };
@@ -122,11 +190,11 @@ export async function renderStage(root, setlistId, params) {
   function pageDown() { if (atBottom()) go(1); else window.scrollBy({ top: window.innerHeight * 0.82 - barH(), behavior: 'smooth' }); }
   function pageUp() { if (window.scrollY <= 4) { if (go(-1)) requestAnimationFrame(() => window.scrollTo(0, document.documentElement.scrollHeight)); } else window.scrollBy({ top: -(window.innerHeight * 0.82 - barH()), behavior: 'smooth' }); }
   const setZoom = (d) => {
-    zoom = Math.min(2.4, Math.max(0.9, +(zoom + d).toFixed(2))); setZoomPref(zoom);
+    zoom = Math.min(1.6, Math.max(0.5, +(zoom + d).toFixed(2))); setZoomPref(zoom);
     const s = all.get(ids[i]), l = root.querySelector('.stage-lyrics, .tab-staff2');
     if (!l) return;
-    if (s.type === 'tab') tabView?.drawStaff(l, s.tab, { zoom: Math.max(1, zoom) });
-    else { l.style.setProperty('--zoom', zoom); fitLyrics(l); layoutTabs($('stBody')); }
+    if (s.type === 'tab') tabView?.drawStaff(l, s.tab, { zoom: Math.max(1, 1.3 * zoom) });
+    else { fill(l); layoutTabs($('stBody')); }
     padFoot();
   };
 
@@ -256,6 +324,7 @@ export async function renderStage(root, setlistId, params) {
   const onHash = () => {
     if (location.hash.startsWith('#/nastup/')) return;
     stopFlow();
+    met?.stop(); met = null; removeEventListener('scroll', railTick); removeEventListener('resize', onResize);
     document.removeEventListener('keydown', onKey);
     window.removeEventListener('hashchange', onHash);
     document.body.classList.remove('stage-mode');

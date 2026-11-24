@@ -39,7 +39,10 @@ export async function run(ctx) {
   const after = await p.evaluate(() => [...document.querySelectorAll('#sLyrics .chord, #sLyrics [data-chord]')].slice(0, 3).map((e) => e.textContent.trim()).join(' '));
   expect(before && after && before !== after, 'akordi se nisu promenili posle promene tona', { before, after });
   // ritam: izbor ritma
-  await p.evaluate(() => document.querySelector('#sChips [data-sheet="rhythm"]')?.click()); await p.waitForTimeout(700);
+  // v2.4.8: čip Ritam → mala traka (▶ · ime · Promeni…) → ceo izbor ritma
+  await p.evaluate(() => document.querySelector('#sChips [data-sheet="rhythm"]')?.click()); await p.waitForTimeout(300);
+  expect(await p.$('.chip-pop [data-rp]') && await p.$('.chip-pop [data-rchange]'), 'Ritam: nema male trake');
+  await p.click('.chip-pop [data-rchange]'); await p.waitForTimeout(700);
   expect(await p.$('.rp-card, .rp-tabs, .rp-sheet'), 'izbor ritma se nije otvorio');
   await p.keyboard.press('Escape'); await p.evaluate(() => document.querySelectorAll('.modal-backdrop, .sheet-backdrop').forEach((m) => m.remove())); await p.waitForTimeout(300);
   // ⚙: panel sa stavkama i odeljcima

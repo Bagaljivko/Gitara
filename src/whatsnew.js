@@ -5,6 +5,12 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '2.4.8', date: '2026-11-24', items: [
+    { i: '🎸', sr: ['Sviraj: akordi sa strane', 'Na širokom ekranu hvatovi svih akorda pesme stoje desno, a istaknut je akord reda koji upravo sviraš. „sakrij“ ih sklanja (pamti se), dugme gore ih vraća.'], en: ['Play: chords on the side', 'On a wide screen the shapes of all the song’s chords sit on the right, with the chord of the line you are playing highlighted. “hide” puts them away (remembered), the button at the top brings them back.'] },
+    { i: '🔠', sr: ['Tekst preko celog ekrana', 'U „Sviraj“ i nastupu tekst je uvek najveći koji staje u širinu ekrana. Aa (A− / A+) ga i dalje smanjuje ili povećava.'], en: ['Text fills the screen', 'In Play and on stage the text is always as big as fits the screen width. Aa (A− / A+) still makes it smaller or bigger.'] },
+    { i: '⏱', sr: ['Metronom svuda gde treba', 'Na pesmi je metronom sada odmah u redu čipova (posle tempa) — ikonica sa klatnom koje se njiše u tempu. U „Sviraj“ i nastupu ima svoje dugme; prati tempo svake pesme.'], en: ['A metronome wherever it helps', 'On a song the metronome is now right in the chip row (after the tempo) — an icon with a pendulum swinging in time. In Play and on stage it has its own button and follows each song’s tempo.'] },
+    { i: '♪', sr: ['Ritam u maloj traci', 'Čip Ritam otvara malu traku kao Kapo i BPM: ▶ poslušaj, ime ritma i „Promeni…“.'], en: ['Rhythm in a small strip', 'The Rhythm chip opens a small strip like Capo and BPM: ▶ listen, the rhythm name and “Change…”.'] },
+  ] },
   { v: '2.4.7', date: '2026-11-24', items: [
     { i: '↔', sr: ['Pesma na računaru: šira i podesiva', 'Kad otvoriš pesmu, bočna traka se skloni, a lista se suzi. Prevuci razdelnik između liste i pesme da promeniš širinu (pamti se).'], en: ['Songs on a computer: wider and adjustable', 'When you open a song the sidebar moves away and the list gets narrower. Drag the divider between the list and the song to change the width (it is remembered).'] },
     { i: '⤢', sr: ['Fokus', 'F (ili dugme „Fokus“, ili razdelnik do kraja levo) — samo pesma preko celog ekrana. Esc vraća listu.'], en: ['Focus', 'F (or the “Focus” button, or the divider all the way left) — just the song, full width. Esc brings the list back.'] },

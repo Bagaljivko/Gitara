@@ -3236,3 +3236,45 @@ body.desk-shell .hint-card.on-song { bottom: 96px; }
   .song-view.calm.desk #sHead { padding-top: 8px; }
   .song-view.calm.desk #sTb { margin-top: 22px; }
 }
+/* v2.4.8: metronom — ikonica (piramida sa klatnom); uključen = klatno se njiše u tempu, čip svetli i piše BPM */
+.sc-chip.sc-metro { gap: 6px; }
+.met-ic { width: 18px; height: 18px; flex: none; }
+.sc-metro.on { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.sc-metro.on .met-arm { transform-origin: 12px 17px; animation: metSwing calc(var(--beat, .6s) * 2) ease-in-out infinite; }
+@keyframes metSwing { 0%, 100% { transform: rotate(-22deg); } 50% { transform: rotate(-70deg); } }
+@media (prefers-reduced-motion: reduce) { .sc-metro.on .met-arm { animation: none; } }
+/* telefon: isključen metronom je samo ikonica (mesto u redu); računar: ikonica + „Metronom“ */
+@media not all and (min-width: 1100px) and (hover: hover) and (pointer: fine) { .sc-metro .sc-ml { display: none; } .sc-chip.sc-metro { padding: 0 9px; } } /* BPM se vidi na čipu tempa; širina čipa se ne menja */
+/* v2.4.8: Ritam — ▶ · ime · Primeni · Promeni… */
+.chip-pop .cp-play { width: 40px; padding: 0; display: grid; place-items: center; }
+.chip-pop .cp-play svg { width: 20px; height: 20px; fill: currentColor; }
+.chip-pop .cp-name { min-width: 0; max-width: 46vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: .92rem; }
+.chip-pop .cp-name small { color: var(--muted); font-weight: 600; }
+.chip-pop .cp-more { width: auto; padding: 0 12px; border-radius: 999px; font: 700 .88rem var(--sans); white-space: nowrap; }
+
+/* v2.4.8: Sviraj / nastup — tekst preko cele širine, akordi sa strane (široki ekrani), metronom u traci */
+@media (min-width: 1000px) { body.stage-mode main { max-width: none; padding-left: 40px; padding-right: 40px; } }
+.stage-body { display: block; }
+.stage.st-rail-on .stage-body { display: grid; grid-template-columns: minmax(0, 1fr) 216px; column-gap: 36px; align-items: start; }
+.stage.st-rail-on .stage-body > :not(.st-rail) { grid-column: 1; }
+.st-rail { display: none; }
+.stage.st-rail-on .st-rail { display: block; grid-column: 2; grid-row: 1 / span 9; position: sticky; top: 76px; margin-top: 14px; max-height: calc(100dvh - 96px - var(--st-foot)); overflow-y: auto; scrollbar-width: thin; }
+.st-rail-h { display: flex; justify-content: space-between; align-items: center; margin: 0 2px 8px; color: #8a919c; font: 800 .72rem var(--sans); letter-spacing: .12em; text-transform: uppercase; }
+.st-rail-x { appearance: none; background: none; border: 0; color: #8a919c; font: 700 .78rem var(--sans); cursor: pointer; padding: 4px; text-transform: none; letter-spacing: 0; }
+.st-rail-x:hover { color: var(--text); }
+.st-rail-g { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.st-d { background: #111317; border: 1px solid #23262d; border-radius: 14px; padding: 6px; transition: border-color .15s, box-shadow .15s; }
+.st-d svg { width: 100%; height: auto; display: block; }
+.st-d.now { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent); }
+.st-rail-btn[hidden] { display: none; }
+.st-met-w { display: flex; gap: 6px; flex: none; }
+.st-met { display: inline-flex !important; align-items: center; gap: 6px; }
+.st-met .met-ic { width: 22px; height: 22px; }
+.st-met b:empty { display: none; }
+.st-met.on .met-arm { transform-origin: 12px 17px; animation: metSwing calc(var(--beat, .6s) * 2) ease-in-out infinite; }
+.st-met-adj { display: flex; gap: 6px; }
+.st-met-adj[hidden] { display: none; }
+@media (prefers-reduced-motion: reduce) { .st-met.on .met-arm { animation: none; } }
+@media (max-width: 520px) { .st-met-adj .st-tool { min-width: 38px; } }
+.st-tool svg.met-ic, .sc-chip svg.met-ic, svg.met-ic { fill: none; }
+@media (max-width: 640px) { .st-met-adj { display: none !important; } }

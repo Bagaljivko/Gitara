@@ -939,7 +939,8 @@ function showChord(name, opts = {}) {
 // ---------------- Prikaz pesme ----------------
 // v2.2: koja dugmad su na vrhu pesme i kojim redom (Podešavanja pesme → prevuci ≡); važi za sve pesme, sinhronizuje se
 const BAR_ALL = ['video', 'key', 'capo', 'easy', 'tempo', 'rhythm', 'size', 'chords', 'practice', 'metro', 'timer']; // v2.4.4: metronom i štoperica
-const BAR_DEF = ['video', 'key', 'capo', 'tempo', 'rhythm'];
+export const METRO_ICON = '<svg class="met-ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M9 3h6l4 18H5z"/><path d="M5.9 17h12.2"/><g class="met-arm"><path d="M12 17 16.2 6.5"/><circle cx="14.9" cy="9.8" r="1.5" fill="currentColor"/></g></svg>'; // v2.4.8: metronom (klatno se njiše u tempu dok svira)
+const BAR_DEF = ['video', 'key', 'capo', 'tempo', 'metro', 'rhythm']; // v2.4.8: metronom odmah posle tempa
 function barOrder() { try { const v = JSON.parse(localStorage.getItem('marli-songbar') || 'null'); if (Array.isArray(v)) return v.filter((k) => BAR_ALL.includes(k)); } catch {} return BAR_DEF; }
 async function setBarOrder(v) { try { localStorage.setItem('marli-songbar', JSON.stringify(v)); } catch {} await settings.set('songBar', v).catch(() => {}); }
 const syncBar = () => settings.get('songBar', null).then((v) => { if (Array.isArray(v)) try { localStorage.setItem('marli-songbar', JSON.stringify(v.filter((k) => BAR_ALL.includes(k)))); } catch {} }).catch(() => {});
@@ -1163,7 +1164,7 @@ export async function renderSong(root, id, nav = null) {
       size: () => `<button class="sc-chip sc-size" data-sheet="size" aria-label="${esc(t('ss.size'))} ${Math.round(zoom * 100)}%">Aa${chipPop && chipPop.k === 'size' ? ` <b>${Math.round(zoom * 100)}%</b>` : ''}</button>`, // v2.3.1: % samo dok se menja
       chords: () => (!stored.recording && stored.type !== 'tab' ? `<button class="sc-chip" data-sca="chords">✎ ${esc(t('ss.chords'))}</button>` : ''),
       practice: () => (root.querySelector('.sp-line') ? `<button class="sc-chip" data-sca="practice">▶ ${esc(t('sp.short'))}</button>` : ''),
-      metro: () => `<button class="sc-chip sc-metro${metro ? ' on' : ''}" data-sca="metro" aria-pressed="${!!metro}" aria-label="${esc(t('ss.metro'))}">𝅘𝅥 <span>${metro ? (bpm || 90) + ' BPM' : esc(t('ss.metroShort'))}</span></button>`,
+      metro: () => `<button class="sc-chip sc-metro${metro ? ' on' : ''}" data-sca="metro" aria-pressed="${!!metro}" aria-label="${esc(t('ss.metro'))}" title="${esc(t('ss.metroSub'))}"${metro ? ` style="--beat:${(60 / (metro.bpm || 90)).toFixed(3)}s"` : ''}>${METRO_ICON}<span class="sc-ml">${metro ? metro.bpm + ' BPM' : esc(t('ss.metro'))}</span></button>`, // v2.4.8: ikonica metronoma; uključen = klatno se njiše u tempu
       timer: () => `<button class="sc-chip sc-timer${tmRun ? ' on' : ''}" data-sca="timer" aria-pressed="${tmRun}" aria-label="${esc(t('ss.timer'))}">⏱ <span>${tmMs || tmRun ? fmtTm() : esc(t('ss.timerShort'))}</span></button>`,
     };
     el.innerHTML = barOrder().map((k) => C[k]?.() || '').join('') + `<button class="sc-chip sc-set" data-sheet="all" aria-label="${esc(t('ss.title'))}" title="${esc(t('ss.title'))}">${SET_ICON}</button>`;
@@ -2008,9 +2009,9 @@ export async function renderSong(root, id, nav = null) {
     // v2.3: čip radi odmah — Ton otvara krug tonaliteta, Ritam izbor ritma, Aa/Kapo/BPM mala traka − vrednost + ispod čipa
     const sh = e.target.closest('[data-sheet]'); if (!sh) return;
     const k = sh.dataset.sheet;
-    if (k === 'key') { closeChipPop(); return openWheel(false); }
-    if (k === 'rhythm') { closeChipPop(); return editStrum(); }
-    if (k === 'size' || k === 'capo' || k === 'tempo') return openChipPop(k, sh);
+    if (k === 'rhythm' && !stored.strum && !sugStrum()) { closeChipPop(); return editStrum(); }
+    if (k === 'key') { closeChipPop(); return openWheel(false); } // Ton: krug tonaliteta (ostaje kao pre)
+    if (k === 'rhythm' || k === 'size' || k === 'capo' || k === 'tempo') return openChipPop(k, sh); // v2.4.8: i Ritam — mala traka ispod čipa
     openSongSheet();
   });
   // mala traka ispod čipa: −/+ odmah menja (tekst se vidi uživo); zatvara se 2 s posle poslednjeg dodira, dodirom van nje ili skrolom
@@ -2020,8 +2021,12 @@ export async function renderSong(root, id, nav = null) {
     const el = document.createElement('div'); el.className = 'chip-pop'; el.setAttribute('role', 'group');
     const val = () => (k === 'size' ? Math.round(zoom * 100) + '%' : k === 'capo' ? (capo ? String(capo) : esc(t('capo.none'))) : `${Number(stored.bpm) || Number($('sTempo')?.textContent) || '…'} <small>BPM</small>`);
     const lab = t(k === 'size' ? 'ss.size' : k === 'capo' ? 'ss.capo' : 'ss.tempo');
-    el.innerHTML = `<button type="button" data-cp="-1" aria-label="${esc(lab)} −">−</button><b aria-live="polite">${val()}</b><button type="button" data-cp="1" aria-label="${esc(lab)} +">+</button>`
-      + (k === 'tempo' ? `<button type="button" class="cp-tap" data-tap title="${esc(t('ss.tapHint'))}" aria-label="${esc(t('ss.tapHint'))}">${esc(t('ss.tap'))}</button>` : ''); // v2.4: tap tempo
+    const rhPat = () => stored.strum || sugStrum();
+    el.innerHTML = k === 'rhythm'
+      // v2.4.8: Ritam — ▶ poslušaj · ime ritma · Promeni… (ceo izbor ritma)
+      ? `<button type="button" class="cp-play" data-rp aria-label="${esc(t('pat.play'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></button><b class="cp-name">${!stored.strum ? `<small>${esc(t('ss.suggested'))}</small> ` : ''}${esc(patternName(rhPat()))}</b>${!stored.strum ? `<button type="button" class="cp-tap" data-rapply>${esc(t('sug.apply'))}</button>` : ''}<button type="button" class="cp-more" data-rchange>${esc(t('cp.change'))}</button>`
+      : `<button type="button" data-cp="-1" aria-label="${esc(lab)} −">−</button><b aria-live="polite">${val()}</b><button type="button" data-cp="1" aria-label="${esc(lab)} +">+</button>`
+      + (k === 'tempo' ? `<button type="button" class="cp-tap" data-tap title="${esc(t('ss.tapHint'))}" aria-label="${esc(t('ss.tapHint'))}">${esc(t('ss.tap'))}</button>` : ''); // v2.4: tap tempo · v2.4.8: metronom
     document.body.appendChild(el);
     const place = () => { const r = chip.getBoundingClientRect(), w = el.offsetWidth; const left = Math.max(8, Math.min(r.left + r.width / 2 - w / 2, innerWidth - w - 8)); el.style.left = left + 'px'; el.style.top = (r.bottom + 10) + 'px'; el.style.setProperty('--ax', (r.left + r.width / 2 - left - 6) + 'px'); };
     place();
@@ -2048,6 +2053,9 @@ export async function renderSong(root, id, nav = null) {
       drawChips(); const c2 = $('sChips')?.querySelector(`[data-sheet="${k}"]`); if (c2) { chip = c2; c2.classList.add('sc-active'); place(); }
     });
     el.addEventListener('click', async (ev) => {
+      if (ev.target.closest('[data-rchange]')) { closeChipPop(); return editStrum(); }
+      if (ev.target.closest('[data-rp]')) { arm(); return playPattern(rhPat()); }
+      if (ev.target.closest('[data-rapply]')) { stopStrum(); const p = sugStrum(); if (p) { stored.strum = { id: p.id, sig: p.sig, steps: p.steps, ...(p.swing ? { swing: true } : {}) }; await save(); draw(); toast(t('ss.rhApplied'), '', { label: t('common.undo'), onClick: async () => { delete stored.strum; await save(); draw(); } }); } closeChipPop(); return; }
       const b = ev.target.closest('[data-cp]'); if (!b) return;
       const d = +b.dataset.cp; arm();
       if (k === 'size') { const z = Math.min(1.8, Math.max(0.8, Math.round((zoom + d * 0.1) * 10) / 10)); if (z !== zoom) { await setZoom(z); await saveZoom(); } }
