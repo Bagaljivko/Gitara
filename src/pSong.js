@@ -44,7 +44,7 @@ export function songParts(song) {
 }
 
 /** Težina promene akorda: koliko žica menja prag + barre. */
-function changeCost(a, b) {
+export function changeCost(a, b) {
   if (a === b) return 0;
   const va = getVoicings(a)[0], vb = getVoicings(b)[0];
   if (!va || !vb) return 2;
@@ -83,6 +83,11 @@ export async function createGame(api) {
   const startTempo = (p) => Math.min(api.gradCap ?? songBpm, (stats()[String(p.i)] || {}).lastTempo || Math.max(40, Math.round((songBpm * 0.6) / 5) * 5));
   const label = (p, k) => (p.i === 'all' ? t('pr.pesma.whole') : (p.name ? sectionLabel(p.name) : t('pr.pesma.part', { n: k + 1 })));
 
+  // v2.4.17: „Pevaj uz tekst“ (#/vezbe/pesma/ID?m=sing): tekst ide, akord stoji iznad reči na kojoj se menja
+  if (api.params && api.params.get && api.params.get('m') === 'sing') {
+    const { createSing } = await import('./pSing.js');
+    return createSing(api, song, { parts, label, startPart: part, songId, per, songBpm });
+  }
   const grad = () => api.speed === 'grad';
   const cap = () => api.gradCap ?? songBpm; // „Postepeno ubrzavaj“: najviše do izabrane brzine
   const findPart = (id) => all.find((p) => String(p.i) === String(id));
@@ -107,8 +112,34 @@ export async function createGame(api) {
   }
   window.addEventListener('gitara-mic', () => { if (listening) { listening = null; listenId = null; ui.draw(); } });
   api.onCleanup?.(() => { listening?.stop(); listening = null; });
+  // v2.4.17: „Predlog za danas“ — više vežbi iz iste pesme, redom; urađeno danas = ✓
+  const todayS = (() => { const d = new Date(); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; })();
+  const seqAll = parts.flatMap((p) => p.chords.map((c) => c.chord)).filter((c, k, a) => !k || c !== a[k - 1]);
+  let hardPair = null;
+  for (let k = 1; k < seqAll.length; k++) { const c = changeCost(seqAll[k - 1], seqAll[k]); if (!hardPair || c > hardPair.c) hardPair = { a: seqAll[k - 1], b: seqAll[k], c }; }
+  const hp = parts[hardest >= 0 ? hardest : 0];
+  const hpCh = [...new Set(hp.chords.map((c) => c.chord))].slice(0, 4).map(dn);
+  const ARW = { D: '↓', U: '↑', x: '×', B: '↓', '-': '·' };
+  const stp = song.strum && song.strum.steps ? [...song.strum.steps].map((x) => ARW[x] || '·').join(' ') : '↓ · ↓ ↑ · ↑ ↓ ↑';
+  const plan = () => {
+    const r = stats(), done = (k) => !!(r[k] && r[k].lastDay === todayS);
+    return [
+      { id: 'chg', title: t('pl.chg'), min: 3, what: t('pl.chgWhat', { ch: hpCh.join(' ↔ ') }), sub: hardPair ? t('pl.chgSub', { a: dn(hardPair.a), b: dn(hardPair.b) }) : '', done: done('chg') },
+      { id: 'rp', title: t('pl.rp'), min: 3, what: t('pl.rpWhat', { s: stp }), sub: t('pl.rpSub', { a: Math.max(45, Math.round((songBpm * 0.6) / 5) * 5), b: songBpm }), done: done('rp') },
+      { id: 'sing', title: t('pl.sing'), min: 3, what: t('pl.singWhat'), sub: label(hp, parts.indexOf(hp)), done: done('sing') },
+      { id: 'all', title: t('pr.pesma.whole'), min: 3, what: t('pl.allWhat'), sub: '', done: done('all') },
+    ];
+  };
   const ui = songPracticeUI({
     api,
+    plan,
+    direct: true,
+    onPlan: (id) => {
+      if (id === 'chg') location.hash = '#/vezbe/promena?song=' + encodeURIComponent(songId);
+      else if (id === 'rp') location.hash = '#/vezbe/rp?song=' + encodeURIComponent(songId);
+      else if (id === 'sing') location.hash = '#/vezbe/pesma/' + encodeURIComponent(songId) + '?m=sing';
+      else { listening?.stop(); listening = null; listenId = null; choose(whole); api.restart(); }
+    },
     head: { title: song.title, artist: song.artist, meta: [t('pr.pesma.songTempo', { bpm: songBpm }), song.capo ? t('capo.title') + ' ' + song.capo : ''].filter(Boolean).join(' · ') },
     groups: [{ rows: parts.map((p, k) => ({ id: p.i, label: label(p, k), sub: [...new Set(p.chords.map((c) => dn(c.chord)))].join(' · '), hard: k === hardest })) }],
     wholeId: 'all',

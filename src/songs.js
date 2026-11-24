@@ -1134,7 +1134,7 @@ export async function renderSong(root, id, nav = null) {
       if (!ch.length || seen.has(sig)) return false;
       seen.add(sig); return true;
     }).length;
-    const good = Object.entries(rec).filter(([k, r]) => k !== 'all' && r && r.best >= 80).length;
+    const good = Object.entries(rec).filter(([k, r]) => /^\d+$/.test(k) && r && r.best >= 80).length;
     fillPractice(card, { good, total, played: true, done: !!(rec.all && rec.all.best >= 80) });
   }).catch(() => {});
   const drawAsk = () => { $('sAsk').innerHTML = askHTML(); };

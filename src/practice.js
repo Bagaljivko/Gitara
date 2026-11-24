@@ -104,7 +104,7 @@ export async function saveResult(gameId, res, key = null) {
     return out;
   };
   st.games[gameId] = upd(st.games[gameId]);
-  if (key) {
+  if (Array.isArray(key)) { // [songId, deo|'chg'|'rp'|'sing'] (ranije je „Promena akorda“ slala tekst — pogrešno upisivalo)
     const [songId, part] = key;
     const song = st.songs[songId] || {};
     song[part] = upd(song[part]);
@@ -152,7 +152,7 @@ function bestText(g, rec, st, sk = null) {
   if (g.id === 'promena' && rec.bestMetric != null) return t('pr.unit.perMin', { n: rec.bestMetric });
   if (g.id === 'pesma') {
     let all = 0, good = 0;
-    for (const parts of Object.values(st.songs || {})) for (const [k, r] of Object.entries(parts || {})) if (k !== 'all' && r) { all++; if (r.best >= 80) good++; }
+    for (const parts of Object.values(st.songs || {})) for (const [k, r] of Object.entries(parts || {})) if (/^\d+$/.test(k) && r) { all++; if (r.best >= 80) good++; }
     if (all) return t('pr.unit.parts', { n: good, total: all });
   }
   return t('pr.unit.points', { n: Math.round(rec.best || 0) });
@@ -164,7 +164,7 @@ function bestText(g, rec, st, sk = null) {
 const FLAME = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2c.6 3.2-1.2 5-2.6 6.6C8 10.2 7 11.6 7 14a5 5 0 0 0 10 0c0-1.6-.6-3-1.6-4.1.1 1.4-.4 2.6-1.4 3.1.4-2.9-.6-6.6-2-11z"/></svg>';
 async function todaySuggestion(st) {
   const songIds = Object.entries(st.songs || {})
-    .map(([id, parts]) => ({ id, parts: Object.entries(parts || {}).filter(([k, r]) => k !== 'all' && r) }))
+    .map(([id, parts]) => ({ id, parts: Object.entries(parts || {}).filter(([k, r]) => /^\d+$/.test(k) && r) }))
     .filter((s) => s.parts.length && s.parts.some(([, r]) => (r.best || 0) < 80))
     .map((s) => ({ ...s, last: Math.max(...s.parts.map(([, r]) => dayNum(r.lastDay) || 0)) }))
     .sort((a, b) => b.last - a.last);
@@ -492,7 +492,7 @@ async function renderGame(root, game, args, params) {
       stopRun(false);
       const nextTempo = speed === 'grad' && res.score > 90 && !res.noTempoUp ? gradStep(res.tempo) : res.tempo; // Postepeno: najviše do izabrane brzine
       if (speed === 'challenge' && level !== 'beg' && res.score >= 90) res = { ...res, challenge: true };
-      const prevBest = key ? ((st.songs[key[0]] || {})[key[1]] || {}).best || 0 : rec.best || 0;
+      const prevBest = Array.isArray(key) ? ((st.songs[key[0]] || {})[key[1]] || {}).best || 0 : rec.best || 0;
       const fresh = await saveResult(game.id, { ...res, score: Math.round(res.score), nextTempo }, key);
       Object.assign(rec, fresh.games[game.id]); Object.assign(st.songs, fresh.songs);
       const info = { ...res, nextTempo, newBest: res.score > prevBest };

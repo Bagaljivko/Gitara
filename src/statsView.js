@@ -18,7 +18,7 @@ export const agoText = (ts) => {
   return d <= 0 ? t('st.today') : d === 1 ? t('st.yesterday') : t('st.daysAgo', { n: d });
 };
 const practice = async () => { const p = (await settings.get('practice', null)) || {}; return { games: p.games || {}, songs: p.songs || {} }; };
-const parts = (rec) => Object.entries(rec || {}).filter(([k, r]) => k !== 'all' && r);
+const parts = (rec) => Object.entries(rec || {}).filter(([k, r]) => /^\d+$/.test(k) && r); // delovi pesme (chg/rp/sing su vežbe pesme)
 
 /** Spremnost pesme za svirku: ready (svi delovi ≥ 80 ili cela pesma ≥ 80), work (vežba se), new (nije vežbana). */
 export function readinessOf(rec) {
@@ -152,12 +152,12 @@ export async function songLineText(id, sections = []) {
   if (all >= 60000) top.push(`${t('st.totalT')} <b>${fmtDur(all)}</b>${tot.days ? ` · ${countOf(tot.days, DAYS)}` : ''}`);
   const stars = (b) => (b >= 92 ? '★★★' : b >= 75 ? '★★' : b >= 50 ? '★' : '☆');
   const ps = parts(rec).filter(([, r]) => r.plays || r.best).sort((a, b) => Number(a[0]) - Number(b[0]));
-  if (rec.all && (rec.all.plays || rec.all.best)) ps.push(['all', rec.all]);
+  for (const k of ['chg', 'rp', 'sing', 'all']) if (rec[k] && (rec[k].plays || rec[k].best)) ps.push([k, rec[k]]); // v2.4.17
   let ex = '';
   if (ps.length) {
     const { sectionLabel } = await import('./sectionLabel.js');
-    const nm = (k) => (k === 'all' ? t('pr.pesma.whole') : ((sec) => (sec && sec.name ? sectionLabel(sec.name) : t('pr.pesma.part', { n: Number(k) + 1 })))(sections[Number(k)]));
-    ex = `${t('st.exercises')} ${ps.slice(0, 4).map(([k, r]) => `<b>${esc(nm(k))}</b> <i class="st-stars${(r.best || 0) >= 80 ? ' ok' : ''}">${stars(r.best || 0)}</i>`).join(' · ')}${ps.length > 4 ? ' …' : ''}`;
+    const nm = (k) => (k === 'all' ? t('pr.pesma.whole') : k === 'chg' ? t('st.ex.chg') : k === 'rp' ? t('st.ex.rp') : k === 'sing' ? t('st.ex.sing') : ((sec) => (sec && sec.name ? sectionLabel(sec.name) : t('pr.pesma.part', { n: Number(k) + 1 })))(sections[Number(k)]));
+    ex = `${t('st.exercises')} ${ps.slice(0, 5).map(([k, r]) => `<b>${esc(nm(k))}</b> <i class="st-stars${(r.best || 0) >= 80 ? ' ok' : ''}">${stars(r.best || 0)}</i>`).join(' · ')}${ps.length > 5 ? ' …' : ''}`;
   }
   if (!top.length && !ex) return '';
   return `${top.length ? `<span class="st-row">${top.join('<span class="st-gap"></span>')}</span>` : ''}${ex ? `<span class="st-row">${ex}</span>` : ''}<span class="st-more">${t('st.details')} ›</span>`;

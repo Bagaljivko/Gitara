@@ -54,7 +54,7 @@ async function contextOf() {
   if ((m = /^#\/pesma\/([^/?]+)/.exec(h))) return { kind: 'song', id: decodeURIComponent(m[1]) };
   if (h.startsWith('#/nastup/')) { const id = await stageSong(h); return id ? { kind: 'song', id } : null; }
   if ((m = /^#\/vezbe\/pesma\/([^/?]+)/.exec(h))) return { kind: 'prac', game: 'pesma', id: decodeURIComponent(m[1]) };
-  if ((m = /^#\/vezbe\/([a-z]+)/.exec(h))) return { kind: 'prac', game: m[1] };
+  if ((m = /^#\/vezbe\/([a-z]+)/.exec(h))) { const sid = /[?&]song=([^&]+)/.exec(h); return { kind: 'prac', game: m[1], ...(sid ? { id: decodeURIComponent(sid[1]) } : {}) }; } // v2.4.17: vežba iz pesme
   return null;
 }
 const sameCtx = (a, b) => !!a && !!b && a.kind === b.kind && a.id === b.id && a.game === b.game;

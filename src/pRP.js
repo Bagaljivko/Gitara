@@ -142,6 +142,21 @@ async function fromSong(t) {
   if (!secs.length) { toast(t('ex.noChords')); return null; }
   const si = secs.length === 1 ? 0 : await dialog({ title: song.title, className: 'dlg-stack', buttons: [...secs.map((x, k) => ({ label: `${x.name}: ${x.ch.slice(0, 6).map(dn).join(' ')}${x.ch.length > 6 ? ' …' : ''}`, value: k })), { label: t('common.cancel'), value: null, kind: 'ghost' }] });
   if (si == null) return null;
+  return songEx(song, secs, si);
+}
+/** Sekcije pesme sa akordima (bar dva). */
+function songSecs(song, t) {
+  return (song.sections || []).map((sec, i) => ({ name: sec.name || t('ex.part', { n: i + 1 }), ch: (sec.lines || []).flatMap((l) => [...(l.chords || [])].sort((a, b) => a.position - b.position).map((c) => c.chord)).filter(CS.known) })).filter((x) => x.ch.length >= 2);
+}
+/** v2.4.17: vežba ritma za pesmu bez pitanja — deo sa najviše različitih akorda (#/vezbe/rp?song=ID). */
+export async function songExAuto(id, t) {
+  const { songs } = await import('./db.js');
+  const song = await songs.get(id); if (!song) return null;
+  const secs = songSecs(song, t); if (!secs.length) return null;
+  const n = secs.map((x) => new Set(x.ch).size), si = n.indexOf(Math.max(...n));
+  return songEx(song, secs, si);
+}
+function songEx(song, secs, si) {
   const ch = secs[si].ch.filter((c, k, a) => !k || c !== a[k - 1]).slice(0, 8);
   const shapes = song.shapes || {};
   const bpm = clampB(song.bpm, 80);
@@ -175,7 +190,7 @@ export function createGame(api) {
   let st = (() => { try { return JSON.parse(localStorage.getItem(LS) || '{}') || {}; } catch { return {}; } })();
   const saveSt = () => { try { localStorage.setItem(LS, JSON.stringify(st)); } catch {} };
   let all = [], teacher = false, myT = null, alt = st.alt || 0, lad = [], students = [];
-  let cur = null; // { ex, si } — korak koji se svira
+  let cur = null, songAuto = false; // { ex, si } — korak koji se svira
   let drill = null; // [a, b] — „Vežbaj C → G“ (ne broji se u korake)
   let draft = st.draft && cleanRp(st.draft) || cleanRp({ chords: ['G', 'C', 'D'], rhythm: 'folk', target: 90, src: 'me' });
   api.stage.hidden = true;
@@ -191,6 +206,13 @@ export function createGame(api) {
     // otvori vežbu iz obaveštenja / linka (#/vezbe/rp?ex=…)
     const want = api.params && api.params.get && api.params.get('ex');
     if (want && all.some((x) => x.id === want)) { const x = all.find((y) => y.id === want); st.open = x.id; st.tab = x.src === 't' ? 't' : x.src === 'song' ? 'song' : x.src === 'gen' ? 'gen' : 'mk'; }
+    // v2.4.17: iz „Vežbaj pesmu“ (#/vezbe/rp?song=ID) — vežba ritma te pesme odmah otvorena (napredak se čuva)
+    const sid = !songAuto && api.params && api.params.get && api.params.get('song');
+    if (sid) {
+      songAuto = true;
+      const x = await songExAuto(sid, t);
+      if (x) { const old = all.find((y) => y.id === x.id); await saveEx(old ? { ...x, prog: old.prog } : x); all = await list(); st.tab = 'song'; st.open = x.id; }
+    }
   }
 
   function cardHTML(ex, { back = '' } = {}) {
@@ -372,7 +394,7 @@ export function createGame(api) {
       const clean = (ex.prog.clean || [])[si] || 0;
       const bpm = drill ? Math.max(45, r5(stepBpm(s, clean) * 0.85)) : stepBpm(s, clean);
       const its = buildItems(ex, s, clean); lastItems = its; lastRound = { ex, si, S, s, bpm };
-      return { items: its, bpm, lagMs: 350 + 90 + 80, fingersOf: chordFingers, hintOf: (it) => (it.kind === 'chord' ? t('pr.promena.hint', { c: it.label }) : ''), key: null };
+      return { items: its, bpm, lagMs: 350 + 90 + 80, fingersOf: chordFingers, hintOf: (it) => (it.kind === 'chord' ? t('pr.promena.hint', { c: it.label }) : ''), key: ex.song && ex.song.id ? [ex.song.id, 'rp'] : null }; // v2.4.17: uz pesmu
     },
     listen(round, input) {
       const otherOf = (c) => { const q = lastRound ? lastRound.s.chords?.map((x) => x.c) || [] : []; return q.find((x) => x !== c) || null; };

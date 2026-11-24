@@ -11,7 +11,9 @@ const CHEV = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6-
 /**
  * opts: { api, head: { title, artist, meta }, groups: [{ title?, rows: [{ id, label, sub, hard }] }],
  *   recOf(id) → { best, lastTempo }, wholeId, listeningId() → id|null, onListen(id), onStart(id), sheetExtra?(id) → html,
- *   onSheetClick?(e, id) }
+ *   onSheetClick?(e, id), plan?() → [{ id, title, min, what, sub, done }], onPlan?(id), direct? }
+ * v2.4.17: plan — „Predlog za danas“ (koraci redom: promene, ritam, pevanje uz tekst, cela pesma); direct — dodir na deo
+ * odmah počinje (bez iskačućeg panela), a opcije dela (sheetExtra) su u „Kako vežbaš“.
  */
 export function songPracticeUI(o) {
   const { api } = o, { t, esc } = api;
@@ -29,10 +31,23 @@ export function songPracticeUI(o) {
     api.head.innerHTML = `<div class="spr-song card">
       <div class="spr-song-t"><b>${esc(o.head.title)}</b>${o.head.artist ? `<span>${esc(o.head.artist)}</span>` : ''}<small>${esc(o.head.meta)}</small></div>
       <a class="spr-change" href="#/vezbe/pesma">${t('pr.pesma.change')}</a></div>`;
-    api.opts.innerHTML = `
+    const plan = o.plan ? o.plan() : null;
+    const on = plan ? (plan.find((x) => !x.done) || {}).id : null;
+    api.opts.innerHTML = plan ? `
+      <div class="spr-sec-h">${t('pl.head', { n: plan.reduce((a, x) => a + (x.min || 0), 0) })}<small>${t('pl.headSub')}</small></div>
+      <div class="pl-steps">${plan.map((x, i) => `<div class="pl-step${x.done ? ' done' : ''}${x.id === on ? ' on' : ''}" data-plan="${x.id}" role="button" tabindex="0">
+        <span class="pl-n">${x.done ? '✓' : i + 1}</span>
+        <span class="pl-b"><b>${esc(x.title)}${x.min ? `<i class="pl-min">${t('pl.min', { n: x.min })}</i>` : ''}</b><small class="pl-what">${esc(x.what)}</small>${x.sub ? `<small>${esc(x.sub)}</small>` : ''}</span>
+        <span class="pl-btn${x.id === on ? ' pri' : ''}">${x.done ? t('pl.again') : t('pr.start')}</span></div>`).join('')}</div>
+      <div class="spr-sec-h">${t('pr.pesma.practicePart')}<small>${t('pr.pesma.pickHint')}</small></div>
+      ${groupsHTML(nx, L)}` : `
       <button class="btn primary big wide spr-whole" data-start="${o.wholeId}">${PLAY}<span>${t('pr.pesma.wholeBtn')}</span>${prog(o.wholeId).includes('spr-stars') ? `<small class="spr-whole-prog">${prog(o.wholeId)}</small>` : ''}</button>
       <div class="spr-sec-h">${t('pr.pesma.practicePart')}<small>${t('pr.pesma.pickHint')}</small></div>
-      ${o.groups.map((g) => `${g.title ? `<div class="spr-grp">${esc(g.title)}</div>` : ''}<div class="spr-rows">${g.rows.map((r) => `
+      ${groupsHTML(nx, L)}`;
+    if (o.direct && o.sheetExtra) { const ex = api.opts.parentElement.querySelector('.spr-extra'); if (ex) ex.innerHTML = o.sheetExtra(null); }
+  }
+  function groupsHTML(nx, L) {
+    return `${o.groups.map((g) => `${g.title ? `<div class="spr-grp">${esc(g.title)}</div>` : ''}<div class="spr-rows">${g.rows.map((r) => `
         <div class="spr-row${r.id === nx ? ' next' : ''}" data-row="${r.id}" role="button" tabindex="0">
           <div class="spr-main"><div class="spr-name">${esc(r.label)}${r.hard ? ` <span class="pr-hard">${t('pr.pesma.hardest')}</span>` : ''}${r.id === nx ? ` <span class="spr-next">${t('pr.pesma.next')}</span>` : ''}</div>
             ${r.sub ? `<div class="spr-sub">${esc(r.sub)}</div>` : ''}<div class="spr-prog">${prog(r.id)}</div></div>
@@ -78,15 +93,21 @@ export function songPracticeUI(o) {
     if (li) { e.stopPropagation(); o.onListen(li.dataset.listen); return; }
     const st = e.target.closest('[data-start]');
     if (st) { o.onStart(st.dataset.start); return; }
+    const pl = e.target.closest('[data-plan]');
+    if (pl) { o.onPlan?.(pl.dataset.plan); return; }
     const row = e.target.closest('[data-row]');
-    if (row) openSheet(row.dataset.row);
+    if (row) { if (o.direct) o.onStart(row.dataset.row); else openSheet(row.dataset.row); }
   });
-  api.opts.addEventListener('keydown', (e) => { const row = e.target.closest?.('[data-row]'); if (row && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openSheet(row.dataset.row); } });
+  api.opts.addEventListener('keydown', (e) => {
+    const pl = e.target.closest?.('[data-plan]'); if (pl && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); o.onPlan?.(pl.dataset.plan); return; }
+    const row = e.target.closest?.('[data-row]'); if (row && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); if (o.direct) o.onStart(row.dataset.row); else openSheet(row.dataset.row); }
+  });
   // podešavanja vežbe (Čekaj me + brzina) idu ispod delova: prvo se bira šta, pa kako
   const host = api.opts.parentElement;
   const wb = host.querySelector('#prWaitBox'), spd = host.querySelector('#prSpeed');
   const lab = document.createElement('div'); lab.className = 'spr-sec-h spr-how'; lab.textContent = t('pr.pesma.howHead');
   api.opts.after(lab); lab.after(wb); wb.after(spd);
+  if (o.direct && o.sheetExtra) { const ex = document.createElement('div'); ex.className = 'spr-extra'; spd.after(ex); ex.addEventListener('click', (e) => o.onSheetClick?.(e, null)); }
   host.classList.add('spr-layout');
   draw();
   return { draw: () => { draw(); refreshSheet(); }, closeSheet };

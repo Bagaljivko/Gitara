@@ -35,16 +35,33 @@ export function strumsFor(id, beat, beats) {
   });
   return out;
 }
-export function createGame(api) {
+export async function createGame(api) {
   const { t } = api;
   const load = () => { try { return JSON.parse(localStorage.getItem('gitara-pr-promena') || 'null'); } catch { return null; } };
   const saved = load() || {};
   // v1.96: niz bilo kojih akorda (koliko god), svaki sa svojim trajanjem; stari zapis { pair, every } radi i dalje
   const every0 = saved.every === 4 ? 4 : 2;
+  let rhythm0 = null;
   let seq = CS.cleanSeq(saved.seq && saved.seq.length ? saved.seq : (Array.isArray(saved.pair) && saved.pair.length >= 2 ? saved.pair : PAIRS[0]), every0);
   if (seq.length < 2) seq = CS.cleanSeq(PAIRS[0], 2);
+  // v2.4.17: iz „Vežbaj pesmu“ (#/vezbe/promena?song=ID): akordi najtežeg dela te pesme, redom — bez biranja;
+  // rezultat se pamti uz pesmu (uvid na pesmi „Promene ★★“). Tvoj sačuvan niz ostaje (ne prepisuje se).
+  let fromSong0 = null;
+  const sid = api.params && api.params.get && api.params.get('song');
+  if (sid) {
+    try {
+      const { songs } = await import('./db.js'); const P = await import('./pSong.js');
+      const song = await songs.get(sid);
+      const parts = song ? P.songParts(song) : [];
+      if (parts.length) {
+        const d = parts.map(P.partDifficulty), p = parts[d.indexOf(Math.max(...d))];
+        const ch = p.chords.map((c) => c.chord).filter((c, k, a) => (!k || c !== a[k - 1]) && CS.known(c)).slice(0, CS.MAX_SEQ);
+        if (new Set(ch).size >= 2) { seq = CS.cleanSeq(ch, 2); rhythm0 = 'one'; fromSong0 = { id: song.id, title: song.title }; }
+      }
+    } catch {}
+  }
   // v1.97: ritam — „Samo na 1“ (udari na promenu) ili obrazac udaranja; „Ritam po akordu“ = svaki akord svoj obrazac
-  let rhythm = typeof saved.rhythm === 'string' && (saved.rhythm === 'one' || PAT(saved.rhythm)) ? saved.rhythm : 'one';
+  let rhythm = rhythm0 || (typeof saved.rhythm === 'string' && (saved.rhythm === 'one' || PAT(saved.rhythm)) ? saved.rhythm : 'one');
   let perChord = !!saved.perChord;
   const save = () => { try { const o = load() || {}; localStorage.setItem('gitara-pr-promena', JSON.stringify({ ...o, seq, pair: seq.map((x) => x.c), rhythm, perChord })); } catch {} };
   const key = (q) => q.map((x) => x.c + '/' + x.b).join(' ');
@@ -53,7 +70,7 @@ export function createGame(api) {
   function drawOpts() {
     const h = CS.hardest(seq);
     const allLen = seq.every((x) => x.b === seq[0].b) ? seq[0].b : 0;
-    api.opts.innerHTML = `<div class="pr-optlabel cs-head"><span>${t('cs.order')}</span><span class="muted small">${t('cs.tapToEdit')}</span></div>
+    api.opts.innerHTML = `${fromSong0 ? `<a class="cs-fromsong" href="#/vezbe/pesma/${encodeURIComponent(fromSong0.id)}">♪ ${esc(t('cs.fromSongT', { title: fromSong0.title }))}</a>` : ''}<div class="pr-optlabel cs-head"><span>${t('cs.order')}</span><span class="muted small">${t('cs.tapToEdit')}</span></div>
       <div class="cs-seq">${seq.map((x, i) => `<button type="button" class="cs-cb dl-it${h && x.c === h.b && seq[(i - 1 + seq.length) % seq.length].c === h.a ? ' hard' : ''}" data-i="${i}">${gripHTML(esc(t('dl.drag')))}<b>${esc(dn(x.c))}</b><small>${esc(CS.lenLabel(x.b))}</small></button>`).join('')}${seq.length < CS.MAX_SEQ ? `<button type="button" class="cs-cb add" data-add="1">+ ${t('cs.chord')}</button>` : ''}</div>
       ${seq.length <= 4 ? `<div class="pc-pair cs-dg">${[...new Set(seq.map((x) => x.c))].slice(0, 4).map((c) => `<div class="pc-ch target"><div class="chord-big">${chordSVG(c, { colorFingers: true })}</div></div>`).join('')}</div>` : ''}
       <div class="pr-optlabel">${t('cs.ready')}</div>
@@ -138,7 +155,7 @@ export function createGame(api) {
       const n = level === 'beg' ? Math.max(8, seq.length * 2) : Math.max(8, seq.length, Math.floor(ROUND_MS / ((60000 / bpm) * avg)));
       const its = items(n); lastItems = its; const chordsN = its.filter((x) => x.kind === 'chord').length;
       return { items: its, lagMs: 350 + 90 + 80, fingersOf: chordFingers, hintOf: (it) => t('pr.promena.hint', { c: it.label }),
-        key: seq.length > 2 ? 'seq:' + seq.map((x) => x.c).join('-') : null,
+        key: fromSong0 ? [fromSong0.id, 'chg'] : null, // v2.4.17: uz pesmu (ranije tekst „seq:…“ je pogrešno upisivao)
         lines: () => { const w = worst(); return w ? [{ label: t('cs.slowest'), value: `${dn(w[0])} → ${dn(w[1])}` }] : []; },
         extra: () => { const w = worst(); return w && seq.length > 2 ? [{ id: 'drill', label: t('cs.drill', { a: dn(w[0]), b: dn(w[1]) }), primary: true }] : []; } };
     },
