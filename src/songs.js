@@ -1001,6 +1001,7 @@ export async function renderSong(root, id, nav = null) {
       </div>`}
       ${stored.recording ? '' : practiceLineHTML(id)}
       <button type="button" class="st-line" id="sStats" hidden></button>
+      <div id="sRecCmt"></div>
       <div id="sAsk"></div>
       <div id="sSuggest"></div>
       <div id="sControls"></div>
@@ -1280,6 +1281,7 @@ export async function renderSong(root, id, nav = null) {
   $('sDet').open = false;
   $('sDet').addEventListener('toggle', () => { if ($('sDet').open && detDirty) drawDetails(); });
   if (!stored.seen) { stored.seen = true; db.put(stored).catch(() => {}); }
+  import('./recComments.js').then((m) => m.attach(root.querySelector('#sRecCmt'), stored)).catch(() => {}); // v2.4.3: komentar nastavnika na snimak
   // Prilagodi veličinu slova širini ekrana (pa tek onda rasporedi tablature)
   function fitAndTabs(pre = null) {
     const l = root.querySelector('.lyrics');

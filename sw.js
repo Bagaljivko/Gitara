@@ -1,6 +1,6 @@
 // Rad bez interneta: cela aplikacija se čuva u kešu i služi iz njega (uvek ista, usklađena verzija).
 // Nova verzija = novi broj u CACHE (scripts/update-sw.mjs). Aplikacija tada prikaže „Osveži“.
-const CACHE = "gitara-v177";
+const CACHE = "gitara-v178";
 const SHELL = [
   "./",
   "index.html",
@@ -86,13 +86,16 @@ const SHELL = [
   "src/practiceTrack.js",
   "src/progress.js",
   "src/qr.js",
+  "src/recComments.js",
   "src/recTools.js",
+  "src/remind.js",
   "src/restore.js",
   "src/rhythm.js",
   "src/rhythmPicker.js",
   "src/rhythmView.js",
   "src/scales.js",
   "src/sectionLabel.js",
+  "src/session.js",
   "src/setlistsView.js",
   "src/settingsView.js",
   "src/shareCode.js",
@@ -216,6 +219,18 @@ self.addEventListener("notificationclick", e => {
     const c = all[0];
     if (c) { await c.focus(); c.postMessage({ type: "marli-open", href }); return; }
     await self.clients.openWindow("./" + href);
+  })());
+});
+// v2.4.3: podsetnik za vežbanje i kad je aplikacija zatvorena (instalirana, Android/Chrome — periodična sinhronizacija)
+self.addEventListener("periodicsync", e => {
+  if (e.tag !== "marli-remind") return;
+  e.waitUntil((async () => {
+    const c = await caches.open("marli-meta"); const r = await c.match("./__remind"); if (!r) return;
+    const cfg = await r.json(); if (!cfg.on) return;
+    const now = new Date(), day = now.toISOString().slice(0, 10);
+    if (now.getHours() * 60 + now.getMinutes() < cfg.h * 60 + cfg.m || cfg.practiced === day || cfg.shown === day) return;
+    await self.registration.showNotification(cfg.t || "MARLI", { body: cfg.s || "", tag: "remind", icon: "icons/icon-192.png", data: { href: "#/vezbe" } });
+    await c.put("./__remind", new Response(JSON.stringify({ ...cfg, shown: day }), { headers: { "content-type": "application/json" } }));
   })());
 });
 self.addEventListener("fetch", e => {

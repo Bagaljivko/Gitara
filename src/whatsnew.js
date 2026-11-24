@@ -5,6 +5,11 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '2.4.3', date: '2026-11-24', items: [
+    { i: '💬', sr: ['Komentar na snimak', 'Nastavnik na snimku koji si poslao ostavi komentar — tekst i/ili glasovnu poruku (do 60 s). Vidiš ga na tom snimku, pustiš glas i odgovoriš jednim dodirom.'], en: ['Comment on a recording', 'On a recording you sent, your teacher leaves a comment — text and/or a voice message (up to 60 s). You see it on that recording, play the voice and reply with one tap.'] },
+    { i: '🔔', sr: ['Podsetnik za vežbanje', 'Na Vežbama (kartica „Ova nedelja“) izaberi vreme — svaki dan te podseti, samo ako danas još nisi vežbao.'], en: ['Practice reminder', 'In Practice (the “This week” card) pick a time — it reminds you every day, only if you haven’t practised yet today.'] },
+    { i: '🎉', sr: ['Pregled posle vežbanja', 'Kad završiš bar 5 minuta vežbanja: koliko danas, rezultati igara i pesme — i „Pošalji nastavniku“ jednim dodirom.'], en: ['Summary after practice', 'After at least 5 minutes of practice: today’s time, game scores and songs — and “Send to my teacher” with one tap.'] },
+  ] },
   { v: '2.4.2', date: '2026-11-24', items: [
     { i: '📝', sr: ['Beleška sa časa', 'Nastavnik na stranici učenika zapiše šta ste radili i domaći — učenik to vidi u „Od nastavnika“ i na Vežbama.'], en: ['Lesson note', 'On the student’s page the teacher writes what you covered and the homework — the student sees it in “From teacher” and in Practice.'] },
     { i: '📅', sr: ['Sledeći čas', 'Nastavnik zakaže datum i vreme; oboje ga vidite i dobijate podsetnik dan ranije.'], en: ['Next lesson', 'The teacher sets the date and time; you both see it and get a reminder the day before.'] },

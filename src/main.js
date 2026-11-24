@@ -370,6 +370,8 @@ idle(() => import('./keys.js').then((m) => m.initKeys()).catch(() => {}));
 // v1.70: „Šta je novo“ — zlatna tačka na Podešavanjima posle ažuriranja
 idle(() => import('./version.js').then((V) => V.wnUnseen() && import('./whatsnew.js').then((m) => m.navDot())).catch(() => {})); // v2.3.3: 52 KB samo kad ima novosti
 idle(() => import('./activity.js').then((m) => m.startActivity()).catch(() => {})); // v1.73: svirano / vežbano
+idle(() => import('./remind.js').then((m) => m.initRemind()).catch(() => {})); // v2.4.3: podsetnik za vežbanje
+idle(() => import('./session.js').then((m) => m.initSession()).catch(() => {})); // v2.4.3: pregled posle vežbanja
 idle(() => import('./feedback.js').then((m) => m.initFeedback()).catch(() => {})); // v1.76: utisci koji čekaju se pošalju
 idle(() => import('./db.js').then(async ({ settings }) => { const m = await settings.get('myTeacher', null); if (m && m.prog && m.prog.on) (await import('./progress.js')).initProgress(); if (m && m.planFile) { const P = await import('./plan.js'); P.watchTasks(); P.refreshPlan().catch(() => {}); } if (m && m.box) (await import('./teachBox.js')).initBox(); const tc = await settings.get('teacher', null); if (tc && tc.on) (await import('./teachBox.js')).initTeacherPoll(); if (m || (tc && tc.on) || ((await settings.get('notes', [])) || []).length) (await import('./notify.js')).initBell(); }).catch(() => {})); // v1.94: sanduče (učenik) i zahtevi iz fajlova napretka (nastavnik) // v1.80: napredak za nastavnika (samo ako je uključeno)
 const DESK = matchMedia('(min-width: 1100px) and (hover: hover) and (pointer: fine)');

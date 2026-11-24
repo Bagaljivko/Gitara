@@ -67,6 +67,8 @@ export function checkBox({ force = false } = {}) {
       try {
         if (it.kind === 'note' || it.kind === 'lesson' || it.kind === 'nudge') { // v2.4.2: beleška sa časa, sledeći čas, podsetnik
           const L = await import('./lessons.js'); const r = await L.receive(it, m); if (r) les.push({ it, r });
+        } else if (it.kind === 'cmt') { // v2.4.3: komentar na moj snimak
+          const C = await import('./recComments.js'); const r = await C.receive(it, m); if (!r) continue; les.push({ it, r });
         } else if (it.kind === 'song' || it.kind === 'set') {
           if (it.f) fmap[it.f] = it.key; // v2.4.2: pesma/set lista ↔ stavka (za „viđeno“ i odgovor)
           const I = await import('./shareImport.js');
@@ -189,7 +191,7 @@ export async function ingestOut(st, out) {
         const cur = (await tm.getStudent(st.id)) || st; const step = Math.max(0, Math.min(20, Number(o.step) || 0)), of = Math.max(1, Math.min(20, Number(o.of) || 1));
         await tm.updateStudent(st.id, { rp: { ...(cur.rp || {}), [clip(o.ex, 40)]: { step, of, name: clip(o.name, 60), at: Number(o.at) || Date.now() } } });
         if (step >= of) await note(st, 'rp:' + o.id, t('nt.rpDone', { name: st.name }), clip(o.name, 80));
-      } else if (o.type === 'seen' || o.type === 'react') { await (await import('./lessons.js')).ingestFromStudent(st, o); seen[st.id + ':' + o.id] = Date.now(); n++; continue; } // v2.4.2
+      } else if (o.type === 'seen' || o.type === 'react' || o.type === 'session') { await (await import('./lessons.js')).ingestFromStudent(st, o); seen[st.id + ':' + o.id] = Date.now(); n++; continue; } // v2.4.2
       else continue;
       if (o.type === 'wish' || o.type === 'ask') await note(st, 'rq:' + o.id, t(o.type === 'wish' ? 'nt.wish' : 'nt.ask', { name: st.name, title: clip(o.title, 80) }), [clip(o.artist, 60), o.note ? '„' + clip(o.note, 80) + '“' : ''].filter(Boolean).join(' · '));
       else if (o.type === 'check') await note(st, 'chk:' + o.id, t('nt.check', { name: st.name }), [clip(o.title, 80), o.note ? '„' + clip(o.note, 80) + '“' : ''].filter(Boolean).join(' · '));

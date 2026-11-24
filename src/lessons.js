@@ -150,6 +150,13 @@ export async function ingestFromStudent(st, o) {
     if (any) await tm.updateStudent(st.id, { seen: Object.fromEntries(Object.entries(seen).sort((a, b) => b[1] - a[1]).slice(0, 200)) });
     return any;
   }
+  if (o.type === 'session') { // v2.4.3: učenik poslao pregled vežbanja
+    const S = await import('./session.js'); const sum = { min: Math.max(0, Math.min(600, Number(o.min) || 0)), games: (Array.isArray(o.games) ? o.games : []).slice(0, 4).map((g) => ({ id: clip(g.id, 20), n: Number(g.n) || 0, best: Number(g.best) || 0 })), songs: (Array.isArray(o.songs) ? o.songs : []).slice(0, 4).map((x) => clip(x, 60)) };
+    await tm.updateStudent(st.id, { sessions: [{ at: Number(o.at) || Date.now(), ...sum }, ...(cur.sessions || [])].slice(0, 14) });
+    const N = await import('./notify.js');
+    await N.add({ id: st.id + ':' + clip(o.id, 40), who: (String(st.name || '?')[0] || '?').toUpperCase(), c: st.color || '', t: t('ses.nt', { name: st.name, n: sum.min }), s: S.summaryLine(sum), href: '#/ucenik/' + encodeURIComponent(st.id) });
+    return true;
+  }
   if (o.type === 'react' && o.key && REACT_IC[o.r]) {
     const key = clip(o.key, 80);
     await tm.updateStudent(st.id, { reacts: { ...(cur.reacts || {}), [key]: { r: o.r, at: Number(o.at) || Date.now() } }, seen: { ...(cur.seen || {}), [key]: Number(o.at) || Date.now() } });

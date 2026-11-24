@@ -55,9 +55,11 @@ export async function weekHTML() {
       ${goal ? `${ring(all / goalMs)}<span><small>${t('st.goal')}</small><b>${fmtDur(all)}</b><em>${t('st.of', { goal: fmtDur(goalMs) })}</em></span>`
         : `<span class="st-bars" aria-hidden="true">${per.map((v, i) => `<i class="${days[i] === today ? 't' : ''}" style="height:${Math.round((v / max) * 100)}%"></i>`).join('')}</span><span class="st-days">${names.map((n, i) => `<i class="${days[i] === today ? 't' : ''}">${n}</i>`).join('')}</span><small class="st-setgoal">${t('st.setGoal')}</small>`}
     </button>
-  </div>`;
+    ${await (await import('./remind.js')).buttonHTML()}
+  </div>`; // v2.4.3: podsetnik za vežbanje (ceo red ispod brojeva)
 }
 export function bindWeek(root, redraw) {
+  root.querySelector('#stRemind')?.addEventListener('click', async () => { if (await (await import('./remind.js')).openDialog()) redraw(); });
   root.querySelector('#stGoal')?.addEventListener('click', async () => {
     const cur = Number(await settings.get('weekGoal', 0)) || 0;
     const opts = [0, 60, 120, 180, 300, 420];

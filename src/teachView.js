@@ -372,7 +372,7 @@ export async function sendToTeacher(song = null) {
   if (!res) return;
   // v1.94: kroz fajl napretka — nastavnikova aplikacija ga sama stavi kod tebe (bez poruke)
   const B = await import('./teachBox.js');
-  if (await B.outPush({ id: 'f' + res.fileId.slice(-10) + Date.now().toString(36), type: 'file', f: res.fileId, title: clip(song.title, 80) })) toast(t('box.recSent', { t: m.name || t('tch.teacher') }));
+  if (await B.outPush({ id: 'f' + res.fileId.slice(-10) + Date.now().toString(36), type: 'file', f: res.fileId, title: clip(song.title, 80), song: song.id })) toast(t('box.recSent', { t: m.name || t('tch.teacher') }));
 }
 
 // ---------------- pozivnica (kod učenika) ----------------

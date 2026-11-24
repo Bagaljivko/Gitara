@@ -3139,3 +3139,24 @@ body.desk-shell .hint-card.on-song { bottom: 96px; }
 .les-ic .les-cal { width: 24px; height: 24px; margin-top: 2px; }
 .les-grp .tch-row > span.sr-chev { flex: none !important; margin-left: auto; color: var(--muted); }
 .les-grp .tch-row small, .les-idle .tch-row small { white-space: normal; }
+/* v2.4.3: podsetnik za vežbanje (kartica „Ova nedelja“) */
+.st-remind { appearance: none; display: inline-flex; align-items: center; gap: 6px; margin: 8px 0 2px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); font: 700 .82rem var(--sans); cursor: pointer; }
+.st-remind.on { color: var(--accent); border-color: rgba(245, 165, 36, .45); }
+.rem-dlg input[type="time"] { width: 100%; min-height: 44px; color-scheme: dark; font-size: 1.1rem; }
+/* v2.4.3: pregled posle vežbanja */
+.ses-big { font-size: 2.4rem; text-align: center; margin: -4px 0 6px; }
+.ses-list { display: grid; gap: 6px; margin: 0 0 10px; }
+.ses-row { display: flex; align-items: baseline; gap: 10px; padding: 8px 12px; border-radius: 12px; background: var(--surface-2); }
+.ses-row span { flex: 1; font-weight: 700; }
+.ses-row b { color: var(--accent); font-size: 1.15rem; }
+.ses-row small { color: var(--muted); }
+.ses-songs { margin: 0 0 8px; color: var(--text); }
+/* v2.4.3: komentar na snimak */
+.cmt-card { padding: 12px; margin: 8px 0 12px; }
+.cmt-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.cmt-row > span:nth-child(2) { flex: 1; min-width: 0; }
+.cmt-msg p { margin: 4px 0; white-space: pre-line; }
+.cmt-play.playing { border-color: var(--accent); color: var(--accent); }
+.cmt-voice { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 10px 0 4px; }
+.st-week > .st-remind { grid-column: 1 / -1; justify-self: start; margin: 0; }
+.cmt-card .cmt-msg p { color: var(--text); font-size: .95rem; }
