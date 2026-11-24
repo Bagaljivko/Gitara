@@ -6,8 +6,8 @@ import { t } from './i18n.js';
 const PREFIX = '#pesma=';
 
 // TAB pesma u linku: note kao [žica, prag, početak·24, trajanje·24, prst?], uz takt i ostale oznake takta
-const packTab = (tab) => ({ g: tab.sig, k: tab.key || undefined, b: tab.bars.map((b) => {
-  const x = { n: b.notes.map((n) => [n.s, n.f, Math.round(n.b * 24), Math.round(n.d * 24), ...(n.fi ? [n.fi] : [])]) };
+const packTab = (tab) => ({ g: tab && tab.sig, k: (tab && tab.key) || undefined, b: ((tab && tab.bars) || []).map((b) => { // v2.4.11: bez pada na nepotpunoj pesmi
+  const x = { n: ((b && b.notes) || []).map((n) => [n.s, n.f, Math.round(n.b * 24), Math.round(n.d * 24), ...(n.fi ? [n.fi] : [])]) };
   for (const k of ['sig', 'key', 'rs', 're', 'end', 'barre', 'ok']) if (b[k] != null) x[k] = b[k];
   return x;
 }) });
@@ -20,11 +20,11 @@ function pack(song) {
     return { v: 1, ty: 't', t: song.title, a: song.artist || undefined, k: song.key || undefined, y: ex.yt, ys: ex.ytSync, b: ex.bpm, tb: packTab(song.tab) };
   }
   const ex = songExtras(song);
-  const o = { v: 1, t: song.title, a: song.artist || undefined, k: song.key || undefined, s: song.sections.map((sec) => {
-    const x = { l: sec.lines.map((l) => (l.chords && l.chords.length ? [l.text || '', l.chords.map((c) => [c.chord, c.position])] : [l.text || ''])) };
+  const o = { v: 1, t: song.title, a: song.artist || undefined, k: song.key || undefined, s: (song.sections || []).filter(Boolean).map((sec) => { // v2.4.11: pesma bez delova/redova (npr. prazan snimak) ne ruši deljenje
+    const x = { l: (sec.lines || []).filter(Boolean).map((l) => (l.chords && l.chords.length ? [l.text || '', l.chords.map((c) => [c.chord, c.position])] : [l.text || ''])) };
     if (sec.name) x.n = sec.name;
     if (sec.strum) x.p = sec.strum;
-    if (sec.tabs && sec.tabs.length) x.tb = sec.tabs.map((tb) => ({ g: tb.sig, b: tb.bars.map((b) => [b.w, b.notes.map((n) => (n.t ? [n.s, n.f, n.p, n.t] : [n.s, n.f, n.p]))]) }));
+    if (sec.tabs && sec.tabs.length) x.tb = sec.tabs.filter(Boolean).map((tb) => ({ g: tb.sig, b: (tb.bars || []).map((b) => [b.w, (b.notes || []).map((n) => (n.t ? [n.s, n.f, n.p, n.t] : [n.s, n.f, n.p]))]) }));
     return x;
   }) };
   if (ex.capo) o.c = ex.capo;

@@ -53,7 +53,10 @@ let checking = null, lastCheck = 0;
 export function checkBox({ force = false } = {}) {
   if (checking) return checking;
   if (!force && Date.now() - lastCheck < 60000) return Promise.resolve(0);
+  // v2.4.11: posle ponovnog otvaranja aplikacije ne odmah (najviše jednom u 2 min) i nikad dok Google traži pauzu
+  if (!force) { let last = 0; try { last = Number(localStorage.getItem('marli-last-box')) || 0; } catch {} let cool = 0; try { cool = (JSON.parse(localStorage.getItem('marli-drive-cool') || 'null') || {}).until || 0; } catch {} if (Date.now() - last < 120000 || cool > Date.now()) return Promise.resolve(0); }
   lastCheck = Date.now();
+  try { localStorage.setItem('marli-last-box', String(lastCheck)); } catch {}
   checking = (async () => {
     const tm = await TM(); const m = await tm.getMyTeacher();
     if (!m || !m.box) return 0;

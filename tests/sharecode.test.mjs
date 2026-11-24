@@ -85,3 +85,11 @@ test('shared file (short link / .gitara): schema version + hash; tampered, overs
   assert.equal((await buildShareFile({ kind: 'set', name: 'Jakov', songs: songs.slice(0, 6) })).hash, set.hash);
   assert.notEqual((await buildShareFile({ kind: 'set', name: 'Jakov', songs: songs.slice(0, 5) })).hash, set.hash);
 });
+
+import { packSong as _packSongSafe } from '../src/sharelink.js';
+test('v2.4.11: pakovanje nepotpune pesme ne pada (dijagnostika: reading map of undefined)', () => {
+  assert.doesNotThrow(() => _packSongSafe({ title: 'Bez delova' }));
+  assert.doesNotThrow(() => _packSongSafe({ title: 'Deo bez redova', sections: [{ name: 'Tab', tabs: [{ sig: '4/4' }] }] }));
+  assert.doesNotThrow(() => _packSongSafe({ title: 'TAB bez taktova', type: 'tab', tab: { sig: '4/4' } }));
+  assert.doesNotThrow(() => _packSongSafe({ title: 'null red', sections: [{ lines: [null, { text: 'a' }] }, null] }));
+});

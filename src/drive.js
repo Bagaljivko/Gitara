@@ -316,7 +316,7 @@ async function api(url, opts = {}, retry = true, attempt = 0) {
       await sleepMs(1000 * 2 ** attempt * (0.5 + Math.random()));
       return api(url, opts, retry, attempt + 1);
     }
-    if (rate) throw Object.assign(new DriveError(t('drive.e.rate'), 'rate'), why);
+    if (rate) { import('./driveGate.js').then((G) => G.noteRate()).catch(() => {}); throw Object.assign(new DriveError(t('drive.e.rate'), 'rate'), why); } // v2.4.11: zajednička pauza
     if (res.status === 403 && /storageQuotaExceeded|quotaExceeded/i.test(reason)) throw Object.assign(new DriveError(t('drive.e.storage'), 'storage'), why);
     if (res.status === 403) throw Object.assign(new DriveError(t('drive.e.forbidden'), 'denied'), why);
     if (res.status === 404) throw Object.assign(new DriveError(t('drive.e.notFound'), 'notfound'), why);

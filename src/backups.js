@@ -161,7 +161,9 @@ function whenCalm(fn, tries = 0) {
 }
 export function initAutoBackup() {
   if (autoInited) return; autoInited = true;
-  const run = () => { if (autoInfo().day !== day()) whenCalm(() => autoBackup().catch(() => {})); };
+  // v2.4.11: dok Google traži pauzu — ne pokušavaj (svaki povratak u aplikaciju je ranije opet pokušavao i trošio limit)
+  const cool = () => { try { return ((JSON.parse(localStorage.getItem('marli-drive-cool') || 'null') || {}).until || 0) > Date.now(); } catch { return false; } };
+  const run = () => { if (autoInfo().day !== day() && !cool()) whenCalm(() => { if (!cool()) autoBackup().catch(() => {}); }); };
   setTimeout(run, 25000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) setTimeout(run, 4000); });
 }

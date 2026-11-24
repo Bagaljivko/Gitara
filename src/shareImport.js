@@ -183,6 +183,7 @@ export async function renderDriveShare(root, fileId) {
   let text;
   try {
     const res = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&key=${encodeURIComponent(SHARE_API_KEY)}`);
+    if (res.status === 429 || res.status === 403) { let reason = ''; try { const j = await res.clone().json(); reason = (j.error && ((j.error.errors && j.error.errors[0] && j.error.errors[0].reason) || j.error.status)) || ''; } catch {} const G = await import('./driveGate.js'); if (G.isRate(res.status, reason)) { G.noteRate(); throw Object.assign(new Error('rate'), { code: 'OFFLINE' }); } } // v2.4.11: Google usporio ≠ link ne važi
     if (res.status === 404 || res.status === 403 || res.status === 410 || res.status === 401) throw Object.assign(new Error('gone'), { code: 'GONE' });
     if (res.status === 400) throw Object.assign(new Error('key'), { code: (await res.text()).includes('API key') ? 'KEY' : 'GONE' });
     if (!res.ok) throw Object.assign(new Error('net'), { code: 'OFFLINE' });

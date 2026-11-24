@@ -5,6 +5,10 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '2.4.11', date: '2026-11-24', items: [
+    { i: '🛠', sr: ['Popravke iz dijagnostike', 'Deljenje set liste ili pesme više ne puca kad nekoj pesmi fali deo. Kad Google privremeno uspori, plan od nastavnika više ne nestaje i link se ne proglašava „nevažećim“.'], en: ['Fixes from diagnostics', 'Sharing a set list or song no longer fails when a song is missing a part. When Google temporarily slows down, the teacher’s plan no longer disappears and a link is no longer called “invalid”.'] },
+    { i: '⏸', sr: ['Mirnija sinhronizacija', 'Kad Google kaže „uspori“, svi delovi aplikacije (sinhronizacija, rezervna kopija, sanduče, napredak) zajedno sačekaju — i posle ponovnog otvaranja — umesto da pokušavaju jedan preko drugog. Izmene su sačuvane i šalju se same.'], en: ['Calmer sync', 'When Google says “slow down”, every part of the app (sync, backup, inbox, progress) waits together — even after reopening — instead of retrying over each other. Your changes are saved and go out on their own.'] },
+  ] },
   { v: '2.4.10', date: '2026-11-24', items: [
     { i: '🔥', sr: ['Dani zaredom sa štitom', 'Na Vežbama: koliko dana zaredom vežbaš. Svakih 7 dana dobijaš 🛡 štit (najviše 2) — ako propustiš dan, štit sam sačuva niz.'], en: ['Day streak with a shield', 'In Practice: how many days in a row you practise. Every 7 days earns a 🛡 shield (2 at most) — miss a day and a shield saves your streak by itself.'] },
     { i: '✓', sr: ['Spremne za svirku', 'Pesma kojoj su svi delovi vežbani na 80 % i više ima oznaku „spremna“, a u Pesmama je nova grupa „Spremne za svirku“ (i na računaru).'], en: ['Ready to play', 'A song with every part practised at 80 % or more is marked “ready”, and Songs has a new “Ready to play” group (on a computer too).'] },

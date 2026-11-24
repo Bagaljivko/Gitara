@@ -52,6 +52,7 @@ export async function syncProgress({ force = false, interactive = false } = {}) 
   const out = (m.out || []).slice(-30); // v1.94: želje, „proveri“, snimci — nastavnik ih sam pročita
   const hash = hashOf(JSON.stringify([sum, out]));
   if (!force && m.prog.fileId && (m.prog.hash === hash || Date.now() - (m.prog.at || 0) < MIN_GAP)) return m.prog.fileId;
+  if (!interactive && (await import('./driveGate.js')).cooling()) return m.prog.fileId || ''; // v2.4.11: Google traži pauzu — kasnije
   const text = JSON.stringify({ app: 'marli', type: 'progress', tid: m.tid, sid: m.sid, at: Date.now(), ...sum, ...(out.length ? { out } : {}) });
   const S = await import('./shareService.js');
   let id = '';

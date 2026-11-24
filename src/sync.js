@@ -99,7 +99,7 @@ async function updateApp() {
 }
 
 // ---------------- Raspored (prilagodljivo osvežavanje) ----------------
-let timer = 0, failures = 0, lastInput = Date.now(), lastRun = 0;
+let timer = 0, failures = 0, lastInput = Date.now(), lastRun = (() => { try { return Number(localStorage.getItem('marli-last-sync')) || 0; } catch { return 0; } })(); // v2.4.11: i posle ponovnog otvaranja (brzo osvežavanje ne pokreće nov krug odmah)
 const ACTIVE = 60000, IDLE = 180000; // v2.2: ređe provere (Google Drive ograničava broj zahteva)
 const GAP = 30000, SOON = 8000; // posle izmene: najranije 8 s, a između dva kruga najmanje 30 s (više izmena = jedno slanje)
 let rateHit = false;
@@ -123,7 +123,10 @@ function runNow() {
   clearTimeout(timer);
   if (!st.on || !st.leader) return;
   if (navigator.onLine === false) { setStatus('offline'); return; }
+  // v2.4.11: Google je tražio pauzu (bilo koji deo aplikacije) — sačekaj je, pa tek onda šalji
+  try { const left = Math.max(0, (JSON.parse(localStorage.getItem('marli-drive-cool') || 'null') || {}).until - Date.now() || 0); if (left > 0) { timer = setTimeout(runNow, left + 2000); return; } } catch {}
   lastRun = Date.now();
+  try { localStorage.setItem('marli-last-sync', String(lastRun)); } catch {}
   startWorker().send({ t: 'sync' });
 }
 // v1.74.1: zašto sinhronizacija ne uspeva — u dijagnostiku (kratko, bez ključeva i sadržaja)
@@ -133,7 +136,7 @@ function done(m) {
   if (!m.ok) logSync('sync', m);
   syncMeta.pending().then((n) => { st.pending = n; emit(); }).catch(() => {});
   if (m.ok) {
-    st.rate = false; import('./devices.js').then((D) => D.beat()).catch(() => {}); // v2.4.4: ovaj uređaj u spisku „Uređaji“
+    st.rate = false; import('./driveGate.js').then((G) => G.noteOk()).catch(() => {}); import('./devices.js').then((D) => D.beat()).catch(() => {}); // v2.4.4: ovaj uređaj u spisku „Uređaji“
     failures = 0;
     setStatus(m.newer ? 'newer' : 'synced');
     if (firstRun) {
@@ -156,6 +159,7 @@ function done(m) {
     else setStatus(navigator.onLine === false ? 'offline' : 'error');
     if (m.code !== 'OFFLINE' && m.code !== 'PAUSED') { const e = `${m.code || ''} ${m.msg || ''}`.trim().slice(0, 120); if (e !== st.err) { st.err = e; import('./drive.js').then((d) => d.logAuth('sinhronizacija: greška', e)).catch(() => {}); } } // v1.99.2
     rateHit = /rate|busy|429/i.test(m.msg || ''); st.rate = rateHit; // v2.4.4: jasniji opis („Google je usporio“)
+    if (rateHit) import('./driveGate.js').then((G) => G.noteRate()).catch(() => {}); // v2.4.11: i ostali pozadinski poslovi sačekaju
     failures = m.code === 'QUOTA' ? Math.max(failures + 1, 4) : rateHit ? Math.max(failures + 1, 3) : failures + 1; // v2.2: Google „uspori“ → prvi novi pokušaj tek posle ~1 min
   }
   schedule();

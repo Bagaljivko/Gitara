@@ -405,9 +405,17 @@ export async function deleteData(fileId) {
 export async function readData(fileId) {
   const { SHARE_API_KEY } = await import('./shareConfig.js');
   try {
+    const G = await import('./driveGate.js');
+    if (G.cooling()) return null; // v2.4.11: Google je tražio pauzu — „nije moglo sad“, ne „obrisano“
     const r = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&key=${encodeURIComponent(SHARE_API_KEY)}`, { cache: 'no-store' });
+    if (r.status === 403 || r.status === 429) {
+      // v2.4.11: 403 „rateLimitExceeded“ NIJE obrisan fajl (ranije je plan nastavnika nestajao kad Google uspori)
+      let reason = ''; try { const j = await r.clone().json(); reason = (j.error && ((j.error.errors && j.error.errors[0] && j.error.errors[0].reason) || j.error.status || j.error.message)) || ''; } catch {}
+      if (G.isRate(r.status, reason)) { G.noteRate(); return null; }
+    }
     if (r.status === 404 || r.status === 403) return { gone: true };
     if (!r.ok) return null;
+    G.noteOk();
     return JSON.parse(await r.text());
   } catch { return null; }
 }
