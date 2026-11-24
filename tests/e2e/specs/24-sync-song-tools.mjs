@@ -24,8 +24,8 @@ export async function run(ctx) {
     await boot(q, ctx);
     const id = await addSong(q, { title: 'Alatke', bpm: 96 });
     await q.go('#/pesma/' + id, 1500);
-    // telefon/tablet: čipovi na vrhu; računar: dugmad u traci pesme
-    const sel = (k) => (dev === 'desk' ? `#sTb [data-tb="${k}"]` : `#sChips [data-sca="${k}"]`);
+    // v2.4.7: i na računaru čipovi na vrhu pesme (kao telefon)
+    const sel = (k) => `#sChips [data-sca="${k}"]`;
     const chip = (k) => q.evaluate((s) => document.querySelector(s)?.textContent.trim(), sel(k));
     expect(await chip('metro') && await chip('timer'), dev + ': nema metronoma/štoperice', [await chip('metro'), await chip('timer')]);
     await q.click(sel('metro')); await q.waitForTimeout(400);
@@ -36,7 +36,6 @@ export async function run(ctx) {
     expect(a === (await chip('timer')), dev + ': štoperica ne staje na pauzu');
     await q.click(sel('metro')); await q.waitForTimeout(300);
     expect(!/BPM/.test(await chip('metro')), dev + ': metronom se ne gasi');
-    if (dev === 'desk') continue; // ⚙ panel je na telefonu/tabletu
     // ⚙: oba reda postoje
     await q.click('#sChips [data-sheet="all"]'); await q.waitForTimeout(400);
     expect(await q.evaluate(() => !!document.querySelector('.song-sheet .ss-item[data-k="metro"]') && !!document.querySelector('.song-sheet .ss-item[data-k="timer"]')), dev + ': nema redova u ⚙');

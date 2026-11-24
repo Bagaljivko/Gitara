@@ -5,6 +5,12 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '2.4.7', date: '2026-11-24', items: [
+    { i: '↔', sr: ['Pesma na računaru: šira i podesiva', 'Kad otvoriš pesmu, bočna traka se skloni, a lista se suzi. Prevuci razdelnik između liste i pesme da promeniš širinu (pamti se).'], en: ['Songs on a computer: wider and adjustable', 'When you open a song the sidebar moves away and the list gets narrower. Drag the divider between the list and the song to change the width (it is remembered).'] },
+    { i: '⤢', sr: ['Fokus', 'F (ili dugme „Fokus“, ili razdelnik do kraja levo) — samo pesma preko celog ekrana. Esc vraća listu.'], en: ['Focus', 'F (or the “Focus” button, or the divider all the way left) — just the song, full width. Esc brings the list back.'] },
+    { i: '▶', sr: ['Sviraj', 'Dugme „Sviraj“ (P) otvara pesmu preko celog ekrana, velikim slovima, ekran ne gasne — kao nastup, samo za jednu pesmu.'], en: ['Play', 'The “Play” button (P) opens the song full screen with big text and the screen stays on — like a gig, for one song.'] },
+    { i: '📄', sr: ['Mirnije i lakše za sviranje', 'Ista dugmad kao na telefonu (Ton, Kapo, BPM, ritam) u jednom redu, tekst u jednoj koloni, a PageDown ili Bluetooth pedala lista stranu i kratko obeleži red na kome si stao.'], en: ['Calmer and easier to play from', 'The same chips as on a phone (Key, Capo, BPM, rhythm) in one row, lyrics in one column, and PageDown or a Bluetooth pedal turns the page and briefly marks the line where you were.'] },
+  ] },
   { v: '2.4.6', date: '2026-11-24', items: [
     { i: '⚙', sr: ['Podešavanja pesme do pola ekrana', 'List se otvara do pola visine, pa pesmu i dalje vidiš dok menjaš ton ili kapodaster. Uhvati ručicu — list prati prst gore-dole i kad pustiš, stane na pola, na ceo ekran ili se zatvori.'], en: ['Song settings at half height', 'The sheet opens at half height, so you still see the song while changing key or capo. Grab the handle — the sheet follows your finger up and down, and when you let go it settles at half, full height or closes.'] },
     { i: '▾', sr: ['„Samo u ⚙“ sklopljeno', 'Ređe stvari su sklopljene ispod „Samo u ⚙“ — dodir ih otvara, a list pamti kako si ostavio.'], en: ['“Only in ⚙” collapsed', 'Less-used items are folded under “Only in ⚙” — a tap opens them, and the sheet remembers how you left it.'] },

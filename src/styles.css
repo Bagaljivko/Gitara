@@ -1693,9 +1693,23 @@ button.nudge-link { background: none; border: 0; font-family: inherit; cursor: p
 
 /* ---------- v1.70: Pesme na računaru — upravljač biblioteke ---------- */
 body.desk-lib-mode main { max-width: none; padding-left: 0; padding-right: 0; }
-.desk-lib { display: grid; grid-template-columns: 232px minmax(0, 1fr) 0; gap: 0; align-items: start; min-height: 100dvh; }
-.desk-lib.dk-has-song { grid-template-columns: 232px minmax(360px, 0.7fr) minmax(0, 1.3fr); }
-.desk-lib:not(.dk-has-song) > .pane-song { display: none; }
+/* v2.4.7: lista | razdelnik | pesma (sa otvorenom pesmom bočna traka se sklanja; razdelnik menja širinu liste; fokus = samo pesma) */
+.desk-lib { display: grid; grid-template-columns: 232px minmax(0, 1fr) 0 0; gap: 0; align-items: start; min-height: 100dvh; }
+.desk-lib > .pane-side { grid-column: 1; } .desk-lib > .pane-list { grid-column: 2; } .desk-lib > .dk-div { grid-column: 3; } .desk-lib > .pane-song { grid-column: 4; }
+.desk-lib.dk-has-song { grid-template-columns: 0 var(--dk-lw, 340px) 12px minmax(0, 1fr); }
+.desk-lib.dk-has-song > .pane-side { display: none; }
+.desk-lib:not(.dk-has-song) > .pane-song, .desk-lib:not(.dk-has-song) > .dk-div { display: none; }
+.dk-div { position: sticky; top: 0; height: 100dvh; display: flex; align-items: center; justify-content: center; cursor: col-resize; touch-action: none; border-right: 1px solid var(--line); outline: none; }
+.dk-div i { width: 4px; height: 40px; border-radius: 2px; background: var(--line); transition: background .15s, height .15s; }
+.dk-div:hover i, .dk-div:focus-visible i, .dk-resizing .dk-div i { background: var(--accent); height: 64px; }
+.dk-resizing, .dk-resizing * { user-select: none; cursor: col-resize !important; }
+.dk-will-focus > .pane-list { opacity: .35; }
+.desk-lib.dk-has-song > .pane-list { border-right: 0; container-type: inline-size; }
+.desk-lib.dk-has-song .dk-table th:last-child, .desk-lib.dk-has-song .dk-table td:last-child { display: none; } /* video: vidi se u pesmi */
+@container (max-width: 300px) { .dk-table .dt-ck, .dk-table td.k, .dk-table th:nth-child(3) { display: none; } }
+body.dk-focus .desk-lib.dk-has-song { grid-template-columns: 0 0 0 minmax(0, 1fr); }
+body.dk-focus .desk-lib.dk-has-song > .pane-list, body.dk-focus .desk-lib.dk-has-song > .dk-div { display: none; }
+body.dk-focus .desk-lib.dk-has-song > .pane-song { padding: 0 max(32px, calc((100% - 1180px) / 2)); }
 .desk-lib > .pane-side { position: sticky; top: 0; max-height: 100dvh; overflow-y: auto; border-right: 1px solid var(--line); padding: 18px 12px 24px; scrollbar-width: thin; }
 .desk-lib > .pane-list { min-width: 0; padding: 18px 22px 40px; border-right: 1px solid var(--line); position: sticky; top: 0; max-height: 100dvh; overflow-y: auto; scrollbar-width: thin; }
 .desk-lib > .pane-song { min-width: 0; padding: 0 22px; }
@@ -3197,3 +3211,28 @@ body.desk-shell .hint-card.on-song { bottom: 96px; }
 @media (prefers-reduced-motion: reduce) { .sc-chip.sc-metro.on { animation: none; } }
 .song-tb .stb-timer span { font-variant-numeric: tabular-nums; }
 .song-tb .stb-timer.on, .song-tb .stb-metro.on { color: var(--accent); border-color: var(--accent); }
+
+/* v2.4.7 (računar): mirna pesma — naslov i Fokus · Uredi · Sviraj · ⋯ u jednom redu, ispod čipovi; jedna kolona teksta */
+@media (min-width: 1100px) and (hover: hover) and (pointer: fine) {
+  .song-view.calm.desk #sHead { grid-row: 1; padding-right: 400px; }
+  .song-view.calm.desk #sTb { grid-row: 1; justify-self: end; align-self: start; margin: 14px 0 0; flex-wrap: nowrap; position: relative; z-index: 1; }
+  .song-view.calm.desk #sTb > :not([data-tb="edit"]):not([data-tb="more"]):not([data-tb="stage"]):not([data-tb="focus"]) { display: none; }
+  .song-view.calm.desk .song-chips { margin-top: 2px; }
+  .song-view.calm.desk .scroll-bar { bottom: 18px; right: 24px; }
+  .song-view.calm.desk .lyrics { max-width: 980px; }
+  body:not(.dk-focus) .song-tb .stb-list, body.dk-focus .song-tb .stb-focus { display: none; }
+  .song-tb .stb-play { background: linear-gradient(135deg, #ffcc33, #f59e0b); color: #1a1203; border: 0; }
+  .song-tb kbd { font: 600 .68rem var(--mono, ui-monospace, monospace); color: var(--muted); border: 1px solid var(--line); border-radius: 5px; padding: 0 4px; margin-left: 2px; }
+  .song-tb .stb-play kbd { color: #1a1203; border-color: rgba(0,0,0,.25); }
+}
+/* listanje strane (PageDown / pedala): red na kome si stao kratko zasvetli */
+.ln.pg-mark { animation: pgMark 1.6s ease-out; border-radius: 6px; }
+@keyframes pgMark { 0%, 40% { background: color-mix(in srgb, var(--accent) 22%, transparent); } 100% { background: transparent; } }
+
+.stage.st-one #stFoot, .stage.st-one .st-counter, .stage.st-one #stCount { display: none !important; }
+@media (min-width: 1100px) and (hover: hover) and (pointer: fine) {
+  /* gornja traka pesme (samo ⋯ i nazad) je na računaru nevidljiva — ne zauzima mesto i ne pokriva tekst pri listanju */
+  .desk-lib .pane-song .song-view.calm > .topbar { height: 0; min-height: 0; padding: 0; margin: 0; overflow: hidden; border: 0; }
+  .song-view.calm.desk #sHead { padding-top: 8px; }
+  .song-view.calm.desk #sTb { margin-top: 22px; }
+}

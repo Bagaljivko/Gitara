@@ -39,6 +39,7 @@ export const ping = () => signal();
 
 async function stageSong(hash) { // #/nastup/<setlista>?i=N → pesma na tom mestu
   const m = /^#\/nastup\/([^?]+)\?i=(\d+)/.exec(hash); if (!m) return null;
+  { const k = decodeURIComponent(m[1]); if (k.startsWith('pesma:')) return k.slice(6); } // v2.4.7: jedna pesma
   try {
     if (!setCache || Date.now() - setCache.at > 30000) setCache = { at: Date.now(), list: (await settings.get('setlists', [])) || [] };
     const sl = setCache.list.find((x) => x.id === decodeURIComponent(m[1]));

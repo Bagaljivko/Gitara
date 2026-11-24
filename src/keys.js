@@ -11,7 +11,7 @@ const songView = () => document.querySelector('.song-view #sLyrics') ? document.
 
 export const SHORTCUTS = [
   ['space', 'keys.space'], ['↑ ↓', 'keys.speed'], ['+ −', 'keys.zoom'], ['Ctrl + 🖱', 'keys.wheel'], ['← →', 'keys.prevNext'],
-  ['/', 'keys.search'], ['Esc', 'keys.esc'], ['?', 'keys.help'], ['PageDown / →', 'keys.stage'], ['Shift + → ←', 'keys.stageSong'],
+  ['/', 'keys.search'], ['Esc', 'keys.esc'], ['?', 'keys.help'], ['PageDown / PageUp', 'keys.page'], ['F', 'keys.focus'], ['P', 'keys.play'], ['PageDown / →', 'keys.stage'], ['Shift + → ←', 'keys.stageSong'],
 ];
 
 export function showShortcuts() {
@@ -60,11 +60,33 @@ function onKey(e) {
   if (e.key === '+' || e.key === '=') { e.preventDefault(); zoomStep(sv, 1); return; }
   if (e.key === '-' || e.key === '_') { e.preventDefault(); zoomStep(sv, -1); return; }
   if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft') && !e.repeat) { if (nextSong(e.key === 'ArrowRight' ? 1 : -1)) e.preventDefault(); return; }
+  // v2.4.7: strana dole/gore (Bluetooth pedala šalje PageDown/PageUp) — red na kome si stao kratko zasvetli
+  if (e.key === 'PageDown' || e.key === 'PageUp') { e.preventDefault(); if (!e.repeat) turnPage(sv, e.key === 'PageDown' ? 1 : -1); return; }
+  const desk = document.body.classList.contains('desk-lib-mode');
+  if (desk && (e.key === 'f' || e.key === 'F') && !e.repeat) { e.preventDefault(); import('./deskLayout.js').then((m) => m.toggleFocus()); return; }
+  if ((e.key === 'p' || e.key === 'P') && !e.repeat) { const b = sv.querySelector('[data-tb="stage"]'); if (b) { e.preventDefault(); b.click(); } return; }
   if (e.key === 'Escape') {
     if (playing) { e.preventDefault(); document.getElementById('sPlay')?.click(); return; } // v1.98: obrađeno — bočna traka ne vraća nazad
+    if (desk && document.body.classList.contains('dk-focus')) { e.preventDefault(); import('./deskLayout.js').then((m) => m.setFocus(false)); return; } // v2.4.7: fokus → lista
     const back = !document.body.classList.contains('two-pane-mode') && sv.querySelector('.topbar .back');
     if (back) { e.preventDefault(); back.click(); }
   }
+}
+
+/** Jedna strana: koliko se vidi teksta, minus gornja traka, plutajuća traka i dva reda preklopa. */
+function turnPage(sv, d) {
+  const lines = [...sv.querySelectorAll('#sLyrics .ln:not(.blank)')];
+  const top = (document.querySelector('.dsh-bar')?.getBoundingClientRect().bottom || 0) + 8;
+  const pill = sv.querySelector('#sScrollBar'); const bottom = Math.min(innerHeight, pill && pill.offsetParent ? pill.getBoundingClientRect().top : innerHeight) - 8;
+  const visible = lines.filter((l) => { const r = l.getBoundingClientRect(); return r.bottom > top && r.top < bottom; });
+  let delta;
+  if (d > 0) {
+    const last = visible.filter((l) => l.getBoundingClientRect().bottom <= bottom).pop() || visible[visible.length - 1];
+    delta = last ? last.getBoundingClientRect().top - top : bottom - top - 60; // poslednji ceo red ide na vrh
+    if (delta < 40) delta = bottom - top - 60;
+    if (last) { last.classList.remove('pg-mark'); void last.offsetWidth; last.classList.add('pg-mark'); setTimeout(() => last.classList.remove('pg-mark'), 1700); }
+  } else delta = -(bottom - top - 60);
+  window.scrollBy({ top: delta, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
 }
 
 // Ctrl + točkić (i štipanje na touchpad-u, koje pregledač šalje kao Ctrl + točkić) = veličina teksta pesme, ne cele stranice

@@ -198,8 +198,9 @@ async function routeInner() {
         app.querySelector(':scope > .page')?.remove();
         tp = document.createElement('div');
         tp.className = 'page two-pane desk-lib';
-        tp.innerHTML = '<aside class="pane-side"></aside><div class="pane-list"></div><div class="pane-song"></div>';
+        tp.innerHTML = `<aside class="pane-side"></aside><div class="pane-list"></div><div class="dk-div" role="separator" aria-orientation="vertical" tabindex="0" aria-label="${t('desk.divider')}" title="${t('desk.divider')}"><i></i></div><div class="pane-song"></div>`;
         app.appendChild(tp);
+        (await import('./deskLayout.js')).initDeskLayout(tp); // v2.4.7: razdelnik i fokus
         const refresh = () => D.deskReload();
         await D.renderDeskLibrary(tp.querySelector('.pane-side'), tp.querySelector('.pane-list'), tp.querySelector('.pane-song'), params, {
           add: () => S.openAddDesk(refresh),

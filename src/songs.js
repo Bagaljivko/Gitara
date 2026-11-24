@@ -814,7 +814,7 @@ function chWidth(family, px) {
 
 /** Veličina slova, font i raspoloživa širina za tekst pesme (ne zavise od samog teksta). */
 const COLS_GAP = 44, COLS_MIN = 760; // v1.68: tekst u dve kolone kad je prostor za tekst bar ovoliko širok (računar)
-const colsPref = () => localStorageGet('gitara-cols') !== '0';
+const colsPref = () => localStorageGet('gitara-cols') === '1'; // v2.4.7: podrazumevano jedna kolona (lakše se prati dok sviraš)
 export function lyricsMetrics(el, availW = 0) {
   el.style.fontSize = '';
   const cs = getComputedStyle(el);
@@ -1013,13 +1013,16 @@ export async function renderSong(root, id, nav = null) {
       <div id="sHead"></div>
       <div class="song-chips" id="sChips"></div>
       ${stored.recording ? '' : `<div class="song-tb" id="sTb" role="toolbar" aria-label="${esc(t('stb.label'))}">
-        <button class="btn primary" data-tb="edit" title="${esc(t('stb.editTip'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17.2V21h3.8l11-11-3.8-3.8-11 11zM20.7 7a1 1 0 0 0 0-1.4l-2.3-2.3a1 1 0 0 0-1.4 0l-1.8 1.8 3.8 3.8L20.7 7z"/></svg><span>${t('stb.edit')}</span></button>
+        <button class="btn stb-focus" data-tb="focus" title="${esc(t('stb.focusTip'))}">⤢ <span>${t('stb.focus')}</span> <kbd>F</kbd></button>
+        <button class="btn stb-list" data-tb="focus" title="${esc(t('stb.listTip'))}">‹ <span>${t('stb.list')}</span> <kbd>Esc</kbd></button>
+        <button class="btn" data-tb="edit" title="${esc(t('stb.editTip'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17.2V21h3.8l11-11-3.8-3.8-11 11zM20.7 7a1 1 0 0 0 0-1.4l-2.3-2.3a1 1 0 0 0-1.4 0l-1.8 1.8 3.8 3.8L20.7 7z"/></svg><span>${t('stb.edit')}</span></button>
         <button class="btn stb-listen" data-tb="listen" title="${esc(t('dock.listenTip'))}">${NOTE_ICON}<span>${t('dock.listen')}</span></button>
         <button class="btn" data-tb="video" title="${esc(t('stb.videoTip'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.6 7.2a2.5 2.5 0 0 0-1.8-1.8C18.2 5 12 5 12 5s-6.2 0-7.8.4A2.5 2.5 0 0 0 2.4 7.2 26 26 0 0 0 2 12a26 26 0 0 0 .4 4.8 2.5 2.5 0 0 0 1.8 1.8C5.8 19 12 19 12 19s6.2 0 7.8-.4a2.5 2.5 0 0 0 1.8-1.8A26 26 0 0 0 22 12a26 26 0 0 0-.4-4.8zM10 15V9l5.2 3L10 15z"/></svg><span>${t('stb.video')}</span></button>
         <button class="btn stb-tog" data-tb="easy" aria-pressed="false" title="${esc(t('song.easySub'))}"><i aria-hidden="true"></i><span>${t('sug.easyBtn')}</span></button>
         <button class="btn stb-tog stb-metro" data-tb="metro" aria-pressed="false" title="${esc(t('ss.metroSub'))}"><i aria-hidden="true"></i><span>${t('ss.metro')}</span></button>
         <button class="btn stb-timer" data-tb="timer" aria-pressed="false" title="${esc(t('ss.timerSub'))}">⏱ <span>0:00</span></button>
         <button class="btn" data-tb="share" aria-haspopup="true" title="${esc(t('stb.shareTip'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 16a3 3 0 0 0-2.4 1.2l-6.7-3.4a3 3 0 0 0 0-1.6l6.7-3.4A3 3 0 1 0 15 7l-6.7 3.4a3 3 0 1 0 0 3.2L15 17a3 3 0 1 0 3-1z"/></svg><span>${t('song.shareShort')}</span> ▾</button>
+        <button class="btn stb-play" data-tb="stage" title="${esc(t('stb.playTip'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg><span>${t('stb.play')}</span> <kbd>P</kbd></button>
         <button class="btn stb-more" data-tb="more" title="${esc(t('song.more'))}" aria-label="${esc(t('song.more'))}">${MORE_ICON}</button>
       </div>`}
       ${stored.recording ? '' : practiceLineHTML(id)}
@@ -1973,6 +1976,8 @@ export async function renderSong(root, id, nav = null) {
     const b = e.target.closest('[data-tb]'); if (!b) return;
     const a = b.dataset.tb;
     if (a === 'edit') location.hash = '#/uredi/' + encodeURIComponent(id);
+    else if (a === 'focus') (await import('./deskLayout.js')).toggleFocus(); // v2.4.7
+    else if (a === 'stage') location.hash = '#/nastup/' + encodeURIComponent('pesma:' + id) + '?i=0'; // v2.4.7: „Sviraj“ — ceo ekran za jednu pesmu
     else if (a === 'video') $('paBtn')?.click();
     else if (a === 'easy') { await toggleEasy(); tbSync(); }
     else if (a === 'metro') await toggleMetro(); // v2.4.4 (računar)
@@ -1987,7 +1992,8 @@ export async function renderSong(root, id, nav = null) {
   });
   // v1.88: mirna verzija na telefonu i tabletu (računar zadržava traku sa kontrolama)
   const deskMq = matchMedia(DESK_Q);
-  const setCalm = () => { root.querySelector('.song-view')?.classList.toggle('calm', !deskMq.matches && !globalThis.__marliTest?.classicSong); fitChips(); }; // stari testovi kontrola: ranija traka
+  // v2.4.7: i računar dobija mirnu verziju (čipovi kao na telefonu, plutajuće skrolovanje); „desk“ dodaje Uredi · Sviraj · ⋯ i fokus
+  const setCalm = () => { const v = root.querySelector('.song-view'); v?.classList.toggle('calm', !globalThis.__marliTest?.classicSong); v?.classList.toggle('desk', deskMq.matches); fitChips(); }; // stari testovi kontrola: ranija traka
   setCalm();
   deskMq.addEventListener?.('change', setCalm);
   window.addEventListener('hashchange', function offMq() { deskMq.removeEventListener?.('change', setCalm); window.removeEventListener('hashchange', offMq); });

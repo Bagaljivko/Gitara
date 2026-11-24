@@ -41,12 +41,14 @@ function firstChord(s) {
 }
 
 export async function renderStage(root, setlistId, params) {
-  const sl = await getSetlist(setlistId);
+  // v2.4.7: „Sviraj“ jedne pesme — #/nastup/pesma:<id> (isti ekran, bez set liste)
+  const one = String(setlistId).startsWith('pesma:') ? String(setlistId).slice(6) : '';
+  const sl = one ? { id: setlistId, name: '', songIds: [one] } : await getSetlist(setlistId);
   if (!sl) { location.hash = '#/pesme?tab=sl'; return; }
   // samo pesme ove set liste (ne cela biblioteka)
   const all = new Map((await Promise.all(sl.songIds.map((id) => db.get(id).catch(() => null)))).filter(Boolean).map((s) => [s.id, s]));
   const ids = sl.songIds.filter((x) => all.has(x));
-  if (!ids.length) { location.hash = '#/setlista/' + encodeURIComponent(setlistId); return; }
+  if (!ids.length) { location.hash = one ? '#/pesme' : '#/setlista/' + encodeURIComponent(setlistId); return; }
   let i = Math.max(0, Math.min(ids.length - 1, Number(params.get('i')) || 0));
   let zoom = getZoom();
   // izbor pre početka (pamti se uz set listu); dugmad gore ga menjaju dok svira
@@ -110,6 +112,7 @@ export async function renderStage(root, setlistId, params) {
     padFoot();
   }
   // tekst nikad ne ostaje ispod donje trake: dno stranice = visina trake + bezbedna zona (meri se, menja se sa A−/A+)
+  if (one) { root.querySelector('.stage')?.classList.add('st-one'); } // v2.4.7: jedna pesma — bez donje trake i brojača
   const padFoot = () => { const h = $('stFoot')?.offsetHeight || 0; root.querySelector('.stage')?.style.setProperty('--st-foot', h + 'px'); };
   const go = (d) => { const k = i + d; if (k < 0 || k >= ids.length) return false; i = k; draw(); return true; };
   const barH = () => $('stBar').offsetHeight;
@@ -193,7 +196,7 @@ export async function renderStage(root, setlistId, params) {
   };
   $('stScroll').addEventListener('click', () => {
     mode.scroll = !mode.scroll; setMode(mode);
-    import('./collections.js').then((c) => c.updateSetlist(setlistId, { play: { pause, scroll: mode.scroll } })).catch(() => {});
+    if (!one) import('./collections.js').then((c) => c.updateSetlist(setlistId, { play: { pause, scroll: mode.scroll } })).catch(() => {});
     showScroll();
     if (mode.scroll) startFlow(300); else stopFlow();
   });
@@ -205,7 +208,7 @@ export async function renderStage(root, setlistId, params) {
   document.addEventListener('pointerdown', (e) => { if (!e.target.closest('.st-zoom') && $('stAaPop')) aaOpen(false); }, { capture: true });
   $('stDown').addEventListener('click', () => setZoom(-0.1));
   $('stUp').addEventListener('click', () => setZoom(0.1));
-  $('stExit').addEventListener('click', () => { location.hash = '#/setlista/' + encodeURIComponent(setlistId); });
+  $('stExit').addEventListener('click', () => { location.hash = one ? '#/pesma/' + encodeURIComponent(one) : '#/setlista/' + encodeURIComponent(setlistId); });
   $('stJump').addEventListener('click', async () => {
     const p = dialog({
       title: t('stage.jump'), html: true,
