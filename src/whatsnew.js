@@ -5,6 +5,12 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '2.4.6', date: '2026-11-24', items: [
+    { i: '⚙', sr: ['Podešavanja pesme do pola ekrana', 'List se otvara do pola visine, pa pesmu i dalje vidiš dok menjaš ton ili kapodaster. Uhvati ručicu — list prati prst gore-dole i kad pustiš, stane na pola, na ceo ekran ili se zatvori.'], en: ['Song settings at half height', 'The sheet opens at half height, so you still see the song while changing key or capo. Grab the handle — the sheet follows your finger up and down, and when you let go it settles at half, full height or closes.'] },
+    { i: '▾', sr: ['„Samo u ⚙“ sklopljeno', 'Ređe stvari su sklopljene ispod „Samo u ⚙“ — dodir ih otvara, a list pamti kako si ostavio.'], en: ['“Only in ⚙” collapsed', 'Less-used items are folded under “Only in ⚙” — a tap opens them, and the sheet remembers how you left it.'] },
+    { i: '↩', sr: ['Poništi', 'Posle „Primeni“ predloženog ritma ili vraćanja originalnog tona — „Poništi“ jednim dodirom.'], en: ['Undo', 'After applying a suggested rhythm or going back to the original key — “Undo” with one tap.'] },
+    { i: '📍', sr: ['Pamti gde si stao', 'Kad ponovo otvoriš podešavanja, vidiš red koji si poslednji menjao.'], en: ['Remembers where you were', 'When you reopen the settings, the row you last changed is in view.'] },
+  ] },
   { v: '2.4.5', date: '2026-11-24', items: [
     { i: '⚙', sr: ['Podešavanja pesme lakše', 'Dugme ✕ uvek na vrhu, zatvara se i prevlačenjem nadole ili dodirom van lista; pesma ispod se više ne pomera dok je list otvoren. Predlog ritma se više ne preklapa sa natpisom.'], en: ['Easier song settings', 'A ✕ button always at the top; it also closes when you swipe it down or tap outside, and the song underneath no longer scrolls while the sheet is open. The suggested rhythm no longer overlaps its label.'] },
     { i: '☀', sr: ['Ekran ne gasne na pesmi', 'Dok je pesma otvorena, ekran ostaje upaljen i kad je samo čitaš, bez dodirivanja (ako je u Podešavanjima izabrano „Dok koristim pesme“). Ikonica u traci ga isključuje za tu pesmu.'], en: ['Screen stays on for songs', 'While a song is open the screen stays on even when you only read it without touching (if Settings has “While I use songs”). The icon in the toolbar turns it off for that song.'] },

@@ -34,6 +34,44 @@ export async function run(ctx) {
     expect(!(await isClosed()) && await q.evaluate(() => !document.querySelector('.song-sheet').style.transform), lang + ': kratko povlačenje ne vraća list');
     // dodir van lista
     await q.mouse.click(200, 30); await q.waitForTimeout(250); expect(await isClosed(), lang + ': dodir van lista ne zatvara');
+    // v2.4.6: otvara se do pola visine; povuci nagore → cela visina; „Samo u ⚙“ se sklapa i pamti
+    await q.evaluate(() => localStorage.removeItem('marli-ss-more'));
+    await openSheet();
+    const hh = () => q.evaluate(() => document.querySelector('.song-sheet').getBoundingClientRect().height);
+    const vh = await q.evaluate(() => innerHeight), h1 = await hh();
+    expect(h1 <= vh * 0.57, lang + ': list se ne otvara do pola visine', [h1, vh]);
+    const g = await q.evaluate(() => { const b = document.querySelector('.ss-head .sheet-title').getBoundingClientRect(); return { x: b.left + 20, y: b.top + b.height / 2 }; });
+    // praćenje prsta: sa otvorenim „Samo u ⚙“ (dovoljno sadržaja za ceo ekran)
+    await q.click('.ss-more'); await q.waitForTimeout(300);
+    await q.evaluate(() => document.querySelector('.song-sheet').classList.add('half')); await q.waitForTimeout(300);
+    const h2 = await hh();
+    await q.mouse.move(g.x, g.y); await q.mouse.down(); await q.mouse.move(g.x, g.y - 60, { steps: 6 }); await q.waitForTimeout(50);
+    const mid = await hh();
+    expect(mid > h2 + 40, lang + ': list ne prati prst nagore', [h2, mid]);
+    await q.mouse.move(g.x, g.y + 40, { steps: 6 }); await q.waitForTimeout(50);
+    expect(await hh() < h2 - 20, lang + ': list ne prati prst nadole', [h2, await hh()]);
+    await q.mouse.move(g.x, g.y - 120, { steps: 12 }); await q.waitForTimeout(150); await q.mouse.up(); await q.waitForTimeout(400);
+    await q.click('.ss-more'); await q.waitForTimeout(300);
+    expect(await q.evaluate(() => !document.querySelector('.song-sheet').classList.contains('half')), lang + ': povlačenje nagore ne širi list');
+    const hidden = () => q.evaluate(() => [...document.querySelectorAll('.ss-item')].filter((x) => x.offsetParent === null).length);
+    const n0 = await hidden();
+    expect(n0 > 0, lang + ': „Samo u ⚙“ nije sklopljeno');
+    await q.click('.ss-more'); await q.waitForTimeout(400);
+    expect(await hidden() === 0, lang + ': „Samo u ⚙“ se ne otvara');
+    // poslednji dodirnut red: veličina teksta (+), zatvori, otvori — red je vidljiv
+    await q.click('.ss-item[data-k="size"] [data-ss="z+"]'); await q.waitForTimeout(300);
+    await q.keyboard.press('Escape'); await q.waitForTimeout(250);
+    await openSheet();
+    const vis = await q.evaluate(() => { const r = document.querySelector('.ss-item[data-k="size"]').getBoundingClientRect(), s = document.querySelector('.song-sheet').getBoundingClientRect(); return r.top >= s.top && r.bottom <= s.bottom + 1; });
+    expect(vis && await hidden() === 0, lang + ': list ne pamti poslednji red / otvoreno „Samo u ⚙“', [vis, await hidden()]);
+    // Primeni predlog ritma → „Poništi“ vraća
+    await q.click('.ss-item[data-k="rhythm"] [data-ss="rh-apply"]'); await q.waitForTimeout(400);
+    const strum = () => q.evaluate(async (id) => !!(await (await import('./src/db.js')).songs.get(id)).strum, id);
+    expect(await strum(), lang + ': ritam nije primenjen');
+    expect(await q.evaluate(() => { const t = document.querySelector('#toast.show .toast-action'); if (!t) return false; const r = t.getBoundingClientRect(); return document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2) === t; }), lang + ': „Poništi“ nije vidljivo iznad lista');
+    await q.click('#toast .toast-action'); await q.waitForTimeout(400);
+    expect(!(await strum()) && await q.$('.ss-item[data-k="rhythm"] [data-ss="rh-apply"]'), lang + ': „Poništi“ ne vraća predlog ritma');
+    await q.keyboard.press('Escape'); await q.waitForTimeout(200);
   }
   // setlista od nastavnika: oznaka u spisku (telefon) i u bočnoj traci (računar)
   for (const dev of ['phone', 'desk']) {

@@ -2970,6 +2970,14 @@ body.nastava-teacher .nav a.nav-teach { display: none !important; }
 .ss-sep { display: flex; align-items: baseline; gap: 8px; margin: 14px 0 4px; color: var(--muted); font: 800 .72rem var(--sans); text-transform: uppercase; letter-spacing: .12em; }
 .ss-sep:first-child { margin-top: 4px; }
 .ss-sep small { text-transform: none; letter-spacing: 0; font-weight: 600; font-size: .74rem; opacity: .8; }
+/* v2.4.6: „Samo u ⚙“ se sklapa; list se otvara do pola visine */
+.ss-more { cursor: pointer; align-items: center; min-height: 44px; margin-bottom: 0; border-top: 1px solid var(--line); padding-top: 4px; -webkit-tap-highlight-color: transparent; }
+.ss-more .ss-chev { width: 20px; height: 20px; fill: currentColor; margin-left: auto; transition: transform .15s; }
+.ss-more.open .ss-chev { transform: rotate(180deg); }
+.ss-item.ss-hide { display: none; }
+.song-sheet.half { max-height: 56dvh; }
+html:has(.modal-backdrop.sheet-backdrop) .toast { z-index: 75; } /* „Poništi“ iznad lista */
+.song-sheet { transition: transform .18s ease-out, max-height .2s ease-out; }
 .ss-item > .ss-r { padding-left: 0; }
 .ss-item > .ss-r:first-child { border-top: 1px solid var(--line); }
 .ss-sep + .ss-item > .ss-r:first-child, .ss-item.dl-lift > .ss-r { border-top-color: transparent; }

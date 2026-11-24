@@ -945,6 +945,8 @@ async function setBarOrder(v) { try { localStorage.setItem('marli-songbar', JSON
 const syncBar = () => settings.get('songBar', null).then((v) => { if (Array.isArray(v)) try { localStorage.setItem('marli-songbar', JSON.stringify(v.filter((k) => BAR_ALL.includes(k)))); } catch {} }).catch(() => {});
 syncBar(); import('./db.js').then(({ events }) => events?.addEventListener('settings-changed', (e) => { if (e.detail === 'songBar') syncBar(); })).catch(() => {}); // izmena sa drugog uređaja
 let curFitChips = null, fitResizeOn = false;
+// v2.4.6: list „Podešavanja pesme“ pamti poslednji dodirnut red (do kraja sesije) i da li je „Samo u ⚙“ otvoreno
+const ssMem = { k: '', more: (() => { try { return localStorage.getItem('marli-ss-more') === '1'; } catch { return false; } })() };
 let chipPop = null; // v2.3: otvorena mala traka ispod čipa (jedna u isto vreme) // v2.1: red čipova se ponovo uklapa kad se promeni veličina ekrana
 export async function renderSong(root, id, nav = null) {
   let stored = await db.get(id);
@@ -1221,7 +1223,8 @@ export async function renderSong(root, id, nav = null) {
       };
       const top = barOrder(), rest = BAR_ALL.filter((k) => !top.includes(k));
       const it = (k) => (R[k] && R[k].trim() ? `<div class="ss-item" data-k="${k}">${R[k].replace('<div class="ss-r">', `<div class="ss-r">${gripHTML(esc(t('ss.dragRow')))}`)}</div>` : '');
-      rows.innerHTML = `<div class="ss-sep" data-dl-sep="top">${t('ss.secTop')}<small>${t('ss.secTopHint')}</small></div>${top.map(it).join('')}<div class="ss-sep" data-dl-sep="rest">${t('ss.secRest')}</div>${rest.map(it).join('')}`;
+      const restN = rest.filter((k) => R[k] && R[k].trim()).length;
+      rows.innerHTML = `<div class="ss-sep" data-dl-sep="top">${t('ss.secTop')}<small>${t('ss.secTopHint')}</small></div>${top.map(it).join('')}<div class="ss-sep ss-more${ssMem.more ? ' open' : ''}" data-dl-sep="rest" data-ss="more" role="button" tabindex="0" aria-expanded="${ssMem.more}">${t('ss.secRest')}<small>${esc(t('ss.moreN', { n: restN }))}</small><svg class="ss-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.4 8.6 12 13.2l4.6-4.6L18 10l-6 6-6-6z"/></svg></div>${ssMem.more ? rest.map(it).join('') : rest.map(it).join('').replace(/class="ss-item"/g, 'class="ss-item ss-hide"')}`;
     };
     const onEsc = (e) => { if (e.key === 'Escape') close(); };
     const close = () => { stopStrum(); document.removeEventListener('keydown', onEsc); wrap.remove(); sheetRefresh = null; drawChips(); };
@@ -1230,10 +1233,45 @@ export async function renderSong(root, id, nav = null) {
     wrap.addEventListener('touchmove', (e) => { if (!e.target.closest('.song-sheet')) e.preventDefault(); }, { passive: false });
     // prevuci zaglavlje nadole → zatvori
     const sh = wrap.querySelector('.song-sheet'), head = wrap.querySelector('.ss-head');
-    let dragY = null;
-    head.addEventListener('pointerdown', (e) => { if (e.target.closest('button')) return; dragY = e.clientY; sh.style.transition = 'none'; head.setPointerCapture?.(e.pointerId); });
-    head.addEventListener('pointermove', (e) => { if (dragY == null) return; sh.style.transform = `translateY(${Math.max(0, e.clientY - dragY)}px)`; });
-    const endDrag = (e) => { if (dragY == null) return; const dy = e.clientY - dragY; dragY = null; sh.style.transition = ''; if (dy > 70) close(); else sh.style.transform = ''; };
+    // otvara se do pola visine (pesma ostaje vidljiva); povuci zaglavlje nagore ili otvori „Samo u ⚙“ → cela visina
+    const expand = (on) => sh.classList.toggle('half', !on);
+    sh.classList.add('half');
+    rows.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target.closest('.ss-more')) { e.preventDefault(); e.target.click(); } });
+    // v2.4.6: list prati prst gore-dole (ručica/zaglavlje); pusti → skoči na najbliže: zatvoreno · pola · ceo ekran
+    const MIN_H = 150;
+    const snaps = () => { const full = Math.min(innerHeight * 0.86, sh.scrollHeight); return { half: Math.min(innerHeight * 0.56, full), full }; };
+    let drag = null;
+    head.addEventListener('pointerdown', (e) => {
+      if (e.target.closest('button')) return;
+      drag = { y: e.clientY, h: sh.getBoundingClientRect().height, max: snaps().full, ly: e.clientY, lt: e.timeStamp, v: 0 };
+      sh.style.transition = 'none'; head.setPointerCapture?.(e.pointerId);
+    });
+    head.addEventListener('pointermove', (e) => {
+      if (!drag) return;
+      const dt = e.timeStamp - drag.lt; if (dt > 0) { drag.v = (e.clientY - drag.ly) / dt; drag.ly = e.clientY; drag.lt = e.timeStamp; }
+      let h = drag.h - (e.clientY - drag.y);
+      if (h > drag.max) h = drag.max + (h - drag.max) * 0.15; // otpor iznad vrha
+      sh.style.maxHeight = Math.max(MIN_H, h) + 'px';
+      sh.style.transform = h < MIN_H ? `translateY(${MIN_H - h}px)` : '';
+    });
+    const endDrag = (e) => {
+      if (!drag) return;
+      const d = drag; drag = null;
+      const dy = e.clientY - d.y, h = d.h - dy, { half, full } = snaps();
+      sh.style.transition = '';
+      const moved = Math.abs(dy) > 6;
+      let to;
+      if (!moved) to = sh.classList.contains('half') ? 'half' : 'full';
+      else if (d.v > 0.6 && dy > 50) to = h > half + 40 ? 'half' : 'close';          // brzo nadole: korak niže
+      else if (d.v < -0.6 && dy < -50) to = 'full';                                     // brzo nagore: ceo ekran
+      else if (h < half * 0.75) to = 'close';
+      else to = Math.abs(h - half) <= Math.abs(h - full) ? 'half' : 'full';
+      if (to === 'close') { sh.style.transform = `translateY(${Math.max(h, MIN_H)}px)`; setTimeout(close, 160); return; }
+      sh.style.transform = '';
+      sh.style.maxHeight = (to === 'half' ? half : full) + 'px';
+      expand(to === 'full');
+      setTimeout(() => { if (!drag) sh.style.maxHeight = ''; }, 230);
+    };
     head.addEventListener('pointerup', endDrag); head.addEventListener('pointercancel', endDrag);
     wrap.__close = close;
     sheetRefresh = render;
@@ -1242,9 +1280,11 @@ export async function renderSong(root, id, nav = null) {
       const b = e.target.closest('[data-ss]'); if (!b) return;
       const a = b.dataset.ss;
       if (a === 'close') return close();
+      const row = b.closest('.ss-item'); if (row) ssMem.k = row.dataset.k;
+      if (a === 'more') { ssMem.more = !ssMem.more; try { localStorage.setItem('marli-ss-more', ssMem.more ? '1' : '0'); } catch {} if (ssMem.more) expand(true); render(); if (ssMem.more) rows.querySelector('.ss-more')?.scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
       if (a === 't-') await setT(tp - 1);
       else if (a === 't+') await setT(tp + 1);
-      else if (a === 't0') await setT(0);
+      else if (a === 't0') { const was = tp; await setT(0); toast(t('ss.keyReset'), '', { label: t('common.undo'), onClick: async () => { await setT(was); sheetRefresh?.(); } }); }
       else if (a === 'c-') await setCapo(capo - 1);
       else if (a === 'c+') await setCapo(capo + 1);
       else if (a === 'easy') { await toggleEasy(); syncEasyTop(); }
@@ -1256,7 +1296,13 @@ export async function renderSong(root, id, nav = null) {
       else if (a === 'wheel') { close(); return openWheel(false); }
       else if (a === 'rh-edit') { close(); return editStrum(); }
       else if (a === 'rh-play') return playPattern(sugStrum(), '#ssPat');
-      else if (a === 'rh-apply') { stopStrum(); const p = sugStrum(); if (p) stored.strum = { id: p.id, sig: p.sig, steps: p.steps, ...(p.swing ? { swing: true } : {}) }; await save(); draw(); }
+      else if (a === 'rh-apply') {
+        stopStrum(); const p = sugStrum();
+        if (p) {
+          stored.strum = { id: p.id, sig: p.sig, steps: p.steps, ...(p.swing ? { swing: true } : {}) }; await save(); draw();
+          toast(t('ss.rhApplied'), '', { label: t('common.undo'), onClick: async () => { delete stored.strum; await save(); draw(); sheetRefresh?.(); } });
+        }
+      }
       else if (a === 'video') { close(); return $('paBtn')?.click(); }
       else if (a === 'practice') { close(); return root.querySelector('.sp-line')?.click(); }
       else if (a === 'chords') { close(); return editChords(); }
@@ -1265,6 +1311,9 @@ export async function renderSong(root, id, nav = null) {
     render();
     dragList(rows, { item: '.ss-item', onDrop: (items) => { const top = items.filter((x) => zoneOf(x) === 'top').map((x) => x.dataset.k); const hidden = barOrder().filter((k) => !items.some((x) => x.dataset.k === k)); setBarOrder([...top, ...hidden.filter((k) => !top.includes(k))]); drawChips(); } });
     document.body.appendChild(wrap);
+    // vrati se na red koji si poslednji menjao (ako je ispod vidljivog dela)
+    const last = ssMem.k && rows.querySelector(`.ss-item[data-k="${ssMem.k}"]:not(.ss-hide)`);
+    if (last) { const hh = head.offsetHeight; if (last.offsetTop + last.offsetHeight > sh.clientHeight) sh.scrollTop = last.offsetTop - hh - 8; }
   }
   // „Detalji“: ritam, akordi po delovima, dijagrami, YouTube. Crta se tek kada je otvoren.
   let detDirty = true;
