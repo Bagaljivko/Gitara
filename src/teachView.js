@@ -87,6 +87,7 @@ export async function renderStudent(root, id) {
     <a class="back tch-back" href="#/ucenici">‹ ${t('tch.students')}</a>
     <div class="tch-hero">${T.avatarHTML(s, 56)}<div><h1>${esc(s.name)}</h1><small class="muted">${esc([s.contact, t('tch.since', { d: ((d) => `${d.getDate()}. ${d.getMonth() + 1}. ${d.getFullYear()}.`)(new Date(s.createdAt || Date.now())) })].filter(Boolean).join(' · '))}</small></div></div>
     <div class="tch-actions"><button class="btn primary" id="tSend">${t('tch.sendTo', { name: s.name })}</button><button class="btn" id="tMore" aria-label="${esc(t('tch.more'))}">⋯</button></div>
+    <p class="tch-keys" aria-label="${esc(t('les.keysLabel'))}"><span><kbd>N</kbd> ${t('les.k.n')}</span><span><kbd>L</kbd> ${t('les.k.l')}</span><span><kbd>G</kbd> ${t('les.k.g')}</span><span><kbd>R</kbd> ${t('les.k.r')}</span><span><kbd>H</kbd> ${t('les.k.h')}</span><span><kbd>S</kbd> ${t('les.k.s')}</span><span><kbd>←</kbd><kbd>→</kbd> ${t('les.k.arrows')}</span></p>
     <div id="tLes" class="les-box"></div>
     <div id="tProg">${s.prog ? `<div class="tch-sec"><span>${t('prog.head')}</span></div><p class="muted small tch-none">${t('prog.loading')}</p>` : ''}</div>
     <div id="tPlan" class="pl-tch"></div>
@@ -99,6 +100,21 @@ export async function renderStudent(root, id) {
   root.querySelector('#tSend').addEventListener('click', () => sendMenu([s]));
   import('./lessons.js').then((L) => L.drawTeacher(root.querySelector('#tLes'), id)).catch((e) => console.error(e)); // v2.4.2: časovi
   bindReqs(root, () => renderStudent(root, id));
+  // v2.4.9 (računar): prečice na stranici učenika
+  const onKey = async (e) => {
+    if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
+    if (e.target.closest?.('input, textarea, select, [contenteditable="true"]') || document.querySelector('.modal-backdrop, .sheet-backdrop')) return;
+    const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+    const L = await import('./lessons.js'); const redraw = () => L.drawTeacher(root.querySelector('#tLes'), id);
+    const acts = { n: () => L.noteFlow(id), l: () => L.nextFlow(id), g: () => L.goalFlow(id), r: () => L.nudge(id), h: () => L.historyFlow(id), s: () => sendMenu([s]) };
+    if (acts[k]) { e.preventDefault(); if (await acts[k]()) redraw(); return; }
+    if (k === 'ArrowLeft' || k === 'ArrowRight') {
+      const all = await T.getStudents(); const i = all.findIndex((x) => x.id === id); const nx = all[i + (k === 'ArrowRight' ? 1 : -1)];
+      if (nx) { e.preventDefault(); location.hash = '#/ucenik/' + encodeURIComponent(nx.id); }
+    }
+  };
+  document.addEventListener('keydown', onKey);
+  addEventListener('hashchange', function offK() { document.removeEventListener('keydown', onKey); removeEventListener('hashchange', offK); });
   if (s.prog) progressCardHTML(s, true).then((h) => { const box = root.querySelector('#tProg'); if (box) box.innerHTML = h; }).catch(() => {});
   // v1.83: zadaci i plan učenja (stanje iz učenikovog napretka, ako ga deli)
   (async () => {
@@ -515,7 +531,7 @@ export async function renderDashboard(root) {
   };
   root.innerHTML = `<section class="view tch-view tch-dash">
     <a class="back tch-back" href="#/pesme">‹ ${t('lib.title')}</a>
-    <div class="db-h"><div><h1>${t('tch.students')}</h1><small class="muted">${t('prog.dSub')}</small></div><div class="db-h-btns"><button class="btn" id="dMe">⚙ ${t('tch.me')}</button><button class="btn" id="dQrCard">🖨 ${t('inst.cardBtn')}</button><button class="btn" id="dSendSet">${t('tch.d.sendSet')}</button><button class="btn primary" id="tAdd">+ ${t('tch.student')}</button></div></div>
+    <div class="db-h"><div><h1>${t('tch.students')}</h1><small class="muted">${t('prog.dSub')}</small></div><div class="db-h-btns"><button class="btn" id="dMe">⚙ ${t('tch.me')}</button><button class="btn" id="dQrCard">🖨 ${t('inst.cardBtn')}</button><button class="btn" id="dSendSet">${t('tch.d.sendSet')}</button><button class="btn" id="dGroup">👥 ${t('les.groupBtn')}</button><button class="btn primary" id="tAdd">+ ${t('tch.student')}</button></div></div>
     <div class="db-kpis">
       <div class="db-kpi"><small>${t('tch.d.kStudents')}</small><b>${students.length}</b><em>${t('prog.kSharing', { n: students.filter((s) => s.prog).length })}</em></div>
       <div class="db-kpi"><small>${t('prog.kPracticed')}</small><b>${practiced} / ${sharing.length}</b>${diff(practiced, practicedLast, (n) => String(n))}</div>
@@ -551,6 +567,7 @@ export async function renderDashboard(root) {
   root.querySelector('#tAdd').addEventListener('click', async () => { const s = await addStudentFlow(); if (s) location.hash = '#/ucenik/' + encodeURIComponent(s.id); });
   root.querySelector('#dQrCard').addEventListener('click', printInstallCard);
   root.querySelector('#dMe')?.addEventListener('click', () => editMe());
+  root.querySelector('#dGroup')?.addEventListener('click', async () => { await (await import('./lessons.js')).groupFlow(); }); // v2.4.9
   root.querySelector('#dSendSet').addEventListener('click', async () => {
     const c2 = await import('./collections.js'); const sets2 = await c2.getSetlists();
     const id = await chooseFrom(t('tch.what.set'), sets2.map((sl) => ({ id: sl.id, label: sl.name, sub: songsCount((sl.songIds || []).length) })));
@@ -694,6 +711,7 @@ async function renderStudentsTouch(root) {
     <header class="view-head tch-head"><h1>${t('tch.students')}</h1><button class="linkish tch-me" id="tMe">⚙ ${t('tch.me')}</button></header>
     <p class="muted tch-sub">${t('tch.touchSub')}</p>
     <div class="tch-big"><button class="btn primary" id="tBulk">↗ ${t('bulk.btn')}</button><button class="btn" id="tAdd">＋ ${t('tch.newStudent')}</button></div>
+    ${list.length > 1 ? `<button type="button" class="btn wide tch-group" id="tGroup">👥 ${t('les.groupBtn')}</button>` : ''}
     <div id="tIdle" class="les-idle-box"></div>
     ${list.length ? `<div class="tch-sec"><span>${t('tch.yours')}</span></div><div class="set-grp">${list.map((s) => {
       const pc = V.dashCell(s, null); const sub = [pc && pc !== '—' ? t('tch.planShort', { p: pc }) : '', s.prog ? t('tch.sharesProg') : ''].filter(Boolean).join(' · ') || t('tch.showQrHint');
@@ -705,6 +723,7 @@ async function renderStudentsTouch(root) {
   </section>`;
   root.querySelector('#tAdd').addEventListener('click', async () => { const s = await addStudentFlow(); if (s) location.hash = '#/ucenik/' + encodeURIComponent(s.id); });
   root.querySelector('#tBulk').addEventListener('click', () => bulkSend());
+  root.querySelector('#tGroup')?.addEventListener('click', async () => { await (await import('./lessons.js')).groupFlow(); }); // v2.4.9
   import('./lessons.js').then((L) => L.drawIdle(root.querySelector('#tIdle'))).catch(() => {}); // v2.4.2: ko ne vežba
 
   root.querySelector('#tMe').addEventListener('click', () => editMe());

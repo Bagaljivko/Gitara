@@ -36,27 +36,114 @@ async function put(sid, item) {
   return true;
 }
 
-/** Beleška sa časa: šta smo radili + domaći (dijalog). */
-export async function noteFlow(sid, edit = null) {
-  const tm = await TM(); const st = await tm.getStudent(sid); if (!st) return false;
-  const p = dialog({ title: t('les.noteT', { name: st.name }), html: true, className: 'tch-dlg les-dlg', body: `
-    <label class="tch-lab">${t('les.did')}</label><textarea id="lnDid" rows="3" maxlength="600" placeholder="${esc(t('les.didPh'))}">${esc(edit ? edit.did : '')}</textarea>
-    <label class="tch-lab">${t('les.hw')}</label><textarea id="lnHw" rows="3" maxlength="600" placeholder="${esc(t('les.hwPh'))}">${esc(edit ? edit.hw : '')}</textarea>
-    <p class="tch-lock">🔒 ${esc(t('les.noteLock', { name: st.name }))}</p>`,
+/** Dijalog beleške (jedan ili više učenika). lastHw: „↺ Prošli domaći“ upisuje poslednji domaći. */
+async function noteDialog(title, lock, init = {}, lastHw = '') {
+  const p = dialog({ title, html: true, className: 'tch-dlg les-dlg', body: `
+    <label class="tch-lab">${t('les.did')}</label><textarea id="lnDid" rows="3" maxlength="600" placeholder="${esc(t('les.didPh'))}">${esc(init.did || '')}</textarea>
+    <label class="tch-lab les-hw-lab">${t('les.hw')}${lastHw ? ` <button type="button" class="linkish les-copy" id="lnLast">↺ ${esc(t('les.lastHw'))}</button>` : ''}</label><textarea id="lnHw" rows="3" maxlength="600" placeholder="${esc(t('les.hwPh'))}">${esc(init.hw || '')}</textarea>
+    <p class="tch-lock">🔒 ${esc(lock)}</p>`,
   buttons: [{ label: t('common.cancel'), value: null }, { label: t('les.send'), value: 'ok', kind: 'primary' }] });
   const box = [...document.querySelectorAll('.modal-backdrop')].pop();
-  setTimeout(() => box.querySelector('#lnDid')?.focus(), 50);
-  const val = { did: edit ? edit.did : '', hw: edit ? edit.hw : '' };
+  setTimeout(() => box.querySelector(init.hw && !init.did ? '#lnDid' : '#lnDid')?.focus(), 50);
+  const val = { did: init.did || '', hw: init.hw || '' };
   box.querySelector('#lnDid').addEventListener('input', (e) => (val.did = e.target.value));
   box.querySelector('#lnHw').addEventListener('input', (e) => (val.hw = e.target.value));
-  if ((await p) !== 'ok') return false;
+  box.querySelector('#lnLast')?.addEventListener('click', () => { const h = box.querySelector('#lnHw'); h.value = lastHw; val.hw = lastHw; h.focus(); });
+  if ((await p) !== 'ok') return null;
   const did = clip(val.did, 600), hw = clip(val.hw, 600);
-  if (!did && !hw) return false;
-  const n = { id: edit ? edit.id : uid(), at: edit ? edit.at : Date.now(), did, hw };
+  return did || hw ? { did, hw } : null;
+}
+/** Sačuvaj belešku kod učenika i pošalji je u sanduče. */
+async function sendNote(sid, n, quiet = false) {
+  const tm = await TM(); const st = await tm.getStudent(sid); if (!st) return false;
   const notes = [n, ...((st.notes || []).filter((x) => x.id !== n.id))].sort((a, b) => b.at - a.at).slice(0, 40);
   await tm.updateStudent(sid, { notes });
-  if (await put(sid, { key: 'note:' + n.id, kind: 'note', id: n.id, did, hw, name: t('les.noteName', { d: dShort(n.at) }) })) toast(t('les.noteSent', { name: st.name }));
+  if (quiet && !(st.box && st.box.f)) return false;
+  return put(sid, { key: 'note:' + n.id, kind: 'note', id: n.id, did: n.did, hw: n.hw, name: t('les.noteName', { d: dShort(n.at) }) });
+}
+/** Beleška sa časa: šta smo radili + domaći (dijalog). prefill: npr. kopiran domaći sa ranijeg časa. */
+export async function noteFlow(sid, edit = null, prefill = null) {
+  const tm = await TM(); const st = await tm.getStudent(sid); if (!st) return false;
+  const last = (st.notes || []).find((x) => x.hw && (!edit || x.id !== edit.id));
+  const v = await noteDialog(t('les.noteT', { name: st.name }), t('les.noteLock', { name: st.name }), edit || prefill || {}, edit ? '' : (last ? last.hw : ''));
+  if (!v) return false;
+  const { did, hw } = v;
+  const n = { id: edit ? edit.id : uid(), at: edit ? edit.at : Date.now(), did, hw };
+  if (await sendNote(sid, n)) toast(t('les.noteSent', { name: st.name }));
   return true;
+}
+
+/** v2.4.9: sve beleške sa časova (nastavnik) — uredi ili „Kopiraj domaći“ u novu belešku. */
+export async function historyFlow(sid) {
+  const tm = await TM(); const st = await tm.getStudent(sid); if (!st) return false;
+  const notes = st.notes || [];
+  const p = dialog({ title: t('les.histT', { name: st.name }), html: true, className: 'tch-dlg les-dlg les-hist', body: notes.length
+    ? `<div class="les-hlist">${notes.map((n) => `<div class="les-h"><div class="les-h-top"><b>${esc(dShort(n.at))}</b>${statusHTML(st, 'note:' + n.id)}</div>${n.hw ? `<p class="les-h-hw">📝 ${esc(n.hw)}</p>` : ''}${n.did ? `<p class="muted small">${esc(n.did)}</p>` : ''}
+        <div class="les-h-btns"><button type="button" class="btn small" data-hedit="${esc(n.id)}">${esc(t('les.edit'))}</button>${n.hw ? `<button type="button" class="btn small" data-hcopy="${esc(n.id)}">↺ ${esc(t('les.copyHw'))}</button>` : ''}</div></div>`).join('')}</div>`
+    : `<p class="muted">${esc(t('les.histEmpty'))}</p>`,
+  buttons: [{ label: t('common.close'), value: null }] });
+  const box = [...document.querySelectorAll('.modal-backdrop')].pop();
+  let act = null;
+  box.addEventListener('click', (e) => { const b = e.target.closest('[data-hedit],[data-hcopy]'); if (!b) return; act = b.dataset.hedit ? { edit: b.dataset.hedit } : { copy: b.dataset.hcopy }; box.__close?.(); box.querySelector('.modal-actions button')?.click(); });
+  await p;
+  if (!act) return false;
+  const n = notes.find((x) => x.id === (act.edit || act.copy)); if (!n) return false;
+  return act.edit ? noteFlow(sid, n) : noteFlow(sid, null, { hw: n.hw });
+}
+
+/** v2.4.9: cilj vežbanja (minuti nedeljno) — učeniku se postavi na kartici „Ova nedelja“. */
+export const GOALS = [0, 60, 120, 180, 300, 420];
+async function goalDialog(title, cur = 0) {
+  const { fmtDur } = await import('./statsView.js');
+  const v = await dialog({ title, body: t('les.goalBody'), buttons: GOALS.map((m) => ({ label: m ? t('les.goalPer', { d: fmtDur(m * 60000) }) : t('les.goalNone'), value: String(m), kind: m === cur ? 'primary' : '' })) });
+  return v == null || v === false ? null : Number(v);
+}
+async function sendGoal(sid, min) {
+  const tm = await TM();
+  await tm.updateStudent(sid, { goal: min });
+  return put(sid, { key: 'goal', kind: 'goal', min, name: min ? t('les.goalName', { n: min }) : t('les.goalOff') });
+}
+export async function goalFlow(sid) {
+  const tm = await TM(); const st = await tm.getStudent(sid); if (!st) return false;
+  const min = await goalDialog(t('les.goalT', { name: st.name }), Number(st.goal) || 0);
+  if (min == null) return false;
+  if (await sendGoal(sid, min)) toast(min ? t('les.goalSent', { name: st.name }) : t('les.goalCleared', { name: st.name }));
+  return true;
+}
+
+/** v2.4.9: više učenika odjednom — ista beleška/domaći, cilj ili podsetnik. */
+export async function groupFlow(preSel = []) {
+  const tm = await TM(); const sts = await tm.getStudents();
+  if (!sts.length) { toast(t('les.groupNone')); return false; }
+  const sel = new Set(preSel.length ? preSel : []);
+  const p = dialog({ title: t('les.groupT'), html: true, className: 'tch-dlg les-dlg les-group', body: `
+    <p class="muted small">${esc(t('les.groupSub'))}</p>
+    <div class="les-gtop"><button type="button" class="linkish" id="lgAll">${esc(t('les.groupAll'))}</button></div>
+    <div class="bulk-list les-glist">${sts.map((s) => `<button type="button" class="bulk-it${sel.has(s.id) ? ' on' : ''}" data-sid="${esc(s.id)}" role="checkbox" aria-checked="${sel.has(s.id)}"><span class="bulk-cb">${sel.has(s.id) ? '✓' : ''}</span><span class="bulk-t"><b>${esc(s.name)}</b>${s.box && s.box.f ? '' : `<small class="muted">${esc(t('les.groupNoBox'))}</small>`}</span></button>`).join('')}</div>`,
+  buttons: [{ label: t('common.cancel'), value: null }, { label: '🔔 ' + t('les.remind'), value: 'nudge' }, { label: '🎯 ' + t('les.goalBtn'), value: 'goal' }, { label: '📝 ' + t('les.addNote'), value: 'note', kind: 'primary' }] });
+  const box = [...document.querySelectorAll('.modal-backdrop')].pop();
+  const sync = () => { box.querySelectorAll('[data-sid]').forEach((b) => { const on = sel.has(b.dataset.sid); b.classList.toggle('on', on); b.setAttribute('aria-checked', String(on)); b.querySelector('.bulk-cb').textContent = on ? '✓' : ''; }); box.querySelectorAll('.modal-actions button').forEach((b, i) => { if (i) b.disabled = !sel.size; }); };
+  box.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-sid]'); if (b) { const id = b.dataset.sid; sel.has(id) ? sel.delete(id) : sel.add(id); sync(); return; }
+    if (e.target.closest('#lgAll')) { const all = sel.size === sts.length; sts.forEach((s) => (all ? sel.delete(s.id) : sel.add(s.id))); sync(); }
+  });
+  sync();
+  const what = await p;
+  if (!what || !sel.size) return false;
+  const to = sts.filter((s) => sel.has(s.id));
+  let ok = 0;
+  if (what === 'note') {
+    const v = await noteDialog(t('les.groupNoteT', { n: to.length }), t('les.groupLock')); if (!v) return false;
+    const at = Date.now();
+    for (const s of to) if (await sendNote(s.id, { id: uid(), at, did: v.did, hw: v.hw }, true)) ok++;
+  } else if (what === 'goal') {
+    const min = await goalDialog(t('les.groupGoalT', { n: to.length })); if (min == null) return false;
+    for (const s of to) if (s.box && s.box.f && await sendGoal(s.id, min)) ok++;
+  } else if (what === 'nudge') {
+    for (const s of to) if (s.box && s.box.f && await nudge(s.id, true)) ok++;
+  }
+  toast(ok === to.length ? t('les.groupDone', { n: ok }) : t('les.groupPart', { n: ok, m: to.length }));
+  return ok > 0;
 }
 
 /** Sledeći čas (datum i vreme) — oboje vide, podsetnik dan ranije. */
@@ -79,15 +166,15 @@ export async function nextFlow(sid) {
 }
 
 /** Podsetnik za vežbanje (jedan po danu po učeniku). */
-export async function nudge(sid) {
+export async function nudge(sid, quiet = false) {
   const tm = await TM(); const st = await tm.getStudent(sid); if (!st) return false;
   const day = new Date().toISOString().slice(0, 10);
-  if (await put(sid, { key: 'nudge:' + day, kind: 'nudge', name: t('les.nudgeName') })) { await tm.updateStudent(sid, { nudged: Date.now() }); toast(t('les.nudged', { name: st.name })); return true; }
+  if (await put(sid, { key: 'nudge:' + day, kind: 'nudge', name: t('les.nudgeName') })) { await tm.updateStudent(sid, { nudged: Date.now() }); if (!quiet) toast(t('les.nudged', { name: st.name })); return true; }
   return false;
 }
 
 const CAL = '<svg viewBox="0 0 24 24" aria-hidden="true" class="les-cal"><path d="M7 2v2H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2V2h-2v2H9V2zM5 9h14v10H5zm2 2v3h3v-3z"/></svg>';
-const KIND_IC = { song: '♪', set: '☰', note: '📝', lesson: CAL, nudge: '🔔', plan: '🗓', ex: '🎯', rp: '🥁', ans: '💬', cmt: '💬' };
+const KIND_IC = { song: '♪', set: '☰', note: '📝', lesson: CAL, nudge: '🔔', plan: '🗓', ex: '🎯', rp: '🥁', ans: '💬', cmt: '💬', goal: '🎯' };
 /** Status jedne poslate stavke: viđeno / odgovor. */
 function statusHTML(st, key) {
   const r = (st.reacts || {})[key], seen = (st.seen || {})[key];
@@ -96,6 +183,7 @@ function statusHTML(st, key) {
   return `<em class="les-st les-wait">${esc(t('les.notSeen'))}</em>`;
 }
 
+const goalLine = (st) => (Number(st.goal) ? t('les.goalIs', { n: Number(st.goal) }) : t('les.goalNo'));
 /** Odeljak „Časovi“ na stranici učenika (nastavnik, telefon i računar). */
 export async function drawTeacher(box, sid, rerender) {
   if (!box) return;
@@ -105,14 +193,20 @@ export async function drawTeacher(box, sid, rerender) {
   box.innerHTML = `<div class="tch-sec"><span>${t('les.head')}</span></div>
     <div class="set-grp les-grp">
       <button type="button" class="tch-row les-next" data-l="next"><span class="sr-ic">${CAL}</span><span><b>${st.next && st.next > Date.now() - 3600e3 ? esc(lessonWhen(st.next)) : esc(t('les.noNext'))}</b><small>${esc(t('les.nextSub'))}</small></span><span class="sr-chev" aria-hidden="true">›</span></button>
+      <button type="button" class="tch-row les-goal" data-l="goal"><span class="sr-ic">🎯</span><span><b>${esc(goalLine(st))}</b><small id="lesGoalProg">${esc(t('les.goalSub'))}</small></span><span class="sr-chev" aria-hidden="true">›</span></button>
       <button type="button" class="tch-row" data-l="note"><span class="sr-ic">📝</span><span><b>${esc(t('les.addNote'))}</b><small>${esc(t('les.addNoteSub'))}</small></span><span class="sr-chev" aria-hidden="true">›</span></button>
       ${notes.map((n) => `<button type="button" class="tch-row les-note" data-edit="${esc(n.id)}"><span class="sr-ic les-d">${esc(dShort(n.at))}</span><span><b>${esc(n.hw ? t('les.hwShort', { hw: n.hw }) : n.did)}</b>${n.hw && n.did ? `<small>${esc(n.did)}</small>` : ''}</span>${statusHTML(st, 'note:' + n.id)}</button>`).join('')}
+      ${(st.notes || []).length > 3 || (st.notes || []).some((n) => n.hw) ? `<button type="button" class="tch-row les-more" data-l="hist"><span class="sr-ic">🗂</span><span><b>${esc(t('les.histBtn', { n: (st.notes || []).length }))}</b><small>${esc(t('les.histSub'))}</small></span><span class="sr-chev" aria-hidden="true">›</span></button>` : ''}
     </div>
     ${sent.length ? `<div class="tch-sec"><span>${t('les.sentHead')}</span></div><div class="set-grp les-sent">${sent.map((x) => `<div class="tch-row"><span class="sr-ic">${KIND_IC[x.kind] || '•'}</span><span><b>${esc(x.name || t('les.k.' + x.kind))}</b><small>${esc(dShort(x.at))}</small></span>${statusHTML(st, x.key)}</div>`).join('')}</div>` : ''}`;
+  // cilj: koliko je ove nedelje (ako učenik deli napredak)
+  if (Number(st.goal) && st.prog) (async () => { const P = await import('./progress.js'); const pr = await P.studentProgress(st).catch(() => null); const w = pr && !pr.err ? P.thisWeek(pr) : null; const el = box.querySelector('#lesGoalProg'); if (w && el) { const { fmtDur } = await import('./statsView.js'); el.textContent = t('les.goalProg', { d: fmtDur(w.total), g: fmtDur(Number(st.goal) * 60000) }); } })().catch(() => {});
   box.onclick = async (e) => {
     const b = e.target.closest('[data-l],[data-edit]'); if (!b) return;
     let changed = false;
     if (b.dataset.l === 'next') changed = await nextFlow(sid);
+    else if (b.dataset.l === 'goal') changed = await goalFlow(sid);
+    else if (b.dataset.l === 'hist') changed = await historyFlow(sid);
     else if (b.dataset.l === 'note') changed = await noteFlow(sid);
     else if (b.dataset.edit) { const n = (st.notes || []).find((x) => x.id === b.dataset.edit); if (n) changed = await noteFlow(sid, n); }
     if (changed) (rerender || (() => drawTeacher(box, sid)))();
@@ -191,6 +285,13 @@ export async function receive(it, m) {
     return Number(it.next) ? { t: t('les.ntNext', { t: m.name || t('tch.teacher') }), s: lessonWhen(Number(it.next)) } : null;
   }
   if (it.kind === 'nudge') return { t: t('les.ntNudge', { t: m.name || t('tch.teacher') }), s: t('les.ntNudgeSub'), href: '#/vezbe' };
+  if (it.kind === 'goal') { // v2.4.9: nastavnik postavio cilj — to je i moj cilj na kartici „Ova nedelja“ (mogu da ga promenim)
+    const min = Math.max(0, Math.min(1200, Math.round(Number(it.min) || 0)));
+    const { settings } = await import('./db.js'); await settings.set('weekGoal', min);
+    await tm.setMyTeacher({ ...cur, goal: min });
+    const { fmtDur } = await import('./statsView.js');
+    return { t: min ? t('les.ntGoal', { t: m.name || t('tch.teacher') }) : t('les.ntGoalOff', { t: m.name || t('tch.teacher') }), s: min ? t('les.goalPer', { d: fmtDur(min * 60000) }) : '', href: '#/vezbe' };
+  }
   return null;
 }
 
@@ -244,17 +345,23 @@ export async function studentCardHTML(m) {
     ${next ? `<div class="les-row"><span class="les-ic">${CAL}</span><span><small>${esc(t('les.nextLesson'))}</small><b>${esc(lessonWhen(next))}</b></span></div>` : ''}
     ${n ? `<div class="les-row les-hw"><span class="les-ic">📝</span><span><small>${esc(t('les.fromLesson', { d: dShort(n.at) }))}</small>${n.hw ? `<b>${esc(t('les.hwShort', { hw: n.hw }))}</b>` : ''}${n.did ? `<p>${esc(n.did)}</p>` : ''}</span></div>
     ${reactsHTML(n.key || 'note:' + n.id, n.hw || n.did, (m.myReacts || {})[n.key || 'note:' + n.id])}` : ''}
+    ${(m.notes || []).length > 1 ? `<button type="button" class="linkish les-older" data-lhist>${esc(t('les.older', { n: m.notes.length - 1 }))} ›</button>` : ''}
   </div>`;
 }
 export async function drawStudent(box) {
   if (!box) return;
   const tm = await TM(); const m = await tm.getMyTeacher(); if (!m) { box.innerHTML = ''; return; }
   box.innerHTML = await studentCardHTML(m);
-  if (!box.dataset.bound) { box.dataset.bound = '1'; bindReacts(box); }
+  if (!box.dataset.bound) { box.dataset.bound = '1'; bindReacts(box); box.addEventListener('click', (e) => { if (e.target.closest('[data-lhist]')) studentHistory(); }); }
   const keys = [(m.notes || [])[0] && ((m.notes[0].key) || 'note:' + m.notes[0].id), m.next ? m.nextKey || 'lesson' : ''].filter(Boolean);
   if (keys.length) markSeen(keys);
 }
 
+/** v2.4.9: učenik — ranije beleške sa časova (samo čitanje). */
+async function studentHistory() {
+  const tm = await TM(); const m = await tm.getMyTeacher(); if (!m) return;
+  await dialog({ title: t('les.histMine', { t: m.name || t('tch.teacher') }), html: true, className: 'tch-dlg les-dlg les-hist', body: `<div class="les-hlist">${(m.notes || []).map((n) => `<div class="les-h"><div class="les-h-top"><b>${esc(dShort(n.at))}</b></div>${n.hw ? `<p class="les-h-hw">📝 ${esc(n.hw)}</p>` : ''}${n.did ? `<p class="muted small">${esc(n.did)}</p>` : ''}</div>`).join('')}</div>`, buttons: [{ label: t('common.close'), value: null }] });
+}
 /** Učenik: podsetnik dan pre časa (jednom). */
 export async function studentReminder() {
   const tm = await TM(); const m = await tm.getMyTeacher();

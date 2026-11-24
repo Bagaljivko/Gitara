@@ -65,7 +65,7 @@ export function checkBox({ force = false } = {}) {
     for (const it of (d.items || []).slice(-MAX_ITEMS)) {
       if (!it || !it.key || (seen[it.key] || 0) >= (it.at || 1)) continue;
       try {
-        if (it.kind === 'note' || it.kind === 'lesson' || it.kind === 'nudge') { // v2.4.2: beleška sa časa, sledeći čas, podsetnik
+        if (it.kind === 'note' || it.kind === 'lesson' || it.kind === 'nudge' || it.kind === 'goal') { // v2.4.9: i cilj vežbanja // v2.4.2: beleška sa časa, sledeći čas, podsetnik
           const L = await import('./lessons.js'); const r = await L.receive(it, m); if (r) les.push({ it, r });
         } else if (it.kind === 'cmt') { // v2.4.3: komentar na moj snimak
           const C = await import('./recComments.js'); const r = await C.receive(it, m); if (!r) continue; les.push({ it, r });

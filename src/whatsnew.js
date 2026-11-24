@@ -5,6 +5,12 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '2.4.9', date: '2026-11-24', items: [
+    { i: '🗂', sr: ['Sve beleške sa časova', 'Nastavnik vidi sve ranije beleške učenika, uredi ih ili „Kopiraj domaći“ u novu belešku; u novoj belešci „↺ prošli domaći“ upisuje prethodni. Učenik vidi „Ranije beleške“.'], en: ['All lesson notes', 'The teacher sees all of a student’s earlier notes, edits them or uses “Copy homework” for a new note; in a new note “↺ last homework” fills in the previous one. The student sees “Earlier notes”.'] },
+    { i: '🎯', sr: ['Cilj vežbanja od nastavnika', 'Nastavnik postavi koliko da učenik vežba nedeljno — učeniku se to pojavi kao cilj na kartici „Ova nedelja“ (sa oznakom „od nastavnika“), a nastavnik vidi koliko je urađeno.'], en: ['Practice goal from the teacher', 'The teacher sets how much the student should practise per week — it shows up as the goal on the student’s “This week” card (marked “from teacher”), and the teacher sees how much is done.'] },
+    { i: '👥', sr: ['Više učenika odjednom', 'Izaberi učenike i pošalji istu belešku i domaći, cilj ili podsetnik — svako dobija svoju kopiju.'], en: ['Several students at once', 'Pick students and send the same note and homework, goal or reminder — each gets their own copy.'] },
+    { i: '⌨', sr: ['Prečice za nastavu (računar)', 'Na stranici učenika: N beleška, L čas, G cilj, R podseti, H sve beleške, S pošalji, ← → drugi učenik.'], en: ['Teaching shortcuts (computer)', 'On a student’s page: N note, L lesson, G goal, R remind, H all notes, S send, ← → other student.'] },
+  ] },
   { v: '2.4.8', date: '2026-11-24', items: [
     { i: '🎸', sr: ['Sviraj: akordi sa strane', 'Na širokom ekranu hvatovi svih akorda pesme stoje desno, a istaknut je akord reda koji upravo sviraš. „sakrij“ ih sklanja (pamti se), dugme gore ih vraća.'], en: ['Play: chords on the side', 'On a wide screen the shapes of all the song’s chords sit on the right, with the chord of the line you are playing highlighted. “hide” puts them away (remembered), the button at the top brings them back.'] },
     { i: '🔠', sr: ['Tekst preko celog ekrana', 'U „Sviraj“ i nastupu tekst je uvek najveći koji staje u širinu ekrana. Aa (A− / A+) ga i dalje smanjuje ili povećava.'], en: ['Text fills the screen', 'In Play and on stage the text is always as big as fits the screen width. Aa (A− / A+) still makes it smaller or bigger.'] },

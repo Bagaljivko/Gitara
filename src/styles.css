@@ -3278,3 +3278,21 @@ body.desk-shell .hint-card.on-song { bottom: 96px; }
 @media (max-width: 520px) { .st-met-adj .st-tool { min-width: 38px; } }
 .st-tool svg.met-ic, .sc-chip svg.met-ic, svg.met-ic { fill: none; }
 @media (max-width: 640px) { .st-met-adj { display: none !important; } }
+
+/* v2.4.9: časovi — sve beleške, kopiraj domaći, cilj, više učenika, prečice */
+.les-hw-lab { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.les-copy { font-size: .82rem; }
+.les-hlist { display: flex; flex-direction: column; gap: 10px; max-height: 60dvh; overflow-y: auto; }
+.les-h { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; background: var(--bg); }
+.les-h-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.les-h-hw { margin: 6px 0 2px; font-weight: 700; }
+.les-h p.small { margin: 2px 0 0; }
+.les-h-btns { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.les-older { display: block; margin: 8px 0 0; font-size: .86rem; }
+.les-group .modal-actions { flex-wrap: wrap; }
+.les-gtop { display: flex; justify-content: flex-end; margin: -4px 0 6px; }
+.les-glist { max-height: 46dvh; overflow-y: auto; }
+.tch-group { margin: 10px 0 0; }
+.tch-keys { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 10px 0 0; color: var(--muted); font-size: .8rem; }
+.tch-keys kbd { font: 700 .72rem var(--mono, ui-monospace, monospace); border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; margin-right: 3px; color: var(--text); background: var(--surface-2); }
+.les-group .modal-actions .btn { white-space: nowrap; flex: 1 1 auto; }

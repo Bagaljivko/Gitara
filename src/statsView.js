@@ -48,11 +48,12 @@ export async function weekHTML() {
   const max = Math.max(...per, 1);
   const names = getLang() === 'en' ? ['M', 'T', 'W', 'T', 'F', 'S', 'S'] : ['P', 'U', 'S', 'Č', 'P', 'S', 'N'];
   const goalMs = goal * 60000;
+  let fromT = false; if (goal) { try { const m = await (await import('./teach.js')).getMyTeacher(); fromT = !!(m && Number(m.goal) === goal); } catch {} } // v2.4.9: cilj od nastavnika
   return `<div class="st-week" id="stWeek">
     <div class="st-wk"><small>${t('st.played')}</small><b>${fmtDur(p)}</b>${diff && lastWeekSameTime ? `<em class="${diff > 0 ? 'up' : 'down'}">${diff > 0 ? '+' : '−'}${fmtDur(Math.abs(diff))} ${t('st.vsLast')}</em>` : `<em>${t('st.thisWeek')}</em>`}</div>
     <div class="st-wk"><small>${t('st.practiced')}</small><b>${fmtDur(x)}</b><em>${t('st.activeDays', { n: countOf(days.filter((d) => d <= today && tot.days[String(d)]).length, DAYS) })}</em></div>
     <button type="button" class="st-wk st-goal" id="stGoal" aria-label="${esc(t('st.goal'))}">
-      ${goal ? `${ring(all / goalMs)}<span><small>${t('st.goal')}</small><b>${fmtDur(all)}</b><em>${t('st.of', { goal: fmtDur(goalMs) })}</em></span>`
+      ${goal ? `${ring(all / goalMs)}<span><small>${t('st.goal')}</small><b>${fmtDur(all)}</b><em>${t('st.of', { goal: fmtDur(goalMs) })}${fromT ? ` · ${t('st.goalT')}` : ''}</em></span>`
         : `<span class="st-bars" aria-hidden="true">${per.map((v, i) => `<i class="${days[i] === today ? 't' : ''}" style="height:${Math.round((v / max) * 100)}%"></i>`).join('')}</span><span class="st-days">${names.map((n, i) => `<i class="${days[i] === today ? 't' : ''}">${n}</i>`).join('')}</span><small class="st-setgoal">${t('st.setGoal')}</small>`}
     </button>
     ${await (await import('./remind.js')).buttonHTML()}
