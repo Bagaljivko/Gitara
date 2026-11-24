@@ -102,7 +102,7 @@ export async function renderSetlistsPane(el) {
     <button class="btn primary wide" id="slNew">${t('sl.new')}</button>
     <ul class="song-list">
       ${lists.length ? lists.map((l) => `<li class="song-item slp-item"><a class="song-link" href="#/setlista/${encodeURIComponent(l.id)}">
-        <span class="sl-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h12v2H3zm0 5h12v2H3zm0 5h8v2H3zm14-3v-3h2v3h3v2h-3v3h-2v-3h-3v-2z"/></svg></span><span class="sl-txt"><span class="song-title">${esc(l.name)}</span><span class="song-sub">${esc(songsCount(l.songIds.length))}</span></span></a></li>`).join('')
+        <span class="sl-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h12v2H3zm0 5h12v2H3zm0 5h8v2H3zm14-3v-3h2v3h3v2h-3v3h-2v-3h-3v-2z"/></svg></span><span class="sl-txt"><span class="song-title">${esc(l.name)}</span><span class="song-sub">${l.fromT ? `<span class="badge-sm tch-badge">${esc(t('tch.fromTeacherShort'))}</span> ` : ''}${esc(songsCount(l.songIds.length))}</span></span></a></li>`).join('')
         : `<li class="empty sl-empty-big"><span class="sl-ico big"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h12v2H3zm0 5h12v2H3zm0 5h8v2H3zm14-3v-3h2v3h3v2h-3v3h-2v-3h-3v-2z"/></svg></span><b>${t('sl.emptyTitle')}</b><span class="muted">${t('sl.empty')}</span></li>`}
     </ul>`;
   el.querySelector('#slNew').addEventListener('click', async () => {

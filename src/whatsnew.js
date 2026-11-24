@@ -5,6 +5,11 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '2.4.5', date: '2026-11-24', items: [
+    { i: '⚙', sr: ['Podešavanja pesme lakše', 'Dugme ✕ uvek na vrhu, zatvara se i prevlačenjem nadole ili dodirom van lista; pesma ispod se više ne pomera dok je list otvoren. Predlog ritma se više ne preklapa sa natpisom.'], en: ['Easier song settings', 'A ✕ button always at the top; it also closes when you swipe it down or tap outside, and the song underneath no longer scrolls while the sheet is open. The suggested rhythm no longer overlaps its label.'] },
+    { i: '☀', sr: ['Ekran ne gasne na pesmi', 'Dok je pesma otvorena, ekran ostaje upaljen i kad je samo čitaš, bez dodirivanja (ako je u Podešavanjima izabrano „Dok koristim pesme“). Ikonica u traci ga isključuje za tu pesmu.'], en: ['Screen stays on for songs', 'While a song is open the screen stays on even when you only read it without touching (if Settings has “While I use songs”). The icon in the toolbar turns it off for that song.'] },
+    { i: '🎓', sr: ['Set liste od nastavnika', 'Set lista koju je poslao nastavnik ima oznaku „od nastavnika“ u spisku set lista (i 🎓 u bočnoj traci na računaru).'], en: ['Set lists from your teacher', 'A set list your teacher sent is marked “from teacher” in the set list list (and 🎓 in the sidebar on a computer).'] },
+  ] },
   { v: '2.4.4', date: '2026-11-24', items: [
     { i: '𝅘𝅥', sr: ['Metronom i štoperica na pesmi', 'Novi čipovi (dodaj ih u ⚙ na vrh pesme): metronom klika po tempu pesme (prati i „Tapni“), štoperica meri koliko vežbaš tu pesmu. Na računaru su u traci pesme.'], en: ['Metronome and timer on a song', 'New chips (add them to the top via ⚙): the metronome clicks at the song’s tempo (follows “Tap” too), the timer measures how long you practise that song. On a computer they are in the song toolbar.'] },
     { i: '💻', sr: ['Uređaji', 'Podešavanja → Sinhronizacija: koji uređaji su povezani na tvoj Google nalog i kad je koji poslednji put sinhronizovan.'], en: ['Devices', 'Settings → Sync: which devices are connected to your Google account and when each one last synced.'] },

@@ -1,6 +1,6 @@
 // Ekran ostaje upaljen samo dok nešto radiš (Screen Wake Lock).
 // 1) „Vlasnici“: dok tuner/prepoznavanje akorda slušaju, svira metronom ili ritam, pesma skroluje, nastup…
-// 2) Aktivnost: dok je otvorena pesma, setlista ili rečnik akorda, ekran ostaje upaljen još X minuta
+// 2) Aktivnost: dok je otvorena pesma — ceo put (v2.4.5); setlista ili rečnik akorda — još X minuta
 //    posle poslednjeg dodira ili skrolovanja (podešava se u Podešavanjima; podrazumevano 10 min).
 // Podešavanje „Ekran ostaje upaljen“: 'songs' (podrazumevano) | 'active' (samo dok nešto radi) | 'never'.
 import { settings, events } from './db.js';
@@ -55,6 +55,7 @@ function bump() {
   if (!zone || paused || mode !== 'songs') return;
   clearTimeout(actTimer);
   if (!owners.has('activity')) keepAwake('activity');
+  if (zone === 'song') return; // v2.4.5: dok je pesma otvorena, gledanje je „rad“ — ekran ostaje upaljen bez odbrojavanja
   actTimer = setTimeout(() => allowSleep('activity'), minutes * 60000);
 }
 /** Uđi u deo aplikacije gde se aktivnost računa (ili null kad ga napustiš). */

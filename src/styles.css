@@ -2096,6 +2096,8 @@ body:not(.tuner-screen) .settings-view details.set-page.card { background: none;
 .tch-list { max-height: 50dvh; overflow: auto; margin-top: 8px; }
 .tch-pick .chev { margin-left: auto; }
 .tch-badge { background: var(--accent-soft) !important; color: var(--accent) !important; }
+.ds-it .ds-tch { flex: none; font-style: normal; font-size: .8rem; }
+.slp-item .song-sub .tch-badge { margin-right: 4px; }
 .sl-teach { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
 .sl-teach-who { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .sl-teach-st { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 3px; border-radius: 999px; background: var(--surface-2); color: var(--text); text-decoration: none; font-weight: 600; font-size: .88rem; }
@@ -2395,7 +2397,17 @@ a.ds-it { text-decoration: none; }
 .song-view.calm .sec:not(.tools) .sec-pat-add, .song-view.calm .sec:not(.tools):not(.looping) .loop-btn { display: none; }
 .song-view.calm .sec-name { cursor: pointer; }
 /* „Podešavanja pesme“ */
-.song-sheet { max-height: 86dvh; overflow-y: auto; }
+.song-sheet { max-height: 86dvh; overflow-y: auto; overscroll-behavior: contain; padding-top: 0; transition: transform .18s ease-out; }
+/* v2.4.5: dok je donji list otvoren, stranica ispod se ne pomera */
+html:has(.modal-backdrop.sheet-backdrop), html:has(.modal-backdrop.sheet-backdrop) body { overflow: hidden; }
+.ss-head { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; margin: 0 -16px; padding: 18px 10px 6px 16px; background: inherit; touch-action: none; cursor: grab; }
+.ss-head .sheet-grip { position: absolute; top: 6px; left: 50%; margin: 0; transform: translateX(-50%); }
+.ss-head .sheet-title { flex: 1; margin: 0 4px 2px; }
+.ss-x { appearance: none; flex: none; width: 40px; height: 40px; border-radius: 50%; border: 0; background: var(--surface-2); color: var(--text); display: grid; place-items: center; cursor: pointer; }
+.ss-x svg { width: 20px; height: 20px; fill: currentColor; }
+.ss-x:active { background: var(--line); }
+.ss-sugname { white-space: normal; }
+.ss-sugname b { color: var(--text); font-weight: 700; }
 .ss-r { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 54px; padding: 6px 2px; border-top: 1px solid var(--line); }
 .ss-r:first-child { border-top: 0; }
 .ss-l { color: var(--muted); font-size: .92rem; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; }
@@ -2410,7 +2422,7 @@ a.ds-it { text-decoration: none; }
 .ss-go { appearance: none; background: none; border: 0; padding: 6px 0; color: var(--text); font: 700 .92rem var(--sans); cursor: pointer; max-width: 62%; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ss-go.acc { color: var(--accent); }
 .ss-go span { color: var(--muted); }
-.ss-sug { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.ss-sug { display: flex; flex: none; align-items: center; gap: 6px; }
 .ss-sug b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .9rem; }
 .ss-pat { padding: 0 2px 8px; }
 /* „Poslušaj · Skroluj“ u donjem desnom uglu (telefon i tablet) */

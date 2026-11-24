@@ -1189,8 +1189,9 @@ export async function renderSong(root, id, nav = null) {
     if (sheetRefresh) return;
     const wrap = document.createElement('div');
     wrap.className = 'modal-backdrop sheet-backdrop ss-backdrop';
-    wrap.innerHTML = `<div class="sheet song-sheet" role="dialog" aria-modal="true" aria-label="${esc(t('ss.title'))}"><div class="sheet-grip"></div>
-      <h2 class="sheet-title">${t('ss.title')}</h2><div class="ss-rows"></div></div>`;
+    // v2.4.5: zaglavlje ostaje na vrhu (✕ uvek dostupno); prevuci ga nadole da zatvoriš
+    wrap.innerHTML = `<div class="sheet song-sheet" role="dialog" aria-modal="true" aria-label="${esc(t('ss.title'))}"><div class="ss-head"><div class="sheet-grip"></div>
+      <h2 class="sheet-title">${t('ss.title')}</h2><button type="button" class="ss-x" data-ss="close" aria-label="${esc(t('common.close'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.4 5 12 10.6 17.6 5 19 6.4 13.4 12l5.6 5.6-1.4 1.4-5.6-5.6L6.4 19 5 17.6 10.6 12 5 6.4z"/></svg></button></div><div class="ss-rows"></div></div>`;
     const rows = wrap.querySelector('.ss-rows');
     const step = (id, v, dn_, up, lab) => `<span class="ss-st"><button class="ss-b" data-ss="${dn_}" aria-label="${esc(lab)} −">−</button><b id="${id}">${v}</b><button class="ss-b" data-ss="${up}" aria-label="${esc(lab)} +">+</button></span>`;
     const go = (txt, a, cls = '') => `<button class="ss-go${cls}" data-ss="${a}">${txt} <span aria-hidden="true">›</span></button>`;
@@ -1206,9 +1207,9 @@ export async function renderSong(root, id, nav = null) {
         capo: `<div class="ss-r"><span class="ss-l">${t('ss.capo')}${capo && shapesKey ? `<small>${esc(t('capo.shapesShort', { k: dn(shapesKey) }))}</small>` : ''}</span>${step('ssCapo', capo || esc(t('capo.none')), 'c-', 'c+', t('ss.capo'))}</div>`,
         easy: `${!stored.recording ? `<div class="ss-r"><span class="ss-l">${t('sug.easyBtn')}<small>${esc(easyActive() ? t('ss.easyOn', { n: capo }) : t('song.easySub'))}</small></span><button class="ss-tog${easyActive() ? ' on' : ''}" data-ss="easy" role="switch" aria-checked="${easyActive()}" aria-label="${esc(t('sug.easyBtn'))}"><i></i></button></div>` : ''}`,
         tempo: `<div class="ss-r"><span class="ss-l">${t('ss.tempo')}</span>${step('ssBpm', (Number(stored.bpm) || Number($('sTempo')?.textContent) || '…') + ' <small>BPM</small>', 'b-', 'b+', t('ss.tempo'))}</div>`,
-        rhythm: `<div class="ss-r"><span class="ss-l">${t('ss.rhythm')}${!stored.strum && ss ? `<small>${esc(t('ss.suggested'))}</small>` : ''}</span>
+        rhythm: `<div class="ss-r"><span class="ss-l">${t('ss.rhythm')}${!stored.strum && ss ? `<small class="ss-sugname">${esc(t('ss.suggested'))}: <b>${esc(patternName(ss))}</b></small>` : ''}</span>
           ${stored.strum ? go(esc(patternName(stored.strum)), 'rh-edit')
-            : ss ? `<span class="ss-sug"><b>${esc(patternName(ss))}</b><button class="icon-btn pat-play" data-ss="rh-play" aria-label="${t('pat.play')}"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button><button class="sug-apply" data-ss="rh-apply">${t('sug.apply')}</button></span>`
+            : ss ? `<span class="ss-sug"><button class="icon-btn pat-play" data-ss="rh-play" aria-label="${t('pat.play')}"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button><button class="sug-apply" data-ss="rh-apply">${t('sug.apply')}</button></span>`
             : go(esc(t('ss.add')), 'rh-edit')}</div>
         ${!stored.strum && ss ? `<div class="ss-pat" id="ssPat">${patternHTML(ss, { compact: true })}</div>` : ''}`,
         size: `<div class="ss-r"><span class="ss-l">${t('ss.size')}</span>${step('ssZoom', Math.round(zoom * 100) + '%', 'z-', 'z+', t('ss.size'))}</div>`,
@@ -1222,13 +1223,25 @@ export async function renderSong(root, id, nav = null) {
       const it = (k) => (R[k] && R[k].trim() ? `<div class="ss-item" data-k="${k}">${R[k].replace('<div class="ss-r">', `<div class="ss-r">${gripHTML(esc(t('ss.dragRow')))}`)}</div>` : '');
       rows.innerHTML = `<div class="ss-sep" data-dl-sep="top">${t('ss.secTop')}<small>${t('ss.secTopHint')}</small></div>${top.map(it).join('')}<div class="ss-sep" data-dl-sep="rest">${t('ss.secRest')}</div>${rest.map(it).join('')}`;
     };
-    const close = () => { stopStrum(); wrap.remove(); sheetRefresh = null; drawChips(); };
+    const onEsc = (e) => { if (e.key === 'Escape') close(); };
+    const close = () => { stopStrum(); document.removeEventListener('keydown', onEsc); wrap.remove(); sheetRefresh = null; drawChips(); };
+    document.addEventListener('keydown', onEsc);
+    // pozadina se ne pomera dok je list otvoren (iOS: i prst na zatamnjenom delu)
+    wrap.addEventListener('touchmove', (e) => { if (!e.target.closest('.song-sheet')) e.preventDefault(); }, { passive: false });
+    // prevuci zaglavlje nadole → zatvori
+    const sh = wrap.querySelector('.song-sheet'), head = wrap.querySelector('.ss-head');
+    let dragY = null;
+    head.addEventListener('pointerdown', (e) => { if (e.target.closest('button')) return; dragY = e.clientY; sh.style.transition = 'none'; head.setPointerCapture?.(e.pointerId); });
+    head.addEventListener('pointermove', (e) => { if (dragY == null) return; sh.style.transform = `translateY(${Math.max(0, e.clientY - dragY)}px)`; });
+    const endDrag = (e) => { if (dragY == null) return; const dy = e.clientY - dragY; dragY = null; sh.style.transition = ''; if (dy > 70) close(); else sh.style.transform = ''; };
+    head.addEventListener('pointerup', endDrag); head.addEventListener('pointercancel', endDrag);
     wrap.__close = close;
     sheetRefresh = render;
     wrap.addEventListener('click', async (e) => {
       if (!e.target.closest('.sheet')) return close();
       const b = e.target.closest('[data-ss]'); if (!b) return;
       const a = b.dataset.ss;
+      if (a === 'close') return close();
       if (a === 't-') await setT(tp - 1);
       else if (a === 't+') await setT(tp + 1);
       else if (a === 't0') await setT(0);
