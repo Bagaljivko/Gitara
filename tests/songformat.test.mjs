@@ -53,3 +53,18 @@ test('ytFound cache: kept in backup meta (ids + text only), never in shared extr
   assert.ok(songMeta({ ytFound: raw }).ytFound);
   assert.ok(!('ytFound' in songExtras({ ytFound: raw })));
 });
+
+import { textToSections as _t2s, sectionsToText as _s2t } from '../src/songformat.js';
+test('v2.4.13: [ ] u jednom ritmu — tekst ↔ pesma', () => {
+  const txt = '[Strofa]\nG     [D    Em]\nKad bi bio sad tu\n[Am D]\n';
+  const secs = _t2s(txt);
+  const l0 = secs[0].lines[0].chords, l1 = secs[0].lines[1].chords;
+  assert.deepEqual(l0.map((c) => [c.chord, !!c.g]), [['G', false], ['D', true], ['Em', false]]);
+  assert.equal(secs[0].name, 'Strofa');
+  assert.deepEqual(l1.map((c) => [c.chord, !!c.g]), [['Am', true], ['D', false]]);
+  const back = _s2t(secs);
+  assert.ok(back.includes('[D') && back.includes('Em]') && back.includes('[Am D]'), back);
+  assert.equal(_t2s('[A]\nG C\nla la')[0].name, 'A'); // naslov „[A]“ ostaje naslov
+  const again = _t2s(back);
+  assert.deepEqual(again[0].lines.map((l) => l.chords.map((c) => [c.chord, c.position, !!c.g])), secs[0].lines.map((l) => l.chords.map((c) => [c.chord, c.position, !!c.g])));
+});

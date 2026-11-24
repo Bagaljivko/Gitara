@@ -5,6 +5,9 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '2.4.13', date: '2026-11-24', items: [
+    { i: '[ ]', sr: ['Akordi u jednom ritmu', 'Nova oznaka [ ] oko akorda: sve u zagradi odsviraj u jednom ritmu (istom taktu). Dodaje se pri uređivanju akorda: „[ ] U jednom ritmu sa sledećim“ (na računaru dugme [ ] ili taster B). Vidi se i u „Sviraj“, u PDF-u i kod učenika.'], en: ['Chords in one rhythm', 'A new [ ] mark around chords: play everything in the bracket within one rhythm (the same bar). Add it while editing chords: “In one rhythm with the next” (on a computer the [ ] button or the B key). It also shows in Play, in the PDF and on the student’s phone.'] },
+  ] },
   { v: '2.4.12', date: '2026-11-24', items: [
     { i: '📬', sr: ['Slanje učenicima pouzdanije', 'Kad Google privremeno uspori, sanduče učenika se više ne briše — ono što šalješ čeka i samo se pošalje čim Google dozvoli (na stranici učenika piše „Čeka slanje“, a u zvonce stiže „Poslato“).'], en: ['More reliable sending to students', 'When Google temporarily slows down, the student’s inbox is no longer wiped — what you send waits and goes out by itself as soon as Google allows (the student’s page shows “Waiting to send”, and the bell says “Sent”).'] },
     { i: '⚠', sr: ['Greške se vide', 'Ako slanje pesama ne uspe, sada to piše — ranije je ponekad izgledalo kao da je poslato, a ništa nije stiglo.'], en: ['Errors are shown', 'If sending songs fails, it now says so — before, it sometimes looked sent while nothing arrived.'] },

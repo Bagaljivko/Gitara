@@ -211,8 +211,22 @@ export function attachTouchEdit(opts) {
       <div class="te-line">${LETTERS.map((l) => `<button data-l="${l}" class="${pr.letter === l ? 'on' : ''}">${esc(dn(l))}</button>`).join('')}
         <button data-a="#" class="${pr.acc === '#' ? 'on' : ''}" aria-label="${esc(t('te.sharp'))}">♯</button><button data-a="b" class="${pr.acc === 'b' ? 'on' : ''}" aria-label="${esc(t('te.flat'))}">♭</button></div>
       <div class="te-line">${TYPES.map((q) => `<button data-q="${q}" class="${(el ? pr.type : pend.type) === q ? 'on' : ''}">${q || esc(t('te.major'))}</button>`).join('')}</div>
+      ${brkHTML(line)}
       <div class="te-acts"><button data-te="left" aria-label="${esc(t('qe.left'))}" ${el ? '' : 'disabled'}>◀</button><button data-te="right" aria-label="${esc(t('qe.right'))}" ${el ? '' : 'disabled'}>▶</button>
         <button data-te="del" class="te-del" ${el ? '' : 'disabled'}>${esc(t('te.remove'))}</button><button data-te="done" class="te-done">${esc(t('te.done'))}</button></div>`;
+  }
+  // v2.4.13: [ ] — u jednom ritmu sa sledećim akordom u redu
+  function brkHTML(line) {
+    if (!line || !sel || sel.add) return '';
+    const s = [...(line.chords || [])].sort((a, b) => a.position - b.position); const i = s.findIndex((c) => c.position === sel.pos);
+    if (i < 0 || !s[i + 1]) return '';
+    const on = !!s[i].g;
+    return `<div class="te-line te-brkrow"><button data-te="brk" class="te-brk${on ? ' on' : ''}" aria-pressed="${on}"><b>[ ]</b> ${esc(t(on ? 'brk.rowOff' : 'brk.row', { b: dn(s[i + 1].chord) }))}</button></div>`;
+  }
+  async function toggleBrk() {
+    const { si, li, pos } = sel;
+    await commit((s) => { const c = (s.sections[si].lines[li].chords || []).find((x) => x.position === pos); if (c) { if (c.g) delete c.g; else c.g = true; } });
+    renderSheet();
   }
   // postavi akord (izmena izabranog ili novi na mestu „+“)
   async function setChord(txt) {
@@ -264,6 +278,7 @@ export function attachTouchEdit(opts) {
     else if (a === 'left') move(-1);
     else if (a === 'right') move(1);
     else if (a === 'del') remove();
+    else if (a === 'brk') toggleBrk(); // v2.4.13
     else if (a === 'done') closeSheet();
   }
 

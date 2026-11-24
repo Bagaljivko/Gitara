@@ -3314,3 +3314,15 @@ body.desk-shell .hint-card.on-song { bottom: 96px; }
 .rc-up { color: #3dd68c; font-style: normal; } .rc-down { color: #ff7a7a; font-style: normal; }
 .rc-sum { font-weight: 800; margin: 12px 0 4px; }
 .rc-list { max-height: 46dvh; overflow-y: auto; }
+
+/* v2.4.13: [ ] — akordi u jednom ritmu (istom taktu) */
+.ch.brk-o, .ch.brk-c, .ch.brk-m { position: relative; }
+.ch.brk-o::before, .ch.brk-c::after { content: ''; position: absolute; top: -.12em; bottom: -.12em; width: .32em; border: .12em solid var(--accent); pointer-events: none; }
+.ch.brk-o::before { left: -.42em; border-right: 0; }
+.ch.brk-c::after { right: -.42em; border-left: 0; }
+.ln.chords-only .ch.brk-o { margin-left: .5em; } .ln.chords-only .ch.brk-c { margin-right: .5em; }
+.te-bar ~ * .te-brk, .te-brk.on, .qe-brk.on { background: var(--accent-soft) !important; color: var(--accent) !important; border-color: var(--accent) !important; }
+.qe-brk { font-weight: 900; letter-spacing: .04em; }
+.te-brkrow .te-brk { width: 100%; justify-content: center; border-radius: 12px !important; font: 700 .9rem var(--sans); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.te-brkrow .te-brk b { color: var(--accent); margin-right: 4px; letter-spacing: .05em; }
+.te-brkrow .te-brk:not(.on) { background: var(--surface-2) !important; color: var(--text) !important; border: 1px solid var(--line) !important; }

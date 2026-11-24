@@ -17,7 +17,8 @@ export function isChordLine(line) {
   if (!tokens.length) return false;
   let chords = 0;
   for (const t of tokens) {
-    const clean = t.replace(/^\(|\)$/g, '');
+    if (/^\[.*\]$/.test(t)) return false; // „[A]“ je naslov dela, ne zagrada akorda
+    const clean = t.replace(/^\(|\)$/g, '').replace(/^\[|\]$/g, ''); // v2.4.13: [D … Em] = u jednom ritmu
     if (isChord(clean)) chords++;
     else if (!EXTRA_TOKENS.test(t)) return false;
   }
@@ -39,10 +40,19 @@ function chordsFromLine(line) {
   const out = [];
   const re = /\S+/g;
   let m;
+  let open = false;
   while ((m = re.exec(line))) {
-    const clean = m[0].replace(/^\(|\)$/g, '');
-    if (isChord(clean)) out.push({ chord: clean, position: m.index });
+    const tok = m[0], o = tok.startsWith('['), cl = tok.endsWith(']');
+    const clean = tok.replace(/^\(|\)$/g, '').replace(/^\[|\]$/g, '');
+    if (!isChord(clean)) continue;
+    // v2.4.13: „[D … Em]“ — akordi u jednom ritmu: svaki osim poslednjeg u zagradi dobija g (povezan sa sledećim)
+    if (o && !cl) open = true;
+    const c = { chord: clean, position: m.index };
+    if (open && !cl) c.g = true;
+    if (cl) open = false;
+    out.push(c);
   }
+  if (out.length && out[out.length - 1].g) delete out[out.length - 1].g; // nezatvorena zagrada na kraju reda
   return out;
 }
 
@@ -93,11 +103,14 @@ const isBlank = (l) => !l.text.trim() && !l.chords.length;
 /** Pravi liniju akorda tako da akordi ne preklapaju jedan drugi. */
 export function layoutChordLine(chords) {
   let s = '';
-  for (const c of [...chords].sort((a, b) => a.position - b.position)) {
+  const cs = [...chords].sort((a, b) => a.position - b.position);
+  cs.forEach((c, i) => {
+    const prev = cs[i - 1], next = cs[i + 1];
+    const open = c.g && next && !(prev && prev.g), close = prev && prev.g && !(c.g && next); // v2.4.13
     let pos = Math.max(c.position | 0, 0);
     if (s.length && pos < s.length + 1) pos = s.length + 1;
-    s = s.padEnd(pos, ' ') + c.chord;
-  }
+    s = s.padEnd(pos, ' ') + (open ? '[' : '') + c.chord + (close ? ']' : '');
+  });
   return s;
 }
 
@@ -232,7 +245,7 @@ export function normalizeSong(raw) {
         const chords = (Array.isArray(l.chords) ? l.chords : [])
           .filter((c) => c && typeof c === 'object' && typeof c.chord === 'string' && c.chord.trim())
           .slice(0, 40)
-          .map((c) => ({ chord: str(c.chord.trim(), 20), position: Math.max(0, Math.min(400, Math.round(Number(c.position) || 0))) }));
+          .map((c) => ({ chord: str(c.chord.trim(), 20), position: Math.max(0, Math.min(400, Math.round(Number(c.position) || 0))), ...(c.g === true ? { g: true } : {}) })); // v2.4.13: [ ] u jednom ritmu
         return { chords, text: str(l.text, 400).replace(/\s+$/, '') };
       }),
     };

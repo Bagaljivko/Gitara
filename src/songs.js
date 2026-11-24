@@ -657,8 +657,20 @@ async function renderSharedTab(root, song) {
 
 // ---------------- Prikaz linija sa akordima ----------------
 const INVISIBLE = /[\u0000-\u0008\u000B-\u001F\u007F-\u009F\u00AD\u200B-\u200F\u2028-\u202F\u2060-\u206F\uFEFF\uFFF9-\uFFFD]/g;
-function chordSpan(c, mark) {
-  return `<button class="ch${mark !== undefined ? ' unsure' : ''}" data-chord="${esc(c)}"${mark !== undefined ? ` data-unsure="${mark}"` : ''}>${esc(dn(c).replace(INVISIBLE, ''))}</button>`;
+function chordSpan(c, mark, brk = '') {
+  return `<button class="ch${mark !== undefined ? ' unsure' : ''}${brk}" data-chord="${esc(c)}"${mark !== undefined ? ` data-unsure="${mark}"` : ''}>${esc(dn(c).replace(INVISIBLE, ''))}</button>`;
+}
+/** v2.4.13: [ ] — akordi u jednom ritmu (taktu): akord sa g=true je povezan sa sledećim u istom redu. Vraća Map akord → klasa. */
+export function bracketClasses(sorted) {
+  const m = new Map();
+  for (let i = 0; i < sorted.length; i++) {
+    const c = sorted[i], prev = sorted[i - 1], next = sorted[i + 1];
+    const inG = (c.g && next) || (prev && prev.g);
+    if (!inG) continue;
+    const open = !(prev && prev.g), close = !(c.g && next);
+    m.set(c, (open ? ' brk-o' : '') + (close ? ' brk-c' : '') + (!open && !close ? ' brk-m' : ''));
+  }
+  return m;
 }
 
 /** Mesto reči (indeks u tekstu) najbliže poziciji koju je dao Gemini. */
@@ -694,11 +706,12 @@ export function renderLineHTML(line, marks = []) {
   // zamenjuju se razmakom iste dužine, pa akordi ostaju tačno na svojim slogovima
   const text = (line.text || '').replace(INVISIBLE, ' ');
   const chordMark = (c) => { const m = marks.find((x) => x.kind === 'chord' && x.position === c.position); return m ? m.idx : undefined; };
+  const brk = bracketClasses(chords); // v2.4.13
   const ranges = marks.filter((m) => m.kind === 'word').map((m) => { const from = findWord(text, m.text, m.position); return from < 0 ? null : { from, to: from + m.text.length, mark: m.idx }; })
     .filter(Boolean).sort((a, b) => a.from - b.from);
   if (!chords.length) return text.trim() ? `<div class="ln"><span class="tx">${markText(text, 0, ranges)}</span></div>` : '<div class="ln blank"></div>';
   if (!text.trim()) {
-    return `<div class="ln chords-only">${chords.map((c) => chordSpan(c.chord, chordMark(c))).join('<span class="gap"> </span>')}</div>`;
+    return `<div class="ln chords-only">${chords.map((c) => chordSpan(c.chord, chordMark(c), brk.get(c) || '')).join('<span class="gap"> </span>')}</div>`;
   }
   const lastPos = chords[chords.length - 1].position;
   const tt = text.length < lastPos ? text.padEnd(lastPos, ' ') : text;
@@ -724,7 +737,7 @@ export function renderLineHTML(line, marks = []) {
     if (!w.some((ch) => ch.chords.length)) { html += `<span class="tx0">${markText(w.map((ch) => ch.text).join(''), w[0].start, ranges)}</span>`; continue; }
     html += '<span class="w">';
     for (const ch of w) {
-      const chordsHtml = ch.chords.map((c) => chordSpan(c.chord, chordMark(c))).join(' ');
+      const chordsHtml = ch.chords.map((c) => chordSpan(c.chord, chordMark(c), brk.get(c) || '')).join(' ');
       html += `<span class="seg"><span class="cr">${chordsHtml}</span><span class="tx">${markText(ch.text, ch.start, ranges)}</span></span>`;
     }
     html += '</span>';

@@ -21,7 +21,7 @@ function pack(song) {
   }
   const ex = songExtras(song);
   const o = { v: 1, t: song.title, a: song.artist || undefined, k: song.key || undefined, s: (song.sections || []).filter(Boolean).map((sec) => { // v2.4.11: pesma bez delova/redova (npr. prazan snimak) ne ruši deljenje
-    const x = { l: (sec.lines || []).filter(Boolean).map((l) => (l.chords && l.chords.length ? [l.text || '', l.chords.map((c) => [c.chord, c.position])] : [l.text || ''])) };
+    const x = { l: (sec.lines || []).filter(Boolean).map((l) => (l.chords && l.chords.length ? [l.text || '', l.chords.map((c) => (c.g ? [c.chord, c.position, 1] : [c.chord, c.position]))] : [l.text || ''])) };
     if (sec.name) x.n = sec.name;
     if (sec.strum) x.p = sec.strum;
     if (sec.tabs && sec.tabs.length) x.tb = sec.tabs.filter(Boolean).map((tb) => ({ g: tb.sig, b: (tb.bars || []).map((b) => [b.w, (b.notes || []).map((n) => (n.t ? [n.s, n.f, n.p, n.t] : [n.s, n.f, n.p]))]) }));
@@ -49,7 +49,7 @@ function unpack(o) {
       name: x.n || '',
       strum: x.p,
       tabs: (x.tb || []).map((tb) => ({ sig: tb.g, bars: (tb.b || []).map(([w, notes]) => ({ w, notes: (notes || []).map(([s, f, p, t]) => ({ s, f, p, t })) })) })),
-      lines: (x.l || []).map((l) => ({ text: l[0] || '', chords: (l[1] || []).map(([chord, position]) => ({ chord, position })) })),
+      lines: (x.l || []).map((l) => ({ text: l[0] || '', chords: (l[1] || []).map(([chord, position, g]) => ({ chord, position, ...(g ? { g: true } : {}) })) })),
     })),
   });
   const rc = cleanRecording(o.rc); // „Moji snimci“: samo note

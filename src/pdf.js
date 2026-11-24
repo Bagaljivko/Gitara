@@ -78,11 +78,15 @@ export function wrapPair(chords, text, max) {
 
 function chordLineString(chords) {
   let s = '';
-  for (const c of chords) {
+  chords.forEach((c, i) => {
+    // v2.4.13: [ ] — akordi u jednom ritmu (zagrada pre prvog i posle poslednjeg u grupi)
+    const prev = chords[i - 1], next = chords[i + 1];
+    const open = c.g && next && !(prev && prev.g), close = prev && prev.g && !(c.g && next);
     let pos = c.position;
+    if (open) pos = Math.max(0, pos - 1);
     if (s.length && pos < s.length + 1) pos = s.length + 1;
-    s = s.padEnd(pos, ' ') + dn(c.chord);
-  }
+    s = s.padEnd(pos, ' ') + (open ? '[' : '') + dn(c.chord) + (close ? ']' : '');
+  });
   return s;
 }
 

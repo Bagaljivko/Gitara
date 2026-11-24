@@ -93,10 +93,14 @@ export function attachQuickEdit(opts) {
     const r = { left: ar.left, top: ar.top, bottom: lr.bottom }; // ispod celog reda — tekst ostaje vidljiv
     const { songCh, keyCh } = suggestions();
     const cur = edit ? shown(anchorEl.dataset.chord) : '';
+    // v2.4.13: [ ] u jednom ritmu sa sledećim (samo ako u redu postoji sledeći akord)
+    const brkRef = edit ? chordObj(anchorEl) : null;
+    const brkNext = brkRef ? sorted(brkRef.line)[sorted(brkRef.line).indexOf(brkRef.c) + 1] : null;
+    const brkBtn = () => (brkNext ? `<button class="btn small qe-ic qe-brk${brkRef.c.g ? ' on' : ''}" data-qe="brk" title="${esc(t(brkRef.c.g ? 'brk.off' : 'brk.on', { a: dn(shown(brkRef.c.chord)), b: dn(shown(brkNext.chord)) }))} (B)" aria-pressed="${!!brkRef.c.g}">[ ]</button>` : '');
     pop = document.createElement('div'); pop.className = 'qe-pop'; pop.setAttribute('role', 'dialog');
     pop.innerHTML = `<input class="qe-in" value="${esc(cur)}" placeholder="${esc(t('qe.ph'))}" aria-label="${esc(t('qe.chord'))}" autocomplete="off" spellcheck="false">
       <div class="qe-chips">${songCh.map((c) => `<button data-c="${esc(c)}" class="${c === (edit && anchorEl.dataset.chord) ? 'on' : ''}">${esc(dn(c))}</button>`).join('')}${keyCh.length ? '<i></i>' : ''}${keyCh.map((c) => `<button data-c="${esc(c)}" class="key">${esc(dn(c))}</button>`).join('')}</div>
-      <div class="qe-row">${edit ? `<button class="btn small qe-ic" data-qe="left" title="${esc(t('qe.left'))} (←)">◀</button><button class="btn small qe-ic" data-qe="right" title="${esc(t('qe.right'))} (→)">▶</button><button class="btn small qe-ic qe-del" data-qe="del" title="${esc(t('qe.del'))} (Del)" aria-label="${esc(t('qe.del'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l1 2h4v2H4V5h4l1-2zm-3 6h12l-1 12H7L6 9zm4 2v8h1.5v-8H10zm3.5 0v8H15v-8h-1.5z"/></svg></button><button class="btn small qe-ic" data-qe="shape" title="${esc(t('qe.shape'))}">♪</button>` : ''}
+      <div class="qe-row">${edit ? `<button class="btn small qe-ic" data-qe="left" title="${esc(t('qe.left'))} (←)">◀</button><button class="btn small qe-ic" data-qe="right" title="${esc(t('qe.right'))} (→)">▶</button><button class="btn small qe-ic qe-del" data-qe="del" title="${esc(t('qe.del'))} (Del)" aria-label="${esc(t('qe.del'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l1 2h4v2H4V5h4l1-2zm-3 6h12l-1 12H7L6 9zm4 2v8h1.5v-8H10zm3.5 0v8H15v-8h-1.5z"/></svg></button><button class="btn small qe-ic" data-qe="shape" title="${esc(t('qe.shape'))}">♪</button>${brkBtn()}` : ''}
         <span class="qe-sp"></span><button class="qe-help" title="${esc(t('qe.keys'))}">?</button><button class="btn small primary" data-qe="ok">${t('common.save')}</button></div>
       <p class="qe-err" hidden></p>`;
     document.body.appendChild(pop);
@@ -129,6 +133,12 @@ export function attachQuickEdit(opts) {
       closePop();
       await commit((s) => { const l = s.sections[si].lines[li]; const c = sorted(l)[idx]; l.chords = l.chords.filter((x) => x !== c); }, t('qe.removed', { c: name }));
     };
+    const toggleBrk = async () => {
+      const ref = chordObj(anchorEl); if (!ref) return;
+      const { si, li } = ref, idx = sorted(ref.line).indexOf(ref.c), on = !ref.c.g;
+      closePop();
+      await commit((s) => { const c = sorted(s.sections[si].lines[li])[idx]; if (c) { if (on) c.g = true; else delete c.g; } }, t(on ? 'brk.done' : 'brk.undone'));
+    };
     const move = async (d) => {
       const ref = chordObj(anchorEl); if (!ref) return;
       const { si, li } = ref, idx = sorted(ref.line).indexOf(ref.c), max = Math.max((ref.line.text || '').length, ref.c.position + 1);
@@ -149,6 +159,7 @@ export function attachQuickEdit(opts) {
       else if (a === 'left') move(-1);
       else if (a === 'right') move(1);
       else if (a === 'shape') { const n = anchorEl.dataset.chord; closePop(); opts.showChord(n); }
+      else if (a === 'brk') toggleBrk();
     });
     inp.addEventListener('keydown', (e) => {
       e.stopPropagation();
@@ -156,6 +167,7 @@ export function attachQuickEdit(opts) {
       else if (e.key === 'Escape') { e.preventDefault(); closePop(); }
       else if (edit && (e.key === 'ArrowLeft' || e.key === 'ArrowRight') && (e.altKey || inp.value === cur)) { e.preventDefault(); move(e.key === 'ArrowLeft' ? -1 : 1); }
       else if (edit && e.key === 'Delete' && inp.value === cur) { e.preventDefault(); remove(); }
+      else if (edit && brkNext && (e.key === 'b' || e.key === 'B') && inp.value === cur) { e.preventDefault(); toggleBrk(); }
     });
     inp.addEventListener('input', () => { err.hidden = true; });
   }
