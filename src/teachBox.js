@@ -36,6 +36,8 @@ export function boxPut(sid, items, { interactive = true } = {}) {
     for (const it of items) map.set(it.key, { ...it, at: it.at || Date.now() });
     const list = [...map.values()].sort((a, b) => (a.at || 0) - (b.at || 0)).slice(-MAX_ITEMS);
     const id = await S.putData(st.box.f, JSON.stringify({ app: 'marli', type: 'box', v: 1, tid: tc.id, sid, at: Date.now(), items: list }), { interactive, name: 'MARLI – za učenika.json' }).catch(() => '');
+    // v2.4.2: šta je poslato ovom učeniku (za „viđeno“ i odgovor) — novije zamenjuje starije sa istim ključem
+    if (id) { const cur = (await tm.getStudent(sid)) || st; const keys = new Set(items.map((i) => i.key)); await tm.updateStudent(sid, { sent: [...(cur.sent || []).filter((x) => !keys.has(x.key)), ...items.filter((i) => i.kind !== 'ans').map((i) => ({ key: i.key, kind: i.kind, name: String(i.name || '').slice(0, 80), at: Date.now() }))].slice(-40) }); }
     return !!id;
   };
   const p = (queues.get(sid) || Promise.resolve()).then(run, run);
@@ -58,12 +60,15 @@ export function checkBox({ force = false } = {}) {
     const S = await S_();
     const d = await S.readData(m.box);
     if (!d || d.gone || d.type !== 'box' || d.tid !== m.tid) return 0;
-    const seen = { ...(m.boxSeen || {}) }; const fresh = []; let n = 0; const notes = [];
+    const seen = { ...(m.boxSeen || {}) }; const fresh = []; let n = 0; const notes = []; const fmap = {}; const les = [];
     const fromT = { tid: m.tid, name: m.name };
     for (const it of (d.items || []).slice(-MAX_ITEMS)) {
       if (!it || !it.key || (seen[it.key] || 0) >= (it.at || 1)) continue;
       try {
-        if (it.kind === 'song' || it.kind === 'set') {
+        if (it.kind === 'note' || it.kind === 'lesson' || it.kind === 'nudge') { // v2.4.2: beleška sa časa, sledeći čas, podsetnik
+          const L = await import('./lessons.js'); const r = await L.receive(it, m); if (r) les.push({ it, r });
+        } else if (it.kind === 'song' || it.kind === 'set') {
+          if (it.f) fmap[it.f] = it.key; // v2.4.2: pesma/set lista ↔ stavka (za „viđeno“ i odgovor)
           const I = await import('./shareImport.js');
           const pkg = await I.fetchPackage(it.f);
           if (!pkg || !pkg.songs || !pkg.songs.length) continue; // fajl još nije dostupan — sledeći put
@@ -83,7 +88,7 @@ export function checkBox({ force = false } = {}) {
       const cur = await tm.getMyTeacher();
       if (cur && cur.tid === m.tid) {
         const keep = Object.fromEntries(Object.entries(seen).sort((a, b) => b[1] - a[1]).slice(0, 400));
-        await tm.setMyTeacher({ ...cur, boxSeen: keep, boxNew: [...new Set([...(cur.boxNew || []), ...fresh])].slice(-60), boxAt: Date.now() });
+        await tm.setMyTeacher({ ...cur, boxSeen: keep, boxNew: [...new Set([...(cur.boxNew || []), ...fresh])].slice(-60), boxAt: Date.now(), boxF: Object.fromEntries(Object.entries({ ...(cur.boxF || {}), ...fmap }).slice(-200)) });
       }
       const songs = (d.items || []).filter((it) => (it.kind === 'song' || it.kind === 'set') && seen[it.key] === it.at && !(m.boxSeen || {})[it.key]).length;
       if (songs) toast(t('box.got', { t: m.name || t('tch.teacher'), n: songs }));
@@ -95,6 +100,7 @@ export function checkBox({ force = false } = {}) {
       for (const x of notes.filter((y) => y.kind === 'ans')) { const r = (await tm.getMyRequests()).find((q) => q.id === x.id); await N.add({ id: 'ans:' + x.id + ':' + x.at, who, c: '#f5a524', t: t(x.s === 'none' ? 'nt.ansNone' : 'nt.ansOk', { t: tn }), s: r ? r.title : '', href: '#/od-nastavnika' }); }
       for (const x of notes.filter((y) => y.kind === 'ex')) await N.add({ id: 'ex:' + x.key + x.at, who, c: '#f5a524', t: t('nt.ex', { t: tn, name: x.name || '' }), s: x.ex && x.ex.goal ? t('ex.goalShort', { n: x.ex.goal.n, bpm: x.ex.goal.bpm || '' }) : '', href: '#/vezbe' });
       for (const x of notes.filter((y) => y.kind === 'rp')) await N.add({ id: 'rp:' + x.key + x.at, who, c: '#f5a524', t: t('nt.rp', { t: tn, name: x.name || '' }), s: t('nt.rpSub'), href: '#/vezbe/rp?ex=' + encodeURIComponent((x.rp && x.rp.id) || '') });
+      for (const { it: x, r } of les) await N.add({ id: 'les:' + x.key + ':' + x.at, who, c: '#f5a524', t: r.t, s: r.s || '', href: r.href || '#/od-nastavnika' }); // v2.4.2
       for (const x of notes.filter((y) => y.kind === 'plan')) await N.add({ id: 'plan:' + x.at, who, c: '#f5a524', t: t('nt.plan', { t: tn }), s: t('nt.planSub'), href: '#/vezbe' });
     }
     return n;
@@ -108,6 +114,17 @@ export function initBox() {
   setTimeout(() => checkBox().catch(() => {}), 6000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) checkBox().catch(() => {}); });
   setInterval(() => { if (!document.hidden) checkBox().catch(() => {}); }, 10 * 60000);
+  // v2.4.2: učenik otvori pesmu ili set listu od nastavnika → nastavnik vidi „viđeno“; podsetnik dan pred čas
+  const seenOpen = async () => {
+    const mm = /^#\/(pesma|setlista)\/([^/?]+)/.exec(location.hash); if (!mm) return;
+    const id = decodeURIComponent(mm[2]); const tm = await TM(); const me = await tm.getMyTeacher(); if (!me || !me.boxF) return;
+    let src = '';
+    if (mm[1] === 'pesma') { const sg = await (await import('./db.js')).songs.get(id).catch(() => null); if (sg && sg.fromT && sg.src) src = String(sg.src).split(':')[0]; }
+    else { const sl = (await (await import('./collections.js')).getSetlists()).find((x) => x.id === id); if (sl && sl.fromT && sl.src) src = sl.src; }
+    const key = src && me.boxF[src]; if (key) (await import('./lessons.js')).markSeen(key);
+  };
+  addEventListener('hashchange', () => { seenOpen().catch(() => {}); });
+  setTimeout(() => import('./lessons.js').then((L) => L.studentReminder()).catch(() => {}), 9000);
 }
 /** Učenik: pesme koje su stigle a još nisu viđene (za „Novo“ u „Od nastavnika“). */
 export async function newFromTeacher() { const m = await (await TM()).getMyTeacher(); return (m && m.boxNew) || []; }
@@ -172,7 +189,8 @@ export async function ingestOut(st, out) {
         const cur = (await tm.getStudent(st.id)) || st; const step = Math.max(0, Math.min(20, Number(o.step) || 0)), of = Math.max(1, Math.min(20, Number(o.of) || 1));
         await tm.updateStudent(st.id, { rp: { ...(cur.rp || {}), [clip(o.ex, 40)]: { step, of, name: clip(o.name, 60), at: Number(o.at) || Date.now() } } });
         if (step >= of) await note(st, 'rp:' + o.id, t('nt.rpDone', { name: st.name }), clip(o.name, 80));
-      } else continue;
+      } else if (o.type === 'seen' || o.type === 'react') { await (await import('./lessons.js')).ingestFromStudent(st, o); seen[st.id + ':' + o.id] = Date.now(); n++; continue; } // v2.4.2
+      else continue;
       if (o.type === 'wish' || o.type === 'ask') await note(st, 'rq:' + o.id, t(o.type === 'wish' ? 'nt.wish' : 'nt.ask', { name: st.name, title: clip(o.title, 80) }), [clip(o.artist, 60), o.note ? '„' + clip(o.note, 80) + '“' : ''].filter(Boolean).join(' · '));
       else if (o.type === 'check') await note(st, 'chk:' + o.id, t('nt.check', { name: st.name }), [clip(o.title, 80), o.note ? '„' + clip(o.note, 80) + '“' : ''].filter(Boolean).join(' · '));
       seen[st.id + ':' + o.id] = Date.now(); n++;
@@ -189,6 +207,7 @@ export function initTeacherPoll() {
     const tm = await TM(); const tc = await tm.getTeacher(); if (!tc.on) return;
     const P = await import('./progress.js');
     for (const st of await tm.getStudents()) if (st.prog && st.prog.fileId) await P.studentProgress(st, { fresh: true }).catch(() => null);
+    await (await import('./lessons.js')).teacherReminders().catch(() => {}); // v2.4.2: sutrašnji časovi u zvonce
   };
   let last = 0; const maybe = () => { if (Date.now() - last > 2 * 60000) { last = Date.now(); run().catch(() => {}); } };
   setTimeout(maybe, 8000);

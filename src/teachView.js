@@ -87,6 +87,7 @@ export async function renderStudent(root, id) {
     <a class="back tch-back" href="#/ucenici">‹ ${t('tch.students')}</a>
     <div class="tch-hero">${T.avatarHTML(s, 56)}<div><h1>${esc(s.name)}</h1><small class="muted">${esc([s.contact, t('tch.since', { d: ((d) => `${d.getDate()}. ${d.getMonth() + 1}. ${d.getFullYear()}.`)(new Date(s.createdAt || Date.now())) })].filter(Boolean).join(' · '))}</small></div></div>
     <div class="tch-actions"><button class="btn primary" id="tSend">${t('tch.sendTo', { name: s.name })}</button><button class="btn" id="tMore" aria-label="${esc(t('tch.more'))}">⋯</button></div>
+    <div id="tLes" class="les-box"></div>
     <div id="tProg">${s.prog ? `<div class="tch-sec"><span>${t('prog.head')}</span></div><p class="muted small tch-none">${t('prog.loading')}</p>` : ''}</div>
     <div id="tPlan" class="pl-tch"></div>
     ${reqs.length ? `<div class="tch-sec"><span>${t('tch.rq.head')}</span></div><div class="set-grp tch-reqs">${reqs.map((r) => reqHTML(r)).join('')}</div>` : ''}
@@ -96,6 +97,7 @@ export async function renderStudent(root, id) {
     ${recs.length ? `<div class="set-grp">${recs.map((r) => `<a class="tch-row" href="#/pesma/${encodeURIComponent(r.id)}">${ic('play')}<span><b>${esc(when(r.createdAt))}${r.fromStudent ? ` <em class="tch-from">${esc(t('tch.fromName', { name: s.name }))}</em>` : ''}</b><small>${esc([r.recording ? '' : r.title, chordsOf(r), r.recording ? dur(r.recording.dur) : ''].filter(Boolean).join(' · '))}</small></span>${CHEV}</a>`).join('')}</div>` : `<p class="muted small tch-none">${t('tch.noRecs')}</p>`}
   </section>`;
   root.querySelector('#tSend').addEventListener('click', () => sendMenu([s]));
+  import('./lessons.js').then((L) => L.drawTeacher(root.querySelector('#tLes'), id)).catch((e) => console.error(e)); // v2.4.2: časovi
   bindReqs(root, () => renderStudent(root, id));
   if (s.prog) progressCardHTML(s, true).then((h) => { const box = root.querySelector('#tProg'); if (box) box.innerHTML = h; }).catch(() => {});
   // v1.83: zadaci i plan učenja (stanje iz učenikovog napretka, ako ga deli)
@@ -289,6 +291,7 @@ export async function renderFromTeacher(root) {
     <header class="view-head tch-head"><h1>${t('tch.fromTeacher')}</h1></header>
     <div class="card tch-teacher">${T.avatarHTML({ name: m.name || '?', color: '#f5a524' }, 44)}<span><b>${esc(m.name || t('tch.teacher'))}</b><small class="muted">${t('tch.yourTeacher')}${m.contact ? ' · ' + esc(m.contact) : ''}</small></span></div>
     ${nNew ? `<div class="card box-new"><div class="tch-sec"><span>${t('box.newFrom', { t: tn })} <em class="box-n">${nNew}</em></span></div><div class="set-grp">${newSets.map((sl) => `<div class="tch-row box-row"><a href="#/setlista/${encodeURIComponent(sl.id)}">${ic('list')}<span><b>${esc(sl.name)}</b><small>${songsCount((sl.songIds || []).length)} · ${t('box.arrivedToday', { d: when(sl.updatedAt || Date.now()) })}</small></span></a></div>`).join('')}${freshSongs.map((x) => `<div class="tch-row box-row"><a href="#/pesma/${encodeURIComponent(x.id)}">${ic('song')}<span><b>${esc(x.title)}</b><small>${esc([x.artist, t('box.arrivedToday', { d: when(x.updatedAt || x.createdAt) })].filter(Boolean).join(' · '))}</small></span></a><button class="btn small" data-save="${esc(x.id)}">+ ${t('box.saveIn')}</button></div>`).join('')}</div></div>` : ''}
+    <div id="tLesS"></div>
     <div id="tMyPlan"></div>
     <div class="tch-ask"><button class="btn" id="tWish">⭐ ${t('tch.rq.wish')}</button><button class="btn" id="tAsk">❓ ${t('tch.rq.ask')}</button></div>
     <div class="tch-sec"><span>${t(progOn ? 'prog.sharing' : 'prog.share')}</span><label class="switch tch-psw"><input type="checkbox" id="tProgSw"${progOn ? ' checked' : ''} aria-label="${esc(t('prog.shareWith', { t: tn }))}"><span class="switch-track"><span class="switch-thumb"></span></span></label></div>
@@ -301,6 +304,7 @@ export async function renderFromTeacher(root) {
     <button class="btn small tch-disc" id="tDisc">${t('tch.disconnect')}</button>
   </section>`;
   root.querySelector('#tBack').addEventListener('click', () => sendToTeacher());
+  import('./lessons.js').then((L) => L.drawStudent(root.querySelector('#tLesS'))).catch(() => {}); // v2.4.2: sledeći čas i domaći
   // v1.83: plan od nastavnika (osveži pri otvaranju)
   if (m.planFile) import('./planView.js').then(async (V) => {
     const box = root.querySelector('#tMyPlan'); if (!box) return;
@@ -497,7 +501,7 @@ export async function renderDashboard(root) {
   const V = await import('./planView.js');
   const diff = (a, b, fmt) => (a === b || (!a && !b) ? `<em>${t('tch.d.week')}</em>` : `<em class="${a > b ? 'up' : ''}">${a > b ? '+' : '−'}${fmt(Math.abs(a - b))} ${t('st.vsLast')}</em>`);
   const attention = [
-    ...rows.filter((r) => r.w && r.w.idle != null && r.w.idle >= 7).map((r) => ({ c: 'tp red', n: '!', txt: t('prog.attIdle', { name: r.s.name, n: r.w.idle }) })),
+    // v2.4.2: „ne vežba 7+ dana“ je sada poseban blok sa dugmetom „Podseti“ (ispod)
     ...rows.filter((r) => r.open).map((r) => ({ c: 'tp', n: r.open, txt: t('tch.d.attOpen', { name: r.s.name, n: r.open }) })),
     ...rows.filter((r) => !r.s.prog || (r.p && r.p.gone)).map((r) => ({ c: 'tp gray', n: 'i', txt: t('prog.attNoShare', { name: r.s.name }) })),
     ...rows.filter((r) => !(r.s.box && r.s.box.f)).map((r) => ({ c: 'tp gray', n: 'i', txt: t('box.attNoBox', { name: r.s.name }) })),
@@ -528,11 +532,12 @@ export async function renderDashboard(root) {
         <div class="db-card"><h2>${t('tch.rq.head')} <span class="muted">${open.length}</span></h2>
           <div class="db-filters"><button class="chip active" data-f="">${t('tch.d.fAll')}</button><button class="chip" data-f="check">${t('chk.filter')}</button><button class="chip" data-f="wish">${t('tch.d.fWish')}</button><button class="chip" data-f="ask">${t('tch.d.fAsk')}</button><button class="chip" data-f="closed">${t('tch.d.fClosed')}</button></div>
           <div class="tch-reqs" id="dReqs"></div></div>
-        <div class="db-card"><h2>${t('tch.d.attention')}</h2><div class="att">${attention.length ? attention.map((a) => `<p><span class="${a.c}">${a.n}</span> ${esc(a.txt)}</p>`).join('') : `<p class="muted">${t('tch.d.allGood')}</p>`}</div></div>
+        <div class="db-card"><h2>${t('tch.d.attention')}</h2><div class="att">${attention.length ? attention.map((a) => `<p><span class="${a.c}">${a.n}</span> ${esc(a.txt)}</p>`).join('') : `<p class="muted">${t('tch.d.allGood')}</p>`}</div><div id="tIdle" class="les-idle-box"></div></div>
       </div>
     </div>
     <div class="db-card db-sent" id="dSent"></div></section>`;
   drawSentPanel(root.querySelector('#dSent'), students, () => renderDashboard(root));
+  import('./lessons.js').then((L) => L.drawIdle(root.querySelector('#tIdle'))).catch(() => {}); // v2.4.2: ko ne vežba + „Podseti“
   const nameOf = (sid) => students.find((s) => s.id === sid)?.name || '?';
   let f = '';
   const drawReqs = () => {
@@ -689,6 +694,7 @@ async function renderStudentsTouch(root) {
     <header class="view-head tch-head"><h1>${t('tch.students')}</h1><button class="linkish tch-me" id="tMe">⚙ ${t('tch.me')}</button></header>
     <p class="muted tch-sub">${t('tch.touchSub')}</p>
     <div class="tch-big"><button class="btn primary" id="tBulk">↗ ${t('bulk.btn')}</button><button class="btn" id="tAdd">＋ ${t('tch.newStudent')}</button></div>
+    <div id="tIdle" class="les-idle-box"></div>
     ${list.length ? `<div class="tch-sec"><span>${t('tch.yours')}</span></div><div class="set-grp">${list.map((s) => {
       const pc = V.dashCell(s, null); const sub = [pc && pc !== '—' ? t('tch.planShort', { p: pc }) : '', s.prog ? t('tch.sharesProg') : ''].filter(Boolean).join(' · ') || t('tch.showQrHint');
       return `<a class="tch-row" href="#/ucenik/${encodeURIComponent(s.id)}">${T.avatarHTML(s)}<span><b>${esc(s.name)}</b><small>${esc(sub)}</small></span>${CHEV}</a>`; }).join('')}</div>`
@@ -699,6 +705,8 @@ async function renderStudentsTouch(root) {
   </section>`;
   root.querySelector('#tAdd').addEventListener('click', async () => { const s = await addStudentFlow(); if (s) location.hash = '#/ucenik/' + encodeURIComponent(s.id); });
   root.querySelector('#tBulk').addEventListener('click', () => bulkSend());
+  import('./lessons.js').then((L) => L.drawIdle(root.querySelector('#tIdle'))).catch(() => {}); // v2.4.2: ko ne vežba
+
   root.querySelector('#tMe').addEventListener('click', () => editMe());
   root.querySelector('#tQrCard').addEventListener('click', printInstallCard);
 }
@@ -714,11 +722,13 @@ async function renderStudentTouch(root, id) {
     <div class="tch-hero">${T.avatarHTML(s, 56)}<div><h1>${esc(s.name)}</h1><small class="muted">${esc([s.contact, s.prog ? t('tch.sharesProg') : '', t('tch.since', { d: ((d) => `${d.getDate()}. ${d.getMonth() + 1}. ${d.getFullYear()}.`)(new Date(s.createdAt || Date.now())) })].filter(Boolean).join(' · '))}</small></div></div>
     <div class="tch-big"><button class="btn primary" id="tSend">↗ ${t('bulk.btnOne')}</button><button class="btn" id="tQr">▦ ${t('qr.btn')}</button></div>
     <button class="linkish tch-more2" id="tMore">${t('tch.editStudent')} · ${t('qr.copy')}</button>
+    <div id="tLes" class="les-box"></div>
     ${reqs.length ? `<div class="tch-sec"><span>${t('tch.rq.head')}</span></div><div class="set-grp tch-reqs">${reqs.map((r) => reqHTML(r)).join('')}</div>` : ''}
     <div id="tPlan" class="pl-tch"></div>
     ${recs.length ? `<div class="tch-sec"><span>${t('tch.recsFrom', { name: s.name })}</span></div><div class="set-grp">${recs.map((r) => `<a class="tch-row" href="#/pesma/${encodeURIComponent(r.id)}">${ic('play')}<span><b>${esc(when(r.createdAt))} <em class="tch-from">${esc(t('tch.fromName', { name: s.name }))}</em></b><small>${esc([r.recording ? '' : r.title, chordsOf(r), r.recording ? dur(r.recording.dur) : ''].filter(Boolean).join(' · '))}</small></span>${CHEV}</a>`).join('')}</div>` : ''}
   </section>`;
   root.querySelector('#tSend').addEventListener('click', () => bulkSend([s]));
+  import('./lessons.js').then((L) => L.drawTeacher(root.querySelector('#tLes'), id)).catch((e) => console.error(e)); // v2.4.2: časovi
   root.querySelector('#tQr').addEventListener('click', () => showInviteQR(s));
   root.querySelector('#tMore').addEventListener('click', async () => {
     const v = await dialog({ title: s.name, buttons: [{ label: t('tch.editStudent'), value: 'edit' }, { label: t('qr.copy'), value: 'inv' }] });

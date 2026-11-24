@@ -125,3 +125,14 @@ export function fakeMic() {
 export function appModule(p, name) {
   return p.evaluateHandle((name) => { const u = performance.getEntriesByType('resource').map((r) => r.name).find((x) => x.includes('/src/' + name)); return import(u || './src/' + name); }, name);
 }
+
+/**
+ * Lažni Google Drive za nastavu (sanduče, napredak): pisanje ide u memoriju stranice (__marliTest.putData),
+ * čitanje javnih fajlova ide iz zajedničkog skladišta testa (drive), pa dva pregledača razmenjuju fajlove.
+ */
+export async function fakeDrive(p, drive) {
+  await p.exposeFunction('__drivePut', (k, v) => { drive[k] = v; });
+  await p.addInitScript(() => { let n = 0; window.__marliTest = { ...(window.__marliTest || {}), putData: async (id, text) => { const k = id || 'F' + Date.now().toString(36) + (n++); await window.__drivePut(k, text); return k; } }; });
+  await p.route(/googleapis\.com\/drive\/v3\/files\/([^?]+)\?alt=media/, (r) => { const id = decodeURIComponent(/files\/([^?]+)/.exec(r.request().url())[1]); const v = drive[id]; return v ? r.fulfill({ status: 200, contentType: 'application/json', body: v }) : r.fulfill({ status: 404, body: '' }); });
+  p.pullDrive = async () => {};
+}

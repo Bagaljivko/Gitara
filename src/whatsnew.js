@@ -5,6 +5,13 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '2.4.2', date: '2026-11-24', items: [
+    { i: '📝', sr: ['Beleška sa časa', 'Nastavnik na stranici učenika zapiše šta ste radili i domaći — učenik to vidi u „Od nastavnika“ i na Vežbama.'], en: ['Lesson note', 'On the student’s page the teacher writes what you covered and the homework — the student sees it in “From teacher” and in Practice.'] },
+    { i: '📅', sr: ['Sledeći čas', 'Nastavnik zakaže datum i vreme; oboje ga vidite i dobijate podsetnik dan ranije.'], en: ['Next lesson', 'The teacher sets the date and time; you both see it and get a reminder the day before.'] },
+    { i: '👍', sr: ['Brz odgovor', 'Učenik jednim dodirom odgovori na domaći: „Važi“, „Vežbaću“ ili „Ne razumem“ — bez kucanja.'], en: ['Quick reply', 'With one tap the student answers the homework: “OK”, “Will practise” or “Don’t understand” — no typing.'] },
+    { i: '✓', sr: ['Viđeno', 'Nastavnik vidi šta je učenik otvorio (pesme, set liste, beleške) i šta je odgovorio.'], en: ['Seen', 'The teacher sees what the student has opened (songs, set lists, notes) and how they replied.'] },
+    { i: '🔔', sr: ['Ko ne vežba', 'Na Učenicima: ko nije vežbao nedelju dana, sa dugmetom „Podseti“ — učeniku stiže podsetnik u zvonce.'], en: ['Who isn’t practising', 'In Students: who hasn’t practised for a week, with a “Remind” button — the student gets a reminder in the bell.'] },
+  ] },
   { v: '2.4.1', date: '2026-11-24', items: [
     { i: '🎯', sr: ['Tuner tačniji', 'Žica se označava zelenom tek kad je zaista naštimovana (±3 centa) i ton se smirio — ranije je ponekad označio žicu koja je bila 6–8 centi nisko. Prva desetinka posle trzaja (kad žica zvuči malo više) i kraj tona se više ne računaju.'], en: ['A more accurate tuner', 'A string turns green only when it is really in tune (±3 cents) and the note has settled — before, it sometimes marked a string that was 6–8 cents flat. The first moment after the pluck (when a string sounds slightly sharp) and the fading end no longer count.'] },
     { i: '➡', sr: ['Sledeća žica', 'Posle svake naštimovane žice tuner pokazuje koja je sledeća i ističe je na glavi gitare.'], en: ['Next string', 'After each tuned string the tuner shows which one is next and highlights it on the headstock.'] },

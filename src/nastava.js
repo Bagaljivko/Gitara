@@ -55,8 +55,10 @@ async function drawStudent(box) {
   box.innerHTML = `<div class="nas-card"><div class="nas-top">${T.avatarHTML({ name: tn, color: '#f5a524' }, 42)}<span><b>${esc(tn)}</b><small>${esc(t('tch.yourTeacher'))}${m.boxAt ? ' · ' + esc(t('nas.last', { d: ago(m.boxAt) })) : ''}</small></span><a href="#/od-nastavnika" class="nas-all">${esc(t('nas.all'))} ›</a></div>
     ${fresh.length ? `<div class="nas-lbl">${esc(t('nas.newFrom', { t: tn, n: fresh.length }))}</div>${fresh.map((s) => `<a class="nas-row" href="#/pesma/${encodeURIComponent(s.id)}"><span class="nas-ic">♪</span><span><b>${esc(s.title)}</b><small>${esc(s.artist || '')}</small></span><em>${esc(t('nas.new'))}</em></a>`).join('')}`
       : `<p class="nas-none">${esc(t('nas.nothingNew', { t: tn }))}</p>`}
+    <div id="nasLes"></div>
     <div class="nas-btns"><button type="button" class="btn" data-nas="ask">❓ ${esc(t('nas.ask'))}</button><button type="button" class="btn" data-nas="rec">🎙 ${esc(t('nas.sendRec'))}</button></div></div>`;
   box.onclick = (e) => { const b = e.target.closest('[data-nas]'); if (!b) return; go('#/od-nastavnika', b.dataset.nas === 'ask' ? '#tAsk' : '#tBack'); };
+  import('./lessons.js').then((L) => L.drawStudent(box.querySelector('#nasLes'))).catch(() => {}); // v2.4.2: sledeći čas i domaći na Vežbama
 }
 
 async function drawTeacher(box) {
