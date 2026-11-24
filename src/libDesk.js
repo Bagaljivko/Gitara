@@ -31,6 +31,7 @@ function rows() {
   if (g === 'recent') L = L.filter((s) => Date.now() - (s.updatedAt || s.createdAt || 0) < 30 * DAY);
   else if (g === 'novideo') L = L.filter((s) => !hasVideo(s));
   else if (g === 'nostrum') L = L.filter((s) => !hasStrum(s) && s.type !== 'tab');
+  else if (g === 'ready') L = L.filter((s) => st.ready && st.ready.has(s.id)); // v2.4.10
   else if (g === 'dupes') { const d = dupeIds(L); L = L.filter((s) => d.has(s.id)); }
   else if (g.startsWith('f:')) L = L.filter((s) => (s.folders || []).includes(g.slice(2)));
   if (st.q) { const q = fold(st.q); L = L.filter((s) => fold(s.title + ' ' + (s.artist || '')).includes(q) || fold((s.sections || []).map((x) => (x.lines || []).map((l) => l.text).join(' ')).join(' ')).includes(q)); }
@@ -42,7 +43,7 @@ const folderNames = (s) => (s.folders || []).map((id) => folderLabel(st.folders.
 const groupTitle = () => {
   const g = st.group;
   if (g.startsWith('f:')) return folderLabel(st.folders.find((f) => f.id === g.slice(2))) || t('desk.all');
-  return t({ all: 'desk.all', recent: 'desk.recent', novideo: 'desk.noVideo', nostrum: 'desk.noStrum', dupes: 'desk.dupes' }[g] || 'desk.all');
+  return t({ all: 'desk.all', recent: 'desk.recent', novideo: 'desk.noVideo', nostrum: 'desk.noStrum', ready: 'rdy.group', dupes: 'desk.dupes' }[g] || 'desk.all');
 };
 const fmtDate = (ts) => { if (!ts) return ''; const d = new Date(ts), n = new Date(); if (d.toDateString() === n.toDateString()) return t('desk.today'); if (n - d < 2 * DAY && n.getDate() - d.getDate() === 1) return t('desk.yesterday'); return `${d.getDate()}. ${d.getMonth() + 1}.`; };
 
@@ -58,7 +59,7 @@ function sideHTML() {
   return `<div class="ds-sec"><div class="ds-ttl">${t('desk.library')}</div>
       ${it('all', t('desk.all'), L.length)}${it('recent', t('desk.recent'), cnt((s) => Date.now() - (s.updatedAt || s.createdAt || 0) < 30 * DAY))}</div>
     <div class="ds-sec"><div class="ds-ttl">${t('desk.check')}</div>
-      ${it('novideo', t('desk.noVideo'), cnt((s) => !hasVideo(s)))}${it('nostrum', t('desk.noStrum'), cnt((s) => !hasStrum(s) && s.type !== 'tab'))}${d ? it('dupes', t('desk.dupes'), d) : ''}</div>
+      ${it('novideo', t('desk.noVideo'), cnt((s) => !hasVideo(s)))}${it('nostrum', t('desk.noStrum'), cnt((s) => !hasStrum(s) && s.type !== 'tab'))}${d ? it('dupes', t('desk.dupes'), d) : ''}${st.ready && st.ready.size ? it('ready', '✓ ' + t('rdy.group'), cnt((s) => st.ready.has(s.id))) : ''}</div>
     <div class="ds-sec"><div class="ds-ttl">${t('desk.folders')}<button type="button" class="ds-add" data-a="newFolder" title="${t('desk.newFolder')}" aria-label="${t('desk.newFolder')}">+</button></div>
       ${st.folders.map((f) => it('f:' + f.id, folderLabel(f), cnt((s) => (s.folders || []).includes(f.id)), FOLDER_SVG, ` data-drop="f:${esc(f.id)}"${isSystemFolder(f.id) ? ' data-sys="1"' : ''}`)).join('') || `<p class="ds-empty">${t('desk.noFolders')}</p>`}</div>
     <div class="ds-sec"><div class="ds-ttl">${t('desk.setlists')}<button type="button" class="ds-add" data-a="newSet" title="${t('desk.newSet')}" aria-label="${t('desk.newSet')}">+</button></div>
@@ -76,7 +77,7 @@ function listHTML() {
   const head = `<tr><th class="dt-ck"><span class="ck${R.length && R.every((s) => st.sel.has(s.id)) ? ' on' : ''}" data-a="all" role="checkbox" aria-label="${t('desk.selectAll')}"></span></th>${th('title', t('desk.col.title'))}${compact ? '' : th('artist', t('desk.col.artist'))}${th('key', t('desk.col.key'))}${compact ? '' : th('folder', t('desk.col.folder'))}${th('video', t('desk.col.video'))}${compact ? '' : th('date', t('desk.col.date'))}</tr>`;
   const body = R.map((s) => `<tr class="dk-row${st.sel.has(s.id) ? ' sel' : ''}${st.open === s.id ? ' cur' : ''}" data-id="${esc(s.id)}" draggable="true">
       <td class="dt-ck"><span class="ck${st.sel.has(s.id) ? ' on' : ''}" data-a="ck"></span></td>
-      <td class="dt-title"><b>${esc(s.title || '—')}</b>${compact && s.artist ? `<span class="muted">${esc(s.artist)}</span>` : ''}${s.type === 'tab' ? ' <span class="chip">TAB</span>' : ''}</td>
+      <td class="dt-title"><b>${esc(s.title || '—')}</b>${compact && s.artist ? `<span class="muted">${esc(s.artist)}</span>` : ''}${s.type === 'tab' ? ' <span class="chip">TAB</span>' : ''}${st.ready && st.ready.has(s.id) ? ` <span class="badge-sm rdy-badge" title="${esc(t('rdy.tip'))}">✓</span>` : ''}</td>
       ${compact ? '' : `<td class="muted">${esc(s.artist || '')}</td>`}
       <td class="k">${esc(keyOf(s))}</td>
       ${compact ? '' : `<td>${folderNames(s) ? `<span class="chip">${esc(folderNames(s))}</span>` : ''}</td>`}
@@ -113,6 +114,7 @@ export async function renderDeskLibrary(sideEl, listEl, songEl, params, h = {}) 
 export async function deskReload() { if (side && document.body.contains(side)) await reload(); }
 async function reload() {
   [st.all, st.folders, st.sets] = await Promise.all([db.all(), getFolders(), getSetlists()]);
+  try { st.ready = await (await import('./songs.js')).loadReady(); } catch { st.ready = null; } // v2.4.10
   try { const T = await import('./teach.js'); const [tc, my, sts] = await Promise.all([T.getTeacher(), T.getMyTeacher(), T.getStudents()]); st.teach = { on: !!tc.on, sts, my }; } catch { st.teach = null; } // v1.78
   const ids = new Set(st.all.map((s) => s.id));
   for (const id of [...st.sel]) if (!ids.has(id)) st.sel.delete(id);

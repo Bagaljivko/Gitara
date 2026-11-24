@@ -124,15 +124,19 @@ function drawDiagram(doc, x, y, name, accent) {
   });
 }
 
-/** Pravi PDF i vraća Blob. */
-export async function songToPdf(song, { transposeLabel = '', capoLabel = '' } = {}) {
+async function newDoc() {
   const [{ jsPDF }, mono, monoBold] = await Promise.all([loadJsPDF(), fontBase64(monoUrl), fontBase64(monoBoldUrl)]);
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   doc.addFileToVFS('DejaVuSansMono.ttf', mono);
   doc.addFont('DejaVuSansMono.ttf', 'Mono', 'normal');
   doc.addFileToVFS('DejaVuSansMono-Bold.ttf', monoBold);
   doc.addFont('DejaVuSansMono-Bold.ttf', 'Mono', 'bold');
-  doc.setProperties({ title: song.title || t('pdf.song'), subject: song.artist || '', creator: 'MARLI' });
+  return doc;
+}
+/** Pravi PDF i vraća Blob. v2.4.10: sa `into` (postojeći dokument) pesma se dodaje na novu stranu i ništa se ne vraća. */
+export async function songToPdf(song, { transposeLabel = '', capoLabel = '' } = {}, into = null) {
+  const doc = into || await newDoc();
+  if (into) doc.addPage(); else doc.setProperties({ title: song.title || t('pdf.song'), subject: song.artist || '', creator: 'MARLI' });
 
   const accent = [196, 120, 10];
   const M = 16, PW = 210, PH = 297, bottom = PH - 14;
@@ -247,6 +251,7 @@ export async function songToPdf(song, { transposeLabel = '', capoLabel = '' } = 
     y += lh * 0.6;
   }
 
+  if (into) return null;
   // Broj strane
   const pages = doc.getNumberOfPages();
   for (let p = 1; p <= pages; p++) {
@@ -256,5 +261,38 @@ export async function songToPdf(song, { transposeLabel = '', capoLabel = '' } = 
     doc.setTextColor(150);
     doc.text(`${song.title || ''}  —  ${p}/${pages}`, PW / 2, PH - 8, { align: 'center' });
   }
+  return doc.output('blob');
+}
+
+/**
+ * v2.4.10: paket za čas (nastavnik) — prva strana: učenik, datum, sledeći čas, cilj, poslednja beleška i domaći;
+ * zatim pesme (svaka na svojoj strani, kao obični PDF pesme). Za štampu ili za učenika bez telefona.
+ */
+export async function kitToPdf({ title, sub = '', blocks = [], songs = [] }) {
+  const doc = await newDoc();
+  doc.setProperties({ title, creator: 'MARLI' });
+  const M = 18, PW = 210, PH = 297; let y = M + 6;
+  doc.setFont('Mono', 'bold'); doc.setFontSize(22); doc.setTextColor(15);
+  doc.text(doc.splitTextToSize(title, PW - 2 * M), M, y); y += 10;
+  if (sub) { doc.setFont('Mono', 'normal'); doc.setFontSize(11); doc.setTextColor(90); doc.text(sub, M, y); y += 8; }
+  doc.setDrawColor(196, 120, 10); doc.setLineWidth(0.6); doc.line(M, y, PW - M, y); y += 9;
+  for (const b of blocks) {
+    if (!b || !b.text) continue;
+    if (y > PH - 40) { doc.addPage(); y = M + 4; }
+    doc.setFont('Mono', 'bold'); doc.setFontSize(10); doc.setTextColor(150, 90, 0); doc.text(String(b.label || '').toUpperCase(), M, y); y += 6;
+    doc.setFont('Mono', 'normal'); doc.setFontSize(12); doc.setTextColor(25);
+    const lines = doc.splitTextToSize(String(b.text), PW - 2 * M);
+    for (const ln of lines) { if (y > PH - 20) { doc.addPage(); y = M + 4; } doc.text(ln, M, y); y += 6; }
+    y += 5;
+  }
+  if (songs.length) {
+    if (y > PH - 40) { doc.addPage(); y = M + 4; }
+    doc.setFont('Mono', 'bold'); doc.setFontSize(10); doc.setTextColor(150, 90, 0); doc.text(t('kit.songs').toUpperCase(), M, y); y += 6;
+    doc.setFont('Mono', 'normal'); doc.setFontSize(12); doc.setTextColor(25);
+    songs.forEach((s, i) => { if (y > PH - 20) { doc.addPage(); y = M + 4; } doc.text(`${i + 1}. ${s.title || ''}${s.artist ? ' — ' + s.artist : ''}`, M, y); y += 6; });
+  }
+  for (const s of songs) await songToPdf(s, {}, doc);
+  const pages = doc.getNumberOfPages();
+  for (let p = 1; p <= pages; p++) { doc.setPage(p); doc.setFont('Mono', 'normal'); doc.setFontSize(8); doc.setTextColor(150); doc.text(`${title}  —  ${p}/${pages}`, PW / 2, PH - 8, { align: 'center' }); }
   return doc.output('blob');
 }

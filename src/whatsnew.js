@@ -5,6 +5,12 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '2.4.10', date: '2026-11-24', items: [
+    { i: '🔥', sr: ['Dani zaredom sa štitom', 'Na Vežbama: koliko dana zaredom vežbaš. Svakih 7 dana dobijaš 🛡 štit (najviše 2) — ako propustiš dan, štit sam sačuva niz.'], en: ['Day streak with a shield', 'In Practice: how many days in a row you practise. Every 7 days earns a 🛡 shield (2 at most) — miss a day and a shield saves your streak by itself.'] },
+    { i: '✓', sr: ['Spremne za svirku', 'Pesma kojoj su svi delovi vežbani na 80 % i više ima oznaku „spremna“, a u Pesmama je nova grupa „Spremne za svirku“ (i na računaru).'], en: ['Ready to play', 'A song with every part practised at 80 % or more is marked “ready”, and Songs has a new “Ready to play” group (on a computer too).'] },
+    { i: '⇄', sr: ['Uporedi snimke', 'Na snimku iz „Samo sviraj“: uporedi ga sa ranijim — ujednačenost, tempo, promene akorda u minuti — i vidi napredak.'], en: ['Compare recordings', 'On a recording from Just play: compare it with an earlier one — steadiness, tempo, chord changes per minute — and see your progress.'] },
+    { i: '🖨', sr: ['Paket za čas (PDF)', 'Nastavnik: jednim dodirom PDF sa domaćim, sledećim časom, ciljem i pesmama za učenika — za štampu ili učenika bez telefona.'], en: ['Lesson pack (PDF)', 'Teacher: one tap makes a PDF with homework, the next lesson, the goal and songs for a student — to print or for a student without a phone.'] },
+  ] },
   { v: '2.4.9', date: '2026-11-24', items: [
     { i: '🗂', sr: ['Sve beleške sa časova', 'Nastavnik vidi sve ranije beleške učenika, uredi ih ili „Kopiraj domaći“ u novu belešku; u novoj belešci „↺ prošli domaći“ upisuje prethodni. Učenik vidi „Ranije beleške“.'], en: ['All lesson notes', 'The teacher sees all of a student’s earlier notes, edits them or uses “Copy homework” for a new note; in a new note “↺ last homework” fills in the previous one. The student sees “Earlier notes”.'] },
     { i: '🎯', sr: ['Cilj vežbanja od nastavnika', 'Nastavnik postavi koliko da učenik vežba nedeljno — učeniku se to pojavi kao cilj na kartici „Ova nedelja“ (sa oznakom „od nastavnika“), a nastavnik vidi koliko je urađeno.'], en: ['Practice goal from the teacher', 'The teacher sets how much the student should practise per week — it shows up as the goal on the student’s “This week” card (marked “from teacher”), and the teacher sees how much is done.'] },

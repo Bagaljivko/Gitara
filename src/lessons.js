@@ -91,6 +91,43 @@ export async function historyFlow(sid) {
   return act.edit ? noteFlow(sid, n) : noteFlow(sid, null, { hw: n.hw });
 }
 
+/** v2.4.10: paket za čas (PDF) — beleška, domaći, sledeći čas, cilj i izabrane pesme (podrazumevano poslate u poslednje 2 nedelje). */
+export async function kitFlow(sid) {
+  const tm = await TM(); const st = await tm.getStudent(sid); if (!st) return false;
+  const { songs: sdb } = await import('./db.js');
+  const sent = (await tm.sentSongs()).filter((e) => e.sids && e.sids[sid]).sort((a, b) => b.sids[sid] - a.sids[sid]);
+  const avail = []; for (const e of sent) { const s = await sdb.get(e.id).catch(() => null); if (s && !s.deleted && !s.recording) avail.push({ s, at: e.sids[sid] }); }
+  const sel = new Set(avail.filter((x) => Date.now() - x.at < 14 * 864e5).slice(0, 8).map((x) => x.s.id));
+  const p = dialog({ title: t('kit.title', { name: st.name }), html: true, className: 'tch-dlg les-dlg les-kit', body: `
+    <p class="muted small">${esc(t('kit.sub'))}</p>
+    ${avail.length ? `<div class="bulk-list les-glist">${avail.slice(0, 60).map(({ s, at }) => `<button type="button" class="bulk-it${sel.has(s.id) ? ' on' : ''}" data-kid="${esc(s.id)}" role="checkbox" aria-checked="${sel.has(s.id)}"><span class="bulk-cb">${sel.has(s.id) ? '✓' : ''}</span><span class="bulk-t"><b>${esc(s.title || '')}</b><small class="muted">${esc([s.artist, dShort(at)].filter(Boolean).join(' · '))}</small></span></button>`).join('')}</div>` : `<p class="muted small">${esc(t('kit.noSongs'))}</p>`}`,
+  buttons: [{ label: t('common.cancel'), value: null }, { label: '🖨 ' + t('kit.make'), value: 'ok', kind: 'primary' }] });
+  const box = [...document.querySelectorAll('.modal-backdrop')].pop();
+  box.addEventListener('click', (e) => { const b = e.target.closest('[data-kid]'); if (!b) return; const id = b.dataset.kid; sel.has(id) ? sel.delete(id) : sel.add(id); const on = sel.has(id); b.classList.toggle('on', on); b.setAttribute('aria-checked', String(on)); b.querySelector('.bulk-cb').textContent = on ? '✓' : ''; });
+  if ((await p) !== 'ok') return false;
+  toast(t('kit.making'));
+  const { transposeSong } = await import('./songformat.js');
+  const songs = avail.filter((x) => sel.has(x.s.id)).map(({ s }) => ({ ...(s.type === 'tab' ? s : transposeSong(s, (s.transpose || 0) - (s.capo || 0))), title: s.title, artist: s.artist, key: s.key, strum: s.strum }));
+  const n = (st.notes || [])[0]; const { fmtDur } = await import('./statsView.js');
+  const older = (st.notes || []).slice(1, 4).filter((x) => x.hw).map((x) => `${dShort(x.at)}: ${x.hw}`).join('\n');
+  const blocks = [
+    st.next && st.next > Date.now() - 3600e3 ? { label: t('les.nextLesson'), text: lessonWhen(st.next) } : null,
+    Number(st.goal) ? { label: t('les.goalNo'), text: t('les.goalPer', { d: fmtDur(Number(st.goal) * 60000) }) } : null,
+    n && n.hw ? { label: t('les.hw') + ' (' + dShort(n.at) + ')', text: n.hw } : null,
+    n && n.did ? { label: t('les.did'), text: n.did } : null,
+    older ? { label: t('kit.older'), text: older } : null,
+  ].filter(Boolean);
+  try {
+    const P = await import('./pdf.js'); const tc = await tm.getTeacher();
+    const d = new Date(); const date = `${d.getDate()}. ${d.getMonth() + 1}. ${d.getFullYear()}.`;
+    const blob = await P.kitToPdf({ title: t('kit.pdfTitle', { name: st.name }), sub: [tc.name, date].filter(Boolean).join(' · '), blocks, songs });
+    const S = await import('./shareService.js');
+    const r = await S.shareFile(blob, `MARLI - ${String(st.name || '').replace(/[\\/:*?"<>|]+/g, '')} - ${date}.pdf`, t('kit.pdfTitle', { name: st.name }));
+    if (r === 'downloaded') toast(t('song.pdfDownloaded'));
+    return false;
+  } catch (e) { console.error(e); toast(t('kit.fail'), 'error'); return false; }
+}
+
 /** v2.4.9: cilj vežbanja (minuti nedeljno) — učeniku se postavi na kartici „Ova nedelja“. */
 export const GOALS = [0, 60, 120, 180, 300, 420];
 async function goalDialog(title, cur = 0) {
@@ -197,6 +234,7 @@ export async function drawTeacher(box, sid, rerender) {
       <button type="button" class="tch-row" data-l="note"><span class="sr-ic">📝</span><span><b>${esc(t('les.addNote'))}</b><small>${esc(t('les.addNoteSub'))}</small></span><span class="sr-chev" aria-hidden="true">›</span></button>
       ${notes.map((n) => `<button type="button" class="tch-row les-note" data-edit="${esc(n.id)}"><span class="sr-ic les-d">${esc(dShort(n.at))}</span><span><b>${esc(n.hw ? t('les.hwShort', { hw: n.hw }) : n.did)}</b>${n.hw && n.did ? `<small>${esc(n.did)}</small>` : ''}</span>${statusHTML(st, 'note:' + n.id)}</button>`).join('')}
       ${(st.notes || []).length > 3 || (st.notes || []).some((n) => n.hw) ? `<button type="button" class="tch-row les-more" data-l="hist"><span class="sr-ic">🗂</span><span><b>${esc(t('les.histBtn', { n: (st.notes || []).length }))}</b><small>${esc(t('les.histSub'))}</small></span><span class="sr-chev" aria-hidden="true">›</span></button>` : ''}
+      <button type="button" class="tch-row les-kitrow" data-l="kit"><span class="sr-ic">🖨</span><span><b>${esc(t('kit.btn'))}</b><small>${esc(t('kit.btnSub'))}</small></span><span class="sr-chev" aria-hidden="true">›</span></button>
     </div>
     ${sent.length ? `<div class="tch-sec"><span>${t('les.sentHead')}</span></div><div class="set-grp les-sent">${sent.map((x) => `<div class="tch-row"><span class="sr-ic">${KIND_IC[x.kind] || '•'}</span><span><b>${esc(x.name || t('les.k.' + x.kind))}</b><small>${esc(dShort(x.at))}</small></span>${statusHTML(st, x.key)}</div>`).join('')}</div>` : ''}`;
   // cilj: koliko je ove nedelje (ako učenik deli napredak)
@@ -207,6 +245,7 @@ export async function drawTeacher(box, sid, rerender) {
     if (b.dataset.l === 'next') changed = await nextFlow(sid);
     else if (b.dataset.l === 'goal') changed = await goalFlow(sid);
     else if (b.dataset.l === 'hist') changed = await historyFlow(sid);
+    else if (b.dataset.l === 'kit') changed = await kitFlow(sid);
     else if (b.dataset.l === 'note') changed = await noteFlow(sid);
     else if (b.dataset.edit) { const n = (st.notes || []).find((x) => x.id === b.dataset.edit); if (n) changed = await noteFlow(sid, n); }
     if (changed) (rerender || (() => drawTeacher(box, sid)))();

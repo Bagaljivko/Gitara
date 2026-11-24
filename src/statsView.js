@@ -37,6 +37,15 @@ function ring(pct) {
   const r = 22, c = 2 * Math.PI * r, f = Math.max(0, Math.min(1, pct));
   return `<svg class="st-ring" viewBox="0 0 54 54" aria-hidden="true"><circle cx="27" cy="27" r="${r}" class="bg"/><circle cx="27" cy="27" r="${r}" class="fg" stroke-dasharray="${(c * f).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 27 27)"/></svg>`;
 }
+/** v2.4.10: dani zaredom sa štitom (ceo red na kartici „Ova nedelja“). */
+async function streakHTML(tot, today) {
+  const { streakOf, daysMs, SHIELD_EVERY } = await import('./streak.js');
+  const s = streakOf(daysMs(tot.days), today);
+  const recent = s.saved.filter((d) => d >= today - 7).length;
+  const shields = s.shields ? `<span class="st-shield" title="${esc(t('st.shieldTip', { n: SHIELD_EVERY }))}">🛡 ${s.shields}</span>` : '';
+  const sub = !s.streak ? t('st.streakStart') : recent ? t('st.shieldSaved') : !s.todayDone ? t('st.streakKeep') : s.shields ? '' : t('st.shieldNext', { n: SHIELD_EVERY - (s.streak % SHIELD_EVERY) });
+  return `<div class="st-streak${s.streak ? '' : ' zero'}" title="${esc(t('st.shieldTip', { n: SHIELD_EVERY }))}"><b>🔥 ${s.streak ? esc(t('st.streakN', { n: s.streak })) : esc(t('st.streak0'))}</b>${shields}${sub ? `<small>${esc(sub)}</small>` : ''}</div>`;
+}
 export async function weekHTML() {
   const tot = await loadTotals(), goal = Number(await settings.get('weekGoal', 0)) || 0;
   const { today, start, days } = weekDays();
@@ -56,6 +65,7 @@ export async function weekHTML() {
       ${goal ? `${ring(all / goalMs)}<span><small>${t('st.goal')}</small><b>${fmtDur(all)}</b><em>${t('st.of', { goal: fmtDur(goalMs) })}${fromT ? ` · ${t('st.goalT')}` : ''}</em></span>`
         : `<span class="st-bars" aria-hidden="true">${per.map((v, i) => `<i class="${days[i] === today ? 't' : ''}" style="height:${Math.round((v / max) * 100)}%"></i>`).join('')}</span><span class="st-days">${names.map((n, i) => `<i class="${days[i] === today ? 't' : ''}">${n}</i>`).join('')}</span><small class="st-setgoal">${t('st.setGoal')}</small>`}
     </button>
+    ${await streakHTML(tot, today)}
     ${await (await import('./remind.js')).buttonHTML()}
   </div>`; // v2.4.3: podsetnik za vežbanje (ceo red ispod brojeva)
 }

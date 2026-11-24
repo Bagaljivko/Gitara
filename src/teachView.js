@@ -87,7 +87,7 @@ export async function renderStudent(root, id) {
     <a class="back tch-back" href="#/ucenici">‹ ${t('tch.students')}</a>
     <div class="tch-hero">${T.avatarHTML(s, 56)}<div><h1>${esc(s.name)}</h1><small class="muted">${esc([s.contact, t('tch.since', { d: ((d) => `${d.getDate()}. ${d.getMonth() + 1}. ${d.getFullYear()}.`)(new Date(s.createdAt || Date.now())) })].filter(Boolean).join(' · '))}</small></div></div>
     <div class="tch-actions"><button class="btn primary" id="tSend">${t('tch.sendTo', { name: s.name })}</button><button class="btn" id="tMore" aria-label="${esc(t('tch.more'))}">⋯</button></div>
-    <p class="tch-keys" aria-label="${esc(t('les.keysLabel'))}"><span><kbd>N</kbd> ${t('les.k.n')}</span><span><kbd>L</kbd> ${t('les.k.l')}</span><span><kbd>G</kbd> ${t('les.k.g')}</span><span><kbd>R</kbd> ${t('les.k.r')}</span><span><kbd>H</kbd> ${t('les.k.h')}</span><span><kbd>S</kbd> ${t('les.k.s')}</span><span><kbd>←</kbd><kbd>→</kbd> ${t('les.k.arrows')}</span></p>
+    <p class="tch-keys" aria-label="${esc(t('les.keysLabel'))}"><span><kbd>N</kbd> ${t('les.k.n')}</span><span><kbd>L</kbd> ${t('les.k.l')}</span><span><kbd>G</kbd> ${t('les.k.g')}</span><span><kbd>R</kbd> ${t('les.k.r')}</span><span><kbd>H</kbd> ${t('les.k.h')}</span><span><kbd>S</kbd> ${t('les.k.s')}</span><span><kbd>P</kbd> ${t('les.k.p')}</span><span><kbd>←</kbd><kbd>→</kbd> ${t('les.k.arrows')}</span></p>
     <div id="tLes" class="les-box"></div>
     <div id="tProg">${s.prog ? `<div class="tch-sec"><span>${t('prog.head')}</span></div><p class="muted small tch-none">${t('prog.loading')}</p>` : ''}</div>
     <div id="tPlan" class="pl-tch"></div>
@@ -106,7 +106,7 @@ export async function renderStudent(root, id) {
     if (e.target.closest?.('input, textarea, select, [contenteditable="true"]') || document.querySelector('.modal-backdrop, .sheet-backdrop')) return;
     const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
     const L = await import('./lessons.js'); const redraw = () => L.drawTeacher(root.querySelector('#tLes'), id);
-    const acts = { n: () => L.noteFlow(id), l: () => L.nextFlow(id), g: () => L.goalFlow(id), r: () => L.nudge(id), h: () => L.historyFlow(id), s: () => sendMenu([s]) };
+    const acts = { n: () => L.noteFlow(id), l: () => L.nextFlow(id), g: () => L.goalFlow(id), r: () => L.nudge(id), h: () => L.historyFlow(id), s: () => sendMenu([s]), p: () => L.kitFlow(id) };
     if (acts[k]) { e.preventDefault(); if (await acts[k]()) redraw(); return; }
     if (k === 'ArrowLeft' || k === 'ArrowRight') {
       const all = await T.getStudents(); const i = all.findIndex((x) => x.id === id); const nx = all[i + (k === 'ArrowRight' ? 1 : -1)];

@@ -70,3 +70,23 @@ test('clean: trims silence, drops unconfirmed "Am?", merges a chord read twice, 
   assert.equal(c.dur, 5500);
   assert.equal(cleanEvents([{ t: 0, notes: [{ m: 45, s: 1, f: 0 }] }]).changed, false);
 });
+
+import { recStats, compareRecs } from '../src/recTools.js';
+const take = (bpm, n, jitter = 0, chords = ['G', 'C', 'D', 'Em']) => {
+  const P = 60000 / bpm; const events = [];
+  for (let i = 0; i < n; i++) events.push({ t: Math.round(500 + i * P + (i % 2 ? jitter : -jitter)), chord: chords[i % chords.length], notes: [] });
+  return { events, dur: Math.round(500 + n * P) };
+};
+test('recStats: ujednačen snimak — tempo i ujednačenost', () => {
+  const s = recStats(take(100, 32));
+  assert.ok(Math.abs(s.bpm - 100) <= 2, String(s.bpm));
+  assert.ok(s.steady >= 90, String(s.steady));
+  assert.equal(s.uniq, 4);
+  assert.ok(s.changes >= 5, String(s.changes));
+});
+test('compareRecs: kasniji snimak ujednačeniji i brži → bolje', () => {
+  const r = compareRecs(take(80, 32, 12), take(100, 32, 0));
+  const g = Object.fromEntries(r.map((x) => [x.k, x]));
+  assert.equal(g.bpm.d, 1);
+  assert.ok(g.steady.b >= g.steady.a);
+});

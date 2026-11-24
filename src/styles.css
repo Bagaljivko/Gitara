@@ -3296,3 +3296,21 @@ body.desk-shell .hint-card.on-song { bottom: 96px; }
 .tch-keys { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 10px 0 0; color: var(--muted); font-size: .8rem; }
 .tch-keys kbd { font: 700 .72rem var(--mono, ui-monospace, monospace); border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; margin-right: 3px; color: var(--text); background: var(--surface-2); }
 .les-group .modal-actions .btn { white-space: nowrap; flex: 1 1 auto; }
+/* v2.4.10: dani zaredom sa štitom */
+.st-week > .st-streak { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); }
+.st-streak b { font: 800 .95rem var(--sans); color: var(--text); }
+.st-streak.zero b { color: var(--muted); }
+.st-shield { padding: 2px 9px; border-radius: 999px; background: color-mix(in srgb, #4aa3ff 18%, transparent); border: 1px solid color-mix(in srgb, #4aa3ff 45%, transparent); font: 800 .8rem var(--sans); color: #9fd0ff; }
+.st-streak small { color: var(--muted); font-size: .8rem; margin-left: auto; }
+.rdy-badge { background: color-mix(in srgb, #3dd68c 16%, transparent) !important; color: #3dd68c !important; }
+.sp-ready { color: #3dd68c; font-size: .82rem; }
+/* v2.4.10: poređenje snimaka */
+.rc-box:empty { display: none; }
+.rc-box { margin: 6px 0 10px; }
+.rc-tbl { width: 100%; border-collapse: collapse; font-size: .92rem; }
+.rc-tbl th, .rc-tbl td { text-align: left; padding: 7px 6px; border-bottom: 1px solid var(--line); }
+.rc-tbl th small { display: block; color: var(--muted); font-weight: 600; font-size: .74rem; }
+.rc-tbl td:first-child { color: var(--muted); }
+.rc-up { color: #3dd68c; font-style: normal; } .rc-down { color: #ff7a7a; font-style: normal; }
+.rc-sum { font-weight: 800; margin: 12px 0 4px; }
+.rc-list { max-height: 46dvh; overflow-y: auto; }

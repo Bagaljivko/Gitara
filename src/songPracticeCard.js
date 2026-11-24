@@ -36,5 +36,6 @@ export function fillPractice(card, { good = 0, total = 0, played = false, done =
   const n = p >= 1 ? 3 : p >= 0.5 ? 2 : p > 0 ? 1 : 0;
   // „od 1–4 dela“ / „od 5 delova“ (posle „od“: dela za 1–4, osim 11–14)
   const few = total % 10 >= 1 && total % 10 <= 4 && !(total % 100 >= 11 && total % 100 <= 14);
-  m.innerHTML = `${stars(n)}<b class="sp-num">${esc(t(few ? 'sp.partsFew' : 'sp.parts', { n: Math.min(good, total), total }))}</b>`;
+  m.innerHTML = p >= 1 ? `${stars(3)}<b class="sp-ready">✓ ${esc(t('rdy.ready'))}</b>` // v2.4.10: spremna za svirku
+    : `${stars(n)}<b class="sp-num">${esc(t(few ? 'sp.partsFew' : 'sp.parts', { n: Math.min(good, total), total }))}</b>`;
 }

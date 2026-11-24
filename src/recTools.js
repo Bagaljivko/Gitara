@@ -101,3 +101,32 @@ export function beatTabs(events, tempo, barsPerBlock = 8) {
   }
   return out;
 }
+
+/**
+ * v2.4.10: brojevi jednog snimka za poređenje dva snimka: trajanje, tempo, ujednačenost (koliko trzaja pada na udarac ili
+ * pola udarca, ±8 % udarca), promene akorda u minuti i broj različitih akorda.
+ */
+export function recStats(rec) {
+  const c = cleanEvents((rec && rec.events) || []);
+  const ev = c.events.length ? c.events : (rec && rec.events) || [];
+  const on = []; for (const e of ev) if (!on.length || e.t - on[on.length - 1] > 60) on.push(e.t);
+  const durMs = Number(rec && rec.dur) || (ev.length ? ev[ev.length - 1].t - ev[0].t : 0);
+  const tempo = estimateTempo(ev);
+  let steady = null;
+  if (tempo) { let hit = 0; for (const t of on) { const x = (t - tempo.phase) / tempo.period, e = Math.abs(x * 2 - Math.round(x * 2)) / 2; if (e <= 0.08) hit++; } steady = on.length ? Math.round((hit / on.length) * 100) : null; }
+  const chords = []; for (const e of ev) if (e.chord && chords[chords.length - 1] !== e.chord) chords.push(e.chord);
+  const min = durMs / 60000;
+  return { dur: Math.round(durMs / 1000), bpm: tempo ? tempo.bpm : null, steady, changes: chords.length > 1 ? chords.length - 1 : 0, perMin: min > 0.1 ? Math.round(((chords.length > 1 ? chords.length - 1 : 0) / min) * 10) / 10 : null, uniq: new Set(chords).size, strums: on.length };
+}
+/** Poređenje: za svaki broj vrednosti „ranije“ i „sada“ i da li je bolje (+1), gore (−1) ili isto/ne zna se (0). */
+export function compareRecs(older, newer) {
+  const a = recStats(older), b = recStats(newer);
+  const better = (k, up) => (a[k] == null || b[k] == null || a[k] === b[k] ? 0 : (b[k] > a[k]) === up ? 1 : -1);
+  return [
+    { k: 'steady', a: a.steady, b: b.steady, d: better('steady', true) },
+    { k: 'bpm', a: a.bpm, b: b.bpm, d: better('bpm', true) },
+    { k: 'perMin', a: a.perMin, b: b.perMin, d: better('perMin', true) },
+    { k: 'dur', a: a.dur, b: b.dur, d: 0 },
+    { k: 'uniq', a: a.uniq, b: b.uniq, d: 0 },
+  ];
+}

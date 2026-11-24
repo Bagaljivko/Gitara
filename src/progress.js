@@ -17,7 +17,7 @@ export async function buildSummary() {
   const ms = (d) => { const v = tot.days[String(d)]; return v ? Math.round((v.p || 0) + (v.x || 0)) : 0; };
   const days = Array.from({ length: 7 }, (_, i) => (start + i <= today ? ms(start + i) : 0));
   let lastWeek = 0; for (let d = start - 7; d <= today - 7; d++) lastWeek += ms(d);
-  let d = today; if (!ms(d)) d--; let streak = 0; while (ms(d) > 0) { streak++; d--; }
+  const { streakOf, daysMs } = await import('./streak.js'); const streak = streakOf(daysMs(tot.days), today).streak; // v2.4.10: sa štitom (isto što učenik vidi)
   let lastDay = 0; for (let k = today; k > today - 400; k--) if (ms(k)) { lastDay = k; break; }
   const st = (await settings.get('practice', null)) || {};
   const inWeek = (wk) => Object.entries(wk || {}).filter(([k]) => Number(k) >= start && Number(k) <= today).sort((a, b) => a[0] - b[0]);
