@@ -330,7 +330,7 @@ export async function renderFromTeacher(root) {
     <header class="view-head tch-head"><h1>${t('tch.fromTeacher')}</h1></header>
     <div class="card tch-teacher">${T.avatarHTML({ name: m.name || '?', color: '#f5a524' }, 44)}<span><b>${esc(m.name || t('tch.teacher'))}</b><small class="muted">${t('tch.yourTeacher')}${m.contact ? ' · ' + esc(m.contact) : ''}</small></span></div>
     ${m.box ? `<div class="box-check"><small class="muted" id="tBoxLast">${esc(boxLastText())}</small><button type="button" class="btn small" id="tBoxNow">↻ ${t('box.checkNow')}</button></div>` : ''}
-    ${nNew ? `<div class="card box-new"><div class="tch-sec"><span>${t('box.newFrom', { t: tn })} <em class="box-n">${nNew}</em></span></div><div class="set-grp">${newSets.map((sl) => `<div class="tch-row box-row"><a href="#/setlista/${encodeURIComponent(sl.id)}">${ic('list')}<span><b>${esc(sl.name)}</b><small>${songsCount((sl.songIds || []).length)} · ${t('box.arrivedToday', { d: when(sl.updatedAt || Date.now()) })}</small></span></a></div>`).join('')}${freshSongs.map((x) => `<div class="tch-row box-row"><a href="#/pesma/${encodeURIComponent(x.id)}">${ic('song')}<span><b>${esc(x.title)}</b><small>${esc([x.artist, t('box.arrivedToday', { d: when(x.updatedAt || x.createdAt) })].filter(Boolean).join(' · '))}</small></span></a><button class="btn small" data-save="${esc(x.id)}">+ ${t('box.saveIn')}</button></div>`).join('')}</div></div>` : ''}
+    ${nNew ? `<div class="card box-new"><div class="tch-sec"><span>${t('box.newFrom', { t: tn })} <em class="box-n">${nNew}</em></span></div><div class="set-grp">${newSets.map((sl) => `<div class="tch-row box-row"><a href="#/setlista/${encodeURIComponent(sl.id)}">${ic('list')}<span><b>${esc(sl.name)}</b><small>${songsCount((sl.songIds || []).length)} · ${t('box.arrivedToday', { d: when(sl.updatedAt || Date.now()) })}</small></span></a></div>`).join('')}${freshSongs.map((x) => `<div class="tch-row box-row"><a href="#/pesma/${encodeURIComponent(x.id)}">${ic('song')}<span><b>${esc(x.title)}</b><small>${esc([x.artist, t('box.arrivedToday', { d: when(x.updatedAt || x.createdAt) })].filter(Boolean).join(' · '))}</small></span></a></div><div class="box-mine"><span class="box-in">✓ ${t('box.inMine')}</span><button class="btn small ghost" data-save="${esc(x.id)}">+ ${t('box.addToSet')}</button></div>`).join('')}</div></div>` : ''}
     <div id="tLesS"></div>
     <div id="tMyPlan"></div>
     <div class="tch-ask"><button class="btn" id="tWish">⭐ ${t('tch.rq.wish')}</button><button class="btn" id="tAsk">❓ ${t('tch.rq.ask')}</button></div>
@@ -379,11 +379,8 @@ export async function renderFromTeacher(root) {
     renderFromTeacher(root);
   });
 }
-/** v1.94: „Sačuvaj u…“ — folder ili set lista (pesma ostaje i u „Od nastavnika“). */
+/** v2.4.16: pesma od nastavnika je već u „Sve pesme“ i u grupi „Od nastavnika“ — po želji se dodaje i u set listu. */
 async function saveInFlow(song) {
-  const v = await dialog({ title: t('box.saveInT', { name: song.title }), buttons: [{ label: t('box.toFolder'), value: 'f' }, { label: t('box.toSet'), value: 's' }, { label: t('common.cancel'), value: null, kind: 'ghost' }] });
-  if (v === 'f') return (await import('./setlistsView.js')).editSongFolders(song);
-  if (v !== 's') return false;
   const c = await import('./collections.js');
   const sets = (await c.getSetlists()).filter((sl) => !sl.fromT);
   const id = await chooseFrom(t('box.toSet'), [{ id: '+', label: '+ ' + t('sl.new'), sub: '' }, ...sets.map((sl) => ({ id: sl.id, label: sl.name, sub: songsCount((sl.songIds || []).length) }))]);

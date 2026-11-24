@@ -142,19 +142,25 @@ export async function openSongStats(id) {
   if (v === 'prac') { if (weakest) try { localStorage.setItem(`gitara-pr-part-${id}`, String(weakest.k)); } catch {} location.hash = '#/vezbe/pesma/' + encodeURIComponent(id); }
 }
 
-/** Jedan red na ekranu pesme: „Svirano 3 h 20 min · 14× · Vežbano 45 min · Refren 71%“ (prazno = sakriven). */
+/** v2.4.16: uvid na ekranu pesme (bez štoperice — sve se beleži samo): „⏱ Danas 14 min · Ukupno 2 h 35 min · 9 dana“
+ *  i „Vežbe: Refren ★★★ · Strofa 1 ★“ (prazno = sakriven). */
 export async function songLineText(id, sections = []) {
   const tot = (await loadTotals()).songs[id], rec = (await practice()).songs[id] || {};
-  const bits = [];
-  if (tot && tot.p >= 60000) bits.push(`<b>${t('st.played')} ${fmtDur(tot.p)}</b>`, `${tot.n}×`);
-  if (tot && tot.x >= 60000) bits.push(`<b class="acc">${t('st.practiced')} ${fmtDur(tot.x)}</b>`);
-  const ps = parts(rec).sort((a, b) => (a[1].best || 0) - (b[1].best || 0));
-  if (ps.length && (ps[0][1].best || 0) < 80) {
+  const all = tot ? (tot.p || 0) + (tot.x || 0) : 0;
+  const top = [];
+  if (tot && tot.today >= 60000) top.push(`⏱ ${t('st.todayT')} <b>${fmtDur(tot.today)}</b>`);
+  if (all >= 60000) top.push(`${t('st.totalT')} <b>${fmtDur(all)}</b>${tot.days ? ` · ${countOf(tot.days, DAYS)}` : ''}`);
+  const stars = (b) => (b >= 92 ? '★★★' : b >= 75 ? '★★' : b >= 50 ? '★' : '☆');
+  const ps = parts(rec).filter(([, r]) => r.plays || r.best).sort((a, b) => Number(a[0]) - Number(b[0]));
+  if (rec.all && (rec.all.plays || rec.all.best)) ps.push(['all', rec.all]);
+  let ex = '';
+  if (ps.length) {
     const { sectionLabel } = await import('./sectionLabel.js');
-    const sec = sections[Number(ps[0][0])];
-    bits.push(`${esc(sec && sec.name ? sectionLabel(sec.name) : t('pr.pesma.part', { n: Number(ps[0][0]) + 1 }))} ${ps[0][1].best || 0}%`);
+    const nm = (k) => (k === 'all' ? t('pr.pesma.whole') : ((sec) => (sec && sec.name ? sectionLabel(sec.name) : t('pr.pesma.part', { n: Number(k) + 1 })))(sections[Number(k)]));
+    ex = `${t('st.exercises')} ${ps.slice(0, 4).map(([k, r]) => `<b>${esc(nm(k))}</b> <i class="st-stars${(r.best || 0) >= 80 ? ' ok' : ''}">${stars(r.best || 0)}</i>`).join(' · ')}${ps.length > 4 ? ' …' : ''}`;
   }
-  return bits.join(' · ');
+  if (!top.length && !ex) return '';
+  return `${top.length ? `<span class="st-row">${top.join('<span class="st-gap"></span>')}</span>` : ''}${ex ? `<span class="st-row">${ex}</span>` : ''}<span class="st-more">${t('st.details')} ›</span>`;
 }
 
 /** Set lista: koliko je pesama spremno (i stanje svake). */

@@ -1,12 +1,12 @@
 // v1.73: koliko se svira i vežba — po pesmi, po igri i po danu.
 // Meri se samo aktivno vreme: ekran upaljen, aplikacija vidljiva i nešto se dešava (dodir, skrol, taster, sviranje
-// pesme / videa, završena runda vežbe). Posle 60 s (pesma) / 120 s (vežba) bez ičega sat stane.
+// pesme / videa, završena runda vežbe). Posle 10 min (pesma — svira se i bez dodira; v2.4.16) / 120 s (vežba) bez ičega sat stane.
 // Zapis je po uređaju (settings 'activity' → dev[id]), pa se sinhronizacijom zbir telefona i računara ne duplira.
 import { settings } from './db.js';
 
 const KEY = 'activity';
 const DEV_KEY = 'marli-dev';
-const TICK = 5000, IDLE_SONG = 60000, IDLE_PRAC = 120000, FLUSH = 60000, COUNT_AFTER = 30000;
+const TICK = 5000, IDLE_SONG = 600000, IDLE_PRAC = 120000, FLUSH = 60000, COUNT_AFTER = 30000;
 const MAX_DAYS = 400;
 
 export const dayNum = (ts = Date.now()) => { const d = new Date(ts); return Math.round(new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() / 864e5); };
@@ -14,13 +14,14 @@ const devId = () => { try { let d = localStorage.getItem(DEV_KEY); if (!d) { d =
 
 // ---------------- spajanje (sinhronizacija) i zbir ----------------
 export { mergeActivity } from './syncMerge.js';
-/** Zbir svih uređaja: { songs: {id: {p, n, x, last, days}}, games: {id: ms}, days: {dayNum: {p, x}} } */
+/** Zbir svih uređaja: { songs: {id: {p, n, x, last, days, today}}, games: {id: ms}, days: {dayNum: {p, x}} } */
 export function totals(act) {
   const songs = {}, games = {}, days = {};
   for (const d of Object.values((act && act.dev) || {})) {
     for (const [id, s] of Object.entries(d.s || {})) {
       const o = songs[id] || (songs[id] = { p: 0, n: 0, x: 0, last: 0, days: new Set() });
       o.p += Number(s.p) || 0; o.n += Number(s.n) || 0; o.x += Number(s.x) || 0; o.last = Math.max(o.last, Number(s.last) || 0);
+      if (s.td && s.td.d === dayNum()) o.today = (o.today || 0) + (Number(s.td.ms) || 0); // v2.4.16: danas (svirano + vežbano)
       (s.d || []).forEach((x) => o.days.add(x));
     }
     for (const [g, ms] of Object.entries(d.g || {})) games[g] = (games[g] || 0) + (Number(ms) || 0);
@@ -82,6 +83,7 @@ export async function flush() {
   if (a.kind === 'song' || (a.kind === 'prac' && a.id)) {
     const s = d.s[a.id] || (d.s[a.id] = { p: 0, n: 0, x: 0, last: 0, d: [] });
     if (a.kind === 'song') { s.p = (s.p || 0) + add; if (visit) s.n = (s.n || 0) + 1; } else s.x = (s.x || 0) + add;
+    s.td = s.td && s.td.d === today ? { d: today, ms: (s.td.ms || 0) + add } : { d: today, ms: add };
     s.last = Date.now();
     if (!(s.d || []).includes(today)) s.d = [...(s.d || []), today].slice(-MAX_DAYS);
   }

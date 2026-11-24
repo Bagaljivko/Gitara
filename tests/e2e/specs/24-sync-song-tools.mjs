@@ -1,7 +1,7 @@
 // v2.4.4: uređaji u sinhronizaciji (svaki uređaj svoja stavka 'dev:'), objašnjenja problema običnim rečima,
-// metronom i štoperica na pesmi (telefon i računar).
+// metronom na pesmi (telefon i računar). v2.4.16: štoperica uklonjena (vreme se beleži samo) — stara podešavanja trake je ne vraćaju.
 import { open, boot, addSong, expect, appModule } from '../lib.mjs';
-export const name = 'sinhronizacija: uređaji i jasni problemi; pesma: metronom i štoperica (telefon i računar)';
+export const name = 'sinhronizacija: uređaji i jasni problemi; pesma: metronom, bez štoperice (telefon i računar)';
 export async function run(ctx) {
   const p = await open(ctx, 'phone'); await boot(p, ctx);
   const r = await p.evaluate(async () => {
@@ -27,17 +27,13 @@ export async function run(ctx) {
     // v2.4.7: i na računaru čipovi na vrhu pesme (kao telefon)
     const sel = (k) => `#sChips [data-sca="${k}"]`;
     const chip = (k) => q.evaluate((s) => document.querySelector(s)?.textContent.trim(), sel(k));
-    expect(await chip('metro') && await chip('timer'), dev + ': nema metronoma/štoperice', [await chip('metro'), await chip('timer')]);
+    expect(await chip('metro') && !(await chip('timer')), dev + ': metronom treba da postoji, štoperica ne', [await chip('metro'), await chip('timer')]);
     await q.click(sel('metro')); await q.waitForTimeout(400);
     expect(/96 BPM/.test(await chip('metro')), dev + ': metronom ne pokazuje tempo pesme', await chip('metro'));
-    await q.click(sel('timer')); await q.waitForTimeout(2300);
-    expect(/0:0[23]$/.test(await chip('timer')), dev + ': štoperica ne broji', await chip('timer'));
-    await q.click(sel('timer')); const a = await chip('timer'); await q.waitForTimeout(1200);
-    expect(a === (await chip('timer')), dev + ': štoperica ne staje na pauzu');
     await q.click(sel('metro')); await q.waitForTimeout(300);
     expect(!/BPM/.test(await chip('metro')), dev + ': metronom se ne gasi');
-    // ⚙: oba reda postoje
+    // ⚙: metronom postoji, štoperice nema (ni na računaru u traci)
     await q.click('#sChips [data-sheet="all"]'); await q.waitForTimeout(400);
-    expect(await q.evaluate(() => !!document.querySelector('.song-sheet .ss-item[data-k="metro"]') && !!document.querySelector('.song-sheet .ss-item[data-k="timer"]')), dev + ': nema redova u ⚙');
+    expect(await q.evaluate(() => !!document.querySelector('.song-sheet .ss-item[data-k="metro"]') && !document.querySelector('.song-sheet .ss-item[data-k="timer"]') && !document.querySelector('[data-tb="timer"]')), dev + ': ⚙ — metronom da, štoperica ne');
   }
 }

@@ -33,6 +33,7 @@ function rows() {
   else if (g === 'nostrum') L = L.filter((s) => !hasStrum(s) && s.type !== 'tab');
   else if (g === 'ready') L = L.filter((s) => st.ready && st.ready.has(s.id)); // v2.4.10
   else if (g === 'dupes') { const d = dupeIds(L); L = L.filter((s) => d.has(s.id)); }
+  else if (g === 'teacher') L = L.filter((s) => s.fromT); // v2.4.16: sve što je nastavnik poslao
   else if (g.startsWith('f:')) L = L.filter((s) => (s.folders || []).includes(g.slice(2)));
   if (st.q) { const q = fold(st.q); L = L.filter((s) => fold(s.title + ' ' + (s.artist || '')).includes(q) || fold((s.sections || []).map((x) => (x.lines || []).map((l) => l.text).join(' ')).join(' ')).includes(q)); }
   const { col, dir } = st.sort;
@@ -43,6 +44,7 @@ const folderNames = (s) => (s.folders || []).map((id) => folderLabel(st.folders.
 const groupTitle = () => {
   const g = st.group;
   if (g.startsWith('f:')) return folderLabel(st.folders.find((f) => f.id === g.slice(2))) || t('desk.all');
+  if (g === 'teacher') return '🎓 ' + t('tch.fromTeacher');
   return t({ all: 'desk.all', recent: 'desk.recent', novideo: 'desk.noVideo', nostrum: 'desk.noStrum', ready: 'rdy.group', dupes: 'desk.dupes' }[g] || 'desk.all');
 };
 const fmtDate = (ts) => { if (!ts) return ''; const d = new Date(ts), n = new Date(); if (d.toDateString() === n.toDateString()) return t('desk.today'); if (n - d < 2 * DAY && n.getDate() - d.getDate() === 1) return t('desk.yesterday'); return `${d.getDate()}. ${d.getMonth() + 1}.`; };
@@ -66,7 +68,7 @@ function sideHTML() {
       ${st.sets.map((x) => `<button type="button" class="ds-it" data-set="${esc(x.id)}" data-drop="s:${esc(x.id)}">${SET_SVG}<span class="ds-name">${esc(x.name)}</span>${x.fromT ? `<i class="ds-tch" title="${esc(t('tch.fromName', { name: x.fromT.name || t('tch.teacher') }))}">🎓</i>` : ''}<b>${(x.songIds || []).length}</b></button>`).join('') || `<p class="ds-empty">${t('desk.noSets')}</p>`}</div>
     ${st.teach && (st.teach.on || st.teach.my) ? `<div class="ds-sec"><div class="ds-ttl">${t('tch.section')}</div>
       ${st.teach.on ? `<a class="ds-it" href="#/ucenici">${PEOPLE_SVG}<span class="ds-name">${t('tch.students')}</span><b>${st.teach.sts.length}</b></a>` : ''}
-      ${st.teach.my ? `<a class="ds-it" href="#/od-nastavnika">${TEACH_SVG}<span class="ds-name">${t('tch.fromTeacher')}</span><b>${st.all.filter((s) => s.fromT).length}</b></a>` : ''}</div>` : ''}
+      ${st.teach.my ? it('teacher', t('tch.fromTeacher'), cnt((s) => s.fromT), TEACH_SVG) : ''}</div>` : ''}
     <div class="ds-conn" id="dsConn" hidden></div>`;
 }
 

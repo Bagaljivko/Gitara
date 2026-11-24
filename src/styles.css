@@ -3204,13 +3204,11 @@ body.desk-shell .hint-card.on-song { bottom: 96px; }
 .dev-row small { display: block; color: var(--muted); font-size: .8rem; }
 .dev-ic { font-size: 1.3rem; width: 28px; text-align: center; }
 /* v2.4.4: metronom i štoperica (čipovi na pesmi) */
-.sc-chip.sc-metro.on, .sc-chip.sc-timer.on { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.sc-chip.sc-metro.on { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 .sc-chip.sc-metro.on { animation: metroPulse 1s ease-in-out infinite; }
-.sc-chip.sc-timer span { font-variant-numeric: tabular-nums; }
 @keyframes metroPulse { 50% { box-shadow: 0 0 0 4px rgba(245, 165, 36, .18); } }
 @media (prefers-reduced-motion: reduce) { .sc-chip.sc-metro.on { animation: none; } }
-.song-tb .stb-timer span { font-variant-numeric: tabular-nums; }
-.song-tb .stb-timer.on, .song-tb .stb-metro.on { color: var(--accent); border-color: var(--accent); }
+.song-tb .stb-metro.on { color: var(--accent); border-color: var(--accent); }
 
 /* v2.4.7 (računar): mirna pesma — naslov i Fokus · Uredi · Sviraj · ⋯ u jednom redu, ispod čipovi; jedna kolona teksta */
 @media (min-width: 1100px) and (hover: hover) and (pointer: fine) {
@@ -3331,3 +3329,15 @@ body.desk-shell .hint-card.on-song { bottom: 96px; }
 .les-acts { display: inline-flex; gap: 6px; margin-left: 6px; flex: none; }
 .les-acts .btn { min-height: 30px; padding: 0 9px; }
 .les-st.les-got { color: #3dd68c; } .les-st.les-miss { color: #ffb547; }
+/* v2.4.16: pesma od nastavnika je odmah u „Sve pesme“ i u grupi „Od nastavnika“ (bez biranja foldera) */
+.box-mine { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0 14px 12px; }
+.box-in { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: var(--ok-soft); color: var(--ok); }
+.box-mine .btn.ghost { background: none; border: 1px solid var(--line); color: var(--muted); }
+.lib-tnote { margin: 2px 0 10px; padding: 10px 12px; border-radius: 12px; background: var(--accent-soft); border: 1px solid rgba(245, 165, 36, .3); font-size: 13.5px; line-height: 1.4; color: var(--text); }
+/* v2.4.16: uvid na pesmi (bez štoperice) — danas, ukupno, vežbe sa zvezdicama */
+.st-line .st-row { display: block; line-height: 1.55; }
+.st-line .st-gap { display: inline-block; width: 14px; }
+.st-line .st-stars { font-style: normal; color: var(--muted); letter-spacing: 1px; }
+.st-line .st-stars.ok { color: var(--ok); }
+.st-line .st-more { display: block; text-align: right; color: var(--accent); margin-top: 2px; }
+.song-view.calm .st-line { background: var(--surface); border: 1px solid var(--line); padding: 9px 12px; margin: 2px 0 12px; border-radius: 12px; font-size: .8rem; }

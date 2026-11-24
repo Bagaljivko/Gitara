@@ -98,6 +98,7 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
     <div id="lSlPane" ${tab === 'sl' ? '' : 'hidden'}></div>
     <div id="lSongsPane" ${tab === 'sl' ? 'hidden' : ''}>
     <div class="lib-chips" id="lChips" role="toolbar" aria-label="${t('lib.groups')}"></div>
+    <p class="lib-tnote" id="lTNote" hidden>${t('lib.teacherNote')}</p>
     <div class="lib-search" id="lSearchRow" hidden>
       <input type="search" id="lSearch" placeholder="${t('lib.search')}" aria-label="${t('lib.searchLabel')}" enterkeyhint="search">
       <button class="icon-btn" id="lSearchX" aria-label="${t('common.close')}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z"/></svg></button>
@@ -140,7 +141,7 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
   if (tab === 'sl') renderSetlistsPane($('lSlPane'));
 
   // Grupa pesama u naslovu („Sve pesme ▾“): dodir otvara panel sa grupama (automatske + moji folderi)
-  const groupLabel = (g) => !g ? t('lib.groupAll') : g === 'auto:tab' ? t('lib.groupTab') : g === 'auto:recent' ? t('lib.groupRecent') : g === 'auto:ready' ? t('rdy.group')
+  const groupLabel = (g) => !g ? t('lib.groupAll') : g === 'auto:tab' ? t('lib.groupTab') : g === 'auto:recent' ? t('lib.groupRecent') : g === 'auto:ready' ? t('rdy.group') : g === 'auto:teacher' ? '🎓 ' + t('tch.fromTeacher')
     : g.startsWith('artist:') ? (all.find((s) => artistKey(s) === g.slice(7))?.artist || g.slice(7)) : folderLabel(folders.find((f) => f.id === g) || { name: '' });
   // v2.0: čipovi grupa ispod naslova (telefon) — Sve, Od nastavnika, folderi (i Moji snimci), TAB; jedan dodir
   let myT = null; import('./teach.js').then((T) => T.getMyTeacher()).then((m) => { myT = m; drawChips(); }).catch(() => {});
@@ -149,7 +150,7 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
     const n = (g) => all.filter((x) => inGroup(x, g)).length;
     const fo = [...folders].sort((a, b) => (isSystemFolder(b.id) ? 1 : 0) - (isSystemFolder(a.id) ? 1 : 0));
     const chips = [['', t('lib.chipAll'), n('')]];
-    if (myT && myT.tid) chips.push(['nav:#/od-nastavnika', '🎓 ' + t('tch.fromTeacher'), all.filter((x) => x.fromT).length, 't']);
+    if ((myT && myT.tid) || all.some((x) => x.fromT)) chips.push(['auto:teacher', '🎓 ' + (myT && myT.name ? myT.name : t('tch.fromTeacher')), n('auto:teacher'), 't']);
     for (const f of fo) chips.push([f.id, (isSystemFolder(f.id) ? '' : '📁 ') + folderLabel(f), n(f.id)]);
     const nt = n('auto:tab'); if (nt) chips.push(['auto:tab', t('lib.groupTab'), nt]);
     const nr = n('auto:ready'); if (nr) chips.push(['auto:ready', '✓ ' + t('rdy.group'), nr]); // v2.4.10
@@ -195,6 +196,7 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
     if (g === 'auto:tab') return s.type === 'tab' || !!s.hasTabs;
     if (g === 'auto:recent') return (rec || recentIds()).has(s.id);
     if (g === 'auto:ready') return READY.has(s.id);
+    if (g === 'auto:teacher') return !!s.fromT; // v2.4.16: sve pesme od nastavnika, same stižu
     if (g.startsWith('artist:')) return artistKey(s) === g.slice(7);
     return (s.folders || []).includes(g);
   }
@@ -203,6 +205,7 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
     const q = fold($('lSearch').value);
     // snimci iz „Samo sviraj“ su samo u folderu „Moji snimci“ (ne u „Sve“)
     const rec = folderFilter === 'auto:recent' ? recentIds() : null;
+    $('lTNote').hidden = folderFilter !== 'auto:teacher';
     let list = all.filter((s) => inGroup(s, folderFilter, rec)).filter((s) => !q || folded(s).t.includes(q) || folded(s).a.includes(q) ||
       (s.find ?? '').includes(q));
     const sort = $('lSort').value;
@@ -338,7 +341,7 @@ function openGroupSheet({ all, folders, cur, inGroup, anchor, teach = null }) {
       ${n('auto:tab') ? row('auto:tab', t('lib.groupTab'), GRP_ICONS['auto:tab'], n('auto:tab')) : ''}
       ${n('auto:ready') ? row('auto:ready', t('rdy.group'), GRP_ICONS['auto:ready'], n('auto:ready')) : ''}
       ${sys.map((f) => row(f.id, folderLabel(f), GRP_ICONS.rec, n(f.id))).join('')}
-      ${teach && teach.my ? `<button class="grp-row" role="menuitem" data-nav="#/od-nastavnika"><span class="grp-ic">${GRP_ICONS.students}</span><span class="grp-name">${esc(t('tch.fromTeacher'))}</span><span class="grp-n">${all.filter((s) => s.fromT).length}</span></button>` : ''}
+      ${(teach && teach.my) || n('auto:teacher') ? row('auto:teacher', t('tch.fromTeacher'), GRP_ICONS.students, n('auto:teacher')) : ''}
       <div class="grp-sep"></div>
       <div class="grp-head">${t('lib.groupsFolders')}</div>
       ${own.map((f) => row(f.id, folderLabel(f), GRP_ICONS.folder, n(f.id), `<span class="grp-more" data-gm="${esc(f.id)}" role="button" aria-label="${esc(t('folder.manage', { name: folderLabel(f) }))}">${GRP_ICONS.more}</span>`)).join('') || `<p class="small muted grp-empty">${t('lib.groupsMineEmpty')}</p>`}
@@ -961,7 +964,7 @@ function showChord(name, opts = {}) {
 
 // ---------------- Prikaz pesme ----------------
 // v2.2: koja dugmad su na vrhu pesme i kojim redom (Podešavanja pesme → prevuci ≡); važi za sve pesme, sinhronizuje se
-const BAR_ALL = ['video', 'key', 'capo', 'easy', 'tempo', 'rhythm', 'size', 'chords', 'practice', 'metro', 'timer']; // v2.4.4: metronom i štoperica
+const BAR_ALL = ['video', 'key', 'capo', 'easy', 'tempo', 'rhythm', 'size', 'chords', 'practice', 'metro']; // v2.4.4: metronom (v2.4.16: bez štoperice — vreme se beleži samo)
 export const METRO_ICON = '<svg class="met-ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M9 3h6l4 18H5z"/><path d="M5.9 17h12.2"/><g class="met-arm"><path d="M12 17 16.2 6.5"/><circle cx="14.9" cy="9.8" r="1.5" fill="currentColor"/></g></svg>'; // v2.4.8: metronom (klatno se njiše u tempu dok svira)
 const BAR_DEF = ['video', 'key', 'capo', 'tempo', 'metro', 'rhythm']; // v2.4.8: metronom odmah posle tempa
 function barOrder() { try { const v = JSON.parse(localStorage.getItem('marli-songbar') || 'null'); if (Array.isArray(v)) return v.filter((k) => BAR_ALL.includes(k)); } catch {} return BAR_DEF; }
@@ -993,9 +996,8 @@ export async function renderSong(root, id, nav = null) {
   let loopSec = -1, loopMet = null, loopBpm = 90; // vežbanje jedne sekcije
   // Tempo pesme: sačuvan uz pesmu (ili, ako ga nema, opšti tempo metronoma)
   const songBpm = async () => Number(stored.bpm) || Number(await settings.get('metBpm', 90)) || 90;
-  // v2.4.4: metronom (klik po tempu pesme) i štoperica vežbanja na samoj pesmi — čipovi na vrhu ili u ⚙
-  let metro = null, tmRun = false, tmMs = 0, tmFrom = 0, tmT = 0;
-  const fmtTm = () => { const sec = Math.floor((tmMs + (tmRun ? Date.now() - tmFrom : 0)) / 1000); return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`; };
+  // v2.4.4: metronom (klik po tempu pesme) na samoj pesmi — čip na vrhu ili u ⚙ (v2.4.16: štoperica uklonjena, vreme se beleži samo)
+  let metro = null;
   const toggleMetro = async () => {
     if (metro) { metro.stop(); metro = null; }
     else { metro = new Metronome(); metro.bpm = loopSec >= 0 ? loopBpm : await songBpm(); const sig = stored.strum && stored.strum.sig; if (sig) metro.sig = sig; metro.start(); }
@@ -1004,14 +1006,8 @@ export async function renderSong(root, id, nav = null) {
   // računar: ista dva dugmeta u traci pesme
   const toolsTb = () => {
     const m = root.querySelector('[data-tb="metro"]'); if (m) { m.classList.toggle('on', !!metro); m.setAttribute('aria-pressed', String(!!metro)); m.querySelector('span').textContent = metro ? `${metro.bpm} BPM` : t('ss.metro'); }
-    const c = root.querySelector('[data-tb="timer"]'); if (c) { c.classList.toggle('on', tmRun); c.setAttribute('aria-pressed', String(tmRun)); c.querySelector('span').textContent = fmtTm(); }
   };
-  const toggleTimer = () => {
-    if (tmRun) { tmMs += Date.now() - tmFrom; tmRun = false; clearInterval(tmT); }
-    else { tmFrom = Date.now(); tmRun = true; let n = 0; tmT = setInterval(() => { const c = $('sChips')?.querySelector('[data-sca="timer"] span'); if (c) c.textContent = fmtTm(); const d = root.querySelector('[data-tb="timer"] span'); if (d) d.textContent = fmtTm(); if (++n % 10 === 0) import('./activity.js').then((A) => A.ping()).catch(() => {}); }, 1000); }
-    drawChips(); toolsTb();
-  };
-  window.addEventListener('hashchange', () => { metro?.stop(); metro = null; clearInterval(tmT); tmRun = false; }, { once: true });
+  window.addEventListener('hashchange', () => { metro?.stop(); metro = null; }, { once: true });
   const backHref = nav ? nav.backHref : '#/pesme';
   root.innerHTML = `
   <section class="view song-view">
@@ -1044,7 +1040,6 @@ export async function renderSong(root, id, nav = null) {
         <button class="btn" data-tb="video" title="${esc(t('stb.videoTip'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.6 7.2a2.5 2.5 0 0 0-1.8-1.8C18.2 5 12 5 12 5s-6.2 0-7.8.4A2.5 2.5 0 0 0 2.4 7.2 26 26 0 0 0 2 12a26 26 0 0 0 .4 4.8 2.5 2.5 0 0 0 1.8 1.8C5.8 19 12 19 12 19s6.2 0 7.8-.4a2.5 2.5 0 0 0 1.8-1.8A26 26 0 0 0 22 12a26 26 0 0 0-.4-4.8zM10 15V9l5.2 3L10 15z"/></svg><span>${t('stb.video')}</span></button>
         <button class="btn stb-tog" data-tb="easy" aria-pressed="false" title="${esc(t('song.easySub'))}"><i aria-hidden="true"></i><span>${t('sug.easyBtn')}</span></button>
         <button class="btn stb-tog stb-metro" data-tb="metro" aria-pressed="false" title="${esc(t('ss.metroSub'))}"><i aria-hidden="true"></i><span>${t('ss.metro')}</span></button>
-        <button class="btn stb-timer" data-tb="timer" aria-pressed="false" title="${esc(t('ss.timerSub'))}">⏱ <span>0:00</span></button>
         <button class="btn" data-tb="share" aria-haspopup="true" title="${esc(t('stb.shareTip'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 16a3 3 0 0 0-2.4 1.2l-6.7-3.4a3 3 0 0 0 0-1.6l6.7-3.4A3 3 0 1 0 15 7l-6.7 3.4a3 3 0 1 0 0 3.2L15 17a3 3 0 1 0 3-1z"/></svg><span>${t('song.shareShort')}</span> ▾</button>
         <button class="btn stb-play" data-tb="stage" title="${esc(t('stb.playTip'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg><span>${t('stb.play')}</span> <kbd>P</kbd></button>
         <button class="btn stb-more" data-tb="more" title="${esc(t('song.more'))}" aria-label="${esc(t('song.more'))}">${MORE_ICON}</button>
@@ -1189,7 +1184,6 @@ export async function renderSong(root, id, nav = null) {
       chords: () => (!stored.recording && stored.type !== 'tab' ? `<button class="sc-chip" data-sca="chords">✎ ${esc(t('ss.chords'))}</button>` : ''),
       practice: () => (root.querySelector('.sp-line') ? `<button class="sc-chip" data-sca="practice">▶ ${esc(t('sp.short'))}</button>` : ''),
       metro: () => `<button class="sc-chip sc-metro${metro ? ' on' : ''}" data-sca="metro" aria-pressed="${!!metro}" aria-label="${esc(t('ss.metro'))}" title="${esc(t('ss.metroSub'))}"${metro ? ` style="--beat:${(60 / (metro.bpm || 90)).toFixed(3)}s"` : ''}>${METRO_ICON}<span class="sc-ml">${metro ? metro.bpm + ' BPM' : esc(t('ss.metro'))}</span></button>`, // v2.4.8: ikonica metronoma; uključen = klatno se njiše u tempu
-      timer: () => `<button class="sc-chip sc-timer${tmRun ? ' on' : ''}" data-sca="timer" aria-pressed="${tmRun}" aria-label="${esc(t('ss.timer'))}">⏱ <span>${tmMs || tmRun ? fmtTm() : esc(t('ss.timerShort'))}</span></button>`,
     };
     el.innerHTML = barOrder().map((k) => C[k]?.() || '').join('') + `<button class="sc-chip sc-set" data-sheet="all" aria-label="${esc(t('ss.title'))}" title="${esc(t('ss.title'))}">${SET_ICON}</button>`;
     fitChips();
@@ -1247,7 +1241,6 @@ export async function renderSong(root, id, nav = null) {
         chords: `${touchOk() ? `<div class="ss-r"><span class="ss-l">${t('ss.chords')}</span>${go(esc(t('ss.editChords')), 'chords', ' acc')}</div>` : ''}`,
         practice: `${sp ? `<div class="ss-r"><span class="ss-l">${t('ss.practice')}</span>${go(esc(t('ss.parts')), 'practice', ' acc')}</div>` : ''}`,
         metro: `<div class="ss-r"><span class="ss-l">${t('ss.metro')}<small>${esc(t('ss.metroSub'))}</small></span><button class="ss-tog${metro ? ' on' : ''}" data-ss="metro" role="switch" aria-checked="${!!metro}" aria-label="${esc(t('ss.metro'))}"><i></i></button></div>`,
-        timer: `<div class="ss-r"><span class="ss-l">${t('ss.timer')}<small>${esc(tmMs || tmRun ? fmtTm() : t('ss.timerSub'))}</small></span><button class="ss-tog${tmRun ? ' on' : ''}" data-ss="timer" role="switch" aria-checked="${tmRun}" aria-label="${esc(t('ss.timer'))}"><i></i></button></div>`,
       };
       const top = barOrder(), rest = BAR_ALL.filter((k) => !top.includes(k));
       const it = (k) => (R[k] && R[k].trim() ? `<div class="ss-item" data-k="${k}">${R[k].replace('<div class="ss-r">', `<div class="ss-r">${gripHTML(esc(t('ss.dragRow')))}`)}</div>` : '');
@@ -1317,7 +1310,6 @@ export async function renderSong(root, id, nav = null) {
       else if (a === 'c+') await setCapo(capo + 1);
       else if (a === 'easy') { await toggleEasy(); syncEasyTop(); }
       else if (a === 'metro') await toggleMetro(); // v2.4.4
-      else if (a === 'timer') toggleTimer();
       else if (a === 'b-') await setBpm(-5);
       else if (a === 'b+') await setBpm(5);
       else if (a === 'z-' || a === 'z+') { const z = Math.min(1.8, Math.max(0.8, Math.round((zoom + (a === 'z+' ? 0.1 : -0.1)) * 10) / 10)); if (z !== zoom) { await setZoom(z); await saveZoom(); } }
@@ -2007,7 +1999,6 @@ export async function renderSong(root, id, nav = null) {
     else if (a === 'video') $('paBtn')?.click();
     else if (a === 'easy') { await toggleEasy(); tbSync(); }
     else if (a === 'metro') await toggleMetro(); // v2.4.4 (računar)
-    else if (a === 'timer') toggleTimer();
     else if (a === 'share') {
       // v1.88: „Podeli ▾“ — link ili PDF
       const v = await moreMenu(null, [{ value: 'link', label: t('stb.shareLink'), sub: t('stb.shareTip'), icon: 'share' }, { value: 'pdf', label: t('song.pdf'), sub: t('ss.pdfSub'), icon: 'pdf' }]);
@@ -2030,7 +2021,6 @@ export async function renderSong(root, id, nav = null) {
     if (a === 'chords') return editChords();
     if (a === 'practice') return root.querySelector('.sp-line')?.click();
     if (a === 'metro') return toggleMetro(); // v2.4.4
-    if (a === 'timer') return toggleTimer();
     // v2.3: čip radi odmah — Ton otvara krug tonaliteta, Ritam izbor ritma, Aa/Kapo/BPM mala traka − vrednost + ispod čipa
     const sh = e.target.closest('[data-sheet]'); if (!sh) return;
     const k = sh.dataset.sheet;

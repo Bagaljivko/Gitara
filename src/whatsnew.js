@@ -5,6 +5,10 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '2.4.16', date: '2026-11-24', items: [
+    { i: '🎓', sr: ['Pesme od nastavnika — same na svom mestu', 'Pesma koju pošalje nastavnik odmah je u „Sve pesme“ i u grupi „🎓 Od nastavnika“ (čip sa imenom nastavnika; na računaru levo pod „Nastava“). Nema više biranja foldera — po želji je dodaš i u set listu.'], en: ['Songs from your teacher — in place by themselves', 'A song your teacher sends is right away in All songs and in the “🎓 From teacher” group (a chip with the teacher’s name; on a computer on the left under Teaching). No more picking a folder — add it to a set list if you like.'] },
+    { i: '⏱', sr: ['Bez štoperice — vreme se beleži samo', 'Ispod „Vežbaj“ na pesmi: koliko si je danas svirao, ukupno i koliko dana, i koje si delove vežbao (zvezdice). Pesma otvorena dok sviraš bez dodira broji se do 10 minuta.'], en: ['No stopwatch — time is recorded by itself', 'Under Practice on a song: how long you played it today, in total and on how many days, and which parts you practised (stars). A song left open while you play without touching counts for up to 10 minutes.'] },
+  ] },
   { v: '2.4.15', date: '2026-11-24', items: [
     { i: '〰', sr: ['Čistiji talas u tuneru', 'Trag iza talasa je kraći i brzo nestaje, a na AMOLED ekranu više ne ostaje bleda „mrlja“ kad žica utihne.'], en: ['A cleaner tuner wave', 'The trail behind the wave is shorter and fades quickly, and no faint “smudge” is left on an AMOLED screen when the string goes quiet.'] },
   ] },
