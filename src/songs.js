@@ -938,7 +938,7 @@ function showChord(name, opts = {}) {
 
 // ---------------- Prikaz pesme ----------------
 // v2.2: koja dugmad su na vrhu pesme i kojim redom (Podešavanja pesme → prevuci ≡); važi za sve pesme, sinhronizuje se
-const BAR_ALL = ['video', 'key', 'capo', 'easy', 'tempo', 'rhythm', 'size', 'chords', 'practice'];
+const BAR_ALL = ['video', 'key', 'capo', 'easy', 'tempo', 'rhythm', 'size', 'chords', 'practice', 'metro', 'timer']; // v2.4.4: metronom i štoperica
 const BAR_DEF = ['video', 'key', 'capo', 'tempo', 'rhythm'];
 function barOrder() { try { const v = JSON.parse(localStorage.getItem('marli-songbar') || 'null'); if (Array.isArray(v)) return v.filter((k) => BAR_ALL.includes(k)); } catch {} return BAR_DEF; }
 async function setBarOrder(v) { try { localStorage.setItem('marli-songbar', JSON.stringify(v)); } catch {} await settings.set('songBar', v).catch(() => {}); }
@@ -967,6 +967,25 @@ export async function renderSong(root, id, nav = null) {
   let loopSec = -1, loopMet = null, loopBpm = 90; // vežbanje jedne sekcije
   // Tempo pesme: sačuvan uz pesmu (ili, ako ga nema, opšti tempo metronoma)
   const songBpm = async () => Number(stored.bpm) || Number(await settings.get('metBpm', 90)) || 90;
+  // v2.4.4: metronom (klik po tempu pesme) i štoperica vežbanja na samoj pesmi — čipovi na vrhu ili u ⚙
+  let metro = null, tmRun = false, tmMs = 0, tmFrom = 0, tmT = 0;
+  const fmtTm = () => { const sec = Math.floor((tmMs + (tmRun ? Date.now() - tmFrom : 0)) / 1000); return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`; };
+  const toggleMetro = async () => {
+    if (metro) { metro.stop(); metro = null; }
+    else { metro = new Metronome(); metro.bpm = loopSec >= 0 ? loopBpm : await songBpm(); const sig = stored.strum && stored.strum.sig; if (sig) metro.sig = sig; metro.start(); }
+    drawChips(); toolsTb();
+  };
+  // računar: ista dva dugmeta u traci pesme
+  const toolsTb = () => {
+    const m = root.querySelector('[data-tb="metro"]'); if (m) { m.classList.toggle('on', !!metro); m.setAttribute('aria-pressed', String(!!metro)); m.querySelector('span').textContent = metro ? `${metro.bpm} BPM` : t('ss.metro'); }
+    const c = root.querySelector('[data-tb="timer"]'); if (c) { c.classList.toggle('on', tmRun); c.setAttribute('aria-pressed', String(tmRun)); c.querySelector('span').textContent = fmtTm(); }
+  };
+  const toggleTimer = () => {
+    if (tmRun) { tmMs += Date.now() - tmFrom; tmRun = false; clearInterval(tmT); }
+    else { tmFrom = Date.now(); tmRun = true; let n = 0; tmT = setInterval(() => { const c = $('sChips')?.querySelector('[data-sca="timer"] span'); if (c) c.textContent = fmtTm(); const d = root.querySelector('[data-tb="timer"] span'); if (d) d.textContent = fmtTm(); if (++n % 10 === 0) import('./activity.js').then((A) => A.ping()).catch(() => {}); }, 1000); }
+    drawChips(); toolsTb();
+  };
+  window.addEventListener('hashchange', () => { metro?.stop(); metro = null; clearInterval(tmT); tmRun = false; }, { once: true });
   const backHref = nav ? nav.backHref : '#/pesme';
   root.innerHTML = `
   <section class="view song-view">
@@ -996,6 +1015,8 @@ export async function renderSong(root, id, nav = null) {
         <button class="btn stb-listen" data-tb="listen" title="${esc(t('dock.listenTip'))}">${NOTE_ICON}<span>${t('dock.listen')}</span></button>
         <button class="btn" data-tb="video" title="${esc(t('stb.videoTip'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.6 7.2a2.5 2.5 0 0 0-1.8-1.8C18.2 5 12 5 12 5s-6.2 0-7.8.4A2.5 2.5 0 0 0 2.4 7.2 26 26 0 0 0 2 12a26 26 0 0 0 .4 4.8 2.5 2.5 0 0 0 1.8 1.8C5.8 19 12 19 12 19s6.2 0 7.8-.4a2.5 2.5 0 0 0 1.8-1.8A26 26 0 0 0 22 12a26 26 0 0 0-.4-4.8zM10 15V9l5.2 3L10 15z"/></svg><span>${t('stb.video')}</span></button>
         <button class="btn stb-tog" data-tb="easy" aria-pressed="false" title="${esc(t('song.easySub'))}"><i aria-hidden="true"></i><span>${t('sug.easyBtn')}</span></button>
+        <button class="btn stb-tog stb-metro" data-tb="metro" aria-pressed="false" title="${esc(t('ss.metroSub'))}"><i aria-hidden="true"></i><span>${t('ss.metro')}</span></button>
+        <button class="btn stb-timer" data-tb="timer" aria-pressed="false" title="${esc(t('ss.timerSub'))}">⏱ <span>0:00</span></button>
         <button class="btn" data-tb="share" aria-haspopup="true" title="${esc(t('stb.shareTip'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 16a3 3 0 0 0-2.4 1.2l-6.7-3.4a3 3 0 0 0 0-1.6l6.7-3.4A3 3 0 1 0 15 7l-6.7 3.4a3 3 0 1 0 0 3.2L15 17a3 3 0 1 0 3-1z"/></svg><span>${t('song.shareShort')}</span> ▾</button>
         <button class="btn stb-more" data-tb="more" title="${esc(t('song.more'))}" aria-label="${esc(t('song.more'))}">${MORE_ICON}</button>
       </div>`}
@@ -1137,6 +1158,8 @@ export async function renderSong(root, id, nav = null) {
       size: () => `<button class="sc-chip sc-size" data-sheet="size" aria-label="${esc(t('ss.size'))} ${Math.round(zoom * 100)}%">Aa${chipPop && chipPop.k === 'size' ? ` <b>${Math.round(zoom * 100)}%</b>` : ''}</button>`, // v2.3.1: % samo dok se menja
       chords: () => (!stored.recording && stored.type !== 'tab' ? `<button class="sc-chip" data-sca="chords">✎ ${esc(t('ss.chords'))}</button>` : ''),
       practice: () => (root.querySelector('.sp-line') ? `<button class="sc-chip" data-sca="practice">▶ ${esc(t('sp.short'))}</button>` : ''),
+      metro: () => `<button class="sc-chip sc-metro${metro ? ' on' : ''}" data-sca="metro" aria-pressed="${!!metro}" aria-label="${esc(t('ss.metro'))}">𝅘𝅥 <span>${metro ? (bpm || 90) + ' BPM' : esc(t('ss.metroShort'))}</span></button>`,
+      timer: () => `<button class="sc-chip sc-timer${tmRun ? ' on' : ''}" data-sca="timer" aria-pressed="${tmRun}" aria-label="${esc(t('ss.timer'))}">⏱ <span>${tmMs || tmRun ? fmtTm() : esc(t('ss.timerShort'))}</span></button>`,
     };
     el.innerHTML = barOrder().map((k) => C[k]?.() || '').join('') + `<button class="sc-chip sc-set" data-sheet="all" aria-label="${esc(t('ss.title'))}" title="${esc(t('ss.title'))}">${SET_ICON}</button>`;
     fitChips();
@@ -1192,6 +1215,8 @@ export async function renderSong(root, id, nav = null) {
         video: `${pa_ ? `<div class="ss-r"><span class="ss-l">${t('ss.video')}</span>${go(esc(t(pa_.classList.contains('off') ? 'ss.connect' : 'ss.start')), 'video', ' acc')}</div>` : ''}`,
         chords: `${touchOk() ? `<div class="ss-r"><span class="ss-l">${t('ss.chords')}</span>${go(esc(t('ss.editChords')), 'chords', ' acc')}</div>` : ''}`,
         practice: `${sp ? `<div class="ss-r"><span class="ss-l">${t('ss.practice')}</span>${go(esc(t('ss.parts')), 'practice', ' acc')}</div>` : ''}`,
+        metro: `<div class="ss-r"><span class="ss-l">${t('ss.metro')}<small>${esc(t('ss.metroSub'))}</small></span><button class="ss-tog${metro ? ' on' : ''}" data-ss="metro" role="switch" aria-checked="${!!metro}" aria-label="${esc(t('ss.metro'))}"><i></i></button></div>`,
+        timer: `<div class="ss-r"><span class="ss-l">${t('ss.timer')}<small>${esc(tmMs || tmRun ? fmtTm() : t('ss.timerSub'))}</small></span><button class="ss-tog${tmRun ? ' on' : ''}" data-ss="timer" role="switch" aria-checked="${tmRun}" aria-label="${esc(t('ss.timer'))}"><i></i></button></div>`,
       };
       const top = barOrder(), rest = BAR_ALL.filter((k) => !top.includes(k));
       const it = (k) => (R[k] && R[k].trim() ? `<div class="ss-item" data-k="${k}">${R[k].replace('<div class="ss-r">', `<div class="ss-r">${gripHTML(esc(t('ss.dragRow')))}`)}</div>` : '');
@@ -1210,6 +1235,8 @@ export async function renderSong(root, id, nav = null) {
       else if (a === 'c-') await setCapo(capo - 1);
       else if (a === 'c+') await setCapo(capo + 1);
       else if (a === 'easy') { await toggleEasy(); syncEasyTop(); }
+      else if (a === 'metro') await toggleMetro(); // v2.4.4
+      else if (a === 'timer') toggleTimer();
       else if (a === 'b-') await setBpm(-5);
       else if (a === 'b+') await setBpm(5);
       else if (a === 'z-' || a === 'z+') { const z = Math.min(1.8, Math.max(0.8, Math.round((zoom + (a === 'z+' ? 0.1 : -0.1)) * 10) / 10)); if (z !== zoom) { await setZoom(z); await saveZoom(); } }
@@ -1603,6 +1630,7 @@ export async function renderSong(root, id, nav = null) {
     if ($('sTempo')) $('sTempo').textContent = b;
     if (loopMet) loopMet.bpm = b;
     if (strumMet) strumMet.bpm = b;
+    if (metro) { metro.bpm = b; toolsTb(); } // v2.4.4
     drawChips();
     await save();
   };
@@ -1885,6 +1913,8 @@ export async function renderSong(root, id, nav = null) {
     if (a === 'edit') location.hash = '#/uredi/' + encodeURIComponent(id);
     else if (a === 'video') $('paBtn')?.click();
     else if (a === 'easy') { await toggleEasy(); tbSync(); }
+    else if (a === 'metro') await toggleMetro(); // v2.4.4 (računar)
+    else if (a === 'timer') toggleTimer();
     else if (a === 'share') {
       // v1.88: „Podeli ▾“ — link ili PDF
       const v = await moreMenu(null, [{ value: 'link', label: t('stb.shareLink'), sub: t('stb.shareTip'), icon: 'share' }, { value: 'pdf', label: t('song.pdf'), sub: t('ss.pdfSub'), icon: 'pdf' }]);
@@ -1905,6 +1935,8 @@ export async function renderSong(root, id, nav = null) {
     if (a === 'easy') { await toggleEasy(); syncEasyTop(); drawChips(); return; }
     if (a === 'chords') return editChords();
     if (a === 'practice') return root.querySelector('.sp-line')?.click();
+    if (a === 'metro') return toggleMetro(); // v2.4.4
+    if (a === 'timer') return toggleTimer();
     // v2.3: čip radi odmah — Ton otvara krug tonaliteta, Ritam izbor ritma, Aa/Kapo/BPM mala traka − vrednost + ispod čipa
     const sh = e.target.closest('[data-sheet]'); if (!sh) return;
     const k = sh.dataset.sheet;

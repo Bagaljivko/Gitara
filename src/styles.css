@@ -3160,3 +3160,20 @@ body.desk-shell .hint-card.on-song { bottom: 96px; }
 .cmt-voice { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 10px 0 4px; }
 .st-week > .st-remind { grid-column: 1 / -1; justify-self: start; margin: 0; }
 .cmt-card .cmt-msg p { color: var(--text); font-size: .95rem; }
+/* v2.4.4: sinhronizacija — objašnjenje i uređaji */
+.sync-help { margin: 6px 0 10px; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); color: var(--text); font-size: .9rem; line-height: 1.45; }
+.dev-list { margin: 14px 0 12px; }
+.dev-h { margin: 0 0 6px; font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.dev-row { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); }
+.dev-row b { display: block; font-size: .95rem; }
+.dev-row b em { font-style: normal; font-size: .72rem; font-weight: 800; color: var(--accent); margin-left: 4px; }
+.dev-row small { display: block; color: var(--muted); font-size: .8rem; }
+.dev-ic { font-size: 1.3rem; width: 28px; text-align: center; }
+/* v2.4.4: metronom i štoperica (čipovi na pesmi) */
+.sc-chip.sc-metro.on, .sc-chip.sc-timer.on { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.sc-chip.sc-metro.on { animation: metroPulse 1s ease-in-out infinite; }
+.sc-chip.sc-timer span { font-variant-numeric: tabular-nums; }
+@keyframes metroPulse { 50% { box-shadow: 0 0 0 4px rgba(245, 165, 36, .18); } }
+@media (prefers-reduced-motion: reduce) { .sc-chip.sc-metro.on { animation: none; } }
+.song-tb .stb-timer span { font-variant-numeric: tabular-nums; }
+.song-tb .stb-timer.on, .song-tb .stb-metro.on { color: var(--accent); border-color: var(--accent); }

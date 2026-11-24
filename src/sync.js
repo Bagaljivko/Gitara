@@ -70,6 +70,11 @@ function setStatus(s) {
   if (st.leader && bc) bc.postMessage({ t: 'status', s, last: st.last });
   emit();
 }
+/** v2.4.4: šta se dešava i šta da uradiš — običnim rečima (ispod stanja u Podešavanjima). */
+export function statusHelp(s = st.status) {
+  if (s === 'error' && st.rate) return t('sync.help.rate');
+  return { offline: t('sync.help.offline'), connect: t('sync.help.connect'), newer: t('sync.help.newer'), quota: t('sync.help.quota'), error: t('sync.help.error') }[s] || '';
+}
 export function statusText(s = st.status) {
   return { synced: t('sync.synced'), syncing: t('sync.syncing'), offline: t('sync.offline'), connect: t('sync.connect'), newer: t('sync.newer'), quota: t('sync.quota'), error: t('sync.error'), off: '' }[s] || '';
 }
@@ -128,6 +133,7 @@ function done(m) {
   if (!m.ok) logSync('sync', m);
   syncMeta.pending().then((n) => { st.pending = n; emit(); }).catch(() => {});
   if (m.ok) {
+    st.rate = false; import('./devices.js').then((D) => D.beat()).catch(() => {}); // v2.4.4: ovaj uređaj u spisku „Uređaji“
     failures = 0;
     setStatus(m.newer ? 'newer' : 'synced');
     if (firstRun) {
@@ -149,7 +155,7 @@ function done(m) {
     else if (m.code === 'QUOTA') setStatus('quota'); // Drive pun: sve ostaje ovde, status se pokaže jednom
     else setStatus(navigator.onLine === false ? 'offline' : 'error');
     if (m.code !== 'OFFLINE' && m.code !== 'PAUSED') { const e = `${m.code || ''} ${m.msg || ''}`.trim().slice(0, 120); if (e !== st.err) { st.err = e; import('./drive.js').then((d) => d.logAuth('sinhronizacija: greška', e)).catch(() => {}); } } // v1.99.2
-    rateHit = /rate|busy|429/i.test(m.msg || '');
+    rateHit = /rate|busy|429/i.test(m.msg || ''); st.rate = rateHit; // v2.4.4: jasniji opis („Google je usporio“)
     failures = m.code === 'QUOTA' ? Math.max(failures + 1, 4) : rateHit ? Math.max(failures + 1, 3) : failures + 1; // v2.2: Google „uspori“ → prvi novi pokušaj tek posle ~1 min
   }
   schedule();

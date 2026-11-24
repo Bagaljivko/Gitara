@@ -5,6 +5,11 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '2.4.4', date: '2026-11-24', items: [
+    { i: '𝅘𝅥', sr: ['Metronom i štoperica na pesmi', 'Novi čipovi (dodaj ih u ⚙ na vrh pesme): metronom klika po tempu pesme (prati i „Tapni“), štoperica meri koliko vežbaš tu pesmu. Na računaru su u traci pesme.'], en: ['Metronome and timer on a song', 'New chips (add them to the top via ⚙): the metronome clicks at the song’s tempo (follows “Tap” too), the timer measures how long you practise that song. On a computer they are in the song toolbar.'] },
+    { i: '💻', sr: ['Uređaji', 'Podešavanja → Sinhronizacija: koji uređaji su povezani na tvoj Google nalog i kad je koji poslednji put sinhronizovan.'], en: ['Devices', 'Settings → Sync: which devices are connected to your Google account and when each one last synced.'] },
+    { i: '💬', sr: ['Sinhronizacija običnim rečima', 'Kad nešto ne ide (nema interneta, Google je usporio, Drive je pun, treba ponovo povezati), piše šta se dešava, da se ništa ne gubi i šta da uradiš.'], en: ['Sync in plain words', 'When something goes wrong (no internet, Google slowed down, Drive is full, needs reconnecting), it says what is happening, that nothing is lost and what to do.'] },
+  ] },
   { v: '2.4.3', date: '2026-11-24', items: [
     { i: '💬', sr: ['Komentar na snimak', 'Nastavnik na snimku koji si poslao ostavi komentar — tekst i/ili glasovnu poruku (do 60 s). Vidiš ga na tom snimku, pustiš glas i odgovoriš jednim dodirom.'], en: ['Comment on a recording', 'On a recording you sent, your teacher leaves a comment — text and/or a voice message (up to 60 s). You see it on that recording, play the voice and reply with one tap.'] },
     { i: '🔔', sr: ['Podsetnik za vežbanje', 'Na Vežbama (kartica „Ova nedelja“) izaberi vreme — svaki dan te podseti, samo ako danas još nisi vežbao.'], en: ['Practice reminder', 'In Practice (the “This week” card) pick a time — it reminds you every day, only if you haven’t practised yet today.'] },

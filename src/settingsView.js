@@ -7,7 +7,7 @@ import { APP_VERSION, wnUnseen } from './version.js';
 import { tunerSettingsHTML, bindTunerSettings, loadTunerSettings } from './tunerSettings.js';
 import { t, getLang, setLang } from './i18n.js';
 import { canShareNative } from './shareService.js';
-import { syncState, onSyncChange, statusText, connectSync, reconnect as syncReconnect, disconnectSync, syncNow, initSync } from './sync.js';
+import { syncState, onSyncChange, statusText, statusHelp, connectSync, reconnect as syncReconnect, disconnectSync, syncNow, initSync } from './sync.js';
 import { driveState, onDriveChange, connect as driveConnect, disconnect as driveDisconnect, reconnect as driveReconnect, backupNow, restoreFlow, formatDate, DriveError } from './drive.js';
 
 import { isStandalone, isIOS, isComputer, canPromptInstall, promptInstall } from './install.js';
@@ -702,6 +702,7 @@ export async function renderSettings(root) {
         <h3 class="sync-h">${t('sync.title')}</h3>
         <p class="drive-account">${t('sync.account')} <b>${esc(y.email || t('drive.account'))}</b></p>
         <p class="sync-status ${y.status === 'synced' ? 'ok' : y.status === 'error' || y.status === 'quota' || y.status === 'newer' ? 'err' : ''}" role="status">${esc(statusText(y.status) || t('sync.syncing'))}${pend}</p>
+        ${statusHelp(y.status) ? `<p class="sync-help">${esc(statusHelp(y.status))}</p>` : ''}
         ${y.last ? `<p class="small muted">${t('sync.last')} ${esc(formatDate(y.last))}</p>` : ''}
         ${y.status === 'connect' ? `<button class="btn primary wide" data-d="syncReconnect">${t('sync.connectBtn')}</button>` : ''}
         <div class="row wrap">
@@ -709,9 +710,11 @@ export async function renderSettings(root) {
           <button class="btn" data-d="versions">${t('ver.title')}</button>
           <button class="btn" data-d="syncSwitch">${t('sync.switch')}</button>
         </div>
+        <div id="devBox"></div>
         <button class="btn danger-text" data-d="syncOff">${t('sync.off')}</button>`;
     const syncMsg = `<p class="status ${driveMsgCls}" role="status">${esc(driveMsg)}</p>`;
     driveCard.innerHTML = `${syncHtml}${syncMsg}<p class="muted small sync-bk-note">${t('bk.syncNote')}</p>`; // v1.71: kopije su u „Rezervne kopije“
+    const devBox = driveCard.querySelector('#devBox'); if (devBox) import('./devices.js').then(async (D) => { const h = await D.listHTML(); if (devBox.isConnected) devBox.innerHTML = h; }).catch(() => {}); // v2.4.4: uređaji
   };
   const setDriveMsg = (m, cls = '') => { driveMsg = m; driveMsgCls = cls; drawDrive(); };
   const driveErr = (e) => (e instanceof DriveError || (e && e.user) ? e.message : t('common.error'));
