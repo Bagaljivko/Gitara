@@ -25,20 +25,71 @@ export async function ensureBox(sid, { interactive = false } = {}) {
   return id;
 }
 const queues = new Map(); // jedno pisanje po sanduču u isto vreme
-/** Dodaj (ili zameni, po ključu) stavke u sanduče učenika. Vraća true ako je upisano. */
+/** Jedno pisanje u sanduče. 'ok' | 'retry' (Google usporio / nema mreže — pokušaj kasnije) | 'no' (nema sanduča). */
+async function writeBox(sid, items, interactive) {
+  const tm = await TM(); const st = await tm.getStudent(sid); if (!st || !st.box || !st.box.f) return 'no';
+  const S = await S_(); const tc = await tm.setTeacher({});
+  const cur = await S.readData(st.box.f);
+  // v2.4.11: sanduče nije moglo da se pročita (Google usporio, mreža) → NE prepisuj ga samo novim stavkama
+  // (ranije je tako nestajalo sve što učenik još nije preuzeo — pesme, beleške, čas); sačekaj i pošalji kasnije.
+  if (cur === null) return 'retry';
+  const old = cur && !cur.gone && cur.type === 'box' && Array.isArray(cur.items) ? cur.items : [];
+  const map = new Map(old.filter((x) => x && x.key).map((x) => [x.key, x]));
+  for (const it of items) map.set(it.key, { ...it, at: it.at || Date.now() });
+  const list = [...map.values()].sort((a, b) => (a.at || 0) - (b.at || 0)).slice(-MAX_ITEMS);
+  const id = await S.putData(st.box.f, JSON.stringify({ app: 'marli', type: 'box', v: 1, tid: tc.id, sid, at: Date.now(), items: list }), { interactive, name: 'MARLI – za učenika.json' }).catch(() => '');
+  if (!id) return 'retry';
+  // v2.4.2: šta je poslato ovom učeniku (za „viđeno“ i odgovor) — novije zamenjuje starije sa istim ključem
+  { const cur2 = (await tm.getStudent(sid)) || st; const keys = new Set(items.map((i) => i.key)); await tm.updateStudent(sid, { sent: [...(cur2.sent || []).filter((x) => !keys.has(x.key)), ...items.filter((i) => i.kind !== 'ans').map((i) => ({ key: i.key, kind: i.kind, name: clipN(i.name, 80), at: i.at || Date.now() }))].slice(-40) }); }
+  return 'ok';
+}
+const clipN = (x, n) => String(x || '').slice(0, n);
+// ---------------- v2.4.11: odlazno (šalje se čim Google dozvoli) ----------------
+const OUTBOX = 'boxOutbox';
+async function outbox() { const { settings } = await import('./db.js'); return (await settings.get(OUTBOX, null)) || {}; }
+async function setOutbox(o) { const { settings } = await import('./db.js'); await settings.set(OUTBOX, o); }
+async function enqueue(sid, items) {
+  const o = await outbox(); const map = new Map((o[sid] || []).map((x) => [x.key, x]));
+  for (const it of items) map.set(it.key, { ...it, at: it.at || Date.now() });
+  o[sid] = [...map.values()].slice(-MAX_ITEMS); await setOutbox(o);
+}
+/** Koliko stavki čeka slanje (za tog učenika ili ukupno). */
+export async function pendingCount(sid = null) { const o = await outbox(); return sid ? (o[sid] || []).length : Object.values(o).reduce((a, l) => a + l.length, 0); }
+let flushing = null;
+/** Pošalji sve što čeka (ćutke). Vraća broj poslatih stavki. */
+export function flushOutbox() {
+  if (flushing) return flushing;
+  flushing = (async () => {
+    const o = await outbox(); let sent = 0; const done = [];
+    for (const [sid, items] of Object.entries(o)) {
+      if (!items || !items.length) continue;
+      if ((await import('./driveGate.js')).cooling()) break;
+      const p = (queues.get(sid) || Promise.resolve()).then(() => writeBox(sid, items, false));
+      queues.set(sid, p.catch(() => {}));
+      const r = await p.catch(() => 'retry');
+      if (r === 'ok') { sent += items.length; done.push(sid); }
+      else if (r === 'no') done.push(sid);
+      else break; // Google još traži pauzu — sledeći put
+    }
+    if (done.length) { const cur = await outbox(); for (const sid of done) delete cur[sid]; await setOutbox(cur); }
+    if (sent) {
+      const N = await import('./notify.js'); const tm = await TM();
+      const names = (await Promise.all(done.map((sid) => tm.getStudent(sid)))).filter(Boolean).map((x) => x.name).slice(0, 3).join(', ');
+      await N.add({ id: 'outbox:' + Date.now(), who: '✓', c: '#3dd68c', t: t('box.flushed', { n: sent }), s: names }).catch(() => {});
+    }
+    return sent;
+  })().finally(() => { flushing = null; });
+  return flushing;
+}
+/** Dodaj (ili zameni, po ključu) stavke u sanduče učenika. Vraća true ako je upisano ili čeka slanje (šalje se samo čim Google dozvoli). */
 export function boxPut(sid, items, { interactive = true } = {}) {
   const run = async () => {
-    const tm = await TM(); const st = await tm.getStudent(sid); if (!st || !st.box || !st.box.f) return false;
-    const S = await S_(); const tc = await tm.setTeacher({});
-    const cur = await S.readData(st.box.f);
-    const old = cur && !cur.gone && cur.type === 'box' && Array.isArray(cur.items) ? cur.items : [];
-    const map = new Map(old.filter((x) => x && x.key).map((x) => [x.key, x]));
-    for (const it of items) map.set(it.key, { ...it, at: it.at || Date.now() });
-    const list = [...map.values()].sort((a, b) => (a.at || 0) - (b.at || 0)).slice(-MAX_ITEMS);
-    const id = await S.putData(st.box.f, JSON.stringify({ app: 'marli', type: 'box', v: 1, tid: tc.id, sid, at: Date.now(), items: list }), { interactive, name: 'MARLI – za učenika.json' }).catch(() => '');
-    // v2.4.2: šta je poslato ovom učeniku (za „viđeno“ i odgovor) — novije zamenjuje starije sa istim ključem
-    if (id) { const cur = (await tm.getStudent(sid)) || st; const keys = new Set(items.map((i) => i.key)); await tm.updateStudent(sid, { sent: [...(cur.sent || []).filter((x) => !keys.has(x.key)), ...items.filter((i) => i.kind !== 'ans').map((i) => ({ key: i.key, kind: i.kind, name: String(i.name || '').slice(0, 80), at: Date.now() }))].slice(-40) }); }
-    return !!id;
+    const r = await writeBox(sid, items, interactive);
+    if (r === 'ok') return true;
+    if (r === 'no') return false;
+    await enqueue(sid, items); boxPut.queued = (boxPut.queued || 0) + 1; // v2.4.11: ne gubi se — šalje se kasnije
+    try { const L = JSON.parse(localStorage.getItem('gitara-diag') || '[]'); L.push({ t: Date.now(), k: 'box', m: 'queued ' + items.length }); localStorage.setItem('gitara-diag', JSON.stringify(L.slice(-80))); } catch {}
+    return true;
   };
   const p = (queues.get(sid) || Promise.resolve()).then(run, run);
   queues.set(sid, p.catch(() => {}));
@@ -210,6 +261,7 @@ export function initTeacherPoll() {
   if (tInited) return; tInited = true;
   const run = async () => {
     const tm = await TM(); const tc = await tm.getTeacher(); if (!tc.on) return;
+    await flushOutbox().catch(() => 0); // v2.4.11: prvo ono što čeka slanje
     const P = await import('./progress.js');
     for (const st of await tm.getStudents()) if (st.prog && st.prog.fileId) await P.studentProgress(st, { fresh: true }).catch(() => null);
     await (await import('./lessons.js')).teacherReminders().catch(() => {}); // v2.4.2: sutrašnji časovi u zvonce
@@ -218,4 +270,6 @@ export function initTeacherPoll() {
   setTimeout(maybe, 8000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) maybe(); });
   setInterval(() => { if (!document.hidden) { last = 0; maybe(); } }, 15 * 60000);
+  setInterval(() => { if (!document.hidden) pendingCount().then((n) => n && flushOutbox()).catch(() => {}); }, 3 * 60000); // v2.4.11
+  addEventListener('online', () => setTimeout(() => flushOutbox().catch(() => {}), 5000));
 }

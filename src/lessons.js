@@ -237,6 +237,8 @@ export async function drawTeacher(box, sid, rerender) {
       <button type="button" class="tch-row les-kitrow" data-l="kit"><span class="sr-ic">🖨</span><span><b>${esc(t('kit.btn'))}</b><small>${esc(t('kit.btnSub'))}</small></span><span class="sr-chev" aria-hidden="true">›</span></button>
     </div>
     ${sent.length ? `<div class="tch-sec"><span>${t('les.sentHead')}</span></div><div class="set-grp les-sent">${sent.map((x) => `<div class="tch-row"><span class="sr-ic">${KIND_IC[x.kind] || '•'}</span><span><b>${esc(x.name || t('les.k.' + x.kind))}</b><small>${esc(dShort(x.at))}</small></span>${statusHTML(st, x.key)}</div>`).join('')}</div>` : ''}`;
+  // v2.4.11: šta još čeka slanje (Google je usporio)
+  (async () => { const B = await BX(); const n = await B.pendingCount(sid); if (n && box.isConnected && !box.querySelector('.les-pend')) box.querySelector('.les-grp')?.insertAdjacentHTML('afterbegin', `<div class="tch-row les-pend"><span class="sr-ic">⏳</span><span><b>${esc(t('box.pending', { n }))}</b><small>${esc(t('box.queued'))}</small></span></div>`); })().catch(() => {});
   // cilj: koliko je ove nedelje (ako učenik deli napredak)
   if (Number(st.goal) && st.prog) (async () => { const P = await import('./progress.js'); const pr = await P.studentProgress(st).catch(() => null); const w = pr && !pr.err ? P.thisWeek(pr) : null; const el = box.querySelector('#lesGoalProg'); if (w && el) { const { fmtDur } = await import('./statsView.js'); el.textContent = t('les.goalProg', { d: fmtDur(w.total), g: fmtDur(Number(st.goal) * 60000) }); } })().catch(() => {});
   box.onclick = async (e) => {

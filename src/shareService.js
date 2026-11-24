@@ -130,9 +130,12 @@ export async function composeMessage({ to = '', subject = '', text, kind = '' })
 
 /** v1.78 (Nastava): samo objavi predmet i vrati link (bez menija za deljenje) — poruke za učenike / nastavnika
  *  sastavlja teach.js, posebno za svakog primaoca. Isti predmet = isti fajl (izmene stižu na isti link). */
+function logDiag(k, e) { try { const L = JSON.parse(localStorage.getItem('gitara-diag') || '[]'); L.push({ t: Date.now(), k, m: String((e && (e.stack || e.message)) || e).slice(0, 300) }); localStorage.setItem('gitara-diag', JSON.stringify(L.slice(-80))); } catch {} }
 export async function publishOnly(item) {
   if (globalThis.__marliTest?.publish) return globalThis.__marliTest.publish(item); // samo testovi (bez Google Drive-a)
-  const file = await buildShareFile(item);
+  let file;
+  try { file = await buildShareFile(item); } // v2.4.11: greška pri pakovanju se vidi (ranije: tiho — „poslato“ a ništa nije stiglo)
+  catch (e) { logDiag('share pack', e); await dialog({ title: t('share.failedTitle'), body: t('share.packFail') }); return null; }
   if (navigator.onLine === false) { await needAccount(item); return null; }
   const drive = await import('./drive.js');
   try { await drive.shareToken({ interactive: false }); }

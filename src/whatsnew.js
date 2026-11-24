@@ -5,6 +5,10 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '2.4.12', date: '2026-11-24', items: [
+    { i: '📬', sr: ['Slanje učenicima pouzdanije', 'Kad Google privremeno uspori, sanduče učenika se više ne briše — ono što šalješ čeka i samo se pošalje čim Google dozvoli (na stranici učenika piše „Čeka slanje“, a u zvonce stiže „Poslato“).'], en: ['More reliable sending to students', 'When Google temporarily slows down, the student’s inbox is no longer wiped — what you send waits and goes out by itself as soon as Google allows (the student’s page shows “Waiting to send”, and the bell says “Sent”).'] },
+    { i: '⚠', sr: ['Greške se vide', 'Ako slanje pesama ne uspe, sada to piše — ranije je ponekad izgledalo kao da je poslato, a ništa nije stiglo.'], en: ['Errors are shown', 'If sending songs fails, it now says so — before, it sometimes looked sent while nothing arrived.'] },
+  ] },
   { v: '2.4.11', date: '2026-11-24', items: [
     { i: '🛠', sr: ['Popravke iz dijagnostike', 'Deljenje set liste ili pesme više ne puca kad nekoj pesmi fali deo. Kad Google privremeno uspori, plan od nastavnika više ne nestaje i link se ne proglašava „nevažećim“.'], en: ['Fixes from diagnostics', 'Sharing a set list or song no longer fails when a song is missing a part. When Google temporarily slows down, the teacher’s plan no longer disappears and a link is no longer called “invalid”.'] },
     { i: '⏸', sr: ['Mirnija sinhronizacija', 'Kad Google kaže „uspori“, svi delovi aplikacije (sinhronizacija, rezervna kopija, sanduče, napredak) zajedno sačekaju — i posle ponovnog otvaranja — umesto da pokušavaju jedan preko drugog. Izmene su sačuvane i šalju se same.'], en: ['Calmer sync', 'When Google says “slow down”, every part of the app (sync, backup, inbox, progress) waits together — even after reopening — instead of retrying over each other. Your changes are saved and go out on their own.'] },

@@ -165,9 +165,11 @@ export async function sendMenu(students, preset = null, { rq = '', rp = '' } = {
   const ready = students.filter((st) => st.box && st.box.f), wait = students.filter((st) => !(st.box && st.box.f));
   if (!ready.length) { await notConnectedFlow(wait); return; }
   const S = await import('./shareService.js');
-  const res = await S.publishOnly(item.share);
+  let res = null;
+  try { res = await S.publishOnly(item.share); } catch (e) { console.warn(e); toast(t('box.failed'), 'error'); return; } // v2.4.11: nikad tiho
   if (!res) return;
   const key = (item.kind === 'set' ? 'set:' : 'song:') + res.fileId;
+  const q0 = B.boxPut.queued || 0;
   const got = [];
   for (const st of ready) if (await B.boxPut(st.id, [{ key, kind: item.kind === 'set' ? 'set' : 'song', name: clip(item.name, 80), f: res.fileId, at: Date.now(), ...(rq ? { rq } : {}), ...(rp ? { rp } : {}) }]).catch(() => false)) got.push(st.id);
   if (!got.length) { toast(t('box.failed'), 'error'); return; }
@@ -175,7 +177,8 @@ export async function sendMenu(students, preset = null, { rq = '', rp = '' } = {
   if (item.onSent) await item.onSent(gotSt);
   await T.logSent(got, item.kind, (item.share && item.share.songs) || []);
   if (rq) await T.setRequest(rq, { status: 'sent', doneAt: Date.now(), sentTitle: item.name });
-  sentToast(gotSt, item.kind === 'set' ? item.n || 1 : 1);
+  if ((B.boxPut.queued || 0) > q0) toast(t('box.queued')); // v2.4.11: Google je usporio — stiže čim dozvoli (ne gubi se)
+  else sentToast(gotSt, item.kind === 'set' ? item.n || 1 : 1);
   if (wait.length) await notConnectedFlow(wait);
 }
 const clip = (x, n) => String(x || '').slice(0, n);
