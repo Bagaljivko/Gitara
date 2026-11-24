@@ -1,10 +1,12 @@
 // Talas preko skale tunera: pojavi se kad zazvoni žica, klizi dok žica nije naštimovana
-// (levo = prenisko, desno = previsoko; što dalje od tona, to brže), za sobom ostavlja blagi trag
-// koji polako bledi, a kad je žica naštimovana — stane i zasvetli zeleno. Kad žica utihne, nestane.
+// (levo = prenisko, desno = previsoko; što dalje od tona, to brže), za sobom ostavlja kratak trag
+// koji brzo nestane, a kad je žica naštimovana — stane i zasvetli zeleno. Kad žica utihne, nestane.
 // Crta se na <canvas> preko skale (prozirno, „screen“ mešanje — na crnoj pozadini svetli).
+// Trag se čuva u memoriji (poslednjih nekoliko linija) i svaka slika se crta iz početka —
+// tako na AMOLED ekranu ne ostaje „mrlja“ (postepeno brisanje platna nikad ne stigne do nule).
 
-const HALF_TRAIL = 0.42;      // s — za koliko trag izbledi upola (polako, ali diskretno)
-const HALF_TRAIL_OK = 0.3;
+const TRAIL = 0.16;           // s — koliko traje trag iza talasa
+const TRAIL_OK = 0.1;
 const DRIFT = 3.2;            // px/s po centu (na širini 390 px)
 const RED = [255, 107, 91], ORANGE = [245, 165, 36], GREEN = [61, 214, 140];
 
@@ -38,7 +40,8 @@ export function createWave(host) {
   size();
 
   const target = { active: false, cents: 0, ok: false, level: 0.6 };
-  let amp = 0, cents = 0, phase = 0, col = ORANGE.slice(), raf = 0, last = 0, skip = false, idleFor = 0;
+  let amp = 0, cents = 0, phase = 0, col = ORANGE.slice(), raf = 0, last = 0, skip = false;
+  const hist = [];
 
   function frame(ts) {
     raf = 0;
@@ -46,29 +49,42 @@ export function createWave(host) {
     last = ts;
     if (lowEnd && (skip = !skip)) { raf = requestAnimationFrame(frame); return; }
     const d = lowEnd ? dt * 2 : dt;
-    // jačina: lagano se pojavi (~0,5 s), lagano nestane
+    // jačina: lagano se pojavi (~0,5 s), brže nestane
     const want = target.active ? target.level : 0;
-    amp += (want - amp) * (1 - Math.exp(-d / (want > amp ? 0.18 : 0.3)));
+    amp += (want - amp) * (1 - Math.exp(-d / (want > amp ? 0.18 : 0.2)));
     cents += (target.cents - cents) * (1 - Math.exp(-d / 0.12));
     const tc = target.ok ? GREEN : mix(RED, ORANGE, Math.max(0, Math.min(1, (20 - Math.abs(cents)) / 17)));
     col = mix(col, tc, 1 - Math.exp(-d / 0.15));
     if (!target.ok && !reduce) phase += cents * DRIFT * (W / 390) * d;
 
-    // trag: prethodna slika polako bledi
-    ctx.globalCompositeOperation = 'destination-out';
-    ctx.fillStyle = `rgba(0,0,0,${reduce ? 1 : 1 - Math.pow(0.5, d / (target.ok ? HALF_TRAIL_OK : HALF_TRAIL))})`;
-    ctx.fillRect(0, 0, W, H);
-    ctx.globalCompositeOperation = 'source-over';
+    ctx.clearRect(0, 0, W, H);
+    const life = reduce ? 0 : (target.ok ? TRAIL_OK : TRAIL);
+    while (hist.length && ts - hist[0].t > life * 1000) hist.shift();
 
+    let ys = null;
     if (amp > 0.01) {
       const a = H * (target.ok ? 0.17 : 0.2) * amp;
-      ctx.beginPath();
+      ys = [];
       for (let x = 0; x <= W; x += 3) {
         const env = Math.sin(Math.PI * x / W);
-        const y = H * 0.52 + env * env * a * Math.sin((x + phase) / W * Math.PI * 4);
-        if (x) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+        ys.push(H * 0.52 + env * env * a * Math.sin((x + phase) / W * Math.PI * 4));
       }
+    }
+    const line = (pts) => {
+      ctx.beginPath();
+      pts.forEach((y, i) => i ? ctx.lineTo(i * 3, y) : ctx.moveTo(0, y));
+    };
+    // trag: starije linije, tanke i bez sjaja, sve providnije
+    if (life) for (const h of hist) {
+      const k = 1 - (ts - h.t) / (life * 1000);
+      if (k <= 0) continue;
+      line(h.ys);
+      ctx.lineWidth = 1.2; ctx.strokeStyle = rgb(h.col, 0.35 * k * k * h.glow);
+      ctx.stroke();
+    }
+    if (ys) {
       const glow = Math.min(1, amp * 1.4);
+      line(ys);
       // tanka linija sa jačim sjajem: mekani sjaj + svetlo jezgro
       ctx.lineWidth = 3; ctx.strokeStyle = rgb(col, 0.55 * glow);
       ctx.shadowColor = rgb(col); ctx.shadowBlur = lowEnd ? 12 : (target.ok ? 26 : 20);
@@ -77,11 +93,11 @@ export function createWave(host) {
       ctx.shadowBlur = lowEnd ? 6 : (target.ok ? 12 : 9);
       ctx.stroke();
       ctx.shadowBlur = 0;
-      idleFor = 0;
-    } else idleFor += d;
+      if (life) { hist.push({ t: ts, ys, col: col.slice(), glow }); if (hist.length > (lowEnd ? 4 : 10)) hist.shift(); }
+    }
 
-    // ništa ne zvoni i trag je izbledeo — stani (ne troši bateriju)
-    if (!target.active && idleFor > 2) { ctx.clearRect(0, 0, W, H); last = 0; return; }
+    // ništa ne zvoni i trag je nestao — stani (ne troši bateriju)
+    if (!target.active && !ys && !hist.length) { ctx.clearRect(0, 0, W, H); last = 0; return; }
     raf = requestAnimationFrame(frame);
   }
   const run = () => { if (!raf) raf = requestAnimationFrame(frame); };

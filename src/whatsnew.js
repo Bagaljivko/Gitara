@@ -5,6 +5,9 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '2.4.15', date: '2026-11-24', items: [
+    { i: '〰', sr: ['Čistiji talas u tuneru', 'Trag iza talasa je kraći i brzo nestaje, a na AMOLED ekranu više ne ostaje bleda „mrlja“ kad žica utihne.'], en: ['A cleaner tuner wave', 'The trail behind the wave is shorter and fades quickly, and no faint “smudge” is left on an AMOLED screen when the string goes quiet.'] },
+  ] },
   { v: '2.4.14', date: '2026-11-24', items: [
     { i: '📦', sr: ['Više pesama odjednom — pouzdano', 'Pesme koje nastavnik pošalje (do 300 odjednom) idu pravo u učenikovo sanduče, u jednom fajlu — manje koraka preko Google-a i ništa ne zavisi od drugog preuzimanja.'], en: ['Several songs at once — reliably', 'Songs a teacher sends (up to 300 at once) go straight into the student’s inbox in one file — fewer steps through Google and nothing depends on a second download.'] },
     { i: '✓', sr: ['Nastavnik vidi da je stiglo', 'U „Poslato“: ✓ stiglo, ✓ viđeno ili ⚠ nije stiglo — uz „↻ Pošalji ponovo“ i „🔗 Pošalji kao link“ (Viber, WhatsApp — bez Google-a).'], en: ['The teacher sees it arrived', 'In “Sent”: ✓ arrived, ✓ seen or ⚠ not arrived — with “↻ Send again” and “🔗 Send as a link” (Viber, WhatsApp — no Google).'] },
