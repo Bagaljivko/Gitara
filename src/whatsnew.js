@@ -5,6 +5,15 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '2.4.1', date: '2026-11-24', items: [
+    { i: '🎯', sr: ['Tuner tačniji', 'Žica se označava zelenom tek kad je zaista naštimovana (±3 centa) i ton se smirio — ranije je ponekad označio žicu koja je bila 6–8 centi nisko. Prva desetinka posle trzaja (kad žica zvuči malo više) i kraj tona se više ne računaju.'], en: ['A more accurate tuner', 'A string turns green only when it is really in tune (±3 cents) and the note has settled — before, it sometimes marked a string that was 6–8 cents flat. The first moment after the pluck (when a string sounds slightly sharp) and the fading end no longer count.'] },
+    { i: '➡', sr: ['Sledeća žica', 'Posle svake naštimovane žice tuner pokazuje koja je sledeća i ističe je na glavi gitare.'], en: ['Next string', 'After each tuned string the tuner shows which one is next and highlights it on the headstock.'] },
+    { i: '👁', sr: ['Očitavanje ostaje', 'Kad žica utihne, poslednje očitavanje ostaje još 2 sekunde (prigušeno) — stigneš da pogledaš.'], en: ['The reading stays', 'When the string goes quiet, the last reading stays for 2 more seconds (dimmed) — time to take a look.'] },
+    { i: '🎚', sr: ['Preciznost', 'U podešavanjima tunera: Normalno (±3 centa) ili Precizno (±1,5 cent) za snimanje i sviranje sa drugima.'], en: ['Precision', 'In tuner settings: Normal (±3 cents) or Precise (±1.5 cents) for recording and playing with others.'] },
+    { i: '🔊', sr: ['Referentni ton zvoni', 'Dug pritisak na ključ: ton zvoni dok ne dodirneš bilo gde — za štimovanje po sluhu.'], en: ['Reference tone keeps ringing', 'Long-press a peg: the tone rings until you tap anywhere — for tuning by ear.'] },
+    { i: '🎤', sr: ['Mikrofon se sam vraća', 'Ako odeš iz aplikacije dok tuner sluša, po povratku nastavlja sam.'], en: ['The mic comes back by itself', 'If you leave the app while the tuner is listening, it carries on when you return.'] },
+    { i: '🔋', sr: ['Lakši za bateriju', 'Tuner troši oko upola manje procesora: tanje žice se slušaju kraćim prozorom, a kad je ton miran — ređe.'], en: ['Easier on the battery', 'The tuner uses about half the processor: thinner strings are analysed with a shorter window, and less often once the note is steady.'] },
+  ] },
   { v: '2.4.0', date: '2026-11-23', items: [
     { i: '🥁', sr: ['Tapni tempo', 'Na pesmi dodirni čip BPM, pa dugme „Tapni“ u ritmu pesme (bar 3 puta) — MARLI izračuna i sačuva tempo. − i + i dalje fino podešavaju.'], en: ['Tap tempo', 'On a song tap the BPM chip, then the “Tap” button along with the song (at least 3 times) — MARLI works out and saves the tempo. − and + still fine-tune it.'] },
     { i: '✅', sr: ['Prvi koraci', 'Na Vežbama, za nove: naštimuj gitaru, dodaj svoju pesmu, odigraj igru, poveži Google. Koraci se štikliraju sami; × ih sklanja.'], en: ['First steps', 'In Practice, for newcomers: tune your guitar, add your own song, play a game, connect Google. Steps tick themselves off; × hides them.'] },

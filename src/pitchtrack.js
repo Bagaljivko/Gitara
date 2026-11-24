@@ -5,6 +5,8 @@
 import { yin, rms } from './audio.js';
 
 export const GUITAR = [40, 45, 50, 55, 59, 64]; // E2 A2 D3 G3 B3 E4 (MIDI)
+/** v2.5: granice tunera (centi). green: kazaljka pozeleni; keep: već zeleno ostaje do; done: presuda za „gotovo“. */
+export const TUNE = { normal: { green: 4, keep: 6, done: 3 }, precise: { green: 2, keep: 3, done: 1.5 } };
 
 /** Tri nivoa osetljivosti. Visoka: tihe gitare i tihe sobe. Niska: bučna mesta. */
 export const SENSITIVITY = {
@@ -44,6 +46,12 @@ const ESTABLISHED_MS = 250;  // slabija očitavanja tek kada prava žica već ov
 const MIX_MS = 2000;          // posle prelaska na drugu žicu: koliko dugo još prihvatamo mešana očitavanja
 const OCT_FIX_CENTS = 60;    // ispravka oktave samo ako je rezultat blizu žice
 const MIX_RATIO = 0.03;       // filter samo dok se prethodna žica još jasno čuje (jača od ~-15 dB u odnosu na novu)
+// v2.5: presuda „naštimovano“ tek kad se ton smiri — prve desetinke posle trzaja žica zvuči malo više,
+// a na kraju (gašenje) malo niže; zato se ocenjuje sredina tona: medijana poslednjih ~200 ms, posle ~200 ms od trzaja.
+const SETTLE_MS = 200;       // od trzaja do prve presude
+const JUDGE_MS = 200;        // presuda = medijana očitavanja u ovom prozoru
+const JUDGE_SPREAD = 6;      // očitavanja u prozoru se ne smeju razilaziti više od ovoga (centi) — inače ključ se upravo okreće
+const FADE = 0.12;           // ispod ovog dela početne jačine ton se gasi — više se ne presuđuje
 const SWITCH_FRAMES = 4;     // nova žica koja se čuje postojano 4 kadra (~80 ms) — prihvati je i bez jasnog trzaja   // ovoliko prekida stabilnosti u prozoru = nije žica
 
 export class PitchTracker {
@@ -73,7 +81,7 @@ export class PitchTracker {
     this.muteUntil = 0;
   }
 
-  release() { this.attack = false; this.cand = null; this.cleanSince = 0; this.mixUntil = 0; this.mixed = false; this.prevSid = -1; this.state = 'idle'; this.sid = -1; this.recent = []; this.run = []; this.peak = 0; this.lastGood = 0; this.breaks = []; this.shown = false; this.lastLevel = 0; }
+  release() { this.judgeQ = []; this.attack = false; this.cand = null; this.cleanSince = 0; this.mixUntil = 0; this.mixed = false; this.prevSid = -1; this.state = 'idle'; this.sid = -1; this.recent = []; this.run = []; this.peak = 0; this.lastGood = 0; this.breaks = []; this.shown = false; this.lastLevel = 0; }
 
   /** Merenje buke je u toku (prva sekunda). */
   get calibrating() { return !this.calibDone; }
@@ -173,6 +181,10 @@ export class PitchTracker {
     // Ton se ugasio (ispod buke ili daleko ispod početne jačine)
     if (level < offLevel || level < this.peak * cfg.tail) { this.release(); return { state: 'idle' }; }
 
+    // v2.4.1: kad je poznata viša žica (D, G, H, e), dovoljna je polovina prozora (~43 ms): upola manje računanja,
+    // a debele žice (E, A) i dalje dobijaju ceo prozor (treba im više perioda za tačnost).
+    // (samo kad zvoni jedna, jasno glasna žica i ton se smirio — inače kraći prozor slabije razdvaja žice i šum)
+    if (this.sid >= 0 && this.shown && !this.mixed && now - this.onsetAt > SETTLE_MS && level > Math.max(cfg.minLevel * 8, this.floor * 12) && this.target(this.sid) > 140 && buf.length >= 4096) buf = buf.subarray(buf.length >> 1);
     let sig = this.lowpass(buf, sampleRate);
     // Prethodna žica još zvoni: slušaj kroz uzak filter oko žice koju pratimo, da je druga ne „povuče“
     // (bez ovoga je npr. D uz A koja zvoni izgledao ~6 centi nisko iako je bio tačan).
@@ -238,6 +250,7 @@ export class PitchTracker {
           if (this.cleanSince || now < this.mixUntil) { this.mixUntil = now + MIX_MS; this.mixed = true; this.prevSid = this.sid; } // prethodna žica još zvoni
           this.cand = null;
           this.cleanSince = 0;
+          this.judgeQ = [];
           this.recent = [];
           this.run = [];
           this.shown = false;
@@ -266,6 +279,7 @@ export class PitchTracker {
     this.recent.push(r.freq);
     if (this.recent.length > 5) this.recent.shift();
     this.lastGood = now;
+    if (!loose) { (this.judgeQ ||= []).push({ t: now, f: freq }); while (this.judgeQ.length && now - this.judgeQ[0].t > JUDGE_MS) this.judgeQ.shift(); }
     if (this.breaks.length >= UNSTABLE_BREAKS) { this.release(); return { state: 'idle' }; } // visina klizi → nije žica
     // Napad trzaja: žica je tada zategnutija (ton malo viši). Ta očitavanja se ne prikazuju i ne ulaze u prosek,
     // da kazaljka ne skoči na „visoko“ — ali se i dalje proverava da li visina klizi (govor).
@@ -338,7 +352,16 @@ export class PitchTracker {
     if (stable && !this.cleanSince) this.cleanSince = now;
     this.shown = true;
     this.attack = false; // napad važi samo za trzaj iz tišine, ne i za prelazak na drugu žicu
-    return { state: 'tracking', sid: this.sid, freq, cents: 1200 * Math.log2(freq / this.target(this.sid)), stable };
+    // v2.5: presuda (za zeleno i „gotovo“): smiren ton, ne gasi se, očitavanja složna → medijana poslednjih ~200 ms
+    let judge = null;
+    const q = this.judgeQ || [];
+    const settled = stable && now - this.onsetAt >= SETTLE_MS;
+    const fading = this.lastLevel < this.peak * FADE;
+    if (settled && !fading && q.length >= 5 && q[q.length - 1].t - q[0].t >= JUDGE_MS * 0.7) {
+      const c = q.map((x) => 1200 * Math.log2(x.f / this.target(this.sid))).sort((a, b) => a - b);
+      if (c[c.length - 1] - c[0] <= JUDGE_SPREAD) judge = c[c.length >> 1];
+    }
+    return { state: 'tracking', sid: this.sid, freq, cents: 1200 * Math.log2(freq / this.target(this.sid)), stable, settled, fading, judge };
   }
 }
 

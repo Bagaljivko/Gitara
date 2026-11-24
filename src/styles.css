@@ -3104,3 +3104,9 @@ body.desk-shell .hint-card.on-song { bottom: 96px; }
 .fs-t small { display: block; color: var(--muted); font-size: .8rem; }
 .fs-step.done .fs-t b { color: var(--muted); text-decoration: line-through; text-decoration-color: rgba(245, 165, 36, .6); }
 @media (min-width: 1000px) { .fs-list { grid-template-columns: 1fr 1fr; column-gap: 12px; } }
+/* v2.4.1: tuner — poslednje očitavanje ostaje prigušeno posle gašenja žice; sledeća žica istaknuta */
+.nwrap.held .nm-needle { opacity: .45; transition: opacity .4s; }
+.nwrap.held .nnote, .nwrap.held .ncents { opacity: .55; transition: opacity .4s; }
+.knob.next:not(.done) .knob-shape { stroke: var(--accent); stroke-width: 4; stroke-dasharray: 10 8; animation: knobNext 1.4s ease-in-out infinite; }
+@keyframes knobNext { 50% { stroke-opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .knob.next .knob-shape { animation: none; } }

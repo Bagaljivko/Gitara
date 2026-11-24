@@ -1,7 +1,7 @@
 // Tab "Tuner": štimer za gitaru (standardno E A D G B E, Drop D, pola tona niže, DADGAD, Open G).
 // Kazaljka (♭ — ♯), velika nota, glava gitare sa okruglim dugmićima za žice.
 import { openMic, closeMic, MicError } from './audio.js';
-import { PitchTracker } from './pitchtrack.js';
+import { PitchTracker, TUNE } from './pitchtrack.js';
 import { settings } from './db.js';
 import { t } from './i18n.js';
 import { midiName } from './music.js';
@@ -9,7 +9,7 @@ import { keepAwake, allowSleep } from './wakelock.js';
 import { pluck } from './synth.js';
 import { dialog, esc } from './ui.js';
 import { createWave } from './tunerWave.js';
-import { tunerSettingsHTML, bindTunerSettings, loadTunerSettings, roomToSensitivity } from './tunerSettings.js';
+import { tunerSettingsHTML, bindTunerSettings, loadTunerSettings, roomToSensitivity, getPrec } from './tunerSettings.js';
 import { KNOBS, ART_W, ART_H } from './headstockKnobs.js';
 import { TUNING_IDS, tuningOf, cleanTuning, tuningNotes } from './tunings.js';
 import { dn } from './naming.js';
@@ -24,8 +24,9 @@ const STRINGS = [
   { id: 5, label: 'E', full: 'E4', side: 'R', slot: 2, num: 1 },
 ];
 
-const IN_TUNE = 5;       // ±centi
-const DONE_AVG = 4;      // žica je gotova čim je stabilan ton unutar ±4 centi (prosek poslednjih ~3 očitavanja) — bez čekanja
+const IN_TUNE = 4;       // ±centi — zona na skali (v2.4.1: granice po preciznosti su u TUNE, pitchtrack.js)
+const DONE_HOLD = 350;   // v2.4.1: žica je gotova kad je presuda (smiren ton) unutar granice ovoliko ms zaredom
+const HELD_MS = 2000;    // v2.4.1: posle gašenja žice poslednje očitavanje ostaje (prigušeno) još ovoliko
 const UNDO_CENTS = 10, UNDO_MS = 500; // označena žica koja posle jasno odstupa (preko ±10 c, pola sekunde) — oznaka se skida
 const LOST_MS = 500;     // kratak prekid (ruka dodirne žicu, žica se gasi) ne poništava ni kazaljku ni brojanje do „gotovo“
 const RANGE = 50;        // skala ±50 centi
@@ -174,7 +175,8 @@ export function createTuner(root) {
   let shownCents = 0;     // izglađen položaj kazaljke
   let shownSid = -1;
   let shownCal = false;   // prikazana poruka „merim buku“
-  let okSince = 0, okSid = -1, okHist = [], offSince = 0, offSid = -1;
+  let okSince = 0, okSid = -1, offSince = 0, offSid = -1;
+  let prec = 'normal'; getPrec().then((p) => { prec = p; }); const lim = () => TUNE[prec] || TUNE.normal;
   // jak znak „gotovo“: nota zeleno zasvetli i pulsira (bez teksta)
   let flashT = 0;
   const flashDone = () => { meter.classList.remove('just-done'); void meter.offsetWidth; meter.classList.add('just-done'); clearTimeout(flashT); flashT = setTimeout(() => meter.classList.remove('just-done'), 900); };
@@ -225,13 +227,30 @@ export function createTuner(root) {
   });
 
   // Dodir = izbor žice; dugi pritisak ili ikonica zvučnika = referentni ton.
+  // v2.4.1: dug pritisak = referentni ton zvoni (ponavlja se) dok ne dodirneš bilo gde — za štimovanje po sluhu
+  let refLoop = null;
+  function stopRef() {
+    if (!refLoop) return;
+    clearTimeout(refLoop.t); refLoop.btn.classList.remove('ringing');
+    document.removeEventListener('pointerdown', refLoop.off, true);
+    tracker.mute(300, performance.now());
+    refLoop = null;
+  }
   function playRef(id) {
+    stopRef();
     const f = a4 * Math.pow(2, (tuningOf(tuning).midi[id] - 69) / 12);
-    const ms = pluck(f, { duration: 3, gain: 0.95 });
-    tracker.mute(ms + 400, performance.now()); // sopstveni ton ne sme da pokrene tuner
     const btn = root.querySelector(`.knob[data-s="${id}"]`);
     btn.classList.add('ringing');
-    setTimeout(() => btn.classList.remove('ringing'), ms * 0.6);
+    const started = performance.now();
+    const ring = () => {
+      if (!btn.isConnected || performance.now() - started > 30000) return stopRef(); // najviše 30 s
+      const ms = pluck(f, { duration: 3, gain: 0.95 });
+      tracker.mute(ms + 400, performance.now()); // sopstveni ton ne sme da pokrene tuner
+      refLoop.t = setTimeout(ring, 2600);
+    };
+    refLoop = { btn, t: 0, off: () => setTimeout(stopRef, 0) };
+    setTimeout(() => refLoop && document.addEventListener('pointerdown', refLoop.off, true), 50);
+    ring();
   }
   root.querySelectorAll('.knob').forEach((el) => {
     const id = +el.dataset.s;
@@ -260,8 +279,12 @@ export function createTuner(root) {
     meter.dataset.state = 'idle';
     const ready = done.size === 6;
     meter.classList.toggle('ready', ready);
-    $('tNote').textContent = ready ? t('tuner.ready') : auto ? '–' : noteOf(selected);
-    $('tCents').innerHTML = '&nbsp;';
+    // v2.4.1: posle prve naštimovane žice — koja je sledeća (redom 6 → 1), istaknuta i na glavi gitare
+    const nx = auto && !ready && done.size ? [0, 1, 2, 3, 4, 5].find((s) => !done.has(s)) : -1;
+    root.querySelectorAll('.knob').forEach((el) => el.classList.toggle('next', +el.dataset.s === nx));
+    $('tNote').textContent = ready ? t('tuner.ready') : nx >= 0 ? noteOf(nx) : auto ? '–' : noteOf(selected);
+    if (nx >= 0) $('tCents').textContent = t('tuner.next', { n: STRINGS[nx].num }); else $('tCents').innerHTML = '&nbsp;';
+    meter.classList.remove('held');
     shownCents = 0;
     shownSid = -1;
     shownCal = false;
@@ -272,13 +295,19 @@ export function createTuner(root) {
 
 
 
+  let greenSince = 0, frameN = 0;
   function frame() {
-    analyser.getFloatTimeDomainData(buf);
     const now = performance.now();
+    // v2.4.1: ton je zelen i miran duže od pola sekunde — dovoljno je svako drugo merenje (manje baterije)
+    if (greenSince && now - greenSince > 500 && (++frameN & 1)) return;
+    analyser.getFloatTimeDomainData(buf);
     const r = tracker.process(buf, mic.ctx.sampleRate, now);
+    if (r.state !== 'tracking') greenSince = 0;
     if (r.state === 'tracking') {
       lastLocked = now;
       const sid = r.sid;
+      if (meter.classList.contains('held')) { meter.classList.remove('held'); meter.dataset.state = 'idle'; }
+      root.querySelectorAll('.knob.next').forEach((el) => el.classList.remove('next'));
       if (auto) markActive(sid);
       // Prvo očitavanje odmah pomera kazaljku; posle toga lagano izglađivanje:
       // veći pomak → brže praćenje, sitno podrhtavanje (< 0,8 centa) se ignoriše.
@@ -295,36 +324,35 @@ export function createTuner(root) {
       const ac = Math.abs(cr), m10 = ac % 10, m100 = ac % 100;
       const form = m10 === 1 && m100 !== 11 ? 'tuner.cents1' : m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? 'tuner.cents2' : 'tuner.cents';
       $('tCents').textContent = t(form, { n: (cr > 0 ? '+' : cr < 0 ? '−' : '±') + ac });
-      // Zeleno (i označavanje žice) tek kad je ton stabilan
-      // Mala histereza: kad je već zeleno, kratko podrhtavanje do ±8 centi ga ne gasi.
-      const lim = meter.dataset.state === 'ok' ? IN_TUNE + 3 : IN_TUNE;
-      const ok = r.stable && Math.abs(shownCents) <= lim;
+      // Zeleno tek kad se ton smiri (prve desetinke posle trzaja žica zvuči malo više); mala histereza.
+      const L = lim();
+      const ok = r.settled && Math.abs(shownCents) <= (meter.dataset.state === 'ok' ? L.keep : L.green);
       meter.dataset.state = ok ? 'ok' : 'off';
+      greenSince = ok ? greenSince || now : 0;
       // talas: visina prati jačinu žice, klizanje prati koliko je žica daleko od tona
       let e = 0; for (let i = 0; i < buf.length; i += 8) e += buf[i] * buf[i];
       const lvl = Math.sqrt(e / (buf.length / 8));
       wave.set({ active: true, cents: shownCents, ok, level: Math.max(0.35, Math.min(1, 0.35 + Math.log10(Math.max(lvl, 1e-5) / 0.003) * 0.5)) });
-      if (ok) {
-        // Čim je ton na mestu — žica je gotova (bez čekanja): prosek poslednjih ~3 očitavanja unutar ±4 c.
-        if (okSid !== sid || !okSince) { okSid = sid; okSince = now; okHist = []; }
-        okHist.push({ t: now, c: r.cents });
-        while (okHist.length && now - okHist[0].t > 70) okHist.shift();
-        const avg = okHist.reduce((a, x) => a + x.c, 0) / okHist.length;
-        if (Math.abs(avg) <= DONE_AVG && !done.has(sid)) {
+      // v2.4.1: „gotovo“ = presuda (medijana smirenog tona, bez napada i gašenja) unutar granice DONE_HOLD ms zaredom
+      if (r.judge != null && Math.abs(r.judge) <= L.done) {
+        if (okSid !== sid || !okSince) { okSid = sid; okSince = now; }
+        if (now - okSince >= DONE_HOLD && !done.has(sid)) {
           done.add(sid);
           applyDone();
           buzz(done.size === 6 ? BUZZ_ALL : BUZZ_STRING);
           drawProgress();
           flashDone();
         }
-      } else if (Math.abs(shownCents) > lim) okSince = 0;
+      } else if (r.judge != null || !r.settled) okSince = 0;
       // Označena žica koja posle jasno odstupa (preokrenut ključ) — oznaka se skida, da ne ostane pogrešna kvačica
-      if (done.has(sid) && r.stable && Math.abs(shownCents) > UNDO_CENTS) {
+      if (done.has(sid) && r.judge != null && Math.abs(r.judge) > UNDO_CENTS) {
         if (offSid !== sid || !offSince) { offSid = sid; offSince = now; }
         else if (now - offSince >= UNDO_MS) { done.delete(sid); offSince = 0; applyDone(); drawProgress(); }
       } else offSince = 0;
     } else if (meter.dataset.state !== 'idle' && now - lastLocked > LOST_MS) {
-      idle();
+      // v2.4.1: žica se ugasila — poslednje očitavanje ostaje prigušeno još 2 s (pogledaj rezultat i posle zvuka)
+      if (!meter.classList.contains('held')) { meter.classList.add('held'); wave.set({ active: false }); }
+      if (now - lastLocked > LOST_MS + HELD_MS) idle();
     } else if (meter.dataset.state === 'idle') {
       okSince = 0;
       const cal = tracker.calibrating;
@@ -347,7 +375,7 @@ export function createTuner(root) {
       $('tStartMsg').hidden = true;
       a4 = Number(await settings.get('a4', 440)) || 440;
       tracker.a4 = a4;
-      tracker.setSensitivity(roomToSensitivity((await loadTunerSettings()).room));
+      const ts = await loadTunerSettings(); tracker.setSensitivity(roomToSensitivity(ts.room)); prec = ts.prec;
       tracker.reset();
       tracker.setAllowed(auto ? [0, 1, 2, 3, 4, 5] : [selected]);
       idle();
@@ -362,8 +390,11 @@ export function createTuner(root) {
     }
   }
 
+  let resumeOnShow = false;
   function stop() {
+    stopRef();
     if (!running) return;
+    resumeOnShow = document.hidden; // v2.4.1: aplikacija skrivena (drugi prozor, zaključan ekran) — po povratku mikrofon se sam uključi
     running = false;
     clearInterval(timer);
     wave.stop();
@@ -399,6 +430,7 @@ export function createTuner(root) {
       if (ch.tuning) applyTuning(ch.tuning);
       if (ch.room) tracker.setSensitivity(roomToSensitivity(ch.room));
       if (ch.a4) { a4 = ch.a4; tracker.a4 = a4; }
+      if (ch.prec) prec = ch.prec;
     });
     await p;
   });
@@ -407,6 +439,13 @@ export function createTuner(root) {
   loadTuning();
 
   $('tStartBtn').addEventListener('click', start);
+  // v2.4.1: povratak u aplikaciju — ako je tuner slušao kad je sklonjena, nastavi sam (dozvola za mikrofon već data)
+  document.addEventListener('visibilitychange', async () => {
+    if (document.hidden || !resumeOnShow || running || !root.isConnected || !root.querySelector('.tuner-view')?.offsetParent) return;
+    resumeOnShow = false;
+    try { const st = await navigator.permissions?.query({ name: 'microphone' }); if (st && st.state !== 'granted') return; } catch {}
+    start();
+  });
   idle();
 
   return {

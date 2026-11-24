@@ -24,6 +24,10 @@ export async function run(ctx) {
   // prevodi: svaki srpski ključ ima engleski (i obrnuto)
   const keys = (s) => new Set([...s.matchAll(/^\s+'([\w.-]+)':/gm)].map((m) => m[1]));
   const sr = keys(rd('src/i18n.js')), en = keys(rd('src/i18n-en.js'));
+  // isti ključ dvaput u istom fajlu: važi samo poslednji (prvi je mrtav tekst i zbunjuje)
+  const dups = (s) => { const seen = new Set(), d = []; for (const m of s.matchAll(/^\s+'([\w.-]+)':/gm)) { if (seen.has(m[1])) d.push(m[1]); seen.add(m[1]); } return d; };
+  const dd = [...dups(rd('src/i18n.js')).map((k) => 'sr ' + k), ...dups(rd('src/i18n-en.js')).map((k) => 'en ' + k)];
+  expect(!dd.length, 'ključ prevoda dvaput u istom fajlu', dd);
   const noEn = [...sr].filter((k) => !en.has(k)), noSr = [...en].filter((k) => !sr.has(k));
   expect(!noEn.length, 'ključevi bez engleskog prevoda', noEn.slice(0, 20));
   expect(!noSr.length, 'engleski ključevi kojih nema na srpskom', noSr.slice(0, 20));
