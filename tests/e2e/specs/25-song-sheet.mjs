@@ -45,12 +45,13 @@ export async function run(ctx) {
     await q.click('.ss-more'); await q.waitForTimeout(300);
     await q.evaluate(() => document.querySelector('.song-sheet').classList.add('half')); await q.waitForTimeout(300);
     const h2 = await hh();
+    { const b = await q.evaluate(() => { const r = document.querySelector('.ss-head .sheet-title').getBoundingClientRect(); return { x: r.left + 20, y: r.top + r.height / 2 }; }); g.x = b.x; g.y = b.y; } // zaglavlje se pomerilo (list je promenio visinu)
     await q.mouse.move(g.x, g.y); await q.mouse.down(); await q.mouse.move(g.x, g.y - 60, { steps: 6 }); await q.waitForTimeout(50);
     const mid = await hh();
     expect(mid > h2 + 40, lang + ': list ne prati prst nagore', [h2, mid]);
     await q.mouse.move(g.x, g.y + 40, { steps: 6 }); await q.waitForTimeout(50);
     expect(await hh() < h2 - 20, lang + ': list ne prati prst nadole', [h2, await hh()]);
-    await q.mouse.move(g.x, g.y - 120, { steps: 12 }); await q.waitForTimeout(150); await q.mouse.up(); await q.waitForTimeout(400);
+    await q.mouse.move(g.x, g.y - 260, { steps: 12 }); await q.waitForTimeout(150); await q.mouse.up(); await q.waitForTimeout(400); // jasno iznad sredine između pola i celog ekrana
     await q.click('.ss-more'); await q.waitForTimeout(300);
     expect(await q.evaluate(() => !document.querySelector('.song-sheet').classList.contains('half')), lang + ': povlačenje nagore ne širi list');
     const hidden = () => q.evaluate(() => [...document.querySelectorAll('.ss-item')].filter((x) => x.offsetParent === null).length);

@@ -3326,3 +3326,8 @@ body.desk-shell .hint-card.on-song { bottom: 96px; }
 .te-brkrow .te-brk { width: 100%; justify-content: center; border-radius: 12px !important; font: 700 .9rem var(--sans); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .te-brkrow .te-brk b { color: var(--accent); margin-right: 4px; letter-spacing: .05em; }
 .te-brkrow .te-brk:not(.on) { background: var(--surface-2) !important; color: var(--text) !important; border: 1px solid var(--line) !important; }
+.box-check { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 8px 2px 12px; }
+.box-check small { flex: 1; min-width: 0; }
+.les-acts { display: inline-flex; gap: 6px; margin-left: 6px; flex: none; }
+.les-acts .btn { min-height: 30px; padding: 0 9px; }
+.les-st.les-got { color: #3dd68c; } .les-st.les-miss { color: #ffb547; }

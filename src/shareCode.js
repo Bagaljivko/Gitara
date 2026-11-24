@@ -49,7 +49,8 @@ export function readPackage(o) {
   const songs = [];
   for (const x of o.s.slice(0, 300)) { try { songs.push(unpackSong(x)); } catch {} }
   if (!songs.length) throw new Error('empty');
-  return { kind: o.k === 'set' ? 'set' : 'song', name: typeof o.n === 'string' ? o.n.slice(0, 80) : '', songs };
+  const ft = o.ft && typeof o.ft === 'object' && typeof o.ft.tid === 'string' ? { tid: o.ft.tid.slice(0, 60), name: String(o.ft.name || '').slice(0, 60) } : null; // v2.4.14: link od nastavnika
+  return { kind: o.k === 'set' ? 'set' : 'song', name: typeof o.n === 'string' ? o.n.slice(0, 80) : '', songs, ...(ft ? { ft } : {}) };
 }
 
 /** Sadržaj .gitara fajla (čitljiv JSON sa sažetim paketom — isti kao u linku). */

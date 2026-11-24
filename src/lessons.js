@@ -213,10 +213,17 @@ export async function nudge(sid, quiet = false) {
 const CAL = '<svg viewBox="0 0 24 24" aria-hidden="true" class="les-cal"><path d="M7 2v2H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2V2h-2v2H9V2zM5 9h14v10H5zm2 2v3h3v-3z"/></svg>';
 const KIND_IC = { song: '♪', set: '☰', note: '📝', lesson: CAL, nudge: '🔔', plan: '🗓', ex: '🎯', rp: '🥁', ans: '💬', cmt: '💬', goal: '🎯' };
 /** Status jedne poslate stavke: viđeno / odgovor. */
-function statusHTML(st, key) {
+/** v2.4.14: pesme koje nisu potvrđeno stigle — „Pošalji ponovo“ i „Link“ (Viber/WhatsApp, bez Google-a). */
+function sentActs(st, x) {
+  if (!x.ids || !x.ids.length || (st.got || {})[x.key] || (st.seen || {})[x.key] || (st.reacts || {})[x.key]) return '';
+  return `<span class="les-acts"><button type="button" class="btn small" data-resend="${esc(x.key)}" title="${esc(t('les.resend'))}">↻</button><button type="button" class="btn small" data-link="${esc(x.key)}" title="${esc(t('les.asLink'))}">🔗</button></span>`;
+}
+function statusHTML(st, key, x = null) {
   const r = (st.reacts || {})[key], seen = (st.seen || {})[key];
+  if (!r && !seen && !(st.got || {})[key] && x && x.ids && st.prog && Date.now() - (x.at || 0) > 30 * 60000) return `<em class="les-st les-miss" title="${esc(t('les.missTip'))}">⚠ ${esc(t('les.miss'))}</em>`; // v2.4.14
   if (r) return `<em class="les-st les-r" title="${esc(t('les.r.' + r.r))}">${REACT_IC[r.r] || ''} ${esc(t('les.r.' + r.r))}</em>`;
   if (seen) return `<em class="les-st les-seen">✓ ${esc(t('les.seen'))}</em>`;
+  if ((st.got || {})[key]) return `<em class="les-st les-got">✓ ${esc(t('les.got'))}</em>`; // v2.4.14
   return `<em class="les-st les-wait">${esc(t('les.notSeen'))}</em>`;
 }
 
@@ -236,12 +243,15 @@ export async function drawTeacher(box, sid, rerender) {
       ${(st.notes || []).length > 3 || (st.notes || []).some((n) => n.hw) ? `<button type="button" class="tch-row les-more" data-l="hist"><span class="sr-ic">🗂</span><span><b>${esc(t('les.histBtn', { n: (st.notes || []).length }))}</b><small>${esc(t('les.histSub'))}</small></span><span class="sr-chev" aria-hidden="true">›</span></button>` : ''}
       <button type="button" class="tch-row les-kitrow" data-l="kit"><span class="sr-ic">🖨</span><span><b>${esc(t('kit.btn'))}</b><small>${esc(t('kit.btnSub'))}</small></span><span class="sr-chev" aria-hidden="true">›</span></button>
     </div>
-    ${sent.length ? `<div class="tch-sec"><span>${t('les.sentHead')}</span></div><div class="set-grp les-sent">${sent.map((x) => `<div class="tch-row"><span class="sr-ic">${KIND_IC[x.kind] || '•'}</span><span><b>${esc(x.name || t('les.k.' + x.kind))}</b><small>${esc(dShort(x.at))}</small></span>${statusHTML(st, x.key)}</div>`).join('')}</div>` : ''}`;
+    ${sent.length ? `<div class="tch-sec"><span>${t('les.sentHead')}</span></div><div class="set-grp les-sent">${sent.map((x) => `<div class="tch-row"><span class="sr-ic">${KIND_IC[x.kind] || '•'}</span><span><b>${esc(x.name || t('les.k.' + x.kind))}</b><small>${esc(dShort(x.at))}${x.ids ? ' · ' + esc(t('les.nSongs', { n: x.ids.length })) : ''}</small></span>${statusHTML(st, x.key, x)}${sentActs(st, x)}</div>`).join('')}</div>` : ''}`;
   // v2.4.11: šta još čeka slanje (Google je usporio)
   (async () => { const B = await BX(); const n = await B.pendingCount(sid); if (n && box.isConnected && !box.querySelector('.les-pend')) box.querySelector('.les-grp')?.insertAdjacentHTML('afterbegin', `<div class="tch-row les-pend"><span class="sr-ic">⏳</span><span><b>${esc(t('box.pending', { n }))}</b><small>${esc(t('box.queued'))}</small></span></div>`); })().catch(() => {});
   // cilj: koliko je ove nedelje (ako učenik deli napredak)
   if (Number(st.goal) && st.prog) (async () => { const P = await import('./progress.js'); const pr = await P.studentProgress(st).catch(() => null); const w = pr && !pr.err ? P.thisWeek(pr) : null; const el = box.querySelector('#lesGoalProg'); if (w && el) { const { fmtDur } = await import('./statsView.js'); el.textContent = t('les.goalProg', { d: fmtDur(w.total), g: fmtDur(Number(st.goal) * 60000) }); } })().catch(() => {});
   box.onclick = async (e) => {
+    const rs = e.target.closest('[data-resend]'), lk = e.target.closest('[data-link]');
+    if (rs) { rs.disabled = true; const B = await BX(); const ok = await B.resend(sid, rs.dataset.resend).catch(() => false); toast(ok ? t('les.resent', { name: st.name }) : t('box.failed'), ok ? '' : 'error'); if (ok) (rerender || (() => drawTeacher(box, sid)))(); return; }
+    if (lk) { const B = await BX(); await B.sendAsLink(sid, lk.dataset.link).catch((er) => { console.warn(er); toast(t('box.failed'), 'error'); }); return; }
     const b = e.target.closest('[data-l],[data-edit]'); if (!b) return;
     let changed = false;
     if (b.dataset.l === 'next') changed = await nextFlow(sid);
@@ -279,6 +289,12 @@ export async function drawIdle(box) {
 /** Nastavnik: stigli su „viđeno“ / odgovor iz učenikovog fajla napretka. Vraća true ako je nešto novo. */
 export async function ingestFromStudent(st, o) {
   const tm = await TM(); const cur = (await tm.getStudent(st.id)) || st;
+  if (o.type === 'got' && Array.isArray(o.keys)) { // v2.4.14: stiglo
+    const got = { ...(cur.got || {}) }; let any = false;
+    for (const k of o.keys.slice(0, 40)) { const key = clip(k, 80); if (!got[key]) { got[key] = Number(o.at) || Date.now(); any = true; } }
+    if (any) await tm.updateStudent(st.id, { got: Object.fromEntries(Object.entries(got).sort((a, b) => b[1] - a[1]).slice(0, 200)) });
+    return any;
+  }
   if (o.type === 'seen' && Array.isArray(o.keys)) {
     const seen = { ...(cur.seen || {}) }; let any = false;
     for (const k of o.keys.slice(0, 40)) { const key = clip(k, 80); if (!seen[key]) { seen[key] = Number(o.at) || Date.now(); any = true; } }
@@ -354,6 +370,13 @@ async function flushSeen() {
   await B.outPush({ type: 'seen', id: 'seen:' + uid(), keys }, { interactive: false }).catch(() => false);
 }
 
+/** v2.4.14: učenik je PRIMIO stavku (pesme su uvezene) — tiho, nastavnik vidi „✓ stiglo“. */
+let gotQ = new Set(), gotT = 0;
+export function markGot(keys) { for (const k of [].concat(keys || [])) if (k) gotQ.add(String(k)); clearTimeout(gotT); gotT = setTimeout(() => flushGot().catch(() => {}), 1200); }
+async function flushGot() {
+  if (!gotQ.size) return; const keys = [...gotQ]; gotQ = new Set();
+  const B = await BX(); await B.outPush({ type: 'got', id: 'got:' + uid(), keys }, { interactive: false }).catch(() => false);
+}
 /** Učenik: brz odgovor nastavniku na stavku. */
 export async function react(key, r, title = '') {
   const tm = await TM(); const m = await tm.getMyTeacher(); if (!m) return false;

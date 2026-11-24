@@ -10,6 +10,26 @@ import { toast } from './ui.js';
 const TM = () => import('./teach.js');
 const S_ = () => import('./shareService.js');
 const MAX_ITEMS = 150, MAX_OUT = 30;
+// v2.4.14: pesme u samom sanduču — do 300 pesama po slanju; sanduče ostaje ispod ~1,5 MB (najstarijim stavkama se skidaju pesme)
+export const INLINE_MAX_SONGS = 300, INLINE_MAX_CHARS = 600000, BOX_BUDGET = 1500000;
+const iid = () => 'inl' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+/** Stavka sanduča sa pesmama unutra ({ key, kind, name, d, n, _ids }) ili null (preveliko / nema pesama → stari način). */
+export async function inlineItem(item) {
+  const songs = ((item && item.share && item.share.songs) || []).filter(Boolean);
+  if (!songs.length || songs.length > INLINE_MAX_SONGS) return null;
+  const C = await import('./shareCode.js'); const tm = await TM(); const tc = await tm.setTeacher({});
+  const kind = item.kind === 'set' ? 'set' : 'song';
+  const d = await C.encode(C.makePackage(songs, kind === 'set' ? (item.name || '') : null));
+  if (d.length > INLINE_MAX_CHARS) return null;
+  return { key: kind + ':' + iid(), kind, name: clipN(item.name, 80), d, n: songs.length, by: clipN(tc.name, 60), _ids: songs.map((s) => s.id).filter(Boolean).slice(0, 300) };
+}
+/** Sanduče ispod budžeta: najstarijim stavkama sa pesmama unutra skidaju se pesme (učenik ih je verovatno već primio). */
+function fitBudget(list) {
+  let size = JSON.stringify(list).length; if (size <= BOX_BUDGET) return list;
+  const out = list.map((x) => ({ ...x }));
+  for (const x of out) { if (size <= BOX_BUDGET) break; if (x.d) { size -= x.d.length; delete x.d; x.gone = 1; } }
+  return out;
+}
 
 // ---------------- nastavnik: sanduče po učeniku ----------------
 /** Id sanduča tog učenika (napravi ga ako ga nema). interactive = sme da traži Google nalog. '' = nije moguće. */
@@ -32,18 +52,49 @@ async function writeBox(sid, items, interactive) {
   const cur = await S.readData(st.box.f);
   // v2.4.11: sanduče nije moglo da se pročita (Google usporio, mreža) → NE prepisuj ga samo novim stavkama
   // (ranije je tako nestajalo sve što učenik još nije preuzeo — pesme, beleške, čas); sačekaj i pošalji kasnije.
-  if (cur === null) return 'retry';
+  if (cur === null) { diag('box', 'čitanje sanduča nije uspelo — čeka'); return 'retry'; }
   const old = cur && !cur.gone && cur.type === 'box' && Array.isArray(cur.items) ? cur.items : [];
   const map = new Map(old.filter((x) => x && x.key).map((x) => [x.key, x]));
-  for (const it of items) map.set(it.key, { ...it, at: it.at || Date.now() });
-  const list = [...map.values()].sort((a, b) => (a.at || 0) - (b.at || 0)).slice(-MAX_ITEMS);
+  for (const it of items) { const { _ids, ...clean } = it; map.set(it.key, { ...clean, at: it.at || Date.now() }); } // _ids ostaje samo kod nastavnika (za „Pošalji ponovo“)
+  const list = fitBudget([...map.values()].sort((a, b) => (a.at || 0) - (b.at || 0)).slice(-MAX_ITEMS));
   const id = await S.putData(st.box.f, JSON.stringify({ app: 'marli', type: 'box', v: 1, tid: tc.id, sid, at: Date.now(), items: list }), { interactive, name: 'MARLI – za učenika.json' }).catch(() => '');
+  diag('box', `${id ? 'upisano' : 'upis nije uspeo'} · ${items.map((i) => i.kind + (i.n ? '×' + i.n : '')).join(',')} · ${Math.round(JSON.stringify(list).length / 1024)} KB`);
   if (!id) return 'retry';
   // v2.4.2: šta je poslato ovom učeniku (za „viđeno“ i odgovor) — novije zamenjuje starije sa istim ključem
-  { const cur2 = (await tm.getStudent(sid)) || st; const keys = new Set(items.map((i) => i.key)); await tm.updateStudent(sid, { sent: [...(cur2.sent || []).filter((x) => !keys.has(x.key)), ...items.filter((i) => i.kind !== 'ans').map((i) => ({ key: i.key, kind: i.kind, name: clipN(i.name, 80), at: i.at || Date.now() }))].slice(-40) }); }
+  { const cur2 = (await tm.getStudent(sid)) || st; const keys = new Set(items.map((i) => i.key)); await tm.updateStudent(sid, { sent: [...(cur2.sent || []).filter((x) => !keys.has(x.key)), ...items.filter((i) => i.kind !== 'ans').map((i) => ({ key: i.key, kind: i.kind, name: clipN(i.name, 80), at: i.at || Date.now(), ...(i._ids ? { ids: i._ids.slice(0, 300) } : {}) }))].slice(-40) }); }
   return 'ok';
 }
 const clipN = (x, n) => String(x || '').slice(0, n);
+/** v2.4.14: koraci slanja/primanja u dijagnostiku (kratko, bez sadržaja pesama). */
+export function diag(k, m) { try { const L = JSON.parse(localStorage.getItem('gitara-diag') || '[]'); L.push({ t: Date.now(), k, m: String(m).slice(0, 200) }); localStorage.setItem('gitara-diag', JSON.stringify(L.slice(-80))); } catch {} }
+/** v2.4.14: „Pošalji kao link“ — pesme u samom linku (do ~7 pesama) ili .gitara fajl; ide preko Viber/WhatsApp, bez Google-a. */
+export async function sendAsLink(sid, key) {
+  const tm = await TM(); const st = await tm.getStudent(sid); const e = st && (st.sent || []).find((x) => x.key === key);
+  if (!e || !e.ids) return false;
+  const { songs } = await import('./db.js');
+  const list = (await Promise.all(e.ids.map((id) => songs.get(id).catch(() => null)))).filter((s) => s && !s.deleted);
+  return shareSongsAsLink(list, e.kind === 'set' ? e.name : null, st.name);
+}
+export async function shareSongsAsLink(list, setName = null, who = '') {
+  if (!list.length) return false;
+  const tm = await TM(); const tc = await tm.setTeacher({});
+  const title = setName || (list.length === 1 ? list[0].title : t('les.nSongs', { n: list.length }));
+  const S = await import('./shareService.js');
+  const r = await S.shareSongsLink(list, { setName, title, text: t('les.linkText', { t: tc.name || '', what: title }), pkgExtra: { ft: { tid: tc.id, name: clipN(tc.name, 60) } } });
+  if (r === 'copied') toast(t('les.linkCopied', { name: who }));
+  if (r) diag('box', `poslato kao ${r === 'file' ? 'fajl' : 'link'} (${list.length})`);
+  return !!r;
+}
+/** v2.4.14: „Pošalji ponovo“ — iste pesme (po id-jevima sa prvog slanja) kao nova stavka. */
+export async function resend(sid, key) {
+  const tm = await TM(); const st = await tm.getStudent(sid); const e = st && (st.sent || []).find((x) => x.key === key);
+  if (!e || !e.ids || !e.ids.length) return false;
+  const { songs } = await import('./db.js');
+  const list = (await Promise.all(e.ids.map((id) => songs.get(id).catch(() => null)))).filter((s) => s && !s.deleted);
+  if (!list.length) return false;
+  const box = await inlineItem({ kind: e.kind, name: e.name, share: { songs: list } }); if (!box) return false;
+  return boxPut(sid, [{ ...box, at: Date.now() }]);
+}
 // ---------------- v2.4.11: odlazno (šalje se čim Google dozvoli) ----------------
 const OUTBOX = 'boxOutbox';
 async function outbox() { const { settings } = await import('./db.js'); return (await settings.get(OUTBOX, null)) || {}; }
@@ -113,8 +164,11 @@ export function checkBox({ force = false } = {}) {
     if (!m || !m.box) return 0;
     const S = await S_();
     const d = await S.readData(m.box);
-    if (!d || d.gone || d.type !== 'box' || d.tid !== m.tid) return 0;
-    const seen = { ...(m.boxSeen || {}) }; const fresh = []; let n = 0; const notes = []; const fmap = {}; const les = [];
+    const note = (o) => { try { localStorage.setItem('marli-box-last', JSON.stringify({ at: Date.now(), ...o })); } catch {} }; // v2.4.14: za „Proveri sada“
+    if (!d) { const G = await import('./driveGate.js'); note({ ok: false, why: G.cooling() ? 'rate' : 'net' }); diag('box', 'sanduče nastavnika nije moglo da se pročita'); return 0; }
+    if (d.gone || d.type !== 'box' || d.tid !== m.tid) { note({ ok: false, why: 'gone' }); return 0; }
+    note({ ok: true });
+    const seen = { ...(m.boxSeen || {}) }; const fresh = []; let n = 0; const notes = []; const fmap = {}; const les = []; const got = [];
     const fromT = { tid: m.tid, name: m.name };
     for (const it of (d.items || []).slice(-MAX_ITEMS)) {
       if (!it || !it.key || (seen[it.key] || 0) >= (it.at || 1)) continue;
@@ -124,13 +178,19 @@ export function checkBox({ force = false } = {}) {
         } else if (it.kind === 'cmt') { // v2.4.3: komentar na moj snimak
           const C = await import('./recComments.js'); const r = await C.receive(it, m); if (!r) continue; les.push({ it, r });
         } else if (it.kind === 'song' || it.kind === 'set') {
-          if (it.f) fmap[it.f] = it.key; // v2.4.2: pesma/set lista ↔ stavka (za „viđeno“ i odgovor)
           const I = await import('./shareImport.js');
-          const pkg = await I.fetchPackage(it.f);
-          if (!pkg || !pkg.songs || !pkg.songs.length) continue; // fajl još nije dostupan — sledeći put
+          // v2.4.14: pesme u samom sanduču (it.d) — bez drugog preuzimanja; inače deljeni fajl (it.f)
+          const src = it.d ? String(it.key).split(':')[1] : it.f;
+          if (!src) continue;
+          fmap[src] = it.key; // v2.4.2: pesma/set lista ↔ stavka (za „viđeno“ i odgovor)
+          let pkg = null;
+          if (it.d) { try { const C = await import('./shareCode.js'); pkg = C.readPackage(await C.decode(it.d)); } catch (e) { diag('box', 'paket u sanduču nije ispravan: ' + ((e && e.message) || e)); seen[it.key] = it.at || Date.now(); continue; } }
+          else pkg = await I.fetchPackage(it.f);
+          if (!pkg || !pkg.songs || !pkg.songs.length) { diag('box', 'paket još nije dostupan (' + (it.d ? 'unutra' : 'fajl') + ')'); continue; } // fajl još nije dostupan — sledeći put
           const mine = it.rp && pkg.songs.length === 1 ? await (await import('./db.js')).songs.get(it.rp).catch(() => null) : null;
           if (mine && !mine.deleted) { await tm.replaceWithTeacher(mine, pkg.songs[0]); fresh.push(mine.id); } // ispravka učenikove pesme (stara ostaje u Prethodnim verzijama)
-          else { const r = await I.importTagged(pkg, it.f, { fromT }, { fromT }); fresh.push(...(r.ids || [])); }
+          else { const r = await I.importTagged(pkg, src, { fromT }, { fromT }); fresh.push(...(r.ids || [])); }
+          got.push(it.key); diag('box', `primljeno ${pkg.songs.length} pesama`); // v2.4.14: potvrda „stiglo“ nastavniku
           if (it.rq) await tm.markAnswered(it.rq, pkg.name || pkg.songs[0].title || '');
         } else if (it.kind === 'ans') await tm.answerFromBox(it.id, it.s);
         else if (it.kind === 'plan') await (await import('./plan.js')).acceptPlanFile(it.f);
@@ -140,6 +200,7 @@ export function checkBox({ force = false } = {}) {
         notes.push(it);
       } catch (e) { console.warn('box', e); }
     }
+    if (got.length) (await import('./lessons.js')).markGot(got); // v2.4.14
     if (n) {
       const cur = await tm.getMyTeacher();
       if (cur && cur.tid === m.tid) {
@@ -245,7 +306,7 @@ export async function ingestOut(st, out) {
         const cur = (await tm.getStudent(st.id)) || st; const step = Math.max(0, Math.min(20, Number(o.step) || 0)), of = Math.max(1, Math.min(20, Number(o.of) || 1));
         await tm.updateStudent(st.id, { rp: { ...(cur.rp || {}), [clip(o.ex, 40)]: { step, of, name: clip(o.name, 60), at: Number(o.at) || Date.now() } } });
         if (step >= of) await note(st, 'rp:' + o.id, t('nt.rpDone', { name: st.name }), clip(o.name, 80));
-      } else if (o.type === 'seen' || o.type === 'react' || o.type === 'session') { await (await import('./lessons.js')).ingestFromStudent(st, o); seen[st.id + ':' + o.id] = Date.now(); n++; continue; } // v2.4.2
+      } else if (o.type === 'seen' || o.type === 'react' || o.type === 'session' || o.type === 'got') { await (await import('./lessons.js')).ingestFromStudent(st, o); seen[st.id + ':' + o.id] = Date.now(); n++; continue; } // v2.4.2
       else continue;
       if (o.type === 'wish' || o.type === 'ask') await note(st, 'rq:' + o.id, t(o.type === 'wish' ? 'nt.wish' : 'nt.ask', { name: st.name, title: clip(o.title, 80) }), [clip(o.artist, 60), o.note ? '„' + clip(o.note, 80) + '“' : ''].filter(Boolean).join(' · '));
       else if (o.type === 'check') await note(st, 'chk:' + o.id, t('nt.check', { name: st.name }), [clip(o.title, 80), o.note ? '„' + clip(o.note, 80) + '“' : ''].filter(Boolean).join(' · '));

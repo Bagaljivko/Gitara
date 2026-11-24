@@ -43,6 +43,22 @@ export async function shareFile(blob, filename, title) {
 }
 
 // ---------------- Aplikacija (adresa, bez podataka) ----------------
+/**
+ * v2.4.14: pesme u samom linku (#g=…, bez Google-a) — „Pošalji kao link“ nastavnika. Predugačko za link → .gitara fajl.
+ * pkgExtra: npr. { ft: { tid, name } } (učenik uvozi kao „od nastavnika“). Vraća 'shared' | 'copied' | 'file' | null.
+ */
+export async function shareSongsLink(songs, { setName = null, title = '', text = '', pkgExtra = {} } = {}) {
+  const C = await import('./shareCode.js'); const { SHARE_BASE } = await import('./shareConfig.js');
+  const pkg = { ...C.makePackage(songs, setName), ...pkgExtra };
+  const url = SHARE_BASE + C.PREFIX + (await C.encode(pkg));
+  if (url.length <= C.LINK_MAX) {
+    if (navigator.share) { try { await navigator.share({ title, text, url }); return 'shared'; } catch (e) { if (e && e.name === 'AbortError') return null; } }
+    try { await navigator.clipboard.writeText(text + '\n' + url); return 'copied'; } catch { return null; }
+  }
+  const f = await C.buildShareFile({ kind: setName ? 'set' : 'song', name: setName || title, songs });
+  const r = await shareFile(new Blob([f.text], { type: 'application/json' }), `${safeFileName(title) || 'MARLI'}${C.FILE_EXT}`, title);
+  return r ? 'file' : null;
+}
 export async function shareApp(url) {
   if (navigator.share) { try { await navigator.share({ title: 'MARLI', text: t('appShare.shareText'), url }); return 'shared'; } catch (e) { if (e && e.name === 'AbortError') return null; } }
   return copyLink(url, t('appShare.copied'));

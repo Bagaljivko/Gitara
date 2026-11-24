@@ -5,6 +5,11 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '2.4.14', date: '2026-11-24', items: [
+    { i: '📦', sr: ['Više pesama odjednom — pouzdano', 'Pesme koje nastavnik pošalje (do 300 odjednom) idu pravo u učenikovo sanduče, u jednom fajlu — manje koraka preko Google-a i ništa ne zavisi od drugog preuzimanja.'], en: ['Several songs at once — reliably', 'Songs a teacher sends (up to 300 at once) go straight into the student’s inbox in one file — fewer steps through Google and nothing depends on a second download.'] },
+    { i: '✓', sr: ['Nastavnik vidi da je stiglo', 'U „Poslato“: ✓ stiglo, ✓ viđeno ili ⚠ nije stiglo — uz „↻ Pošalji ponovo“ i „🔗 Pošalji kao link“ (Viber, WhatsApp — bez Google-a).'], en: ['The teacher sees it arrived', 'In “Sent”: ✓ arrived, ✓ seen or ⚠ not arrived — with “↻ Send again” and “🔗 Send as a link” (Viber, WhatsApp — no Google).'] },
+    { i: '↻', sr: ['Proveri sada', 'Učenik u „Od nastavnika“ vidi kada je poslednji put provereno i može odmah da proveri.'], en: ['Check now', 'In “From teacher” the student sees when it was last checked and can check right away.'] },
+  ] },
   { v: '2.4.13', date: '2026-11-24', items: [
     { i: '[ ]', sr: ['Akordi u jednom ritmu', 'Nova oznaka [ ] oko akorda: sve u zagradi odsviraj u jednom ritmu (istom taktu). Dodaje se pri uređivanju akorda: „[ ] U jednom ritmu sa sledećim“ (na računaru dugme [ ] ili taster B). Vidi se i u „Sviraj“, u PDF-u i kod učenika.'], en: ['Chords in one rhythm', 'A new [ ] mark around chords: play everything in the bracket within one rhythm (the same bar). Add it while editing chords: “In one rhythm with the next” (on a computer the [ ] button or the B key). It also shows in Play, in the PDF and on the student’s phone.'] },
   ] },

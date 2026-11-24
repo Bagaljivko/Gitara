@@ -164,20 +164,33 @@ export async function sendMenu(students, preset = null, { rq = '', rp = '' } = {
   const B = await import('./teachBox.js');
   const ready = students.filter((st) => st.box && st.box.f), wait = students.filter((st) => !(st.box && st.box.f));
   if (!ready.length) { await notConnectedFlow(wait); return; }
-  const S = await import('./shareService.js');
-  let res = null;
-  try { res = await S.publishOnly(item.share); } catch (e) { console.warn(e); toast(t('box.failed'), 'error'); return; } // v2.4.11: nikad tiho
-  if (!res) return;
-  const key = (item.kind === 'set' ? 'set:' : 'song:') + res.fileId;
+  // v2.4.14: pesme idu PRAVO u sanduče (jedan fajl, do 300 pesama) — bez posebnog deljenog fajla i „javnog“ prava
+  // (manje poziva Google-u, ništa ne zavisi od drugog preuzimanja). Veće od toga: stari način (deljeni fajl).
+  let box = null;
+  try { box = await B.inlineItem(item); } catch (e) { console.warn(e); }
+  if (!box) {
+    const S = await import('./shareService.js');
+    let res = null;
+    try { res = await S.publishOnly(item.share); } catch (e) { console.warn(e); toast(t('box.failed'), 'error'); return; } // v2.4.11: nikad tiho
+    if (!res) return;
+    box = { key: (item.kind === 'set' ? 'set:' : 'song:') + res.fileId, kind: item.kind === 'set' ? 'set' : 'song', name: clip(item.name, 80), f: res.fileId };
+  }
+  const key = box.key;
   const q0 = B.boxPut.queued || 0;
   const got = [];
-  for (const st of ready) if (await B.boxPut(st.id, [{ key, kind: item.kind === 'set' ? 'set' : 'song', name: clip(item.name, 80), f: res.fileId, at: Date.now(), ...(rq ? { rq } : {}), ...(rp ? { rp } : {}) }]).catch(() => false)) got.push(st.id);
+  for (const st of ready) if (await B.boxPut(st.id, [{ ...box, at: Date.now(), ...(rq ? { rq } : {}), ...(rp ? { rp } : {}) }]).catch(() => false)) got.push(st.id);
   if (!got.length) { toast(t('box.failed'), 'error'); return; }
   const gotSt = students.filter((x) => got.includes(x.id));
   if (item.onSent) await item.onSent(gotSt);
   await T.logSent(got, item.kind, (item.share && item.share.songs) || []);
   if (rq) await T.setRequest(rq, { status: 'sent', doneAt: Date.now(), sentTitle: item.name });
-  if ((B.boxPut.queued || 0) > q0) toast(t('box.queued')); // v2.4.11: Google je usporio — stiže čim dozvoli (ne gubi se)
+  if ((B.boxPut.queued || 0) > q0) {
+    // v2.4.11: Google je usporio — stiže čim dozvoli (ne gubi se); v2.4.14: ili odmah kao link (bez Google-a)
+    const songsL = (item.share && item.share.songs) || [];
+    const v = songsL.length ? await dialog({ title: t('box.queued'), body: t('box.sendAsLinkQ'), buttons: [{ label: t('common.later'), value: null }, { label: t('box.sendAsLinkBtn'), value: 'link', kind: 'primary' }] }) : null;
+    if (v === 'link') await B.shareSongsAsLink(songsL, item.kind === 'set' ? item.name : null, gotSt.map((x) => x.name).join(', ')).catch(() => toast(t('box.failed'), 'error'));
+    else if (!songsL.length) toast(t('box.queued'));
+  }
   else sentToast(gotSt, item.kind === 'set' ? item.n || 1 : 1);
   if (wait.length) await notConnectedFlow(wait);
 }
@@ -278,6 +291,13 @@ export async function askStudentFor(song) {
 }
 
 // ---------------- učenik: Od nastavnika ----------------
+/** v2.4.14: „Poslednja provera sanduča“ (učenik) — kada i šta je bilo. */
+function boxLastText() {
+  let o = null; try { o = JSON.parse(localStorage.getItem('marli-box-last') || 'null'); } catch {}
+  if (!o || !o.at) return t('box.never');
+  const w = when(o.at);
+  return o.ok ? t('box.lastOk', { w }) : o.why === 'rate' ? t('box.lastRate', { w }) : o.why === 'gone' ? t('box.lastGone', { w }) : t('box.lastNet', { w });
+}
 export async function renderFromTeacher(root) {
   const m = await T.getMyTeacher();
   if (!m) { location.replace('#/pesme'); return; }
@@ -309,6 +329,7 @@ export async function renderFromTeacher(root) {
     <a class="back tch-back" href="#/pesme">‹ ${t('lib.title')}</a>
     <header class="view-head tch-head"><h1>${t('tch.fromTeacher')}</h1></header>
     <div class="card tch-teacher">${T.avatarHTML({ name: m.name || '?', color: '#f5a524' }, 44)}<span><b>${esc(m.name || t('tch.teacher'))}</b><small class="muted">${t('tch.yourTeacher')}${m.contact ? ' · ' + esc(m.contact) : ''}</small></span></div>
+    ${m.box ? `<div class="box-check"><small class="muted" id="tBoxLast">${esc(boxLastText())}</small><button type="button" class="btn small" id="tBoxNow">↻ ${t('box.checkNow')}</button></div>` : ''}
     ${nNew ? `<div class="card box-new"><div class="tch-sec"><span>${t('box.newFrom', { t: tn })} <em class="box-n">${nNew}</em></span></div><div class="set-grp">${newSets.map((sl) => `<div class="tch-row box-row"><a href="#/setlista/${encodeURIComponent(sl.id)}">${ic('list')}<span><b>${esc(sl.name)}</b><small>${songsCount((sl.songIds || []).length)} · ${t('box.arrivedToday', { d: when(sl.updatedAt || Date.now()) })}</small></span></a></div>`).join('')}${freshSongs.map((x) => `<div class="tch-row box-row"><a href="#/pesma/${encodeURIComponent(x.id)}">${ic('song')}<span><b>${esc(x.title)}</b><small>${esc([x.artist, t('box.arrivedToday', { d: when(x.updatedAt || x.createdAt) })].filter(Boolean).join(' · '))}</small></span></a><button class="btn small" data-save="${esc(x.id)}">+ ${t('box.saveIn')}</button></div>`).join('')}</div></div>` : ''}
     <div id="tLesS"></div>
     <div id="tMyPlan"></div>
@@ -331,6 +352,13 @@ export async function renderFromTeacher(root) {
     const P = await import('./plan.js'); P.watchTasks();
     if (await P.refreshPlan({ force: true }).catch(() => false) && box.isConnected) V.drawMyPlan(box);
   }).catch(() => {});
+  root.querySelector('#tBoxNow')?.addEventListener('click', async (e) => { // v2.4.14: učenik sam proveri sanduče
+    const b = e.currentTarget; b.disabled = true;
+    const B = await import('./teachBox.js'); const n = await B.checkBox({ force: true }).catch(() => 0);
+    const el = root.querySelector('#tBoxLast'); if (el) el.textContent = boxLastText();
+    toast(n ? t('box.checkedN', { n }) : t('box.checkedNone')); b.disabled = false;
+    if (n) renderFromTeacher(root);
+  });
   root.querySelector('#tWish').addEventListener('click', async () => { if (await askTeacherFlow('wish')) renderFromTeacher(root); });
   root.querySelector('#tAsk').addEventListener('click', async () => { if (await askTeacherFlow('ask')) renderFromTeacher(root); });
   root.querySelector('#tDisc').addEventListener('click', () => disconnectTeacher());

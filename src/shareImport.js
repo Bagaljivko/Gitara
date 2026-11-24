@@ -120,6 +120,18 @@ export async function renderSharedPackage(root, text) {
     busy = true;
     try {
       let left = 0;
+      // v2.4.14: link od MOG nastavnika (Pošalji kao link) — uvoz kao „od nastavnika“, isto kao iz sanduča
+      if (pkg.ft) {
+        const m = await (await import('./teach.js')).getMyTeacher().catch(() => null);
+        if (m && m.tid && m.tid === pkg.ft.tid) {
+          let h = 5381; const sig = pkg.name + '|' + pkg.songs.map((s) => s.title).join('|'); for (let i = 0; i < sig.length; i++) h = ((h << 5) + h + sig.charCodeAt(i)) | 0;
+          const fromT = { tid: m.tid, name: m.name || pkg.ft.name };
+          const r = await importTagged(pkg, 'lnk' + (h >>> 0).toString(36), { fromT }, { fromT });
+          toast(t('share.importedT', { n: r.ids.length, t: fromT.name || t('tch.teacher') }));
+          leave(r.setId ? '#/setlista/' + encodeURIComponent(r.setId) : '#/pesma/' + encodeURIComponent(r.ids[0]));
+          return;
+        }
+      }
       const r = await importPackage(pkg, (existing) => askDuplicate(existing, pkg.songs.length > 1 && ++left < pkg.songs.length));
       if (!r) return;
       toast(t('share.imported', { a: r.added, r: r.replaced, s: r.skipped }));
