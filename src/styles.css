@@ -3362,3 +3362,48 @@ body.desk-shell .hint-card.on-song { bottom: 96px; }
 .tr-go { background: var(--accent); color: #111; border: 0; font: 800 15px var(--sans); padding: 11px 20px; border-radius: 999px; cursor: pointer; }
 .tch-tour { display: block; margin: 4px auto 12px; }
 .lib-top { color: var(--accent); font-weight: 700; margin-left: 4px; white-space: nowrap; } /* v2.4.21 */
+/* v2.4.22: Moje vežbanje / vežbanje učenika */
+.ov-view { padding-bottom: 120px; }
+.ov-top { display: flex; align-items: center; gap: 12px; margin: 4px 0 12px; }
+.ov-top h1 { margin: 0; font: 800 clamp(1.6rem, 6vw, 2rem) var(--sans); color: var(--accent); }
+.ov-sub { margin: 2px 0 0; color: var(--muted); font-size: .88rem; }
+.ov-seg { display: flex; gap: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 4px; margin-bottom: 14px; }
+.ov-seg button { flex: 1; padding: 8px; border-radius: 9px; border: 0; background: none; font: 700 .9rem var(--sans); color: var(--muted); cursor: pointer; }
+.ov-seg button.on { background: var(--accent); color: #111; }
+.ov-big { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
+.ov-st { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px 10px; min-width: 0; }
+.ov-st small { display: block; color: var(--muted); font-size: .75rem; }
+.ov-st b { display: block; font: 800 1.2rem var(--sans); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ov-st em { font-style: normal; font-size: .72rem; color: var(--ok); }
+.ov-st em.down { color: var(--muted); }
+.ov-chart { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px 12px 10px; margin-bottom: 16px; }
+.ov-bars { display: flex; align-items: flex-end; gap: 6px; }
+.ov-bars.m { gap: 2px; }
+.ov-bars > div { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.ov-col { width: 100%; display: flex; flex-direction: column; justify-content: flex-end; }
+.ov-col i { display: block; width: 100%; }
+.ov-col i.p { background: linear-gradient(180deg, #f5a524, #b86f0b); border-radius: 5px 5px 0 0; }
+.ov-col i.x { background: linear-gradient(180deg, #3dd68c, #1e8a56); order: 2; border-radius: 0 0 3px 3px; }
+.ov-col i.x:only-child, .ov-col i.p + i.x[style*="height:0"] { border-radius: 5px 5px 3px 3px; }
+.ov-bars > div.cur .ov-l { color: var(--accent); font-weight: 800; }
+.ov-bars > div.fut { opacity: .35; }
+.ov-l { font-size: .68rem; color: var(--muted); min-height: 1em; white-space: nowrap; }
+.ov-leg { display: flex; gap: 14px; font-size: .75rem; color: var(--muted); margin-top: 8px; flex-wrap: wrap; }
+.ov-leg i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+.ov-leg i.p { background: #f5a524; } .ov-leg i.x { background: #3dd68c; }
+.ov-h { display: flex; justify-content: space-between; align-items: baseline; font: 800 .75rem var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 16px 2px 8px; }
+.ov-h small { font-weight: 600; letter-spacing: 0; text-transform: none; }
+.ov-list { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+.ov-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-top: 1px solid var(--line); }
+.ov-row:first-child { border-top: 0; }
+.ov-row .n { flex: 1; min-width: 0; }
+.ov-row b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ov-row small { display: block; color: var(--muted); font-size: .8rem; margin-top: 2px; }
+.ov-row .t { font-weight: 700; white-space: nowrap; }
+.ov-ex { margin-top: 4px; }
+.ov-chip { display: inline-block; font-size: .72rem; padding: 2px 7px; border-radius: 99px; background: #22252c; color: #c7cbd3; margin: 3px 4px 0 0; }
+.ov-chip i { font-style: normal; color: var(--muted); } .ov-chip i.ok { color: var(--ok); }
+.ov-share { margin-top: 14px; padding: 12px 14px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); color: var(--muted); font-size: .85rem; line-height: 1.4; }
+.ov-empty { padding: 6px 2px; }
+.st-ovlink { display: block; text-align: right; margin-top: 8px; color: var(--accent); font-weight: 700; font-size: .85rem; text-decoration: none; }
+.tch-ovrow { border: 1px solid var(--line); border-radius: 16px; background: var(--surface); margin: 0 0 12px; }

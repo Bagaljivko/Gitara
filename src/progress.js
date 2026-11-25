@@ -37,7 +37,8 @@ export async function buildSummary() {
   }
   songs.sort((a, b) => b.n - a.n);
   const tasks = await (await import('./plan.js')).summaryTasks().catch(() => null); // v1.83: stanje zadataka od nastavnika (samo brojevi)
-  return { v: 1, ...(tasks ? { tasks } : {}), start, today, days, total: days.reduce((a, b) => a + b, 0), lastWeek, streak, lastDay, rounds: games.reduce((s, g) => s + g.n, 0), games: games.slice(0, 6), songs: songs.slice(0, 4) };
+  const ov = await (await import('./overview.js')).myOverviewData().catch(() => null); // v2.4.22: pregled vežbanja (za nastavnika)
+  return { v: 1, ...(tasks ? { tasks } : {}), ...(ov ? { ov } : {}), start, today, days, total: days.reduce((a, b) => a + b, 0), lastWeek, streak, lastDay, rounds: games.reduce((s, g) => s + g.n, 0), games: games.slice(0, 6), songs: songs.slice(0, 4) };
 }
 
 const hashOf = (s) => { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return String(h >>> 0); };

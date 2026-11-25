@@ -90,7 +90,7 @@ export async function renderStudent(root, id) {
     <div class="tch-actions"><button class="btn primary" id="tSend">${t('tch.sendTo', { name: s.name })}</button><button class="btn" id="tMore" aria-label="${esc(t('tch.more'))}">⋯</button></div>
     <p class="tch-keys" aria-label="${esc(t('les.keysLabel'))}"><span><kbd>N</kbd> ${t('les.k.n')}</span><span><kbd>L</kbd> ${t('les.k.l')}</span><span><kbd>G</kbd> ${t('les.k.g')}</span><span><kbd>R</kbd> ${t('les.k.r')}</span><span><kbd>H</kbd> ${t('les.k.h')}</span><span><kbd>S</kbd> ${t('les.k.s')}</span><span><kbd>P</kbd> ${t('les.k.p')}</span><span><kbd>←</kbd><kbd>→</kbd> ${t('les.k.arrows')}</span></p>
     <div id="tLes" class="les-box"></div>
-    <div id="tProg">${s.prog ? `<div class="tch-sec"><span>${t('prog.head')}</span></div><p class="muted small tch-none">${t('prog.loading')}</p>` : ''}</div>
+    <div id="tProg">${s.prog ? `<div class="tch-sec"><span>${t('prog.head')}</span><a class="linkish" href="#/vezbanje/${encodeURIComponent(s.id)}">📈 ${t('ov.openT')} ›</a></div><p class="muted small tch-none">${t('prog.loading')}</p>` : ''}</div>
     <div id="tPlan" class="pl-tch"></div>
     ${reqs.length ? `<div class="tch-sec"><span>${t('tch.rq.head')}</span></div><div class="set-grp tch-reqs">${reqs.map((r) => reqHTML(r)).join('')}</div>` : ''}
     <div class="tch-sec"><span>${t('tch.setlists')}</span><button class="linkish" id="tNewSet">+ ${t('tch.newSet')}</button></div>
@@ -343,6 +343,7 @@ export async function renderFromTeacher(root) {
     ${sets.length || songsFrom.length ? `<div class="set-grp">${sets.filter((sl) => !newSets.includes(sl)).map((sl) => `<a class="tch-row" href="#/setlista/${encodeURIComponent(sl.id)}">${ic('list')}<span><b>${esc(sl.name)}</b><small>${songsCount((sl.songIds || []).length)}</small></span>${CHEV}</a>`).join('')}${songsFrom.filter((x) => !newIds.has(x.id)).map((s) => `<a class="tch-row" href="#/pesma/${encodeURIComponent(s.id)}">${ic('song')}<span><b>${esc(s.title)}</b><small>${esc(s.artist || '')}</small></span>${CHEV}</a>`).join('')}</div>` : `<p class="muted small tch-none">${t('tch.nothingArrived')}</p>`}
     <button class="btn primary wide tch-sendback" id="tBack">🎙 ${t('tch.sendToTeacher')}</button>
     <p class="tch-lock">🔒 ${t('tch.lockStudentSide', { t: m.name || t('tch.teacher') })}</p>
+    <a class="tch-row tch-ovrow" href="#/vezbanje"><span class="sr-ic" aria-hidden="true">📈</span><span><b>${t('ov.title')}</b><small>${t(m.prog && m.prog.on ? 'ov.sharedOn' : 'ov.sharedOff', { t: m.name || t('tch.teacher') })}</small></span><span class="chev" aria-hidden="true">›</span></a>
     <button type="button" class="linkish tch-tour" id="tTour">💡 ${t('tour.again')}</button>
     <button class="btn small tch-disc" id="tDisc">${t('tch.disconnect')}</button>
   </section>`;
@@ -780,6 +781,7 @@ async function renderStudentTouch(root, id) {
     <div class="tch-hero">${T.avatarHTML(s, 56)}<div><h1>${esc(s.name)}</h1><small class="muted">${esc([s.contact, s.prog ? t('tch.sharesProg') : '', t('tch.since', { d: ((d) => `${d.getDate()}. ${d.getMonth() + 1}. ${d.getFullYear()}.`)(new Date(s.createdAt || Date.now())) })].filter(Boolean).join(' · '))}</small></div></div>
     <div class="tch-big${conn ? ' one' : ''}"><button class="btn primary" id="tSend">↗ ${t('bulk.btnOne')}</button>${conn ? '' : `<button class="btn" id="tQr">▦ ${t('qr.btn')}</button>`}</div>
     <button class="linkish tch-more2" id="tMore">${t('tch.editStudent')} · ${t(conn ? 'tch.reconnect' : 'qr.copy')}</button>
+    ${s.prog ? `<a class="tch-row tch-ovrow" href="#/vezbanje/${encodeURIComponent(s.id)}"><span class="sr-ic" aria-hidden="true">📈</span><span><b>${t('ov.openT')}</b><small>${t('ov.openTSub', { name: s.name })}</small></span><span class="chev" aria-hidden="true">›</span></a>` : ''}
     <div id="tLes" class="les-box"></div>
     ${reqs.length ? `<div class="tch-sec"><span>${t('tch.rq.head')}</span></div><div class="set-grp tch-reqs">${reqs.map((r) => reqHTML(r)).join('')}</div>` : ''}
     <div id="tPlan" class="pl-tch"></div>

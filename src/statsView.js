@@ -67,7 +67,8 @@ export async function weekHTML() {
     </button>
     ${await streakHTML(tot, today)}
     ${await (await import('./remind.js')).buttonHTML()}
-  </div>`; // v2.4.3: podsetnik za vežbanje (ceo red ispod brojeva)
+    <a class="st-ovlink" href="#/vezbanje">📈 ${t('ov.open')} ›</a>
+  </div>`; // v2.4.22: pregled vežbanja // v2.4.3: podsetnik za vežbanje (ceo red ispod brojeva)
 }
 export function bindWeek(root, redraw) {
   root.querySelector('#stRemind')?.addEventListener('click', async () => { if (await (await import('./remind.js')).openDialog()) redraw(); });
