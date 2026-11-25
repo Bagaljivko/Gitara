@@ -969,6 +969,7 @@ const sr = {
   'tuner.resetBtn': 'Počni ispočetka',
   'common.undo': 'Poništi',
   'room.title': 'Soba',
+  'spf.photoSaved': 'Slika sačuvana',
   'mg.title': 'Dve verzije iste pesme',
   'mg.fromT': 'Od: {name}',
   'mg.mine': 'Tvoja',

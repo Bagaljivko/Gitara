@@ -53,8 +53,12 @@ export function dialog({ title = '', body = '', html = false, buttons = [{ label
     const close = (v) => { wrap.remove(); document.removeEventListener('keydown', onKey); resolve(v); };
     if (dismissible) wrap.__close = () => close(null); // dugme „nazad“
     const onKey = (e) => { if (e.key === 'Escape' && dismissible) close(null); };
+    // v2.4.28: dodir van prozora zatvara samo ako je i počeo van prozora (prevlačenje iz prozora — npr. izrez slike — ne zatvara)
+    let downOut = false;
+    wrap.addEventListener('pointerdown', (e) => { downOut = e.target === wrap; });
     wrap.addEventListener('click', (e) => {
-      if (e.target === wrap || e.target.closest('[data-x]')) { if (dismissible) close(null); return; }
+      if (e.target === wrap) { if (dismissible && downOut) close(null); downOut = false; return; }
+      if (e.target.closest('[data-x]')) { if (dismissible) close(null); return; }
       const b = e.target.closest('[data-i]');
       if (b) close(buttons[+b.dataset.i].value);
     });

@@ -45,7 +45,8 @@ async function cropFlow(file) {
   const st = { x: 0, y: 0, zoom: 1 };
   const p = dialog({ title: t('spf.cropTitle'), html: true, className: 'sp-crop-dlg', body: `<div class="sp-crop"><canvas width="${PHOTO}" height="${PHOTO}"></canvas></div>
     <label class="tch-lab">${t('spf.zoom')}</label><input type="range" id="spZoom" min="1" max="3" step="0.05" value="1"><small class="muted">${t('spf.cropHint')}</small>`,
-    buttons: [{ label: t('common.cancel'), value: null }, { label: t('common.save'), value: 'ok', kind: 'primary' }] });
+    // v2.4.28: bez zatvaranja dodirom van prozora — prevlačenje slike koje se završi van kvadrata ne sme da je odbaci
+    buttons: [{ label: t('common.cancel'), value: null }, { label: t('common.save'), value: 'ok', kind: 'primary' }], dismissible: false });
   const box = [...document.querySelectorAll('.modal-backdrop')].pop();
   const cv = box.querySelector('canvas');
   const draw = async () => { const u = await makePhoto(img, st); const i = new Image(); i.onload = () => cv.getContext('2d').drawImage(i, 0, 0); i.src = u; };
@@ -79,11 +80,14 @@ export async function editProfile(s) {
     <p class="tch-lock">🔒 ${t('spf.lock', { name: s.name || '' })}</p>`,
     buttons: [{ label: t('common.cancel'), value: null }, { label: t('common.save'), value: 'ok', kind: 'primary' }] });
   const box = [...document.querySelectorAll('.modal-backdrop')].pop();
-  const pick = async (e) => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (!f) return; const u = await cropFlow(f); if (u) { v.photo = u; box.querySelector('#spPh').innerHTML = ph(); box.querySelector('#spDel').hidden = false; } };
+  // v2.4.28: slika se čuva odmah (ne čeka „Sačuvaj“ profila — zatvaranje prozora je više ne briše)
+  let photoSaved = false;
+  const savePhoto = async (u) => { v.photo = u; s.photo = u; await T.updateStudent(s.id, { photo: u }); photoSaved = true; box.querySelector('#spPh').innerHTML = ph(); box.querySelector('#spDel').hidden = !u; };
+  const pick = async (e) => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (!f) return; const u = await cropFlow(f); if (u) { await savePhoto(u); toast(t('spf.photoSaved')); } };
   box.querySelector('#spCam').addEventListener('change', pick);
   box.querySelector('#spGal').addEventListener('change', pick);
-  box.querySelector('#spDel').addEventListener('click', () => { v.photo = ''; box.querySelector('#spPh').innerHTML = ph(); box.querySelector('#spDel').hidden = true; });
-  if ((await p) !== 'ok') return null;
+  box.querySelector('#spDel').addEventListener('click', () => savePhoto(''));
+  if ((await p) !== 'ok') return photoSaved ? T.getStudent(s.id) : null;
   const q = (id) => box.querySelector('#' + id)?.value ?? '';
   const name = q('spName').trim(); if (!name) { toast(t('tch.needName')); return null; }
   const sd = q('spSince') ? new Date(q('spSince') + 'T12:00:00').getTime() : v.since;

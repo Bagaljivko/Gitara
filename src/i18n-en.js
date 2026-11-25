@@ -956,6 +956,7 @@ export default {
   'tuner.resetBtn': 'Start over',
   'common.undo': 'Undo',
   'room.title': 'Room',
+  'spf.photoSaved': 'Photo saved',
   'mg.title': 'Two versions of the same song',
   'mg.fromT': 'From: {name}',
   'mg.mine': 'Yours',
