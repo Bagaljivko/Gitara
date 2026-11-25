@@ -63,7 +63,10 @@ export async function importTagged(pkg, file, tag = {}, setTag = {}) {
     const tg = typeof tag === 'function' ? tag(song) : tag;
     const src = `${file}:${i}`;
     const ex = all.find((s) => s.src === src);
-    if (ex) {
+    if (ex && ex.keepMine) { // v2.4.27: zadržan tvoj tekst — nova verzija od nastavnika stiže kao posebna pesma (pa „Uporedi“)
+      const { src: _s, keepMine: _k, ...rest } = ex; await db.put({ ...rest, updatedAt: Date.now() });
+      const rec = await db.save({ ...song, folders: [], ...tg, src }); ids.push(rec.id); added++;
+    } else if (ex) {
       const kept = {};
       for (const k of KEEP_ON_REPLACE) if (ex[k] !== undefined) kept[k] = ex[k];
       const rec = await db.save({ ...song, ...tg, ...kept, src, folders: tg.folders || ex.folders || [] });

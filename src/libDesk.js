@@ -135,6 +135,16 @@ function draw() {
   st.root.classList.toggle('dk-has-song', !!(st.open || st.edit));
   if (list.querySelector('#lSyncWelcome')) hooks.emptyState?.(list.querySelector('#lSyncWelcome'), list.querySelector('.dk-empty-add'));
   connectCard();
+  dupNote().catch(() => {});
+}
+// v2.4.27: dve verzije iste pesme — „Uporedi“ na vrhu liste
+async function dupNote() {
+  const M = await import('./songMerge.js'); const d = (await M.findDups(st.all))[0];
+  if (!d || !list || list.querySelector('#lDup')) return;
+  const el = document.createElement('div'); el.className = 'mg-note'; el.id = 'lDup';
+  el.innerHTML = `<span class="mg-ic" aria-hidden="true">⧉</span><div class="mg-nt"><b>${esc(d.a.title)}</b> — ${esc(t(d.a.fromT || d.b.fromT ? 'mg.noteT' : 'mg.note'))}</div><button type="button" class="btn primary mg-go">${esc(t('mg.compare'))}</button>`;
+  el.querySelector('.mg-go').onclick = () => M.openMerge(d.a.id, d.b.id, { onDone: () => reload() });
+  list.prepend(el);
 }
 /** Novi desni panel posle promene rute (brzo uređivanje piše u njega). */
 export function setSongPane(el) { songPane = el; }

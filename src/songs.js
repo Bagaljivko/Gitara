@@ -104,6 +104,7 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
     <div id="lSongsPane" ${tab === 'sl' ? 'hidden' : ''}>
     <div class="lib-chips" id="lChips" role="toolbar" aria-label="${t('lib.groups')}"></div>
     <p class="lib-tnote" id="lTNote" hidden>${t('lib.teacherNote')}</p>
+    <div class="mg-note" id="lDup" hidden></div>
     <div class="lib-search" id="lSearchRow" hidden>
       <input type="search" id="lSearch" placeholder="${t('lib.search')}" aria-label="${t('lib.searchLabel')}" enterkeyhint="search">
       <button class="icon-btn" id="lSearchX" aria-label="${t('common.close')}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z"/></svg></button>
@@ -126,6 +127,15 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
   $('lSort').value = sortPref;
   await seedDemoSong(getLang()).catch(() => {});
   let all = await db.list(); // brzi indeks (bez akorda) — dovoljan za listu
+  // v2.4.27: dve verzije iste pesme — kratka najava „Uporedi“ (jedna po jedna)
+  const drawDup = async () => {
+    const box = $('lDup'); if (!box) return;
+    const M = await import('./songMerge.js'); const d = (await M.findDups(all))[0];
+    box.hidden = !d; if (!d) return;
+    box.innerHTML = `<span class="mg-ic" aria-hidden="true">⧉</span><div class="mg-nt"><b>${esc(d.a.title)}</b> — ${esc(t(d.a.fromT ? 'mg.noteT' : 'mg.note'))}</div><button type="button" class="btn primary mg-go">${esc(t('mg.compare'))}</button>`;
+    box.querySelector('.mg-go').onclick = () => M.openMerge(d.a.id, d.b.id, { onDone: async () => { all = await db.list(); draw(); drawChips(); drawDup(); } });
+  };
+  setTimeout(() => drawDup().catch(() => {}), 0);
   let folders = await getFolders();
   // grupa: '' = sve, id foldera, 'artist:<ime>', 'auto:tab', 'auto:recent'
   let folderFilter = localStorageGet('gitara-folder') || '';
@@ -1042,6 +1052,7 @@ export async function renderSong(root, id, nav = null) {
     <div id="sBody">
       <div id="sHead"></div>
       <div class="song-chips" id="sChips"></div>
+      <div class="mg-note" id="sDup" hidden></div>
       ${stored.recording ? '' : `<div class="song-tb" id="sTb" role="toolbar" aria-label="${esc(t('stb.label'))}">
         <button class="btn stb-focus" data-tb="focus" title="${esc(t('stb.focusTip'))}">⤢ <span>${t('stb.focus')}</span> <kbd>F</kbd></button>
         <button class="btn stb-list" data-tb="focus" title="${esc(t('stb.listTip'))}">‹ <span>${t('stb.list')}</span> <kbd>Esc</kbd></button>
@@ -2039,6 +2050,13 @@ export async function renderSong(root, id, nav = null) {
   setCalm();
   deskMq.addEventListener?.('change', setCalm);
   window.addEventListener('hashchange', function offMq() { deskMq.removeEventListener?.('change', setCalm); window.removeEventListener('hashchange', offMq); });
+  // v2.4.27: ista pesma postoji dvaput — „Uporedi“ i na ekranu pesme
+  if (!stored.demo && !stored.student) import('./songMerge.js').then(async (M) => {
+    const d = await M.dupOf(id); const box = $('sDup'); if (!d || !box) return;
+    box.hidden = false;
+    box.innerHTML = `<span class="mg-ic" aria-hidden="true">⧉</span><div class="mg-nt">${esc(t(d.a.fromT || d.b.fromT ? 'mg.noteT' : 'mg.note'))}</div><button type="button" class="btn primary mg-go">${esc(t('mg.compare'))}</button>`;
+    box.querySelector('.mg-go').onclick = () => M.openMerge(d.a.id, d.b.id, { onDone: (nid) => { if (nid && nid !== id) location.hash = '#/pesma/' + encodeURIComponent(nid); else if (nid) dispatchEvent(new HashChangeEvent('hashchange')); else box.hidden = true; } });
+  }).catch(() => {});
   $('sChips').addEventListener('click', async (e) => {
     if (e.target.closest('[data-pa]')) { videoChoice(); return; }
     const a = e.target.closest('[data-sca]')?.dataset.sca; // v2.2: čipovi koji odmah rade (bez ⚙)
