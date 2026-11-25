@@ -26,7 +26,16 @@ const GAME_ICON = '<svg class="sp-line-ico" viewBox="0 0 24 24" aria-hidden="tru
 
 /** v1.62: jedan tanak red ispod izvođača (umesto velike kartice): ikonica igre, „Vežbaj“, zvezdice i „2 od 4 dela“. */
 export function practiceLineHTML(id) {
-  return `<a class="sp-line" href="#/vezbe/pesma/${encodeURIComponent(id)}" aria-label="${esc(t('sp.title'))}">${GAME_ICON}<b>${t('sp.short')}</b><svg class="sp-go" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.6 7.4 10 6l6 6-6 6-1.4-1.4L13.2 12z"/></svg><span class="sp-meta"></span></a>`; // v2.2: strelica odmah uz „Vežbaj“
+  // v2.4.30: „Nauči ovu pesmu“ — korak puta i mala traka napretka (popunjava fillPath)
+  return `<a class="sp-line lp-entry" href="#/vezbe/pesma/${encodeURIComponent(id)}" aria-label="${esc(t('lp.entry'))}"><span class="sr-ic" aria-hidden="true">🎓</span><span class="lp-et"><b>${esc(t('lp.entry'))}</b><small class="lp-es"></small><span class="lp-steps" aria-hidden="true"></span></span><span class="chev" aria-hidden="true">›</span><span class="sp-meta" hidden></span></a>`;
+}
+/** v2.4.30: korak puta i traka napretka na ekranu pesme. */
+export function fillPath(card, ps, ready = false) {
+  if (!card || !ps) return;
+  const on = ps.steps.find((x) => x.id === ps.on), main = ps.steps.filter((x) => !x.optional);
+  const step = on ? t('lp.entrySub', { n: main.indexOf(on) + 1, total: main.length, s: on.title }) : t('lp.entryDone');
+  card.querySelector('.lp-es').textContent = ready ? `✓ ${t('rdy.ready')}${on ? ' · ' + step : ''}` : step; // v2.4.10: spremna za svirku
+  card.querySelector('.lp-steps').innerHTML = main.map((x) => `<i class="${x.done ? 'd' : x.id === ps.on ? 'c' : ''}"></i>`).join('');
 }
 /** Napredak: { good, total, played } → zvezdice i „2 od 4 dela“; bez vežbanja ostaje NOVO. */
 export function fillPractice(card, { good = 0, total = 0, played = false, done = false } = {}) {

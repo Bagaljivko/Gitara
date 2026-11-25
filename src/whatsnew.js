@@ -5,6 +5,11 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '2.4.31', date: '2026-11-25', items: [
+    { i: '🎓', sr: ['Nauči ovu pesmu', 'Za svaku pesmu aplikacija sama sastavi put iz onoga što je u pesmi: upoznaj akorde (samo nove, uz akord koji već znaš), najteže promene, ritam pesme, deo po deo, pevanje uz tekst i cela pesma u tempu (čisto → spremna ✓); tutorijal po želji. Ništa nije zaključano — aplikacija predlaže korak, a možeš da otvoriš bilo koji.'], en: ['Learn this song', 'For every song the app builds a path from what is in the song: get to know the chords (only new ones, next to a chord you know), the hardest changes, the song’s rhythm, part by part, singing along and the whole song at tempo (clean → ready ✓); a tutorial if you like. Nothing is locked — the app suggests a step and you can open any of them.'] },
+    { i: '↩', sr: ['Prošli put', 'Na vrhu puta: poslednja vežba iz pesme sa rezultatom, „Ponovi“ i „Sledeće“.'], en: ['Last time', 'At the top of the path: your last exercise from the song with its score, “Again” and “Next”.'] },
+    { i: '▶', sr: ['„odavde“ na pesmi', 'Uz svaki deo pesme je „▶ odavde“ — Pevaj uz tekst od tog dela do kraja. Na pesmi je i „Nauči ovu pesmu“ sa korakom i trakom napretka.'], en: ['“from here” on the song', 'Each part of the song has “▶ from here” — sing along from that part to the end. The song also shows “Learn this song” with the step and a progress bar.'] },
+  ] },
   { v: '2.4.30', date: '2026-11-25', items: [
     { i: '🛠', sr: ['„Uporedi“ radi', 'Popravka: kod pesme sa predloženim ritmom („Ritam?“) dugme „Uporedi“ je otvaralo crn ekran. Sada se poređenje dve verzije otvara normalno, a ako nešto ipak ne uspe — prozor se zatvori i javi grešku umesto crnog ekrana.'], en: ['“Compare” works', 'Fix: for a song with a suggested rhythm (“Rhythm?”), the “Compare” button opened a black screen. Comparing two versions now opens normally, and if something still fails the window closes and reports an error instead of a black screen.'] },
   ] },

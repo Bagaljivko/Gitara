@@ -9,9 +9,10 @@ export async function run(ctx) {
   const p = await open(ctx, 'phone'); await boot(p, ctx, '#/tuner', 900);
   const id = await addSong(p, { title: 'Volio bih da si tu', artist: 'Crvena jabuka', chords: ['G', 'D', 'Em', 'C'], bpm: 90 });
   await p.go('#/vezbe/pesma/' + id, 1800);
-  const plan = await p.evaluate(() => [...document.querySelectorAll('.pl-step')].map((x) => ({ id: x.dataset.plan, on: x.classList.contains('on'), txt: x.innerText.replace(/\s+/g, ' ') })));
-  expect(plan.map((x) => x.id).join() === 'chg,rp,sing,all,tut' && plan[0].on && !plan[4].on, 'predlog za danas: 4 koraka (prvi na redu) + tutorijal po želji na kraju', plan);
-  expect(/↔/.test(plan[0].txt) && /↓/.test(plan[1].txt) && /BPM/.test(plan[1].txt) && /YouTube/.test(plan[4].txt), 'koraci treba da kažu tačno šta se radi', plan);
+  const plan = await p.evaluate(() => [...document.querySelectorAll('.lp-nd')].map((x) => ({ id: x.dataset.plan, on: x.classList.contains('on'), txt: x.innerText.replace(/\s+/g, ' ') })));
+  // v2.4.30: put kroz pesmu — akordi, promene, ritam, deo po deo, pevanje, cela pesma, tutorijal po želji
+  expect(plan.map((x) => x.id).join() === 'ak,chg,rp,deo,sing,all,tut' && plan[0].on && plan.filter((x) => x.on).length === 1, 'put kroz pesmu: 6 koraka (prvi predložen) + tutorijal po želji', plan);
+  expect(/novo/.test(plan[0].txt) && /→/.test(plan[1].txt) && /↓/.test(plan[2].txt) && /BPM/.test(plan[2].txt) && /YouTube/.test(plan[6].txt), 'koraci treba da kažu tačno šta se radi', plan);
   if (SHOT) await p.screenshot({ path: SHOT + 'B-plan.png' });
   // deo počinje odmah (bez iskačućeg panela)
   expect(await p.evaluate(() => !document.querySelector('.spr-sheet')), 'panel je već otvoren');
@@ -45,7 +46,7 @@ export async function run(ctx) {
   expect(/Promene/.test(ins), 'uvid na pesmi ne prikazuje vežbu „Promene“', ins);
   // nazad na plan: Promene urađene danas ✓, Ritam je na redu
   await p.go('#/vezbe/pesma/' + id, 1500);
-  const pl2 = await p.evaluate(() => [...document.querySelectorAll('.pl-step')].map((x) => (x.classList.contains('done') ? 'd' : x.classList.contains('on') ? 'o' : '-')).join(''));
-  expect(pl2.startsWith('do'), 'urađen korak treba ✓, sledeći na redu', pl2);
+  const pl2 = await p.evaluate(() => [...document.querySelectorAll('.lp-nd')].map((x) => (x.classList.contains('done') ? 'd' : x.classList.contains('on') ? 'o' : '-')).join(''));
+  expect(pl2.startsWith('od'), 'urađen korak treba ✓ (Promene), predlog ostaje prvi neurađen (Akordi)', pl2);
   expect(!p.errs.length, 'greške', p.errs);
 }

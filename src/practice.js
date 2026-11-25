@@ -91,7 +91,8 @@ export async function saveResult(gameId, res, key = null) {
     const gap = last ? dayNum(day) - dayNum(last) : null;
     const streak = gap === 0 ? rec.streak || 1 : gap === 1 ? (rec.streak || 0) + 1 : 1;
     const tNow = Math.round(res.tempo || res.nextTempo || 0) || undefined;
-    const out = { best: Math.round(Math.max(rec.best || 0, Number(res.score) || 0)), streak, lastDay: day, lastTempo: Math.round(res.nextTempo || res.tempo || 0) || undefined, plays: (rec.plays || 0) + 1 };
+    const out = { best: Math.round(Math.max(rec.best || 0, Number(res.score) || 0)), streak, lastDay: day, lastTempo: Math.round(res.nextTempo || res.tempo || 0) || undefined, plays: (rec.plays || 0) + 1,
+      at: Date.now(), last: Math.round(Number(res.score) || 0) }; // v2.4.30: „Prošli put“ (vreme i rezultat poslednje runde)
     const t0 = rec.t0 || rec.lastTempo || tNow; if (t0) out.t0 = Math.round(t0); // v1.73: od kog tempa je krenulo (napredak tempa)
     const bm = Math.max(rec.bestMetric ?? -1, res.metric != null ? Math.round(res.metric) : -1);
     if (bm >= 0) out.bestMetric = bm; // npr. Promena akorda: čistih promena u minuti
@@ -104,6 +105,7 @@ export async function saveResult(gameId, res, key = null) {
     return out;
   };
   st.games[gameId] = upd(st.games[gameId]);
+  if (Array.isArray(res.chords) && Number(res.score) >= 80) { try { await (await import('./songPath.js')).addKnown(res.chords); } catch {} } // v2.4.30: poznati akordi
   if (Array.isArray(key)) { // [songId, deo|'chg'|'rp'|'sing'] (ranije je „Promena akorda“ slala tekst — pogrešno upisivalo)
     const [songId, part] = key;
     const song = st.songs[songId] || {};

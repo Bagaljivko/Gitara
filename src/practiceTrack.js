@@ -663,7 +663,7 @@ export function runTrack({ api, track, t, items, bpm, wait = null, mode = 'norma
  * extra: [{ id, label, primary }] (npr. „Sledeći deo“) — idu ispred ostalih.
  */
 export async function roundResults({ api, track, t, stats, key = null, extra = [], step = 5, more = [] }) {
-  const info = await api.finish({ score: stats.score, tempo: stats.tempo, accuracy: stats.accuracy, metric: stats.metric ?? null, quiet: true, noTempoUp: stats.beginner }, key);
+  const info = await api.finish({ score: stats.score, tempo: stats.tempo, accuracy: stats.accuracy, metric: stats.metric ?? null, quiet: true, noTempoUp: stats.beginner, ...(stats.chords ? { chords: stats.chords } : {}) }, key);
   if (!track) return { choice: 'back' };
   const stars = starsOf(stats.score);
   const fixed = api.speed && api.speed !== 'grad';
@@ -779,6 +779,7 @@ export function trackGame(api, cfg) {
     if (!api.running || !track) return;
     if (cfg.onRoundEnd && (await cfg.onRoundEnd(stats, round, ctl))) return;
     if (cfg.metric && !stats.beginner) { stats.metric = Math.round(cfg.metric(stats, round)); stats.metricLabel = cfg.metricLabel; }
+    if (!stats.beginner) stats.chords = [...new Set((round.items || []).filter((it) => it.kind === 'chord' && it.chord).map((it) => it.chord))]; // v2.4.30: poznati akordi
     const { choice, next } = await roundResults({ api, track, t, stats, key: round.key || null, extra: round.extra ? round.extra(stats) : [], more: round.lines ? round.lines(stats) : [] });
     if (handleChoice(api, choice, next, close)) return;
     cfg.onChoice?.(choice, round, ctl);

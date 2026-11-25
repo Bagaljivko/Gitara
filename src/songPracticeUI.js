@@ -31,6 +31,9 @@ export function songPracticeUI(o) {
     api.head.innerHTML = `<div class="spr-song card">
       <div class="spr-song-t"><b>${esc(o.head.title)}</b>${o.head.artist ? `<span>${esc(o.head.artist)}</span>` : ''}<small>${esc(o.head.meta)}</small></div>
       <a class="spr-change" href="#/vezbe/pesma">${t('pr.pesma.change')}</a></div>`;
+    // v2.4.30: put kroz pesmu (otvoren — svaki korak se dodirom otvara; aplikacija samo predlaže)
+    const ps = o.path ? o.path() : null;
+    if (ps) { api.opts.innerHTML = pathHTML(ps) + `<div class="spr-sec-h">${t('pr.pesma.practicePart')}<small>${t('pr.pesma.pickHint')}</small></div>${groupsHTML(nx, L)}`; return; }
     const plan = o.plan ? o.plan() : null;
     const on = plan ? (plan.find((x) => !x.done && !x.optional) || {}).id : null; // po želji (tutorijal) nikad nije „na redu“
     api.opts.innerHTML = plan ? `
@@ -45,6 +48,32 @@ export function songPracticeUI(o) {
       <div class="spr-sec-h">${t('pr.pesma.practicePart')}<small>${t('pr.pesma.pickHint')}</small></div>
       ${groupsHTML(nx, L)}`;
     if (o.direct && o.sheetExtra) { const ex = api.opts.parentElement.querySelector('.spr-extra'); if (ex) ex.innerHTML = o.sheetExtra(null); }
+  }
+  function whenText(ms) {
+    const d0 = new Date(); d0.setHours(0, 0, 0, 0); const d = new Date(ms); d.setHours(0, 0, 0, 0);
+    const days = Math.round((d0 - d) / 864e5);
+    return days <= 0 ? t('lp.today') : days === 1 ? t('lp.yesterday') : t('lp.daysAgo', { n: days });
+  }
+  function pathHTML(ps) {
+    const L = ps.last;
+    // „Sledeće“: predlog, a ako je to baš poslednja vežba — sledeći neurađen korak posle nje (da ne bude isto kao „Ponovi“)
+    const on = L ? ps.steps.find((x) => !x.done && !x.optional && x.id !== L.step) : ps.steps.find((x) => x.id === ps.on);
+    const lastC = L ? `<div class="lp-last"><div class="lp-k">${esc(t('lp.lastK', { when: whenText(L.at) }))}</div>
+      <h3>${esc(L.name)} — ${L.score}%</h3>${L.tempo ? `<p>${L.tempo} BPM</p>` : ''}<div class="lp-bar" aria-hidden="true"><i style="width:${Math.max(0, Math.min(100, L.score))}%"></i></div>
+      <div class="lp-two"><button type="button" class="btn${L.score < 80 || !on ? ' primary' : ''}" data-plan="again">⟲ ${esc(t('lp.again'))}</button>${on ? `<button type="button" class="btn${L.score >= 80 ? ' primary' : ''}" data-plan="${on.id}">${esc(t('lp.next', { s: on.game }))} ›</button>` : ''}</div></div>` : '';
+    let n = 0;
+    const node = (x) => {
+      const num = x.optional ? '▶' : x.star ? '★' : String(++n);
+      const isOn = x.id === ps.on;
+      return `<div class="lp-nd${x.done ? ' done' : ''}${isOn ? ' on' : ''}${x.optional ? ' opt' : ''}" data-plan="${x.id}" role="button" tabindex="0">
+        <i class="lp-dot" aria-hidden="true">${x.done ? '✓' : num}</i>
+        <div class="lp-bx"><div class="lp-g">${esc(x.game)}${isOn ? ` <span class="lp-tag">${esc(t('lp.suggest'))}</span>` : ''}</div><b>${esc(x.title)}</b><small>${esc(x.sub)}</small>
+          ${x.chips ? `<div class="lp-cs">${x.chips.map((c) => `<span class="${c.isNew ? 'new' : 'ok'}">${esc(c.c)}${c.isNew ? ' · ' + esc(t('lp.new')) : ''}</span>`).join('')}</div>` : ''}
+          ${isOn ? `<div class="lp-go">${x.arrows ? `<span class="lp-arw">${esc(x.arrows)}</span>` : '<span></span>'}<span class="btn primary small">${esc(t('lp.go'))} ›</span></div>` : x.arrows ? `<div class="lp-arw">${esc(x.arrows)}</div>` : ''}
+        </div><span class="chev" aria-hidden="true">›</span></div>`;
+    };
+    return `${lastC}<div class="tch-sec"><span>${esc(t('lp.head'))}</span><span class="lp-cnt">${esc(t('lp.count', { n: ps.done, total: ps.total }))}</span></div>
+      <div class="lp-path">${ps.steps.map(node).join('')}</div>`;
   }
   function groupsHTML(nx, L) {
     return `${o.groups.map((g) => `${g.title ? `<div class="spr-grp">${esc(g.title)}</div>` : ''}<div class="spr-rows">${g.rows.map((r) => `

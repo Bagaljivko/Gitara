@@ -3541,3 +3541,54 @@ img.tch-av.tch-ph { object-fit: cover; background: #222; padding: 0; }
 .sp-zoom { display: flex; align-items: center; gap: 10px; }
 .sp-zoom span { width: 28px; text-align: center; color: var(--muted); font: 800 1.2rem var(--sans); }
 .sp-zoom input[type=range] { flex: 1; accent-color: var(--accent); min-height: 36px; padding: 0; border: 0; background: none; }
+
+/* v2.4.30: „Nauči ovu pesmu“ — prošli put i put kroz pesmu (otvoren; predlog istaknut) */
+.lp-last { background: var(--surface); border: 1px solid rgba(245, 165, 36, .45); border-radius: 18px; padding: 14px; margin: 4px 0 6px; }
+.lp-k { color: var(--muted); font: 800 .72rem var(--sans); letter-spacing: .08em; text-transform: uppercase; }
+.lp-last h3 { margin: 6px 0 2px; font: 800 1.1rem var(--sans); }
+.lp-last p { margin: 0; color: var(--muted); font-size: .88rem; }
+.lp-bar { height: 8px; border-radius: 4px; background: var(--surface-2); overflow: hidden; margin: 10px 0 12px; }
+.lp-bar i { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
+.lp-two { display: flex; gap: 8px; }
+.lp-two .btn { flex: 1; min-width: 0; }
+.lp-cnt { color: var(--muted); text-transform: none; letter-spacing: 0; font-weight: 600; }
+.lp-path { position: relative; }
+.lp-path::before { content: ''; position: absolute; left: 21px; top: 28px; bottom: 28px; width: 3px; background: var(--line); border-radius: 2px; }
+.lp-nd { position: relative; display: flex; gap: 12px; align-items: flex-start; padding: 8px 0; cursor: pointer; border-radius: 14px; }
+.lp-nd:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.lp-dot { flex: none; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--surface); border: 2px solid var(--line); font: 800 .95rem var(--sans); font-style: normal; color: var(--text); z-index: 1; }
+.lp-nd.done .lp-dot { background: #14291e; border-color: var(--ok); color: var(--ok); }
+.lp-nd.on .lp-dot { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); box-shadow: 0 0 0 6px rgba(245, 165, 36, .18); }
+.lp-nd.opt .lp-dot { border-style: dashed; color: var(--muted); }
+.lp-bx { flex: 1; min-width: 0; padding-top: 2px; }
+.lp-nd.on .lp-bx { background: var(--surface); border: 1px solid rgba(245, 165, 36, .45); border-radius: 14px; padding: 10px 12px; margin-top: -4px; }
+.lp-g { font: 800 .68rem var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.lp-tag { display: inline-block; margin-left: 4px; padding: 1px 7px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); letter-spacing: .04em; }
+.lp-bx b { display: block; font-size: 1rem; }
+.lp-nd.on .lp-bx b { color: var(--accent); }
+.lp-bx small { display: block; color: var(--muted); font-size: .84rem; }
+.lp-cs { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.lp-cs span { font: 700 .78rem var(--sans); padding: 3px 8px; border-radius: 999px; background: var(--surface-2); }
+.lp-cs span.ok { color: var(--ok); }
+.lp-cs span.new { background: var(--accent-soft); color: var(--accent); box-shadow: inset 0 0 0 1px rgba(245, 165, 36, .5); }
+.lp-arw { font: 800 .95rem var(--mono); color: var(--accent); letter-spacing: .12em; margin-top: 4px; }
+.lp-go { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; }
+.lp-go .lp-arw { margin: 0; }
+.lp-nd .chev { color: var(--muted); font-size: 1.2rem; padding-top: 12px; }
+.lp-nd.on .chev { display: none; }
+/* v2.4.30: ulaz „Nauči ovu pesmu“ na ekranu pesme (red kao u grupama, sa trakom napretka) */
+.sp-line.lp-entry { gap: 12px; min-height: 0; padding: 12px 14px; margin: 10px 0; border-radius: 18px; background: var(--surface); border: 1px solid rgba(245, 165, 36, .45); font: inherit; color: var(--text); }
+.lp-entry .sr-ic { width: 38px; height: 38px; font-size: 1.15rem; }
+.lp-entry .lp-et { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.lp-entry b { font-size: 1rem; }
+.lp-entry small { color: var(--muted); font-size: .84rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lp-entry .lp-steps { display: flex; gap: 3px; margin-top: 6px; }
+.lp-entry .lp-steps i { flex: 1; height: 5px; border-radius: 3px; background: var(--surface-2); }
+.lp-entry .lp-steps i.d { background: var(--ok); }
+.lp-entry .lp-steps i.c { background: var(--accent); }
+.lp-entry .chev { color: var(--muted); font-size: 1.2rem; }
+/* v2.4.30: ▶ odavde uz naziv dela na ekranu pesme */
+.sec-head .od-pill { appearance: none; margin-left: auto; border: 1px solid var(--line); background: var(--surface); color: var(--accent); border-radius: 999px; font: 800 .74rem var(--sans); padding: 4px 10px; min-height: 28px; cursor: pointer; }
+.sec-head .od-pill:active { background: var(--accent-soft); }
+.stage-lyrics .od-pill, .two-pane-mode .od-pill.hide { display: none; }
+@media print { .od-pill { display: none !important; } }

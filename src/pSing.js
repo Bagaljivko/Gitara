@@ -60,6 +60,9 @@ export function createSing(api, song, o) {
   const last = seq.length - 1;
   let sel = (() => { try { const m = /^(\d+)-(\d+)$/.exec(localStorage.getItem(KEY) || ''); if (m && +m[2] <= last && +m[1] <= +m[2]) return { a: +m[1], b: +m[2] }; } catch {} return null; })();
   if (!sel) { const k0 = seq.findIndex((p) => o.startPart && p.i === o.startPart.i && hasLyr(p)); const k = k0 >= 0 ? k0 : (chips[0] ?? 0); sel = { a: k, b: k }; }
+  // v2.4.30: „▶ odavde“ sa ekrana pesme (&from=redni broj dela u pesmi) — od tog dela do kraja
+  const fromSec = api.params && api.params.get && api.params.get('from');
+  if (fromSec != null && fromSec !== '') { const k = seq.findIndex((p) => String(p.i) === String(fromSec)); if (k >= 0) sel = { a: k, b: last }; }
   let pendingRange = false; // posle dodira na jedan deo, sledeći dodir pravi raspon (prvi dodir na ekranu = jedan deo)
   const isWhole = () => sel.a === 0 && sel.b === last && last > 0;
   const nameOf = () => (isWhole() ? t('pr.pesma.whole') : sel.a === sel.b ? label[sel.a] : t('sg.range', { a: label[sel.a], b: label[sel.b] }));

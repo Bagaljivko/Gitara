@@ -1,7 +1,7 @@
 // Tab "Pesme": biblioteka, prikaz pesme, deljenje i uvoz. Editor i skeniranje su u songEditor.js (učitava se po potrebi).
 const loadEditor = () => import('./songEditor.js');
 import { sectionLabel } from './sectionLabel.js';
-import { practiceLineHTML, fillPractice } from './songPracticeCard.js';
+import { practiceLineHTML } from './songPracticeCard.js';
 import { MORE_ICON, moreMenu, attachPinch, versionTipOnce, openPanel, zoomPillHTML, bindZoomPill } from './songChrome.js';
 import { paButtonHTML, bindPlayAlong, YT_ICON } from './playAlong.js';
 import { dragList, gripHTML, zoneOf } from './dragList.js';
@@ -875,7 +875,7 @@ const lyrW = new Map();
 const lyrWKey = () => `${screen.width}x${screen.height}|${screen.orientation ? screen.orientation.type : ''}|${document.body.classList.contains('two-pane-mode') ? 2 : 1}`;
 
 /** Svi delovi pesme. uncertain = lista nesigurnih mesta (indeksi se odnose na ove sekcije). */
-export function renderSectionsHTML(sections, uncertain = [], { edit = false, songStrum = null } = {}) {
+export function renderSectionsHTML(sections, uncertain = [], { edit = false, songStrum = null, odavde = false } = {}) {
   // v1.67 (ekran pesme): ritam dela je dugme (dodir = izmena); deo bez svog ritma prikazuje ritam cele pesme (bleđe);
   // pesma bez ikakvog ritma: „+ Ritam“ uz prvi deo
   const has = (x) => x.lines.length || (x.tabs || []).length;
@@ -892,7 +892,7 @@ export function renderSectionsHTML(sections, uncertain = [], { edit = false, son
   };
   return (sections || []).map((s, si) => { const pt = pat(s, si); return `
     <div class="sec">
-      ${s.name || pt ? `<div class="sec-head">${s.name ? `<div class="sec-name">${esc(sectionLabel(s.name))}</div>` : ''}${pt}</div>` : ''}
+      ${s.name || pt ? `<div class="sec-head">${s.name ? `<div class="sec-name">${esc(sectionLabel(s.name))}</div>` : ''}${pt}${odavde && s.lines.some((l) => String(l.text || '').trim()) && s.lines.some((l) => (l.chords || []).length) ? `<button type="button" class="od-pill" data-odavde="${si}" title="${esc(t('lp.odavdeL'))}" aria-label="${esc(t('lp.odavdeL'))}">▶ ${esc(t('lp.odavde'))}</button>` : ''}</div>` : ''}
       ${(s.tabs || []).map((tab, ti) => tabBlockHTML(tab, { si, ti, playLabel: t('tab.play'), marks: uncertain.map((u, idx) => ({ ...u, idx })).filter((u) => u.kind === 'fret' && u.section === si && u.tab === ti).map((u) => ({ string: u.string, col: u.col, idx: u.idx })) })).join('')}
       ${s.lines.map((l, li) => renderLineHTML(l, uncertain.map((u, idx) => ({ ...u, idx })).filter((u) => u.section === si && u.line === li))).join('')}
     </div>`; }).join('');
@@ -1144,19 +1144,12 @@ export async function renderSong(root, id, nav = null) {
     if (txt) { b.innerHTML = txt; b.hidden = false; }
     b.addEventListener('click', () => S.openSongStats(stored.id));
   }).catch(() => {});
-  const drawPracticeMark = () => settings.get('practice', null).then((st) => {
-    const rec = st && st.songs && st.songs[stored.id];
-    const card = root.querySelector('.sp-line');
-    if (!rec || !card || !Object.keys(rec).length) return;
-    const seen = new Set();
-    const total = (stored.sections || []).filter((sec) => {
-      const ch = (sec.lines || []).flatMap((l) => (l.chords || []).map((c) => c.chord)).filter(Boolean);
-      const sig = (sec.name || '') + '|' + ch.join(',');
-      if (!ch.length || seen.has(sig)) return false;
-      seen.add(sig); return true;
-    }).length;
-    const good = Object.entries(rec).filter(([k, r]) => /^\d+$/.test(k) && r && r.best >= 80).length;
-    fillPractice(card, { good, total, played: true, done: !!(rec.all && rec.all.best >= 80) });
+  // v2.4.30: „Nauči ovu pesmu“ — korak puta i traka napretka
+  const drawPracticeMark = () => Promise.all([import('./songPath.js'), import('./songPracticeCard.js')]).then(async ([SP, C]) => {
+    const card = root.querySelector('.sp-line'); if (!card || stored.type === 'tab') return;
+    const st = (await settings.get('practice', null)) || {}; const rec = (st.songs || {})[stored.id] || {};
+    const ready = Object.keys(rec).length ? (await import('./statsView.js')).readinessOf(rec) === 'ready' : false;
+    C.fillPath(card, await SP.pathState(stored, rec), ready);
   }).catch(() => {});
   const drawAsk = () => { $('sAsk').innerHTML = askHTML(); };
   const drawControls = () => {
@@ -1398,7 +1391,7 @@ export async function renderSong(root, id, nav = null) {
     setCols(lyrW.get(lyrWKey()) || l.clientWidth);
     drawDiagCol();
     const pre = lyricsMetrics(l, lyrW.get(lyrWKey()));
-    l.innerHTML = renderSectionsHTML(shapesSong().sections, unc(), { edit: !stored.recording, songStrum: stored.strum || null });
+    l.innerHTML = renderSectionsHTML(shapesSong().sections, unc(), { edit: !stored.recording, songStrum: stored.strum || null, odavde: !stored.recording && stored.type !== 'tab' }); // v2.4.30: ▶ odavde
     addLoopButtons();
     fitAndTabs(pre);
   };
@@ -1743,6 +1736,8 @@ export async function renderSong(root, id, nav = null) {
   $('sBpmUp').addEventListener('click', (e) => { e.stopPropagation(); setBpm(5); });
   $('sLoopStop').addEventListener('click', (e) => { e.stopPropagation(); stopLoop(); });
   $('sBody').addEventListener('click', (e) => {
+    const od = e.target.closest('[data-odavde]'); // v2.4.30: ▶ odavde — Pevaj uz tekst od ovog dela do kraja
+    if (od) { e.stopPropagation(); location.hash = '#/vezbe/pesma/' + encodeURIComponent(stored.id) + '?m=sing&from=' + od.dataset.odavde; return; }
     const b = e.target.closest('[data-loop]');
     if (!b) return;
     e.stopPropagation();

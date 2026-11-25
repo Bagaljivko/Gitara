@@ -53,7 +53,10 @@ export async function createGame(api) {
       const { songs } = await import('./db.js'); const P = await import('./pSong.js');
       const song = await songs.get(sid);
       const parts = song ? P.songParts(song) : [];
-      if (parts.length) {
+      // v2.4.30: „Upoznaj akorde“ iz puta kroz pesmu (&ch=Em-B7): tačno ti akordi, rezultat [pesma, 'ak']
+      const want = (api.params.get('ch') || '').split('-').filter((c) => c && CS.known(c));
+      if (song && new Set(want).size >= 2) { seq = CS.cleanSeq(want.slice(0, CS.MAX_SEQ), 4); rhythm0 = 'one'; fromSong0 = { id: song.id, title: song.title, k: 'ak' }; }
+      else if (parts.length) {
         const d = parts.map(P.partDifficulty), p = parts[d.indexOf(Math.max(...d))];
         const ch = p.chords.map((c) => c.chord).filter((c, k, a) => (!k || c !== a[k - 1]) && CS.known(c)).slice(0, CS.MAX_SEQ);
         if (new Set(ch).size >= 2) { seq = CS.cleanSeq(ch, 2); rhythm0 = 'one'; fromSong0 = { id: song.id, title: song.title }; }
@@ -155,7 +158,7 @@ export async function createGame(api) {
       const n = level === 'beg' ? Math.max(8, seq.length * 2) : Math.max(8, seq.length, Math.floor(ROUND_MS / ((60000 / bpm) * avg)));
       const its = items(n); lastItems = its; const chordsN = its.filter((x) => x.kind === 'chord').length;
       return { items: its, lagMs: 350 + 90 + 80, fingersOf: chordFingers, hintOf: (it) => t('pr.promena.hint', { c: it.label }),
-        key: fromSong0 ? [fromSong0.id, 'chg'] : null, // v2.4.17: uz pesmu (ranije tekst „seq:…“ je pogrešno upisivao)
+        key: fromSong0 ? [fromSong0.id, fromSong0.k || 'chg'] : null, // v2.4.17: uz pesmu (ranije tekst „seq:…“ je pogrešno upisivao)
         lines: () => { const w = worst(); return w ? [{ label: t('cs.slowest'), value: `${dn(w[0])} → ${dn(w[1])}` }] : []; },
         extra: () => { const w = worst(); return w && seq.length > 2 ? [{ id: 'drill', label: t('cs.drill', { a: dn(w[0]), b: dn(w[1]) }), primary: true }] : []; } };
     },

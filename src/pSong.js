@@ -113,42 +113,30 @@ export async function createGame(api) {
   }
   window.addEventListener('gitara-mic', () => { if (listening) { listening = null; listenId = null; ui.draw(); } });
   api.onCleanup?.(() => { listening?.stop(); listening = null; });
-  // v2.4.17: „Predlog za danas“ — više vežbi iz iste pesme, redom; urađeno danas = ✓
-  const todayS = (() => { const d = new Date(); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; })();
-  const seqAll = parts.flatMap((p) => p.chords.map((c) => c.chord)).filter((c, k, a) => !k || c !== a[k - 1]);
-  let hardPair = null;
-  for (let k = 1; k < seqAll.length; k++) { const c = changeCost(seqAll[k - 1], seqAll[k]); if (!hardPair || c > hardPair.c) hardPair = { a: seqAll[k - 1], b: seqAll[k], c }; }
-  const hp = parts[hardest >= 0 ? hardest : 0];
-  const hpCh = [...new Set(hp.chords.map((c) => c.chord))].slice(0, 4).map(dn);
-  const ARW = { D: '↓', U: '↑', x: '×', B: '↓', '-': '·' };
-  const stp = song.strum && song.strum.steps ? [...song.strum.steps].map((x) => ARW[x] || '·').join(' ') : '↓ · ↓ ↑ · ↑ ↓ ↑';
-  const plan = () => {
-    const r = stats(), done = (k) => !!(r[k] && r[k].lastDay === todayS);
-    let tutDone = false; try { tutDone = localStorage.getItem('gitara-tut-' + songId) === todayS; } catch {}
-    return [
-      { id: 'chg', title: t('pl.chg'), min: 3, what: t('pl.chgWhat', { ch: hpCh.join(' ↔ ') }), sub: hardPair ? t('pl.chgSub', { a: dn(hardPair.a), b: dn(hardPair.b) }) : '', done: done('chg') },
-      { id: 'rp', title: t('pl.rp'), min: 3, what: t('pl.rpWhat', { s: stp }), sub: t('pl.rpSub', { a: Math.max(45, Math.round((songBpm * 0.6) / 5) * 5), b: songBpm }), done: done('rp') },
-      { id: 'sing', title: t('pl.sing'), min: 3, what: t('pl.singWhat'), sub: label(hp, parts.indexOf(hp)), done: done('sing') },
-      { id: 'all', title: t('pr.pesma.whole'), min: 3, what: t('pl.allWhat'), sub: '', done: done('all') },
-      // v2.4.18: na kraju, po želji — „Treba ti tutorijal?“ (otvara se YouTube; ✓ kad se otvori danas)
-      { id: 'tut', title: t('pl.tut'), what: t('pl.tutWhat'), sub: t(song.yt && song.yt.tutorial ? 'pl.tutSaved' : 'pl.tutFind'), done: tutDone, btn: t('pl.tutBtn'), optional: true },
-    ];
+  // v2.4.30: „Nauči ovu pesmu“ — put kroz pesmu (akordi, promene, ritam, deo po deo, pevanje, cela pesma; tutorijal po želji).
+  // Ništa nije zaključano: aplikacija predlaže korak, a svaki korak se otvara dodirom.
+  const SP = await import('./songPath.js');
+  let pathSt = null;
+  const refreshPath = async () => { try { pathSt = await SP.pathState(song, stats()); } catch (e) { console.warn(e); } ui?.draw(); };
+  try { pathSt = await SP.pathState(song, stats()); } catch {}
+  const enc = encodeURIComponent;
+  const openStep = (id) => {
+    if (id === 'tut') { try { localStorage.setItem('gitara-tut-' + songId, String(Date.now())); } catch {} import('./ytPick.js').then((Y) => Y.ytAction('tutorial', song, () => db.save(song))).catch(() => {}); refreshPath(); return; }
+    if (id === 'ak') location.hash = '#/vezbe/promena?song=' + enc(songId) + '&ch=' + enc(((pathSt && pathSt.analysis.akSeq) || []).join('-'));
+    else if (id === 'chg') location.hash = '#/vezbe/promena?song=' + enc(songId);
+    else if (id === 'rp') location.hash = '#/vezbe/rp?song=' + enc(songId);
+    else if (id === 'sing') location.hash = '#/vezbe/pesma/' + enc(songId) + '?m=sing';
+    else if (id === 'deo') { const nx = parts.find((p) => ((stats()[String(p.i)] || {}).best || 0) < SP.DONE_AT) || parts[0]; listening?.stop(); listening = null; listenId = null; choose(nx); api.restart(); }
+    else if (id === 'all') { listening?.stop(); listening = null; listenId = null; choose(whole); api.restart(); }
   };
-  const ui = songPracticeUI({
+  let ui = null;
+  ui = songPracticeUI({
     api,
-    plan,
+    path: () => pathSt,
     direct: true,
     onPlan: (id) => {
-      if (id === 'tut') {
-        try { localStorage.setItem('gitara-tut-' + songId, todayS); } catch {}
-        import('./ytPick.js').then((Y) => Y.ytAction('tutorial', song, () => db.save(song))).catch(() => {});
-        setTimeout(() => ui.draw(), 300);
-        return;
-      }
-      if (id === 'chg') location.hash = '#/vezbe/promena?song=' + encodeURIComponent(songId);
-      else if (id === 'rp') location.hash = '#/vezbe/rp?song=' + encodeURIComponent(songId);
-      else if (id === 'sing') location.hash = '#/vezbe/pesma/' + encodeURIComponent(songId) + '?m=sing';
-      else { listening?.stop(); listening = null; listenId = null; choose(whole); api.restart(); }
+      if (id === 'again') { const L = pathSt && pathSt.last; if (!L) return; if (L.part) { listening?.stop(); listening = null; listenId = null; choose(L.part); api.restart(); } else openStep(L.step); return; }
+      openStep(id);
     },
     head: { title: song.title, artist: song.artist, meta: [t('pr.pesma.songTempo', { bpm: songBpm }), song.capo ? t('capo.title') + ' ' + song.capo : ''].filter(Boolean).join(' · ') },
     groups: [{ rows: parts.map((p, k) => ({ id: p.i, label: label(p, k), sub: [...new Set(p.chords.map((c) => dn(c.chord)))].join(' · '), hard: k === hardest })) }],
@@ -240,7 +228,7 @@ export async function createGame(api) {
       captions: { 0: t('pr.pesma.demo2'), 1: t('pr.pesma.demo3'), 3: t('pr.pesma.demo4'), 5: t('pr.pesma.demo5') },
     },
   });
-  return Object.assign(await g, { firstChord: () => (part.chords[0] ? part.chords[0].chord : '') }); // v2.4.26: „Spremi se“
+  return Object.assign(await g, { firstChord: () => (part.chords[0] ? part.chords[0].chord : ''), onResult: () => { refreshPath(); } }); // v2.4.26: „Spremi se“ · v2.4.30: put se osveži posle runde
 }
 
 // Bez izabrane pesme: lista pesama iz biblioteke (brzi indeks, bez učitavanja celih pesama)
