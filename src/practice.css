@@ -592,7 +592,8 @@ body.trk-open { overflow: hidden; }
 .cs-fromsong { display: block; margin: 0 0 10px; padding: 9px 12px; border-radius: 12px; background: var(--accent-soft); color: var(--accent); text-decoration: none; font-size: .85rem; font-weight: 600; }
 /* v2.4.17: „Pevaj uz tekst“ */
 .sg-lead { color: var(--muted); font-size: .88rem; line-height: 1.45; margin: 0 0 10px; }
-.sg-prev { margin-top: 12px; padding: 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); font-size: 1rem; line-height: 2.3; }
+.sg-prev { margin-top: 12px; padding: 4px 12px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); font-size: 1rem; line-height: 1.5; }
+.sg-prev p { padding-top: 1.35em; }
 .sg-prev p, .sg-lyr p { margin: 0; }
 .sg-wrap { position: fixed; inset: 0; z-index: 900; background: #000; color: var(--text); display: flex; justify-content: center; }
 body.sg-open { overflow: hidden; }
@@ -611,9 +612,9 @@ body.sg-open { overflow: hidden; }
 .sg-nx { display: flex; flex-direction: column; font-weight: 700; font-size: 1.3rem; color: var(--muted); }
 .sg-nx small { font-size: .75rem; font-weight: 500; }
 .sg-lyr { font-size: clamp(1.15rem, 5.2vw, 1.7rem); line-height: 2.5; text-align: center; }
-.sg-lyr p.dim { opacity: .4; }
+.sg-lyr .dim { opacity: .4; }
 .sw { position: relative; }
-.sw::before { content: attr(data-c); position: absolute; top: -1.15em; left: 0; font-size: .62em; font-weight: 800; color: #111; background: var(--accent); border-radius: 6px; padding: 0 5px; line-height: 1.45; white-space: nowrap; }
+.sw::before { content: attr(data-c); position: absolute; top: -1.35em; left: 0; font-size: .62em; font-weight: 800; color: #111; background: var(--accent); border-radius: 6px; padding: 0 5px; line-height: 1.45; white-space: nowrap; }
 .sg-lyr .sw.now { border-bottom: 3px solid var(--accent); font-weight: 700; }
 .sg-lyr .sw.nx::before { background: #3b2a0a; color: var(--accent); outline: 2px dashed var(--accent); }
 .sg-lyr .sw.ok { color: var(--ok); } .sg-lyr .sw.ok::before { background: var(--ok); }
@@ -622,3 +623,28 @@ body.sg-open { overflow: hidden; }
 /* v2.4.18: „Treba ti tutorijal?“ — po želji, na kraju plana */
 .pl-step.opt { border-style: dashed; }
 .pl-step.opt:not(.done) .pl-n { background: none; border: 1px solid var(--line); }
+
+/* v2.4.26: „Spremi se“ — odbrojavanje pre početka */
+.gr-dim { position: fixed; inset: 0; z-index: 960; display: grid; place-items: center; background: rgba(0, 0, 0, .92); animation: chipPopIn .15s ease-out; cursor: pointer; padding: 16px; }
+.gr { position: relative; display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; max-width: 340px; }
+.gr-k { color: var(--muted); font: 800 .85rem var(--sans); letter-spacing: .12em; text-transform: uppercase; }
+.gr-n { display: grid; place-items: center; width: 150px; height: 150px; font: 800 5rem var(--sans); color: var(--accent); }
+.gr-ring { position: absolute; top: 34px; width: 150px; height: 150px; transform: rotate(-90deg); pointer-events: none; }
+.gr-ring circle { fill: none; stroke: var(--surface-2, #22252b); stroke-width: 6; }
+.gr-ring .gr-p { stroke: var(--accent); stroke-linecap: round; stroke-dasharray: 339.3; stroke-dashoffset: 0; animation: grRing linear forwards; }
+@keyframes grRing { to { stroke-dashoffset: 339.3; } }
+.gr-first { margin: 0; color: var(--text); font-size: 1.05rem; }
+.gr-first b { color: var(--accent); font-size: 1.3rem; margin-left: 4px; }
+.gr-go { min-width: 180px; }
+@media (prefers-reduced-motion: reduce) { .gr-ring .gr-p { animation: none; } }
+
+/* v2.4.26: Pevaj uz tekst — više delova zaredom, nazivi delova, instrumental */
+.sg-chips .chip.in { background: rgba(245, 165, 36, .12); }
+.sg-sel { margin: 10px 0 0; text-align: center; color: var(--muted); font-size: .9rem; }
+.sg-sel b { color: var(--text); }
+.sg-rhint { margin: 4px 0 0; text-align: center; color: var(--muted); font-size: .8rem; }
+.sg-head { margin-top: 8px; color: var(--muted); font: 800 .7rem var(--sans); letter-spacing: .1em; text-transform: uppercase; line-height: 1.2; }
+.sg-lyr .sg-head { font-size: .5em; text-align: center; margin-top: 0; }
+p.ins .sw { display: inline-block; min-width: 2.8em; color: var(--muted); }
+.sg-lead { margin-top: 4px; }
+.sg-lyr .sg-head + p { padding-top: .75em; }

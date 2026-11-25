@@ -28,11 +28,12 @@ export async function run(ctx) {
   expect(/Volio/.test(rp.card) && rp.steps > 0 && !rp.dlg, 'Ritam pesme: vežba te pesme odmah otvorena', rp);
   // 3) Pevaj uz tekst: delovi, tekst sa akordima iznad reči; ekran igre
   await p.go('#/vezbe/pesma/' + encodeURIComponent(id) + '?m=sing', 1800);
-  const sg = await p.evaluate(() => ({ chips: document.querySelectorAll('[data-sp]').length, sw: document.querySelectorAll('.sg-prev .sw').length, first: document.querySelector('.sg-prev .sw')?.dataset.c, go: !document.getElementById('prGo').hidden }));
+  const sg = await p.evaluate(() => ({ chips: document.querySelectorAll('[data-sk]').length, sw: document.querySelectorAll('.sg-prev .sw').length, first: document.querySelector('.sg-prev .sw')?.dataset.c, go: !document.getElementById('prGo').hidden }));
   expect(sg.chips >= 2 && sg.sw >= 3 && sg.first === 'G' && sg.go, 'Pevaj uz tekst: delovi i akordi iznad reči', sg);
   if (SHOT) await p.screenshot({ path: SHOT + 'B-sing-opts.png' });
   await p.evaluate(() => { window.__marliTest = { ...(window.__marliTest || {}) }; });
-  await p.click('#prGo'); await p.waitForTimeout(6000);
+  await p.click('#prGo'); await p.waitForTimeout(400);
+  expect(await p.$('.gr-dim'), 'Pevaj uz tekst: nema „Spremi se“'); await p.click('.gr-go'); await p.waitForTimeout(6000);
   const run1 = await p.evaluate(() => ({ open: !!document.querySelector('.sg-wrap'), arrows: document.querySelectorAll('.sg-arrows i').length, on: document.querySelectorAll('.sg-arrows i.on').length, ch: document.querySelector('.sg-ch')?.textContent, now: document.querySelectorAll('.sg-lyr .sw.now').length, nx: document.querySelector('.sg-nx small')?.textContent }));
   if (SHOT) await p.screenshot({ path: SHOT + 'B-sing-run.png' });
   expect(run1.open && run1.arrows === 8 && run1.ch && run1.now === 1 && /sledeći|isti|poslednji/.test(run1.nx), 'Pevaj uz tekst: ekran (strelice, akord, reč, sledeći)', run1);

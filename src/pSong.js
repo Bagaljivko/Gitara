@@ -20,7 +20,7 @@ const MAX_PASSES = 6;
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /** Delovi pesme onako kako se sviraju (transpozicija i kapodaster uračunati): [{ i, name, chords:[{chord, lyric}] }] */
-export function songParts(song) {
+export function songParts(song, { dedupe = true } = {}) {
   const shapes = transposeSong(song, (song.transpose || 0) - (song.capo || 0));
   const seen = new Set();
   return (shapes.sections || []).map((sec, i) => ({
@@ -36,6 +36,7 @@ export function songParts(song) {
     }).filter((c) => c.chord),
   })).filter((p) => {
     if (!p.chords.length) return false;
+    if (!dedupe) return true; // v2.4.26: „Pevaj uz tekst“ — svi delovi redom (i ponovljeni refren)
     const sig = p.name + '|' + p.chords.map((c) => c.chord).join(',');
     if (seen.has(sig)) return false; // isti refren ponovljen više puta = jedan deo
     seen.add(sig);
@@ -186,7 +187,7 @@ export async function createGame(api) {
     };
   };
 
-  return trackGame(api, {
+  const g = trackGame(api, {
     levels: [{ id: 'beg', label: t('pr.lvl.beg') }, { id: 'normal', label: t('pr.lvl.normal') }],
     bpm: { start: startTempo(part), min: 40, max: Math.round(songBpm * 1.35), step: 5, normal: songBpm, gradMax: songBpm },
     noStart: true, // počinje se iz „Sviraj celu pesmu“ ili iz panela dela
@@ -239,6 +240,7 @@ export async function createGame(api) {
       captions: { 0: t('pr.pesma.demo2'), 1: t('pr.pesma.demo3'), 3: t('pr.pesma.demo4'), 5: t('pr.pesma.demo5') },
     },
   });
+  return Object.assign(await g, { firstChord: () => (part.chords[0] ? dn(part.chords[0].chord) : '') }); // v2.4.26: „Spremi se“
 }
 
 // Bez izabrane pesme: lista pesama iz biblioteke (brzi indeks, bez učitavanja celih pesama)

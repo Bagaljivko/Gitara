@@ -602,6 +602,7 @@ async function renderGame(root, game, args, params) {
     box.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
 
+  let readyH = null;
   async function startRun(custom = null) {
     if (running) return;
     $('prRes').hidden = true;
@@ -610,6 +611,14 @@ async function renderGame(root, game, args, params) {
     $('prGo').textContent = t('pr.stop');
     $('prGo').classList.remove('primary');
     keepAwake('practice'); // ekran ostaje upaljen samo dok igra traje
+    // v2.4.26: vežbe iz pesme — „Spremi se“ 5 s pre početka (da stigneš da uzmeš gitaru); „Pevaj uz tekst“ ima svoje
+    const songCtx = (game.id === 'pesma' && args[0]) || (params.get && params.get('song'));
+    if (!custom && songCtx && params.get('m') !== 'sing') {
+      const { getReady } = await import('./getReady.js');
+      readyH = getReady({ secs: 5, first: gameObj.firstChord ? gameObj.firstChord() : '' });
+      const go = await readyH.done; readyH = null;
+      if (!go || !running) { if (running) stopRun(false); return; }
+    }
     try { await (typeof custom === 'function' ? custom() : gameObj.start(bpm)); }
     catch (e) { api.feedback('miss', e && e.message ? e.message : t('mic.failed')); stopRun(); }
   }
@@ -620,6 +629,7 @@ async function renderGame(root, game, args, params) {
     root.querySelector('.pr-game')?.classList.remove('running');
     $('prGo').textContent = t('pr.start');
     $('prGo').classList.add('primary');
+    readyH?.cancel(); readyH = null;
     if (callGame && was) { try { gameObj.stop(); } catch {} }
     listener?.stop();
     lastHeard = null;

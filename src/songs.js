@@ -2058,13 +2058,14 @@ export async function renderSong(root, id, nav = null) {
   function closeChipPop() { if (!chipPop) return; const k = chipPop.k; clearTimeout(chipPop.t); chipPop.el.remove(); document.removeEventListener('pointerdown', chipPop.out, true); removeEventListener('scroll', chipPop.out, true); $('sChips')?.querySelectorAll('.sc-active').forEach((c) => c.classList.remove('sc-active')); chipPop = null; if (k === 'size') drawChips(); } // „Aa“ bez % kad se traka skloni
   function openChipPop(k, chip) {
     const same = chipPop && chipPop.k === k; closeChipPop(); if (same) return;
-    const el = document.createElement('div'); el.className = 'chip-pop'; el.setAttribute('role', 'group');
+    const el = document.createElement('div'); el.className = 'chip-pop' + (k === 'rhythm' ? ' cp-rh' : ''); el.setAttribute('role', 'group');
     const val = () => (k === 'size' ? Math.round(zoom * 100) + '%' : k === 'capo' ? (capo ? String(capo) : esc(t('capo.none'))) : `${Number(stored.bpm) || Number($('sTempo')?.textContent) || '…'} <small>BPM</small>`);
     const lab = t(k === 'size' ? 'ss.size' : k === 'capo' ? 'ss.capo' : 'ss.tempo');
     const rhPat = () => stored.strum || sugStrum();
     el.innerHTML = k === 'rhythm'
       // v2.4.8: Ritam — ▶ poslušaj · ime ritma · Promeni… (ceo izbor ritma)
-      ? `<button type="button" class="cp-play" data-rp aria-label="${esc(t('pat.play'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></button><b class="cp-name">${!stored.strum ? `<small>${esc(t('ss.suggested'))}</small> ` : ''}${esc(patternName(rhPat()))}</b>${!stored.strum ? `<button type="button" class="cp-tap" data-rapply>${esc(t('sug.apply'))}</button>` : ''}<button type="button" class="cp-more" data-rchange>${esc(t('cp.change'))}</button>`
+      // v2.4.26: dva reda (staje na svaki telefon): ▶ · ceo naziv + strelice udaraca / Primeni · Promeni…
+      ? `<div class="cp-r1"><button type="button" class="cp-play" data-rp aria-label="${esc(t('pat.play'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></button><div class="cp-tx"><small>${esc(t(!stored.strum ? 'sug.strumTitle' : 'ss.rhythm'))}</small><b class="cp-name">${esc(patternName(rhPat()))}</b><div class="cp-ar" aria-hidden="true">${[...(rhPat()?.steps || '')].map((c) => `<i class="${c === '-' ? 'rest' : ''}">${({ D: '↓', U: '↑', x: '×', B: '↓', '-': '·' })[c] || '·'}</i>`).join('')}</div></div></div><div class="cp-r2">${!stored.strum ? `<button type="button" class="cp-tap" data-rapply>${esc(t('sug.apply'))}</button>` : ''}<button type="button" class="cp-more" data-rchange>${esc(t('cp.change'))}</button></div>`
       : `<button type="button" data-cp="-1" aria-label="${esc(lab)} −">−</button><b aria-live="polite">${val()}</b><button type="button" data-cp="1" aria-label="${esc(lab)} +">+</button>`
       + (k === 'tempo' ? `<button type="button" class="cp-tap" data-tap title="${esc(t('ss.tapHint'))}" aria-label="${esc(t('ss.tapHint'))}">${esc(t('ss.tap'))}</button>` : ''); // v2.4: tap tempo · v2.4.8: metronom
     document.body.appendChild(el);

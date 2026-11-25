@@ -7,24 +7,30 @@ import { Metronome } from './rhythm.js';
 import { dn } from './naming.js';
 import { checkChord } from './pChords.js';
 import { keepAwake, allowSleep } from './wakelock.js';
+import { songParts } from './pSong.js';
+import { sectionLabel } from './sectionLabel.js';
+import { getReady } from './getReady.js';
 
 const ARROW = { D: '↓', U: '↑', x: '×', B: '↓', '-': '·' };
 
-/** Redovi teksta iz delova pesme: [{ segs: [{ text, ci|null }] }], ci = indeks akorda u nizu. */
+/** Redovi teksta iz delova pesme: [{ segs: [{ text, ci|null }], head?, ins? }], ci = indeks akorda u nizu.
+ *  v2.4.26: akord može da nosi sec (redni broj dela) i head (naziv dela) — novi deo = novi red sa nazivom;
+ *  deo bez teksta (instrumental) = red „♪“ sa akordima (najviše 4 u redu). */
 export function singLines(chords) {
   const lines = [];
   let cur = null;
   chords.forEach((c, ci) => {
     const L = c.lyric && typeof c.lyric === 'object' ? c.lyric : { pre: '', cur: '', post: '' };
     const full = L.pre + L.cur + L.post;
-    // novi red: prvi akord, drugi tekst, ili akord „vraća“ na početak istog teksta (ponovljen red)
-    if (!cur || cur.full !== full || L.pre.length < cur.end) {
-      cur = { full, end: 0, segs: [] };
+    const newSec = !cur || cur.sec !== c.sec;
+    // novi red: prvi akord, novi deo, drugi tekst, ili akord „vraća“ na početak istog teksta (ponovljen red)
+    if (newSec || cur.full !== full || L.pre.length < cur.end || (!full && cur.segs.length >= 4)) {
+      cur = { full, end: 0, segs: [], sec: c.sec, ...(newSec && c.head ? { head: c.head } : {}), ...(!full ? { ins: true } : {}) };
       lines.push(cur);
       if (L.pre) cur.segs.push({ text: L.pre, ci: null });
       cur.end = L.pre.length;
     }
-    cur.segs.push({ text: L.cur || (full ? '' : ' '), ci });
+    cur.segs.push({ text: L.cur || (full ? '' : '♪'), ci });
     cur.end = L.pre.length + L.cur.length;
   });
   for (const l of lines) { const tail = l.full.slice(l.end); if (tail) l.segs.push({ text: tail, ci: null }); }
@@ -40,26 +46,56 @@ export function createSing(api, song, o) {
   const steps0 = song.strum && song.strum.steps && (!song.strum.sig || song.strum.sig === '4/4') ? song.strum.steps : 'D-DUD-DU';
   const steps = [...Array(8)].map((_, i) => steps0[Math.floor((i * steps0.length) / 8)] || '-');
   const slotsPerChord = per * 2; // 4/4: 2 osmine po dobu
-  const whole = { i: 'all', name: '', chords: o.parts.flatMap((p) => p.chords) };
-  const all = [...o.parts, whole];
-  const nameOf = (p) => (p.i === 'all' ? t('pr.pesma.whole') : o.label(p, o.parts.indexOf(p)));
-  const KEY = 'gitara-sing-part-' + o.songId;
-  let part = all.find((p) => String(p.i) === (() => { try { return localStorage.getItem(KEY); } catch { return null; } })()) || o.startPart || o.parts[0];
+  // v2.4.26: svi delovi redom (i ponovljeni refren, i instrumental); dugmad samo za delove sa tekstom.
+  // Dodir na deo = taj deo; dodir na drugi = sve od prvog do njega (i delovi između); „Cela pesma“ = sve redom.
+  const seq = songParts(song, { dedupe: false });
+  const hasLyr = (p) => p.chords.some((c) => c.lyric && typeof c.lyric === 'object' && (c.lyric.pre + c.lyric.cur + c.lyric.post).trim());
+  const nm = (p) => (p.name ? sectionLabel(p.name) : t('pr.pesma.part', { n: p.i + 1 }));
+  const seen = {};
+  const names = seq.map((p) => { const n = nm(p); seen[n] = (seen[n] || 0) + 1; return n; });
+  const cnt = {};
+  const label = seq.map((p, k) => { const n = names[k]; if (seen[n] < 2 || /\d$/.test(n)) return n; cnt[n] = (cnt[n] || 0) + 1; return n + ' ' + cnt[n]; });
+  const chips = seq.map((p, k) => k).filter((k) => hasLyr(seq[k]));
+  const KEY = 'gitara-sing-sel-' + o.songId;
+  const last = seq.length - 1;
+  let sel = (() => { try { const m = /^(\d+)-(\d+)$/.exec(localStorage.getItem(KEY) || ''); if (m && +m[2] <= last && +m[1] <= +m[2]) return { a: +m[1], b: +m[2] }; } catch {} return null; })();
+  if (!sel) { const k0 = seq.findIndex((p) => o.startPart && p.i === o.startPart.i && hasLyr(p)); const k = k0 >= 0 ? k0 : (chips[0] ?? 0); sel = { a: k, b: k }; }
+  let pendingRange = false; // posle dodira na jedan deo, sledeći dodir pravi raspon (prvi dodir na ekranu = jedan deo)
+  const isWhole = () => sel.a === 0 && sel.b === last && last > 0;
+  const nameOf = () => (isWhole() ? t('pr.pesma.whole') : sel.a === sel.b ? label[sel.a] : t('sg.range', { a: label[sel.a], b: label[sel.b] }));
   let chords = [], lines = [], lineOf = [];
-  const setPart = (p) => { part = p; chords = p.chords; lines = singLines(chords); lineOf = chords.map((_, ci) => lines.findIndex((l) => l.segs.some((x) => x.ci === ci))); try { localStorage.setItem(KEY, String(p.i)); } catch {} };
-  setPart(part);
-  let met = null, res = [], cur = -1, screen = null;
-  const drawOpts = () => {
-    api.head.innerHTML = `<div class="spr-song card"><div class="spr-song-t"><b>${esc(song.title)}</b>${song.artist ? `<span>${esc(song.artist)}</span>` : ''}<small>${esc(t('sg.title'))}</small></div>
-      <a class="spr-change" href="#/vezbe/pesma/${encodeURIComponent(o.songId)}">${t('sg.back')}</a></div>`;
-    api.opts.innerHTML = `<p class="sg-lead">${esc(t('sg.lead'))}</p><div class="pr-optlabel">${t('sg.part')}</div>
-      <div class="pr-chips">${all.map((p) => `<button class="chip${p === part ? ' active' : ''}" data-sp="${esc(String(p.i))}">${esc(nameOf(p))}</button>`).join('')}</div>
-      <div class="sg-prev">${lines.slice(0, 2).map((l) => `<p>${l.segs.map((x) => (x.ci == null ? `<span>${esc(x.text)}</span>` : `<span class="sw" data-c="${esc(dn(chords[x.ci].chord))}">${esc(x.text || ' ')}</span>`)).join('')}</p>`).join('')}</div>`;
+  const setSel = (a, b) => {
+    sel = { a: Math.min(a, b), b: Math.max(a, b) };
+    chords = seq.slice(sel.a, sel.b + 1).flatMap((p, k) => p.chords.map((c, j) => ({ ...c, sec: sel.a + k, ...(j === 0 && sel.b > sel.a ? { head: label[sel.a + k] } : {}) })));
+    lines = singLines(chords); lineOf = chords.map((_, ci) => lines.findIndex((l) => l.segs.some((x) => x.ci === ci)));
+    try { localStorage.setItem(KEY, sel.a + '-' + sel.b); } catch {}
   };
-  api.opts.addEventListener('click', (e) => { const b = e.target.closest('[data-sp]'); if (!b || api.running) return; const p = all.find((x) => String(x.i) === b.dataset.sp); if (p) { setPart(p); drawOpts(); } });
+  setSel(sel.a, sel.b);
+  const lineHTML = (l, segHTML) => `${l.head ? `<div class="sg-head">${esc(l.head)}</div>` : ''}<p class="${l.ins ? 'ins' : ''}">${l.segs.map(segHTML).join('')}</p>`;
+  const drawOpts = () => {
+    const n = sel.b - sel.a + 1;
+    const min = Math.max(1, Math.round((chords.length * per) / (api.bpm || o.songBpm) + 0.2));
+    const inSel = (k) => k >= sel.a && k <= sel.b;
+    api.head.innerHTML = `<div class="spr-song card"><div class="spr-song-t"><b>${esc(song.title)}</b>${song.artist ? `<span>${esc(song.artist)}</span>` : ''}<small>${esc(t('sg.title'))}</small></div>
+      <a class="spr-change" href="#/vezbe/pesma/${encodeURIComponent(o.songId)}">${t('sg.back')}</a></div>
+      <div class="pr-optlabel">${t('sg.part')}</div>
+      <div class="pr-chips sg-chips">${chips.map((k) => `<button class="chip${inSel(k) && !isWhole() ? ' active' : ''}${inSel(k) && sel.a !== sel.b && !isWhole() ? ' in' : ''}" data-sk="${k}">${esc(label[k])}</button>`).join('')}<button class="chip${isWhole() ? ' active' : ''}" data-sk="all">${esc(t('pr.pesma.whole'))}</button></div>
+      <p class="sg-sel"><b>${esc(nameOf())}</b> · ${esc(t(n > 1 ? (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 'sg.lenFew' : 'sg.len') : 'sg.len1', { n, m: min }))}</p>
+      ${pendingRange && !isWhole() && chips.length > 1 ? `<p class="sg-rhint">${esc(t('sg.rangeHint'))}</p>` : ''}
+      <div class="sg-prev">${lines.slice(0, 2).map((l) => lineHTML(l, (x) => (x.ci == null ? `<span>${esc(x.text)}</span>` : `<span class="sw" data-c="${esc(dn(chords[x.ci].chord))}">${esc(x.text || ' ')}</span>`))).join('')}</div>`;
+    api.opts.innerHTML = `<p class="sg-lead">${esc(t('sg.lead2'))}</p>`;
+  };
+  api.head.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-sk]'); if (!b || api.running) return;
+    if (b.dataset.sk === 'all') { setSel(0, last); pendingRange = false; }
+    else { const k = +b.dataset.sk; if (pendingRange && k !== sel.a) { setSel(sel.a, k); pendingRange = false; } else { setSel(k, k); pendingRange = true; } }
+    drawOpts();
+  });
   api.stage.hidden = true;
   drawOpts();
-  const opts = { songId: o.songId, get label() { return nameOf(part); } };
+  const opts = { songId: o.songId, get label() { return nameOf(); } };
+
+  let met = null, res = [], cur = -1, screen = null, ready = null;
 
   function html() {
     return `<div class="sg" role="dialog" aria-label="${esc(t('sg.title'))}">
@@ -74,11 +110,11 @@ export function createSing(api, song, o) {
   function drawLyrics() {
     const box = screen.querySelector('.sg-lyr');
     const li = Math.max(0, lineOf[Math.max(0, cur)]);
-    box.innerHTML = [li, li + 1].filter((k) => lines[k]).map((k, n) => `<p class="${n ? 'dim' : ''}">${lines[k].segs.map((s) => {
+    box.innerHTML = [li, li + 1].filter((k) => lines[k]).map((k, n) => `<div class="${n ? 'dim' : ''}">${lineHTML(lines[k], (s) => {
       if (s.ci == null) return `<span>${esc(s.text)}</span>`;
       const st = s.ci < cur ? (res[s.ci] === true ? ' ok' : res[s.ci] === false ? ' bad' : '') : s.ci === cur ? ' now' : s.ci === cur + 1 ? ' nx' : '';
       return `<span class="sw${st}" data-c="${esc(dn(chords[s.ci].chord))}">${esc(s.text || ' ')}</span>`;
-    }).join('')}</p>`).join('');
+    })}</div>`).join('');
   }
   function drawNow(slotInChord) {
     const c = chords[cur], n = chords[cur + 1];
@@ -94,6 +130,7 @@ export function createSing(api, song, o) {
     api.finish({ score, tempo: api.bpm, accuracy: n ? ok / n : 0 }, [opts.songId, 'sing']).catch(() => {});
   }
   function close() {
+    ready?.cancel(); ready = null;
     met?.stop(); met = null;
     screen?.remove(); screen = null;
     document.body.classList.remove('sg-open');
@@ -111,7 +148,12 @@ export function createSing(api, song, o) {
       screen.querySelector('.sg-x').addEventListener('click', () => { close(); api.stopNow(); });
       keepAwake('sing');
       drawLyrics();
+      // v2.4.26: „Spremi se“ — 5 s da uzmeš gitaru (prvi akord se vidi); dodir = kreni odmah
+      ready = getReady({ secs: 5, first: chords[0] ? dn(chords[0].chord) : '' });
+      const go = await ready.done; ready = null;
+      if (!go || !screen) { if (screen) { close(); api.stopNow(); } return; }
       try { await api.listen({ chords: true }); } catch {}
+      if (!screen) return;
       met = new Metronome(); met.bpm = bpm; met.sig = '4/4'; met.countIn = 1;
       const total = chords.length * slotsPerChord;
       met.onStep = (i, beat, acc, info) => {

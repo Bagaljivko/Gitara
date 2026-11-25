@@ -3484,3 +3484,16 @@ img.tch-av.tch-ph { object-fit: cover; background: #222; padding: 0; }
 .sch-3 input, .sch-3 select { min-width: 0; width: 100%; }
 .sch-sw { margin-top: 12px; }
 .les-acts2 { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 4px; }
+
+/* v2.4.26: Ritam — mala kartica u dva reda (staje na svaki telefon) */
+.chip-pop.cp-rh { flex-direction: column; align-items: stretch; gap: 10px; padding: 10px; border-radius: 18px; width: min(360px, calc(100vw - 16px)); }
+.cp-rh .cp-r1 { display: flex; align-items: center; gap: 10px; }
+.cp-rh .cp-play { width: 44px; height: 44px; flex: none; }
+.cp-rh .cp-tx { min-width: 0; flex: 1; }
+.cp-rh .cp-tx small { display: block; color: var(--muted); font: 700 .72rem var(--sans); text-transform: uppercase; letter-spacing: .06em; }
+.cp-rh .cp-name { display: block; min-width: 0; max-width: none; text-align: left; color: var(--text); font: 800 1rem var(--sans); white-space: normal; overflow: visible; }
+.cp-rh .cp-ar { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 6px; }
+.cp-rh .cp-ar i { font-style: normal; width: 22px; height: 26px; border-radius: 6px; display: grid; place-items: center; background: var(--surface-2); color: var(--accent); font: 800 1rem var(--sans); }
+.cp-rh .cp-ar i.rest { color: var(--muted); background: transparent; }
+.cp-rh .cp-r2 { display: flex; gap: 8px; }
+.cp-rh .cp-r2 button { flex: 1; height: 44px; width: auto; border-radius: 999px; font: 800 .95rem var(--sans); }
