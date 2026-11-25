@@ -128,6 +128,11 @@ function movable(shape, rootPc, stringRootPc) {
   return fromShape(shape, r);
 }
 
+// v2.4.33: lakši (mali) oblici barré akorda — korenski ton i kvalitet → [pragovi, prsti] (E A D G H e)
+const EASY_SHAPES = {
+  '5|': ['xx3211', '003211'], '5|m': ['xx3111', '003111'], '11|m': ['xx4432', '003421'], '10|': ['xx3331', '002341'],
+  '6|m': ['xx4222', '003111'], '0|m': ['xx5543', '003421'], '7|m': ['xx5333', '003111'], '1|m': ['xx6654', '003421'],
+};
 const cache = new Map();
 
 /**
@@ -164,9 +169,16 @@ export function getVoicings(chordName) {
   const seen = new Set();
   list = list.filter((v) => { const k = v.frets.join(','); if (seen.has(k)) return false; seen.add(k); return true; });
   list = list.map((v) => ({ ...v, baseFret: baseFret(v), approx }));
+  // v2.4.33: lakši hvat za barré akorde (mali oblik na 4 žice) — uvek dostupan kao poslednji hvat
+  const ez = EASY_SHAPES[p.root + '|' + p.quality];
+  if (ez && list.some((v) => v.barre)) { const v = fromString(ez[0], ez[1]); list.push({ ...v, baseFret: baseFret(v), approx, easy: true }); }
   cache.set(key, list);
   return list;
 }
+/** v2.4.33: indeks lakšeg hvata (ili -1). */
+export function easyIndex(name) { return getVoicings(name).findIndex((v) => v.easy); }
+/** v2.4.33: da li je podrazumevani hvat barré. */
+export function isBarre(name) { const v = getVoicings(name)[0]; return !!(v && v.barre); }
 
 function minFret(v) {
   const f = v.frets.filter((x) => x > 0);

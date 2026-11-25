@@ -85,7 +85,7 @@ export function shapeNavHTML(name, voicing) {
   const arrow = (d, label, path) => `<button class="icon-btn shape-arrow" data-shape="${d}" aria-label="${esc(label)}" title="${esc(label)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="${path}"/></svg></button>`;
   return `<div class="shape-nav">
     ${arrow(-1, t('chord.prevShape'), 'M15.4 7.4 14 6l-6 6 6 6 1.4-1.4L10.8 12z')}
-    <div class="shape-lbl"><b>${esc(t('chord.shapeOf', { i: i + 1, n }))}</b>${base > 1 ? `<span>${esc(t('chord.fretPos', { n: base }))}</span>` : ''}</div>
+    <div class="shape-lbl"><b>${esc(getVoicings(name)[i]?.easy ? t('chord.easyShape') : t('chord.shapeOf', { i: i + 1, n }))}</b>${base > 1 ? `<span>${esc(t('chord.fretPos', { n: base }))}</span>` : ''}</div>
     ${arrow(1, t('chord.nextShape'), 'M8.6 16.6 10 18l6-6-6-6-1.4 1.4 4.6 4.6z')}
   </div>`;
 }

@@ -656,3 +656,11 @@ body.sg-open { overflow: hidden; }
 p.ins .sw { display: inline-block; min-width: 2.8em; color: var(--muted); }
 .sg-lead { margin-top: 4px; }
 .sg-lyr .sg-head + p { padding-top: .75em; }
+
+/* v2.4.33: Barré — izbor koraka (redovi kao u aplikaciji) */
+.br-st { margin-bottom: 8px; }
+.br-st .tch-row.on { background: var(--accent-soft); }
+.br-st .tch-row .sr-ic { font: 800 .85rem var(--sans); color: var(--accent); }
+.br-rd { flex: none; width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--line); display: grid; place-items: center; }
+.br-st .on .br-rd { border-color: var(--accent); }
+.br-st .on .br-rd::after { content: ''; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }

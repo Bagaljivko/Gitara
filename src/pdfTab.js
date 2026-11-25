@@ -396,3 +396,23 @@ export function pdfChordText(pages, isChordLine) {
   if (chordRows < 2 || lyricRows < 1) return null;
   return { title, artist, text: lines.join('\n').replace(/^\n+/, '').trim() };
 }
+
+/** v2.4.33: PDF „lista akorada“ (delovi sa kućicama akorada, ×N, redosled, kapodaster, saveti) → { title, artist, capo, text } ili null. */
+export async function pdfChordChart(pages, isChordLine) {
+  const raw = pdfToPlainText(pages);
+  if (!raw) return null;
+  const { chordChartFromLines } = await import('./chordChart.js');
+  const lines = raw.split('\n');
+  const r = chordChartFromLines(lines, (tok) => isChordLine(tok));
+  if (!r) return null;
+  const top = pages[0].items.reduce((b, it) => (!b || it.size > b.size + 0.5 ? it : b), null);
+  const title = top ? pages[0].items.filter((it) => Math.abs(it.y - top.y) < 2 && Math.abs(it.size - top.size) < 1).sort((a, b) => a.x - b.x).map((it) => it.str.trim()).join(' ').replace(/\s+/g, ' ').trim() : '';
+  // izvođač: prva kolona prvog sledećeg reda ispod naslova (bez „Capo …“, „Standard tuning“, „Song 6 of 10“)
+  let artist = '';
+  const ti = lines.findIndex((l) => title && l.replace(/\s+/g, ' ').trim() === title);
+  for (let j = ti + 1; ti >= 0 && j < Math.min(lines.length, ti + 4) && !artist; j++) {
+    const c = lines[j].trim().split(/\s{3,}/)[0] || '';
+    if (c && !/capo|kapo|tuning|štim|song \d|pesma \d|level/i.test(c) && c.length <= 60) artist = c;
+  }
+  return { title, artist, capo: r.capo, text: r.text };
+}

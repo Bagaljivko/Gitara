@@ -1,6 +1,6 @@
 // Rad bez interneta: cela aplikacija se čuva u kešu i služi iz njega (uvek ista, usklađena verzija).
 // Nova verzija = novi broj u CACHE (scripts/update-sw.mjs). Aplikacija tada prikaže „Osveži“.
-const CACHE = "gitara-v212";
+const CACHE = "gitara-v213";
 const SHELL = [
   "./",
   "index.html",
@@ -10,6 +10,7 @@ const SHELL = [
   "src/attendance.js",
   "src/audio.js",
   "src/backups.js",
+  "src/chordChart.js",
   "src/chordCheck.js",
   "src/chordDict.js",
   "src/chordSeq.js",
@@ -66,6 +67,7 @@ const SHELL = [
   "src/navAcct.js",
   "src/notify.js",
   "src/overview.js",
+  "src/pBarre.js",
   "src/pChords.js",
   "src/pEar.js",
   "src/pHunter.js",

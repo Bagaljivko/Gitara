@@ -54,6 +54,10 @@ export const GAMES = [
   { id: 'sluh', color: '#4fd1c5', load: () => import('./pEar.js'),
     icon: '<path d="M8 15c-1.6-1.4-2.5-3.4-2.5-5.5A6.5 6.5 0 0 1 18.5 9.5c0 2.4-1.3 3.7-2.5 4.7-1.1.9-1.6 1.8-1.8 3.2A2.9 2.9 0 0 1 11.3 20"/><path d="M9.5 9.5a2.5 2.5 0 0 1 5 0c0 1.2-.8 1.9-1.6 2.4"/>',
     prev: '<g transform="translate(2 14) scale(2.1)"><path class="pv-ear" d="M8 15c-1.6-1.4-2.5-3.4-2.5-5.5A6.5 6.5 0 0 1 18.5 9.5c0 2.4-1.3 3.7-2.5 4.7-1.1.9-1.6 1.8-1.8 3.2A2.9 2.9 0 0 1 11.3 20"/></g><path class="pv-wave pv-w1" d="M60 30q6 10 0 20"/><path class="pv-wave pv-w2" d="M66 24q10 16 0 32"/><path class="pv-wave pv-w3" d="M72 18q14 22 0 44"/>' },
+  // v2.4.33: Barré — kažiprst preko svih žica, žica po žica (svaka mora da zazvoni)
+  { id: 'bare', color: '#e86f6f', load: () => import('./pBarre.js'),
+    icon: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 4v16"/><rect x="6.2" y="5.5" width="2.6" height="13" rx="1.3" class="f"/><circle cx="12" cy="10" r="1.6" class="f"/><circle cx="18" cy="14" r="1.6" class="f"/>',
+    prev: `${LINES}<rect x="22" y="10" width="9" height="60" rx="4.5" class="pv-block"/><circle cx="48" cy="34" r="5" class="pv-f2"/><circle cx="62" cy="46" r="5" class="pv-f3"/><circle cx="62" cy="58" r="5" class="pv-f4"/>${HIT}` },
   { id: 'pesma', color: '#f5a524', load: () => import('./pSong.js'),
     // list sa tekstom i notom
     icon: '<rect x="3.5" y="3" width="12.5" height="18" rx="2"/><path d="M6.5 8h6.5M6.5 11.5h6.5M6.5 15h3.5"/><path d="M20.5 8.5v9"/><circle cx="18.6" cy="17.6" r="2" class="f"/>',

@@ -8,6 +8,7 @@ import { dragList, gripHTML, zoneOf } from './dragList.js';
 import { songs as db } from './db.js';
 import { esc, toast, dialog, confirmDialog, pickFile, pickFiles, closeXHTML } from './ui.js';
 import { chordSVG, voicingCount, shapeNavHTML, onShapeSwipe } from './diagram.js';
+import { isBarre, easyIndex } from './chords.js';
 import { getVoicings } from './chords.js';
 import { stopGroup } from './synth.js';
 import { parseChord, canonicalName } from './music.js';
@@ -1243,7 +1244,12 @@ export async function renderSong(root, id, nav = null) {
         key: `<div class="ss-r"><span class="ss-l">${t('ss.key')}${tp ? ` <button class="ss-reset" data-ss="t0">↺ ${esc(t('ss.original'))}</button>` : ''}</span>
           <span class="ss-st"><button class="ss-b" data-ss="t-" aria-label="${esc(t('song.transposeDown'))}">−</button><button class="ss-v" data-ss="wheel" aria-label="${esc(t('kw.open', { k: dn(key) || '?' }))}">${esc(dn(key) || '–')}</button><button class="ss-b" data-ss="t+" aria-label="${esc(t('song.transposeUp'))}">+</button></span></div>`,
         capo: `<div class="ss-r"><span class="ss-l">${t('ss.capo')}${capo && shapesKey ? `<small>${esc(t('capo.shapesShort', { k: dn(shapesKey) }))}</small>` : ''}</span>${step('ssCapo', capo || esc(t('capo.none')), 'c-', 'c+', t('ss.capo'))}</div>`,
-        easy: `${!stored.recording ? `<div class="ss-r"><span class="ss-l">${t('sug.easyBtn')}<small>${esc(easyActive() ? t('ss.easyOn', { n: capo }) : t('song.easySub'))}</small></span><button class="ss-tog${easyActive() ? ' on' : ''}" data-ss="easy" role="switch" aria-checked="${easyActive()}" aria-label="${esc(t('sug.easyBtn'))}"><i></i></button></div>` : ''}`,
+        easy: `${!stored.recording ? `<div class="ss-r"><span class="ss-l">${t('sug.easyBtn')}<small>${esc(easyActive() ? t('ss.easyOn', { n: capo }) : t('song.easySub'))}</small></span><button class="ss-tog${easyActive() ? ' on' : ''}" data-ss="easy" role="switch" aria-checked="${easyActive()}" aria-label="${esc(t('sug.easyBtn'))}"><i></i></button></div>` : ''}${(() => { // v2.4.33: lakši hvatovi za barré akorde (mali oblik) — uvek dostupni
+          const bc = stored.recording || stored.type === 'tab' ? [] : songChords(shapesSong()).filter((c) => isBarre(c) && easyIndex(c) >= 0);
+          if (!bc.length) return '';
+          const on = bc.every((c) => (stored.shapes || {})[c] === easyIndex(c));
+          return `<div class="ss-r"><span class="ss-l">${t('ss.easyShapes')}<small>${esc(t('ss.easyShapesSub', { c: bc.map((c) => dn(c)).join(', ') }))}</small></span><button class="ss-tog${on ? ' on' : ''}" data-ss="eshapes" role="switch" aria-checked="${on}" aria-label="${esc(t('ss.easyShapes'))}"><i></i></button></div>`;
+        })()}`,
         tempo: `<div class="ss-r"><span class="ss-l">${t('ss.tempo')}</span>${step('ssBpm', (Number(stored.bpm) || Number($('sTempo')?.textContent) || '…') + ' <small>BPM</small>', 'b-', 'b+', t('ss.tempo'))}</div>`,
         rhythm: `<div class="ss-r"><span class="ss-l">${t('ss.rhythm')}${!stored.strum && ss ? `<small class="ss-sugname">${esc(t('ss.suggested'))}: <b>${esc(patternName(ss))}</b></small>` : ''}</span>
           ${stored.strum ? go(esc(patternName(stored.strum)), 'rh-edit')
@@ -1324,6 +1330,12 @@ export async function renderSong(root, id, nav = null) {
       else if (a === 'c-') await setCapo(capo - 1);
       else if (a === 'c+') await setCapo(capo + 1);
       else if (a === 'easy') { await toggleEasy(); syncEasyTop(); }
+      else if (a === 'eshapes') { // v2.4.33: lakši hvatovi za sve barré akorde pesme (i nazad)
+        const bc = songChords(shapesSong()).filter((c) => isBarre(c) && easyIndex(c) >= 0);
+        const sh = { ...(stored.shapes || {}) }; const on = bc.every((c) => sh[c] === easyIndex(c));
+        for (const c of bc) { if (on) delete sh[c]; else sh[c] = easyIndex(c); }
+        stored.shapes = sh; await save(); draw();
+      }
       else if (a === 'metro') await toggleMetro(); // v2.4.4
       else if (a === 'b-') await setBpm(-5);
       else if (a === 'b+') await setBpm(5);

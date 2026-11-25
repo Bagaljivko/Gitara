@@ -123,6 +123,7 @@ export async function createGame(api) {
   const openStep = (id) => {
     if (id === 'tut') { try { localStorage.setItem('gitara-tut-' + songId, String(Date.now())); } catch {} import('./ytPick.js').then((Y) => Y.ytAction('tutorial', song, () => db.save(song))).catch(() => {}); refreshPath(); return; }
     if (id === 'ak') location.hash = '#/vezbe/promena?song=' + enc(songId) + '&ch=' + enc(((pathSt && pathSt.analysis.akSeq) || []).join('-'));
+    else if (id === 'bare') location.hash = '#/vezbe/bare?song=' + enc(songId); // v2.4.33
     else if (id === 'chg') location.hash = '#/vezbe/promena?song=' + enc(songId);
     else if (id === 'rp') location.hash = '#/vezbe/rp?song=' + enc(songId);
     else if (id === 'sing') location.hash = '#/vezbe/pesma/' + enc(songId) + '?m=sing';
@@ -164,7 +165,7 @@ export async function createGame(api) {
   const build = () => {
     const chords = part.chords;
     return {
-      items: chords.map((c, k) => chordItem(c.chord, k * per, per, { lyric: c.lyric })),
+      items: chords.map((c, k) => chordItem(c.chord, k * per, per, { lyric: c.lyric, voicing: (song.shapes || {})[c.chord] || 0 })), // v2.4.33: izabran (i lakši) hvat
       key: [songId, String(part.i)],
       lagMs: 350 + 90 + 80,
       fingersOf: chordFingers,

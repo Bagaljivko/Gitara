@@ -2,7 +2,7 @@
 import { songs as db, newSongId, versions } from './db.js';
 import { findExisting } from './songIdentity.js';
 import { esc, toast, dialog, confirmDialog, pickFiles, closeXHTML } from './ui.js';
-import { textToSections, sectionsToText, songExtras, cleanUncertain, isChordLine, normalizeSong } from './songformat.js';
+import { textToSections, sectionsToText, songExtras, cleanUncertain, isChordLine, normalizeSong, transposeSong } from './songformat.js';
 import { scanSong, scanTab, prepareImage, getApiKey, GeminiError, cleanComposer, diagnose, explain } from './gemini.js';
 import { fixCaps } from './textCase.js';
 import './tabText.js'; // tekstovi za izbor vrste (Akordi / TAB) — mali modul, ostatak TAB koda se učitava tek kad zatreba
@@ -66,9 +66,11 @@ export async function importPdf(file) {
         }
       }
     }
-    const ch = m.pdfChordText(read.pages, isChordLine);
+    const chart = await m.pdfChordChart(read.pages, isChordLine); // v2.4.33: lista akorada bez teksta (delovi, ×N, redosled, kapo)
+    const ch = chart ? { title: chart.title, artist: chart.artist, text: chart.text, capo: chart.capo } : m.pdfChordText(read.pages, isChordLine);
     if (ch) {
-      const song = normalizeSong({ title: fixCaps(ch.title), artist: fixCaps(ch.artist), key: '', sections: textToSections(ch.text) });
+      let song = normalizeSong({ title: fixCaps(ch.title), artist: fixCaps(ch.artist), key: '', sections: textToSections(ch.text), ...(ch.capo ? { capo: ch.capo } : {}) });
+      if (ch.capo) song = { ...song, sections: transposeSong(song, ch.capo).sections }; // hvatovi uz kapodaster → zvučni akordi
       song.importedFrom = 'pdf';
       song.__original = snapshotOriginal(song);
       song.__newId = newSongId();

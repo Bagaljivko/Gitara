@@ -45,7 +45,9 @@ export async function analyze(song) {
     }
     return out.slice(0, 6);
   })();
-  return { parts, seq, chords, known, fresh, hard, akSeq };
+  const C = await import('./chords.js');
+  const barre = chords.filter((c) => C.isBarre(c)); // v2.4.33: barré akordi pesme (lakši hvat + igra Barré)
+  return { parts, seq, chords, known, fresh, hard, akSeq, barre };
 }
 
 const ARW = { D: '↓', U: '↑', x: '×', B: '↓', '-': '·' };
@@ -63,6 +65,7 @@ export async function pathState(song, rec = null, a = null) {
   const steps = [
     { id: 'ak', game: t('lp.g.ak'), title: t('lp.ak'), sub: a.fresh.length ? t('lp.akSub', { n: a.fresh.map((c) => dn(c)).join(', ') }) : t('lp.akKnown'),
       chips: a.chords.slice(0, 8).map((c) => chip(c, !a.known.has(c))), done: best('ak') >= DONE_AT || (!a.fresh.length && a.chords.length > 0) },
+    ...(a.barre && a.barre.length ? [{ id: 'bare', game: t('lp.g.bare'), title: t('lp.bare', { c: a.barre.map((c) => dn(c)).join(', ') }), sub: t('lp.bareSub'), done: best('bare') >= DONE_AT }] : []),
     { id: 'chg', game: t('lp.g.chg'), title: t('lp.chg'), sub: a.hard.length ? a.hard.map((h) => `${dn(h.a)} → ${dn(h.b)}`).join(' · ') : t('lp.chgNone'), done: best('chg') >= DONE_AT, score: best('chg') },
     { id: 'rp', game: t('lp.g.rp'), title: t('lp.rp'), sub: t('lp.rpSub', { a: Math.max(45, Math.round((bpm * 0.6) / 5) * 5), b: bpm }), arrows: strumArrows(song), done: best('rp') >= DONE_AT, score: best('rp') },
     { id: 'deo', game: t('lp.g.deo'), title: t('lp.deo'), sub: t('lp.deoSub', { n: partsDone, total: partIds.length }), done: partIds.length > 0 && partsDone >= partIds.length },

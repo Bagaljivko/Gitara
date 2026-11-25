@@ -55,11 +55,11 @@ export async function createGame(api) {
       const parts = song ? P.songParts(song) : [];
       // v2.4.30: „Upoznaj akorde“ iz puta kroz pesmu (&ch=Em-B7): tačno ti akordi, rezultat [pesma, 'ak']
       const want = (api.params.get('ch') || '').split('-').filter((c) => c && CS.known(c));
-      if (song && new Set(want).size >= 2) { seq = CS.cleanSeq(want.slice(0, CS.MAX_SEQ), 4); rhythm0 = 'one'; fromSong0 = { id: song.id, title: song.title, k: 'ak' }; }
+      if (song && new Set(want).size >= 2) { seq = CS.cleanSeq(want.slice(0, CS.MAX_SEQ), 4); rhythm0 = 'one'; fromSong0 = { id: song.id, title: song.title, k: 'ak', shapes: song.shapes || {} }; }
       else if (parts.length) {
         const d = parts.map(P.partDifficulty), p = parts[d.indexOf(Math.max(...d))];
         const ch = p.chords.map((c) => c.chord).filter((c, k, a) => (!k || c !== a[k - 1]) && CS.known(c)).slice(0, CS.MAX_SEQ);
-        if (new Set(ch).size >= 2) { seq = CS.cleanSeq(ch, 2); rhythm0 = 'one'; fromSong0 = { id: song.id, title: song.title }; }
+        if (new Set(ch).size >= 2) { seq = CS.cleanSeq(ch, 2); rhythm0 = 'one'; fromSong0 = { id: song.id, title: song.title, shapes: song.shapes || {} }; }
       }
     } catch {}
   }
@@ -147,7 +147,7 @@ export async function createGame(api) {
   };
   const beatsOf = () => seq.reduce((a, x) => a + x.b, 0);
   // niz se ponavlja dok runda traje; svaki akord traje svoje dobe
-  const items = (n) => { const out = []; let beat = 0; for (let i = 0; i < n; i++) { const x = seq[i % seq.length]; out.push(chordItem(x.c, beat, x.b)); const r = perChord ? x.r || rhythm : rhythm; if (r !== 'one') out.push(...strumsFor(r, beat, x.b)); beat += x.b; } return out; };
+  const items = (n) => { const out = []; let beat = 0; for (let i = 0; i < n; i++) { const x = seq[i % seq.length]; out.push(chordItem(x.c, beat, x.b, fromSong0 && fromSong0.shapes[x.c] ? { voicing: fromSong0.shapes[x.c] } : {})); const r = perChord ? x.r || rhythm : rhythm; if (r !== 'one') out.push(...strumsFor(r, beat, x.b)); beat += x.b; } return out; };
   const otherOf = (c, i) => { const q = seq.map((x) => x.c); const k = q.indexOf(c); return q[(k - 1 + q.length) % q.length] !== c ? q[(k - 1 + q.length) % q.length] : q.find((x) => x !== c); };
   return trackGame(api, {
     levels: [{ id: 'beg', label: t('pr.lvl.beg') }, { id: 'normal', label: t('pr.lvl.normal') }],

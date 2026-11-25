@@ -9,7 +9,7 @@ const SYNC = { label: sr('Poveži Google nalog', 'Connect Google account'), prim
 const setLevel = (lv) => () => {
   try {
     localStorage.setItem('marli-level', lv);
-    if (lv === 'beg') for (const g of ['pauk', 'skale', 'lovac', 'ritam', 'promena', 'sluh', 'pesma']) localStorage.setItem('gitara-pr-level-' + g, 'beg'); // „Čekaj me — početnik sam“
+    if (lv === 'beg') for (const g of ['pauk', 'skale', 'lovac', 'ritam', 'promena', 'sluh', 'pesma', 'bare']) localStorage.setItem('gitara-pr-level-' + g, 'beg'); // „Čekaj me — početnik sam“
   } catch {}
 };
 const TEACH_CHOICES = [
