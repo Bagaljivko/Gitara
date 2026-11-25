@@ -5,6 +5,9 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '2.4.19', date: '2026-11-25', items: [
+    { i: '?', sr: ['Tutorijal na kraju, po želji', 'U „Vežbaj pesmu“ tutorijal više nije prvi korak — na kraju plana je „Treba ti tutorijal?“ (otvara se YouTube). I dalje je i u čipu videa i u ⋯ → Video i tutorijal.'], en: ['Tutorial at the end, if you need it', 'In Practise a song the tutorial is no longer the first step — at the end of the plan there is “Need a tutorial?” (opens YouTube). It is still in the video chip and in ⋯ → Video and tutorial.'] },
+  ] },
   { v: '2.4.18', date: '2026-11-25', items: [
     { i: '⋯', sr: ['Pregledniji meniji pesme', '⋯ je za ono što radiš sa pesmom: Uredi, Video i tutorijal, Dijagrami akorda, Podeli (link ili PDF), Nastavnik. ⚙ je samo kako pesma zvuči i izgleda (ton, kapodaster, tempo, metronom, ritam, lakša verzija, veličina teksta). Ništa se više ne ponavlja.'], en: ['Clearer song menus', '⋯ is for what you do with the song: Edit, Video and tutorial, Chord diagrams, Share (link or PDF), Teacher. ⚙ is only how the song sounds and looks (key, capo, tempo, metronome, rhythm, easier version, text size). Nothing appears twice anymore.'] },
     { i: '🎓', sr: ['Tutorijal na dohvat ruke', 'Čip videa nudi „Snimak — sviraj uz njega“ ili „Tutorijal — nauči pesmu“ (otvara se YouTube). U „Vežbaj pesmu“ tutorijal je prvi korak.'], en: ['The tutorial within reach', 'The video chip offers “Video — play along” or “Tutorial — learn the song” (opens YouTube). In Practise a song the tutorial is the first step.'] },

@@ -1,8 +1,8 @@
 // v2.4.18: ⋯ i ⚙ bez ponavljanja. ⋯ = šta radiš sa pesmom (Uredi, Video i tutorijal, Dijagrami akorda, Podeli, Nastavnik);
 // ⚙ = kako zvuči/izgleda (bez „Uz video“, „Akordi u pesmi“, „Vežbaj ovu pesmu“). Čip videa: snimak (u aplikaciji)
-// ili tutorijal (otvara YouTube). „Vežbaj pesmu“: korak 0 „Pogledaj tutorijal“ otvara YouTube i dobija ✓.
+// ili tutorijal (otvara YouTube). „Vežbaj pesmu“: na kraju „Treba ti tutorijal?“ otvara YouTube i dobija ✓.
 import { open, boot, addSong, expect } from '../lib.mjs';
-export const name = 'meniji pesme bez ponavljanja (⋯, ⚙), čip videa (snimak / tutorijal), tutorijal kao korak 0';
+export const name = 'meniji pesme bez ponavljanja (⋯, ⚙), čip videa (snimak / tutorijal), tutorijal po želji na kraju plana';
 const SHOT = process.env.MARLI_SHOTS ? '/tmp/claude-0/-home-user/5acc3b3c-c7ec-5fc4-b0ba-484df35f0a2c/scratchpad/mk3/' : '';
 export async function run(ctx) {
   const p = await open(ctx, 'phone', { init: () => { window.open = (u) => { (window.__opened = window.__opened || []).push(String(u)); return null; }; } });
@@ -35,11 +35,11 @@ export async function run(ctx) {
   if (SHOT) await p.screenshot({ path: SHOT + 'chip.png' });
   await p.click('.more-item[data-v="tutorial"]'); await p.waitForTimeout(500);
   expect(await p.evaluate(() => (window.__opened || []).some((u) => /bbbbbbbbbbb/.test(u))), 'tutorijal se ne otvara na YouTube-u');
-  // korak 0 u „Vežbaj pesmu“
+  // „Treba ti tutorijal?“ na kraju „Vežbaj pesmu“
   await p.go('#/vezbe/pesma/' + id, 1500);
   await p.click('[data-plan="tut"]'); await p.waitForTimeout(800);
   const st = await p.evaluate(() => ({ n: (window.__opened || []).length, done: document.querySelector('[data-plan="tut"]').classList.contains('done') }));
   expect(st.n >= 2 && st.done, 'korak 0: tutorijal otvoren i ✓', st);
-  if (SHOT) await p.screenshot({ path: SHOT + 'plan.png' });
+  if (SHOT) { await p.evaluate(() => document.querySelector('[data-plan="tut"]').scrollIntoView({ block: 'center' })); await p.screenshot({ path: SHOT + 'plan.png' }); }
   expect(!p.errs.length, 'greške', p.errs);
 }

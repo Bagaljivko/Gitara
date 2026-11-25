@@ -10,8 +10,8 @@ export async function run(ctx) {
   const id = await addSong(p, { title: 'Volio bih da si tu', artist: 'Crvena jabuka', chords: ['G', 'D', 'Em', 'C'], bpm: 90 });
   await p.go('#/vezbe/pesma/' + id, 1800);
   const plan = await p.evaluate(() => [...document.querySelectorAll('.pl-step')].map((x) => ({ id: x.dataset.plan, on: x.classList.contains('on'), txt: x.innerText.replace(/\s+/g, ' ') })));
-  expect(plan.map((x) => x.id).join() === 'tut,chg,rp,sing,all' && plan[0].on, 'predlog za danas: tutorijal + 4 koraka, prvi je na redu', plan);
-  expect(/YouTube/.test(plan[0].txt) && /↔/.test(plan[1].txt) && /↓/.test(plan[2].txt) && /BPM/.test(plan[2].txt), 'koraci treba da kažu tačno šta se radi', plan);
+  expect(plan.map((x) => x.id).join() === 'chg,rp,sing,all,tut' && plan[0].on && !plan[4].on, 'predlog za danas: 4 koraka (prvi na redu) + tutorijal po želji na kraju', plan);
+  expect(/↔/.test(plan[0].txt) && /↓/.test(plan[1].txt) && /BPM/.test(plan[1].txt) && /YouTube/.test(plan[4].txt), 'koraci treba da kažu tačno šta se radi', plan);
   if (SHOT) await p.screenshot({ path: SHOT + 'B-plan.png' });
   // deo počinje odmah (bez iskačućeg panela)
   expect(await p.evaluate(() => !document.querySelector('.spr-sheet')), 'panel je već otvoren');
@@ -45,6 +45,6 @@ export async function run(ctx) {
   // nazad na plan: Promene urađene danas ✓, Ritam je na redu
   await p.go('#/vezbe/pesma/' + id, 1500);
   const pl2 = await p.evaluate(() => [...document.querySelectorAll('.pl-step')].map((x) => (x.classList.contains('done') ? 'd' : x.classList.contains('on') ? 'o' : '-')).join(''));
-  expect(pl2.startsWith('od'), 'urađen korak treba ✓ (tutorijal je i dalje na redu)', pl2);
+  expect(pl2.startsWith('do'), 'urađen korak treba ✓, sledeći na redu', pl2);
   expect(!p.errs.length, 'greške', p.errs);
 }

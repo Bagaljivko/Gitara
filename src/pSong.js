@@ -125,12 +125,12 @@ export async function createGame(api) {
     const r = stats(), done = (k) => !!(r[k] && r[k].lastDay === todayS);
     let tutDone = false; try { tutDone = localStorage.getItem('gitara-tut-' + songId) === todayS; } catch {}
     return [
-      // v2.4.18: korak 0 — tutorijal (otvara se YouTube; ✓ kad se otvori danas)
-      { id: 'tut', title: t('pl.tut'), min: 5, what: t('pl.tutWhat'), sub: t(song.yt && song.yt.tutorial ? 'pl.tutSaved' : 'pl.tutFind'), done: tutDone, btn: t('pl.tutBtn') },
       { id: 'chg', title: t('pl.chg'), min: 3, what: t('pl.chgWhat', { ch: hpCh.join(' ↔ ') }), sub: hardPair ? t('pl.chgSub', { a: dn(hardPair.a), b: dn(hardPair.b) }) : '', done: done('chg') },
       { id: 'rp', title: t('pl.rp'), min: 3, what: t('pl.rpWhat', { s: stp }), sub: t('pl.rpSub', { a: Math.max(45, Math.round((songBpm * 0.6) / 5) * 5), b: songBpm }), done: done('rp') },
       { id: 'sing', title: t('pl.sing'), min: 3, what: t('pl.singWhat'), sub: label(hp, parts.indexOf(hp)), done: done('sing') },
       { id: 'all', title: t('pr.pesma.whole'), min: 3, what: t('pl.allWhat'), sub: '', done: done('all') },
+      // v2.4.18: na kraju, po želji — „Treba ti tutorijal?“ (otvara se YouTube; ✓ kad se otvori danas)
+      { id: 'tut', title: t('pl.tut'), what: t('pl.tutWhat'), sub: t(song.yt && song.yt.tutorial ? 'pl.tutSaved' : 'pl.tutFind'), done: tutDone, btn: t('pl.tutBtn'), optional: true },
     ];
   };
   const ui = songPracticeUI({

@@ -619,3 +619,6 @@ body.sg-open { overflow: hidden; }
 .sg-lyr .sw.ok { color: var(--ok); } .sg-lyr .sw.ok::before { background: var(--ok); }
 .sg-lyr .sw.bad { color: var(--danger); } .sg-lyr .sw.bad::before { background: var(--danger); }
 .sg-hint { margin-top: auto; padding: 12px 14px; border-radius: 12px; background: #111316; color: var(--muted); font-size: .85rem; text-align: center; }
+/* v2.4.18: „Treba ti tutorijal?“ — po želji, na kraju plana */
+.pl-step.opt { border-style: dashed; }
+.pl-step.opt:not(.done) .pl-n { background: none; border: 1px solid var(--line); }

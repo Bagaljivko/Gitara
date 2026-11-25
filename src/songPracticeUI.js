@@ -32,11 +32,11 @@ export function songPracticeUI(o) {
       <div class="spr-song-t"><b>${esc(o.head.title)}</b>${o.head.artist ? `<span>${esc(o.head.artist)}</span>` : ''}<small>${esc(o.head.meta)}</small></div>
       <a class="spr-change" href="#/vezbe/pesma">${t('pr.pesma.change')}</a></div>`;
     const plan = o.plan ? o.plan() : null;
-    const on = plan ? (plan.find((x) => !x.done) || {}).id : null;
+    const on = plan ? (plan.find((x) => !x.done && !x.optional) || {}).id : null; // po želji (tutorijal) nikad nije „na redu“
     api.opts.innerHTML = plan ? `
       <div class="spr-sec-h">${t('pl.head', { n: plan.reduce((a, x) => a + (x.min || 0), 0) })}<small>${t('pl.headSub')}</small></div>
-      <div class="pl-steps">${plan.map((x, i) => `<div class="pl-step${x.done ? ' done' : ''}${x.id === on ? ' on' : ''}" data-plan="${x.id}" role="button" tabindex="0">
-        <span class="pl-n">${x.done ? '✓' : plan[0].id === 'tut' ? i : i + 1}</span>
+      <div class="pl-steps">${plan.map((x, i) => `<div class="pl-step${x.optional ? ' opt' : ''}${x.done ? ' done' : ''}${x.id === on ? ' on' : ''}" data-plan="${x.id}" role="button" tabindex="0">
+        <span class="pl-n">${x.done ? '✓' : x.optional ? '?' : i + 1}</span>
         <span class="pl-b"><b>${esc(x.title)}${x.min ? `<i class="pl-min">${t('pl.min', { n: x.min })}</i>` : ''}</b><small class="pl-what">${esc(x.what)}</small>${x.sub ? `<small>${esc(x.sub)}</small>` : ''}</span>
         <span class="pl-btn${x.id === on ? ' pri' : ''}">${x.done ? t('pl.again') : x.btn || t('pr.start')}</span></div>`).join('')}</div>
       <div class="spr-sec-h">${t('pr.pesma.practicePart')}<small>${t('pr.pesma.pickHint')}</small></div>
