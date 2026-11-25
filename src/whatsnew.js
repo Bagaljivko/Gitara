@@ -5,6 +5,9 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '2.4.30', date: '2026-11-25', items: [
+    { i: '🛠', sr: ['„Uporedi“ radi', 'Popravka: kod pesme sa predloženim ritmom („Ritam?“) dugme „Uporedi“ je otvaralo crn ekran. Sada se poređenje dve verzije otvara normalno, a ako nešto ipak ne uspe — prozor se zatvori i javi grešku umesto crnog ekrana.'], en: ['“Compare” works', 'Fix: for a song with a suggested rhythm (“Rhythm?”), the “Compare” button opened a black screen. Comparing two versions now opens normally, and if something still fails the window closes and reports an error instead of a black screen.'] },
+  ] },
   { v: '2.4.29', date: '2026-11-25', items: [
     { i: '🖼', sr: ['Slika učenika — izrez se sada vidi', 'Popravka: prozor za izrez slike se otvarao ISPOD profila učenika, pa se nije video i slika nije mogla da se sačuva. Sada je uvek na vrhu (isto važi za svaki prozor otvoren iz drugog prozora). Izrez je i lepši: veći krug, uputstvo i uvećanje − / +.'], en: ['Student photo — the crop window is visible now', 'Fix: the photo crop window opened BEHIND the student profile, so it couldn’t be seen and the photo couldn’t be saved. It is now always on top (the same for every window opened from another window). The crop is nicer too: a bigger circle, a hint and − / + zoom.'] },
     { i: '✨', sr: ['Isti izgled kao ostatak aplikacije', '„Dve verzije“: verzije i razlike kao redovi u grupama, dugmad kao svuda. „Spremi se“: kartica sa hvatom prvog akorda, trakom i izborom 3 / 5 / 10 s (pamti se). „Pevaj uz tekst“: pregled kao na ekranu pesme (akordi iznad teksta).'], en: ['Same look as the rest of the app', '“Two versions”: versions and differences as grouped rows, buttons like everywhere else. “Get ready”: a card with the first chord’s shape, a bar and a 3 / 5 / 10 s choice (remembered). “Sing along”: preview like the song screen (chords above the lyrics).'] },

@@ -192,7 +192,7 @@ export async function openMerge(aId, bId, { onDone } = {}) {
   const myT = await settings.get('myTeacher', null).catch(() => null);
   const ha = await historyOf(a), hb = await historyOf(b);
   const folders = (await settings.get('folders', [])) || [];
-  const { patternName, patternById } = await import('./rhythm.js');
+  const { patternName } = await import('./rhythm.js'); const { patternById } = await import('./suggest.js'); // v2.4.30: patternById je u suggest.js (ranije pogrešno → crn ekran)
   let sel = a.id, open = -1;
   const same = (x, y) => (x.fromT ? 1 : 0) === (y.fromT ? 1 : 0);
   const label = (s) => (same(a, b) ? (s === a ? t('mg.v1') : t('mg.v2')) : who(s, myT));
@@ -242,8 +242,8 @@ export async function openMerge(aId, bId, { onDone } = {}) {
   const onKey = (e) => { if (e.key === 'Escape') close(); };
   wrap.addEventListener('click', async (e) => {
     if (e.target.closest('[data-x]')) return close();
-    const v = e.target.closest('[data-v]'); if (v) { sel = v.dataset.v; draw(); return; }
-    const r = e.target.closest('[data-r]'); if (r) { const i = +r.dataset.r; open = open === i ? -1 : i; draw(); return; }
+    const v = e.target.closest('[data-v]'); if (v) { sel = v.dataset.v; safeDraw(); return; }
+    const r = e.target.closest('[data-r]'); if (r) { const i = +r.dataset.r; open = open === i ? -1 : i; safeDraw(); return; }
     const d = e.target.closest('[data-do]')?.dataset.do; if (!d) return;
     const other = sel === a.id ? b.id : a.id;
     let res = null;
@@ -257,6 +257,8 @@ export async function openMerge(aId, bId, { onDone } = {}) {
   });
   addEventListener('hashchange', close); addEventListener('keydown', onKey);
   document.body.appendChild(wrap); document.body.classList.add('mg-open');
-  draw();
+  // v2.4.30: ako crtanje ne uspe — zatvori (bez crnog ekrana), poruka i zapis za dijagnostiku
+  const safeDraw = () => { try { draw(); return true; } catch (e) { close(); toast(t('err.title'), 'error'); import('./teachBox.js').then((B) => B.diag('merge', (e && e.message) || e)).catch(() => {}); return false; } };
+  if (!safeDraw()) return;
   wrap.querySelector('.mg-back')?.focus();
 }

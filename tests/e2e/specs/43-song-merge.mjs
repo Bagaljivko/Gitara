@@ -13,7 +13,7 @@ export async function run(ctx) {
       const mk = (last, extra) => ({ title: 'Volio bih da si tu', artist: 'Crvena jabuka', key: 'Em', bpm: 91, sections: [
         { name: 'Strofa 1', type: 'verse', lines: [L('Volio bih da si tu', [[0, 'Em'], [12, 'D']])] },
         { name: 'Refren', type: 'chorus', lines: [L('Nocas zvezde padat ce', [[0, 'Am'], [6, 'D'], [13, 'G'], [19, last]])] }, ...extra] });
-      const T = await songs.save({ ...mk('H7', [{ name: 'Solo', type: 'other', lines: [L('', [[0, 'Em']])] }]), fromT: { tid: 't1', name: 'Mile' }, src: 'F1:0', folders: [] });
+      const T = await songs.save({ ...mk('H7', [{ name: 'Solo', type: 'other', lines: [L('', [[0, 'Em']])] }]), fromT: { tid: 't1', name: 'Mile' }, src: 'F1:0', folders: [], suggestStrum: { id: 'pop', reasonKey: 'sug.strumFolk' } }); // v2.4.30: predlog ritma (ranije crn ekran)
       const M = await songs.save({ ...mk('Em', []), title: 'Volio Bih Da Si Tu (live)', strum: { id: 'pop', sig: '4/4', steps: 'D-DUD-DU' }, folders: [] });
       await settings.set('practice', { songs: { [M.id]: { 0: { best: 90, plays: 5 }, all: { best: 88, plays: 3 } }, [T.id]: { 1: { best: 60, plays: 1 } } } });
       await settings.set('setlists', [{ v: 1, id: 'sl1', name: 'Svirka', songIds: [T.id, 'x'] }]);
