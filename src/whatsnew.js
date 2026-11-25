@@ -5,6 +5,10 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '2.4.25', date: '2026-11-25', items: [
+    { i: '📤', sr: ['Pesme od učenika — pouzdanije', 'Kad učenik pošalje pesmu nastavniku („Pošalji nastavniku“ ili „Proveri sa nastavnikom“), pesma ide u samom fajlu napretka — bez posebnog deljenog fajla na Google Drive-u, pa manje može da zapne. Snimci (zvuk) idu kao i do sada.'], en: ['Songs from students — more reliable', 'When a student sends a song to the teacher (“Send to teacher” or “Check with teacher”), the song travels inside the progress file — no separate shared file on Google Drive, so less can get stuck. Recordings (audio) go as before.'] },
+    { i: '🛠', sr: ['Sitna popravka', 'Potvrda „primio tvoj snimak ✓“ se više ne prikazuje nastavniku kao poslata pesma.'], en: ['Small fix', 'The “received your recording ✓” receipt no longer shows to the teacher as a sent song.'] },
+  ] },
   { v: '2.4.24', date: '2026-11-25', items: [
     { i: '📅', sr: ['Raspored časova', 'Nastava → „Raspored“: nedelja sa časovima svih učenika, danas istaknut, rođendani i godišnjice. Na telefonu dani i lista, na računaru mreža po satima. Dodir na čas: otvori učenika, pomeri ili otkaži taj čas — učenik je obavešten.'], en: ['Lesson schedule', 'Teaching → “Schedule”: the week with all students’ lessons, today highlighted, birthdays and anniversaries. On a phone days and a list, on a computer a grid by hour. Tap a lesson: open the student, move or cancel that lesson — the student is told.'] },
     { i: '🔁', sr: ['Redovan termin', 'Za svakog učenika: dan, vreme, trajanje, svake nedelje / na 2 nedelje / samo jednom. Sledeći čas se sam popunjava i stiže učeniku. „Dodaj u kalendar telefona“ — telefon podseća i kad je aplikacija zatvorena.'], en: ['Regular lesson time', 'For each student: day, time, length, every week / every 2 weeks / just once. The next lesson fills in by itself and reaches the student. “Add to the phone calendar” — your phone reminds you even when the app is closed.'] },

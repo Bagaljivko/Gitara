@@ -422,10 +422,12 @@ export async function sendToTeacher(song = null) {
     if (!id) return;
     song = await db.get(id);
   }
+  const B = await import('./teachBox.js');
+  const d = await B.inlineOne(song); // v2.4.25: pesma ide u samom fajlu napretka (bez deljenog fajla); snimak — kao ranije
+  if (d) { if (await B.outPush({ id: 'i' + Date.now().toString(36), type: 'file', d, title: clip(song.title, 80), song: song.id })) toast(t('box.recSent', { t: m.name || t('tch.teacher') })); return; }
   const res = await S.publishOnly(S.songItem(song));
   if (!res) return;
   // v1.94: kroz fajl napretka — nastavnikova aplikacija ga sama stavi kod tebe (bez poruke)
-  const B = await import('./teachBox.js');
   if (await B.outPush({ id: 'f' + res.fileId.slice(-10) + Date.now().toString(36), type: 'file', f: res.fileId, title: clip(song.title, 80), song: song.id })) toast(t('box.recSent', { t: m.name || t('tch.teacher') }));
 }
 
@@ -661,11 +663,11 @@ export async function checkFlow(reqId, pkg = null) {
   const box = [...document.querySelectorAll('.modal-backdrop')].pop();
   box.querySelector('.tch-opts').addEventListener('click', (e) => { const b = e.target.closest('[data-o]'); if (!b) return; pick = b.dataset.o; box.querySelectorAll('.tch-opt').forEach((x) => { x.classList.toggle('on', x === b); x.setAttribute('aria-checked', String(x === b)); }); });
   if ((await p) !== 'ok') return;
-  const getPkg = async () => pkg || (await (await import('./shareImport.js')).fetchPackage(r.fileId));
+  const getPkg = async () => pkg || (r.d ? await (await import('./teachBox.js')).readInline(r.d) : await (await import('./shareImport.js')).fetchPackage(r.fileId)); // v2.4.25
   const importHere = async (extra = {}) => {
     const k = await getPkg(); if (!k || !k.songs.length) { toast(t('share.r.gone'), 'error'); return null; }
     const { importTagged } = await import('./shareImport.js');
-    const res = await importTagged(k, r.fileId, () => ({ student: st.id, fromStudent: 1, ...extra }));
+    const res = await importTagged(k, r.fileId || 'inl' + r.id, () => ({ student: st.id, fromStudent: 1, ...extra }));
     return res.ids[0];
   };
   if (pick === 'fix') {

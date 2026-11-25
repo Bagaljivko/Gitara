@@ -307,21 +307,21 @@ async function receiveProgressMsg(z) {
 /** Učenik: „Proveri sa nastavnikom“ — pesma se podeli (fajl), a zahtev ide kroz fajl napretka. v1.94: bez poruke. */
 export async function askCheck(song, note = '') {
   const m = await getMyTeacher(); if (!m || !song) return false;
-  const S = await import('./shareService.js');
-  const res = await S.publishOnly(S.songItem(song));
-  if (!res) return false;
-  const id = uid();
   const B = await import('./teachBox.js');
-  if (!(await B.outPush({ id, type: 'check', f: res.fileId, ps: song.id, title: clip(song.title, 80), artist: clip(song.artist || '', 60), note: clip(note, 300) }))) return false;
+  const d = await B.inlineOne(song); // v2.4.25: pesma u samom fajlu napretka (bez deljenog fajla)
+  const res = d ? null : await import('./shareService.js').then((S) => S.publishOnly(S.songItem(song)));
+  if (!d && !res) return false;
+  const id = uid();
+  if (!(await B.outPush({ id, type: 'check', ...(d ? { d } : { f: res.fileId }), ps: song.id, title: clip(song.title, 80), artist: clip(song.artist || '', 60), note: clip(note, 300) }))) return false;
   await settings.set('myRequests', [...(await getMyRequests()), { id, type: 'check', title: clip(song.title, 80), artist: clip(song.artist || '', 60), songId: song.id, note: clip(note, 300), at: Date.now(), status: 'sent' }]);
   toast(t('box.checkSent', { t: m.name || t('tch.teacher') }));
   return true;
 }
 /** Nastavnik: zahtev „proveri“ iz linka (fajl ostaje kod učenika; nastavnik bira šta će). */
-export async function addCheckRequest({ id, sid, title, artist, note, fileId, ps }) {
+export async function addCheckRequest({ id, sid, title, artist, note, fileId, ps, d = '' }) {
   const list = await getRequests();
   if (!list.some((r) => r.id === id)) {
-    list.push({ id: clip(id, 40), sid, type: 'check', title: clip(title, 80), artist: clip(artist, 60), note: clip(note, 300), at: Date.now(), status: 'open', fileId, ps: clip(ps, 60) });
+    list.push({ id: clip(id, 40), sid, type: 'check', title: clip(title, 80), artist: clip(artist, 60), note: clip(note, 300), at: Date.now(), status: 'open', fileId, ...(d ? { d } : {}), ps: clip(ps, 60) });
     await settings.set('requests', list); pingNav();
   }
   return (await getRequests()).find((r) => r.id === id);
