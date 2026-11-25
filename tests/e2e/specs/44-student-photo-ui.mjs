@@ -13,13 +13,16 @@ export async function run(ctx) {
     await p.click('#spEdit'); await p.waitForTimeout(400);
     await p.setInputFiles('#spGal', { name: 'ana.png', mimeType: 'image/png', buffer: png }); await p.waitForTimeout(700);
     expect(await p.$('.sp-crop canvas'), 'nema izreza slike');
+    // izrez se zaista vidi (iznad profila), dugme „Sačuvaj“ izreza je na vrhu
+    const top = await p.evaluate(() => { const c = document.querySelector('.sp-crop canvas').getBoundingClientRect(); const e = document.elementFromPoint(c.x + c.width / 2, c.y + c.height / 2); const b = [...document.querySelectorAll('.sp-crop-dlg .btn')].find((x) => x.classList.contains('primary')).getBoundingClientRect(); return { canvas: e && e.tagName, btn: document.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2)?.closest('.sp-crop-dlg') ? 1 : 0 }; });
+    expect(top.canvas === 'CANVAS' && top.btn === 1, 'izrez slike je ispod profila (ne vidi se)', top);
     // prevlačenje: počne na slici, završi se van kvadrata (na tamnoj pozadini)
     const r = await p.evaluate(() => { const b = document.querySelector('.sp-crop canvas').getBoundingClientRect(); return { x: b.x + b.width / 2, y: b.y + b.height / 2, bx: 4, by: 4 }; });
     await p.mouse.move(r.x, r.y); await p.mouse.down(); await p.mouse.move(r.x + 40, r.y + 30, { steps: 4 }); await p.mouse.move(r.bx, r.by, { steps: 4 }); await p.mouse.up(); await p.waitForTimeout(300);
     expect(await p.$('.sp-crop canvas') && await p.$('.sp-dlg'), 'izrez ili profil se zatvorio posle prevlačenja van kvadrata');
-    await p.evaluate(() => [...document.querySelectorAll('.sp-crop-dlg .btn')].find((b) => b.classList.contains('primary')).click()); await p.waitForTimeout(600);
+    await p.click('.sp-crop-dlg .btn.primary'); await p.waitForTimeout(600);
     // profil zatvoren BEZ „Sačuvaj“ — slika ipak ostaje
-    await p.evaluate(() => [...document.querySelectorAll('.sp-dlg .modal-actions .btn')].find((b) => !b.classList.contains('primary')).click()); await p.waitForTimeout(800);
+    await p.click('.sp-dlg .modal-actions .btn:not(.primary)'); await p.waitForTimeout(800);
     const st = await p.evaluate(async (sid) => { const M = await import('./src/teach.js'); const s = await M.getStudent(sid); return { has: /^data:image\/jpeg;base64,/.test(s.photo || ''), kb: Math.round((s.photo || '').length * 0.75 / 1024), hero: !!document.querySelector('.sp-hero img.tch-ph') }; }, sid);
     expect(st.has && st.kb <= 60 && st.hero, 'slika nije sačuvana / karton je ne pokazuje', st);
     await p.go('#/ucenici', 1200);

@@ -132,7 +132,7 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
     const box = $('lDup'); if (!box) return;
     const M = await import('./songMerge.js'); const d = (await M.findDups(all))[0];
     box.hidden = !d; if (!d) return;
-    box.innerHTML = `<span class="mg-ic" aria-hidden="true">⧉</span><div class="mg-nt"><b>${esc(d.a.title)}</b> — ${esc(t(d.a.fromT ? 'mg.noteT' : 'mg.note'))}</div><button type="button" class="btn primary mg-go">${esc(t('mg.compare'))}</button>`;
+    box.innerHTML = `<span class="sr-ic" aria-hidden="true">⧉</span><span class="mg-nt"><b>${esc(d.a.title)}</b><small>${esc(t(d.a.fromT || d.b.fromT ? 'mg.noteT' : 'mg.note'))}</small></span><button type="button" class="btn small primary mg-go">${esc(t('mg.compare'))}</button>`;
     box.querySelector('.mg-go').onclick = () => M.openMerge(d.a.id, d.b.id, { onDone: async () => { all = await db.list(); draw(); drawChips(); drawDup(); } });
   };
   setTimeout(() => drawDup().catch(() => {}), 0);
@@ -2054,7 +2054,7 @@ export async function renderSong(root, id, nav = null) {
   if (!stored.demo && !stored.student) import('./songMerge.js').then(async (M) => {
     const d = await M.dupOf(id); const box = $('sDup'); if (!d || !box) return;
     box.hidden = false;
-    box.innerHTML = `<span class="mg-ic" aria-hidden="true">⧉</span><div class="mg-nt">${esc(t(d.a.fromT || d.b.fromT ? 'mg.noteT' : 'mg.note'))}</div><button type="button" class="btn primary mg-go">${esc(t('mg.compare'))}</button>`;
+    box.innerHTML = `<span class="sr-ic" aria-hidden="true">⧉</span><span class="mg-nt"><b>${esc(t('mg.title'))}</b><small>${esc(t(d.a.fromT || d.b.fromT ? 'mg.noteT' : 'mg.note'))}</small></span><button type="button" class="btn small primary mg-go">${esc(t('mg.compare'))}</button>`;
     box.querySelector('.mg-go').onclick = () => M.openMerge(d.a.id, d.b.id, { onDone: (nid) => { if (nid && nid !== id) location.hash = '#/pesma/' + encodeURIComponent(nid); else if (nid) dispatchEvent(new HashChangeEvent('hashchange')); else box.hidden = true; } });
   }).catch(() => {});
   $('sChips').addEventListener('click', async (e) => {

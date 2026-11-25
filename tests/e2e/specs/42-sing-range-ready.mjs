@@ -23,19 +23,19 @@ export async function run(ctx) {
   expect(await p.evaluate(() => /Dodirni još jedan deo/.test(document.querySelector('.sg-rhint')?.textContent || '')), 'nema uputstva za više delova');
   // od Strofe 1 do Strofe 2: i refren i instrumental između
   await p.click('[data-sk="3"]'); await p.waitForTimeout(250);
-  const r = await p.evaluate(() => ({ sel: document.querySelector('.sg-sel')?.textContent, act: [...document.querySelectorAll('[data-sk].active')].map((b) => b.dataset.sk).join(), hint: !!document.querySelector('.sg-rhint') }));
+  const r = await p.evaluate(() => ({ sel: document.querySelector('.sg-sum')?.textContent, act: [...document.querySelectorAll('[data-sk].active')].map((b) => b.dataset.sk).join(), hint: !!document.querySelector('.sg-rhint') }));
   expect(/Strofa 1 → Strofa 2/.test(r.sel) && /4 dela/.test(r.sel) && r.act === '0,1,3' && !r.hint, 'od–do: Strofa 1 → Strofa 2, 4 dela (sa instrumentalom)', r);
   // sledeći dodir = opet jedan deo
   await p.click('[data-sk="1"]'); await p.waitForTimeout(200);
   eq(await p.evaluate(() => [...document.querySelectorAll('[data-sk].active')].map((b) => b.dataset.sk).join()), '1', 'posle raspona dodir bira jedan deo');
   await p.click('[data-sk="all"]'); await p.waitForTimeout(200);
-  expect(/Cela pesma · 5 delova/.test(await p.evaluate(() => document.querySelector('.sg-sel')?.textContent)), 'cela pesma: 5 delova redom (i ponovljeni refren)');
+  expect(await p.evaluate(() => { const x = document.querySelector('.sg-sum')?.textContent || ''; return /Cela pesma/.test(x) && /5 delova/.test(x); }), 'cela pesma: 5 delova redom (i ponovljeni refren)');
   // pamti izbor
   await p.go('#/tuner', 500); await p.go('#/vezbe/pesma/' + encodeURIComponent(id) + '?m=sing', 1500);
   expect((await chips()).at(-1) === 'Cela pesma*', 'izbor se ne pamti');
   // Spremi se: 5, odbrojava; Stop/odlazak prekida bez starta
   await p.click('#prGo'); await p.waitForTimeout(300);
-  const g = await p.evaluate(() => ({ n: document.querySelector('.gr-n')?.textContent, first: document.querySelector('.gr-first b')?.textContent, sg: !!document.querySelector('.sg-wrap') }));
+  const g = await p.evaluate(() => ({ n: document.querySelector('.gr-n')?.textContent, first: document.querySelector('.gr-ch small b')?.textContent, sg: !!document.querySelector('.sg-wrap') }));
   expect(g.n === '5' && g.first === 'Am' && g.sg, '„Spremi se“: 5 s, prvi akord Am, tekst iza', g);
   await p.waitForTimeout(1200);
   expect(Number(await p.evaluate(() => document.querySelector('.gr-n')?.textContent)) <= 4, 'odbrojavanje ne ide');
@@ -54,7 +54,7 @@ export async function run(ctx) {
   // Delovi pesme (trka) takođe imaju „Spremi se“
   await p.go('#/vezbe/pesma/' + encodeURIComponent(id), 1800);
   await p.evaluate(() => document.querySelector('[data-plan="all"]')?.click()); await p.waitForTimeout(600);
-  const g2 = await p.evaluate(() => ({ n: document.querySelector('.gr-n')?.textContent, first: document.querySelector('.gr-first b')?.textContent }));
+  const g2 = await p.evaluate(() => ({ n: document.querySelector('.gr-n')?.textContent, first: document.querySelector('.gr-ch small b')?.textContent }));
   expect(g2.n === '5' && !!g2.first, 'Cela pesma (trka): „Spremi se“ pre početka', g2);
   await p.click('.gr-go'); await p.waitForTimeout(400);
   expect(await p.evaluate(() => !document.querySelector('.gr-dim')), '„Kreni odmah“ ne zatvara odbrojavanje');

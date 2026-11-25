@@ -3498,46 +3498,46 @@ img.tch-av.tch-ph { object-fit: cover; background: #222; padding: 0; }
 .cp-rh .cp-r2 { display: flex; gap: 8px; }
 .cp-rh .cp-r2 button { flex: 1; height: 44px; width: auto; border-radius: 999px; font: 800 .95rem var(--sans); }
 
-/* v2.4.27: dve verzije iste pesme — uporedi */
+/* v2.4.27/2.4.29: dve verzije iste pesme — uporedi (isti delovi kao ostatak aplikacije: naslov, sekcije, grupe redova) */
 .mg-open { overflow: hidden; }
-.mg-wrap { position: fixed; inset: 0; z-index: 70; background: var(--bg, #000); overflow: auto; padding: max(14px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom)); }
-.mg { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
-.mg-top button { appearance: none; border: 0; background: none; color: var(--accent); font: 700 1rem var(--sans); padding: 6px 0; cursor: pointer; }
-.mg h2 { margin: 0; font: 800 1.35rem var(--sans); }
-.mg .sub { margin: -8px 0 0; color: var(--muted); font-size: .9rem; }
-.mg-k { color: var(--muted); font: 800 .72rem var(--sans); letter-spacing: .1em; text-transform: uppercase; margin: 6px 0 -4px; }
-.mg-vs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.mg-v { position: relative; text-align: left; appearance: none; border: 1.5px solid var(--line); background: var(--surface); color: var(--text); border-radius: 16px; padding: 12px; display: flex; flex-direction: column; gap: 6px; font: 500 .88rem var(--sans); cursor: pointer; min-width: 0; }
-.mg-v.on { border-color: var(--accent); background: rgba(245, 165, 36, .08); }
-.mg-v .who { font: 800 .95rem var(--sans); padding-right: 26px; overflow-wrap: anywhere; }
-.mg-v .who small { display: block; color: var(--muted); font-weight: 600; font-size: .75rem; }
-.mg-v .ck { position: absolute; top: 10px; right: 10px; width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--line); display: grid; place-items: center; font: 800 .8rem var(--sans); }
-.mg-v.on .ck { background: var(--accent); border-color: var(--accent); color: #111; }
-.mg-v ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 3px; color: var(--muted); font-size: .82rem; overflow-wrap: anywhere; }
-.mg-v li b { color: var(--text); }
-.mg-v .ok { color: var(--ok, #3ecf6e); }
-.mg-d { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
-.mg-r { display: flex; width: 100%; align-items: center; gap: 10px; padding: 11px 12px; border: 0; border-top: 1px solid var(--line); background: none; color: var(--text); font: 500 .92rem var(--sans); text-align: left; cursor: pointer; }
-.mg-r:first-child { border-top: 0; }
-.mg-r:disabled { cursor: default; opacity: 1; }
-.mg-r .s { flex: 1; font-weight: 700; }
-.mg-r .same { color: var(--muted); font-size: .82rem; }
-.mg-r .diff { color: var(--accent); font-size: .82rem; font-weight: 700; }
-.mg-x { padding: 2px 12px 12px; background: #0c0d10; font: 500 .95rem ui-monospace, Menlo, monospace; line-height: 1.3; overflow-x: auto; }
-.mg-x .ln { display: grid; grid-template-columns: 64px 1fr; gap: 8px; align-items: end; padding-top: 8px; }
-.mg-x .tag { font: 700 .68rem var(--sans); color: var(--muted); text-transform: uppercase; letter-spacing: .06em; padding-bottom: 2px; overflow-wrap: anywhere; }
-.mg-x .c { color: var(--accent); white-space: pre; }
-.mg-x .c mark { background: rgba(245, 165, 36, .25); color: var(--accent); border-radius: 4px; padding: 0 2px; }
+.mg-wrap { position: fixed; inset: 0; z-index: 70; background: var(--bg, #000); overflow: auto; padding: max(8px, env(safe-area-inset-top)) 16px max(28px, env(safe-area-inset-bottom)); }
+.mg { max-width: 640px; margin: 0 auto; }
+.mg h1 { margin: 6px 0 2px; }
+.mg-sub { margin: 0 0 4px; }
+.mg .set-grp { margin-bottom: 4px; }
+.mg .tch-row small { white-space: normal; }
+.mg-v .ok { color: var(--ok, #3ecf6e); font-style: normal; }
+.mg-v .sr-ic, .mg-r .sr-ic { font-size: 1.05rem; color: var(--accent); font-weight: 800; }
+.mg-v.on { background: var(--accent-soft, rgba(245, 165, 36, .1)); }
+.mg-radio { flex: none; width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--line); display: grid; place-items: center; }
+.mg-v.on .mg-radio { border-color: var(--accent); }
+.mg-v.on .mg-radio::after { content: ''; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
+.mg-r small.diff { color: var(--accent); font-weight: 700; }
+.mg-r.same .sr-ic { color: var(--muted); }
+.mg-r:disabled { cursor: default; opacity: 1; color: var(--text); }
+.mg-x { padding: 4px 14px 14px; border-top: 1px solid var(--line); background: var(--surface-2); font: 500 .95rem var(--mono, ui-monospace, monospace); line-height: 1.3; overflow-x: auto; }
+.mg-x .ln { display: grid; grid-template-columns: 56px 1fr; gap: 8px; align-items: end; padding-top: 10px; }
+.mg-x .tag { font: 800 .7rem var(--sans); color: var(--muted); text-transform: uppercase; letter-spacing: .06em; padding-bottom: 2px; overflow-wrap: anywhere; }
+.mg-x .c { color: var(--accent); font-weight: 700; white-space: pre; }
+.mg-x .c mark { background: var(--accent); color: var(--accent-ink, #1a1205); border-radius: 4px; padding: 0 2px; }
 .mg-x .t { white-space: pre-wrap; color: var(--text); }
-.mg-a { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
-.mg-b { appearance: none; text-align: left; border: 1px solid var(--line); background: var(--surface); color: var(--text); border-radius: 14px; padding: 12px 14px; font: 800 1rem var(--sans); cursor: pointer; }
-.mg-b small { display: block; font: 500 .82rem var(--sans); color: var(--muted); margin-top: 3px; }
-.mg-b.pri { background: var(--accent); border-color: var(--accent); color: #1a1205; }
-.mg-b.pri small { color: #3a2a08; }
-.mg-l { appearance: none; border: 0; background: none; color: var(--muted); font: 700 .92rem var(--sans); padding: 8px; text-decoration: underline; cursor: pointer; }
-.mg-note { display: flex; gap: 10px; align-items: center; padding: 10px 12px; margin: 8px 0; border-radius: 12px; background: rgba(245, 165, 36, .1); border: 1px solid rgba(245, 165, 36, .4); font-size: .9rem; }
+.mg-a { display: flex; flex-direction: column; gap: 6px; }
+.mg-why { margin: 0 4px 10px; color: var(--muted); font-size: .84rem; line-height: 1.4; }
+.mg-both { align-self: center; background: none; border: 0; color: var(--muted); font: 700 .92rem var(--sans); padding: 10px; text-decoration: underline; cursor: pointer; }
+.mg-note { display: flex; gap: 12px; align-items: center; padding: 12px 14px; margin: 10px 0; border-radius: 18px; background: var(--surface); border: 1px solid rgba(245, 165, 36, .45); }
 .mg-note[hidden] { display: none; }
-.mg-note .mg-ic { font-size: 1.2rem; }
+.mg-note .sr-ic { color: var(--accent); font-weight: 800; }
 .mg-note .mg-nt { flex: 1; min-width: 0; }
-.mg-note b { color: var(--accent); }
-.mg-note .mg-go { padding: 8px 14px; min-height: 0; flex: none; }
+.mg-note .mg-nt b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mg-note .mg-nt small { display: block; color: var(--muted); font-size: .84rem; }
+.mg-note .mg-go { flex: none; }
+/* v2.4.29: podsetnik i „Pregled vežbanja“ u jednom redu ispod brojeva (ranije je link pao u uzan stubac) */
+.st-week > .st-foot { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.st-foot .st-remind { margin: 0; }
+.st-foot .st-ovlink { margin: 0; white-space: nowrap; }
+/* v2.4.29: izrez slike učenika — veći krug, uputstvo, uvećanje − / + */
+.sp-crop canvas { width: min(240px, 62vw); height: min(240px, 62vw); }
+.sp-crophint { margin: 0 0 6px; text-align: center; color: var(--muted); font-size: .85rem; }
+.sp-zoom { display: flex; align-items: center; gap: 10px; }
+.sp-zoom span { width: 28px; text-align: center; color: var(--muted); font: 800 1.2rem var(--sans); }
+.sp-zoom input[type=range] { flex: 1; accent-color: var(--accent); min-height: 36px; padding: 0; border: 0; background: none; }

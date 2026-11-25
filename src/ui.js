@@ -63,7 +63,10 @@ export function dialog({ title = '', body = '', html = false, buttons = [{ label
       if (b) close(buttons[+b.dataset.i].value);
     });
     document.addEventListener('keydown', onKey);
+    // v2.4.29: prozor otvoren iz drugog prozora je uvek iznad njega (npr. izrez slike iznad profila učenika — ranije je bio ispod, nevidljiv)
+    const under = Math.max(0, ...[...document.querySelectorAll('.modal-backdrop')].map((m) => Number(getComputedStyle(m).zIndex) || 0));
     document.body.appendChild(wrap);
+    if (under && (Number(getComputedStyle(wrap).zIndex) || 0) <= under) wrap.style.zIndex = String(under + 1);
     const primary = wrap.querySelector('.btn.primary') || wrap.querySelector('.btn');
     primary && primary.focus();
   });

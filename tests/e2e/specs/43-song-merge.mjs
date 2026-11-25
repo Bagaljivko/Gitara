@@ -46,7 +46,7 @@ export async function run(ctx) {
     await p.evaluate(() => document.querySelector('.modal-backdrop .btn.primary, .modal-backdrop button')?.click()); await p.waitForTimeout(300); // jednokratno: „Prethodne verzije“
     await p.click('#sDup .mg-go'); await p.waitForTimeout(400);
     await p.click(`.mg-v[data-v="${ids.m}"]`); await p.waitForTimeout(150);
-    const keepTxt = await p.evaluate(() => document.querySelector('[data-do="keep"]').innerText);
+    const keepTxt = await p.evaluate(() => document.querySelector('[data-do="keep"]').innerText + ' ' + document.querySelector('[data-why="keep"]').innerText);
     expect(/Tvoja/.test(keepTxt) && /pitaju ponovo/.test(keepTxt), 'Zadrži samo svoju: tekst', keepTxt);
     await p.click('[data-do="keep"]'); await p.waitForTimeout(800);
     const k = await p.evaluate(async (ids) => { const { songs } = await import('./src/db.js'); const I = await import('./src/shareImport.js');

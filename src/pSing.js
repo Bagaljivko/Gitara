@@ -71,6 +71,16 @@ export function createSing(api, song, o) {
     try { localStorage.setItem(KEY, sel.a + '-' + sel.b); } catch {}
   };
   setSel(sel.a, sel.b);
+  // v2.4.29: pregled kao na ekranu pesme — red akorda iznad reda teksta
+  const prevLine = (l) => {
+    let col = 0, cl = '', end = 0;
+    for (const x of l.segs) {
+      if (x.ci != null) { const nm = dn(chords[x.ci].chord), at = Math.max(col, end ? end + 1 : 0); cl += ' '.repeat(Math.max(0, at - end)) + `<b class="sw" data-c="${esc(nm)}">${esc(nm)}</b>`; end = at + nm.length; }
+      col += (x.text || '').length;
+    }
+    const text = l.ins ? '' : l.segs.map((x) => x.text).join('');
+    return `${l.head ? `<div class="sg-head">${esc(l.head)}</div>` : ''}<div class="pl${l.ins ? ' ins' : ''}"><div class="pc">${cl}</div>${text ? `<div class="pt">${esc(text)}</div>` : ''}</div>`;
+  };
   const lineHTML = (l, segHTML) => `${l.head ? `<div class="sg-head">${esc(l.head)}</div>` : ''}<p class="${l.ins ? 'ins' : ''}">${l.segs.map(segHTML).join('')}</p>`;
   const drawOpts = () => {
     const n = sel.b - sel.a + 1;
@@ -80,9 +90,9 @@ export function createSing(api, song, o) {
       <a class="spr-change" href="#/vezbe/pesma/${encodeURIComponent(o.songId)}">${t('sg.back')}</a></div>
       <div class="pr-optlabel">${t('sg.part')}</div>
       <div class="pr-chips sg-chips">${chips.map((k) => `<button class="chip${inSel(k) && !isWhole() ? ' active' : ''}${inSel(k) && sel.a !== sel.b && !isWhole() ? ' in' : ''}" data-sk="${k}">${esc(label[k])}</button>`).join('')}<button class="chip${isWhole() ? ' active' : ''}" data-sk="all">${esc(t('pr.pesma.whole'))}</button></div>
-      <p class="sg-sel"><b>${esc(nameOf())}</b> · ${esc(t(n > 1 ? (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 'sg.lenFew' : 'sg.len') : 'sg.len1', { n, m: min }))}</p>
+      <div class="set-grp sg-sum"><div class="tch-row"><span class="sr-ic" aria-hidden="true">🎤</span><span><b class="sg-sel">${esc(nameOf())}</b><small>${esc(t(n > 1 ? (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 'sg.lenFew' : 'sg.len') : 'sg.len1', { n, m: min }))}</small></span></div></div>
       ${pendingRange && !isWhole() && chips.length > 1 ? `<p class="sg-rhint">${esc(t('sg.rangeHint'))}</p>` : ''}
-      <div class="sg-prev">${lines.slice(0, 2).map((l) => lineHTML(l, (x) => (x.ci == null ? `<span>${esc(x.text)}</span>` : `<span class="sw" data-c="${esc(dn(chords[x.ci].chord))}">${esc(x.text || ' ')}</span>`))).join('')}</div>`;
+      <div class="sg-prev">${lines.slice(0, 3).map(prevLine).join('')}</div>`;
     api.opts.innerHTML = `<p class="sg-lead">${esc(t('sg.lead2'))}</p>`;
   };
   api.head.addEventListener('click', (e) => {
@@ -149,7 +159,7 @@ export function createSing(api, song, o) {
       keepAwake('sing');
       drawLyrics();
       // v2.4.26: „Spremi se“ — 5 s da uzmeš gitaru (prvi akord se vidi); dodir = kreni odmah
-      ready = getReady({ secs: 5, first: chords[0] ? dn(chords[0].chord) : '' });
+      ready = getReady({ first: chords[0] ? chords[0].chord : '' });
       const go = await ready.done; ready = null;
       if (!go || !screen) { if (screen) { close(); api.stopNow(); } return; }
       try { await api.listen({ chords: true }); } catch {}

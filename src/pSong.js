@@ -240,7 +240,7 @@ export async function createGame(api) {
       captions: { 0: t('pr.pesma.demo2'), 1: t('pr.pesma.demo3'), 3: t('pr.pesma.demo4'), 5: t('pr.pesma.demo5') },
     },
   });
-  return Object.assign(await g, { firstChord: () => (part.chords[0] ? dn(part.chords[0].chord) : '') }); // v2.4.26: „Spremi se“
+  return Object.assign(await g, { firstChord: () => (part.chords[0] ? part.chords[0].chord : '') }); // v2.4.26: „Spremi se“
 }
 
 // Bez izabrane pesme: lista pesama iz biblioteke (brzi indeks, bez učitavanja celih pesama)

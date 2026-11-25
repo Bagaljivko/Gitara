@@ -51,8 +51,9 @@ export async function weekHTML() {
   const { today, start, days } = weekDays();
   const sum = (a, b, k) => { let s = 0; for (let d = a; d <= b; d++) { const v = tot.days[String(d)]; if (v) s += k ? v[k] : v.p + v.x; } return s; };
   const p = sum(start, today, 'p'), x = sum(start, today, 'x'), all = p + x;
-  const lastWeekSameTime = sum(start - 7, today - 7);
-  const diff = all - lastWeekSameTime;
+  // v2.4.29: „Svirano“ se poredi samo sa sviranim prošle nedelje (ranije: svirano + vežbano → pogrešno „+1 h 37 min“)
+  const lastWeekSameTime = sum(start - 7, today - 7, 'p');
+  const diff = p - lastWeekSameTime;
   const per = days.map((d) => { const v = tot.days[String(d)]; return v ? v.p + v.x : 0; });
   const max = Math.max(...per, 1);
   const names = getLang() === 'en' ? ['M', 'T', 'W', 'T', 'F', 'S', 'S'] : ['P', 'U', 'S', 'Č', 'P', 'S', 'N'];
@@ -66,8 +67,7 @@ export async function weekHTML() {
         : `<span class="st-bars" aria-hidden="true">${per.map((v, i) => `<i class="${days[i] === today ? 't' : ''}" style="height:${Math.round((v / max) * 100)}%"></i>`).join('')}</span><span class="st-days">${names.map((n, i) => `<i class="${days[i] === today ? 't' : ''}">${n}</i>`).join('')}</span><small class="st-setgoal">${t('st.setGoal')}</small>`}
     </button>
     ${await streakHTML(tot, today)}
-    ${await (await import('./remind.js')).buttonHTML()}
-    <a class="st-ovlink" href="#/vezbanje">📈 ${t('ov.open')} ›</a>
+    <div class="st-foot">${await (await import('./remind.js')).buttonHTML()}<a class="st-ovlink" href="#/vezbanje">📈 ${t('ov.open')} ›</a></div>
   </div>`; // v2.4.22: pregled vežbanja // v2.4.3: podsetnik za vežbanje (ceo red ispod brojeva)
 }
 export function bindWeek(root, redraw) {

@@ -44,7 +44,8 @@ async function cropFlow(file) {
   let img; try { img = await loadImg(file); } catch { toast(t('spf.photoBad'), 'error'); return null; }
   const st = { x: 0, y: 0, zoom: 1 };
   const p = dialog({ title: t('spf.cropTitle'), html: true, className: 'sp-crop-dlg', body: `<div class="sp-crop"><canvas width="${PHOTO}" height="${PHOTO}"></canvas></div>
-    <label class="tch-lab">${t('spf.zoom')}</label><input type="range" id="spZoom" min="1" max="3" step="0.05" value="1"><small class="muted">${t('spf.cropHint')}</small>`,
+    <p class="sp-crophint">${t('spf.cropHint')}</p>
+    <div class="sp-zoom"><span aria-hidden="true">−</span><input type="range" id="spZoom" min="1" max="3" step="0.05" value="1" aria-label="${esc(t('spf.zoom'))}"><span aria-hidden="true">+</span></div>`,
     // v2.4.28: bez zatvaranja dodirom van prozora — prevlačenje slike koje se završi van kvadrata ne sme da je odbaci
     buttons: [{ label: t('common.cancel'), value: null }, { label: t('common.save'), value: 'ok', kind: 'primary' }], dismissible: false });
   const box = [...document.querySelectorAll('.modal-backdrop')].pop();

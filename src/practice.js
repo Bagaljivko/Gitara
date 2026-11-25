@@ -205,8 +205,9 @@ async function renderHub(root) {
   const skRaw = await settings.get('skale', null);
   const sk = skRaw && typeof skRaw === 'object' ? { items: skRaw.items || {}, step: (await import('./skalePath.js')).PATH.findIndex((p) => !(skRaw.path?.done || {})[p.id]), total: 0 } : null;
   if (sk) { const { PATH } = await import('./skalePath.js'); sk.total = PATH.length; if (sk.step < 0) sk.step = PATH.length - 1; }
-  const streak = Math.max(0, ...GAMES.map((g) => currentStreak(st.games[g.id])));
-  const doneToday = GAMES.some((g) => st.games[g.id]?.lastDay === today());
+  // v2.4.29: isti niz kao „🔥 N dana zaredom“ (dani sa sviranjem ili vežbanjem) — ranije su se dva broja razlikovala
+  let streak = Math.max(0, ...GAMES.map((g) => currentStreak(st.games[g.id]))), doneToday = GAMES.some((g) => st.games[g.id]?.lastDay === today());
+  try { const [A, S] = await Promise.all([import('./activity.js'), import('./streak.js')]); const r = S.streakOf(S.daysMs((await A.loadTotals()).days), A.dayNum()); streak = r.streak; doneToday = doneToday || r.todayDone; } catch {}
   const sug = await todaySuggestion(st);
   root.innerHTML = `
   <section class="view practice-view">
@@ -615,7 +616,7 @@ async function renderGame(root, game, args, params) {
     const songCtx = (game.id === 'pesma' && args[0]) || (params.get && params.get('song'));
     if (!custom && songCtx && params.get('m') !== 'sing') {
       const { getReady } = await import('./getReady.js');
-      readyH = getReady({ secs: 5, first: gameObj.firstChord ? gameObj.firstChord() : '' });
+      readyH = getReady({ first: gameObj.firstChord ? gameObj.firstChord() : '' });
       const go = await readyH.done; readyH = null;
       if (!go || !running) { if (running) stopRun(false); return; }
     }

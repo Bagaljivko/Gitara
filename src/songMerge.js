@@ -204,31 +204,39 @@ export async function openMerge(aId, bId, { onDone } = {}) {
   const card = (s, h) => {
     const st = s.strum || null, sug = !st && s.suggestStrum ? patternById(s.suggestStrum.id) : null;
     const fn = (s.folders || []).map((id) => (folders.find((f) => f.id === id) || {}).name).filter(Boolean);
-    return `<button type="button" class="mg-v${sel === s.id ? ' on' : ''}" data-v="${esc(s.id)}" aria-pressed="${sel === s.id}"><span class="ck">${sel === s.id ? '✓' : ''}</span>
-      <span class="who">${esc(label(s))}<small>${esc(s.fromT ? t('mg.came', { d: fmtDate(s.createdAt) }) : t('mg.added', { d: fmtDate(s.createdAt) }))}</small></span>
-      <ul><li>${esc(t('mg.key'))} <b>${esc(s.key ? dn(s.key) : '—')}</b>${s.bpm ? ` · ${s.bpm} BPM` : ''}${s.capo ? ` · ${esc(t('capo.title'))} ${s.capo}` : ''}</li>
-      <li>${esc(partsTxt((s.sections || []).length))}</li>
-      <li>${esc(t('mg.rhythm'))}: <b>${esc(st ? patternName(st) : sug ? patternName(sug) + '?' : '—')}</b></li>
-      <li>${esc(t('mg.practiced'))}: ${h.plays || h.visits ? `<b>${esc(t('mg.times', { n: h.plays + h.visits }))}</b>` : '—'}${h.ready ? ` · <span class="ok">✓ ${esc(t('rdy.ready'))}</span>` : ''}</li>
-      ${s.yt || fn.length ? `<li>${[s.yt ? '▶ ' + esc(t('mg.video')) : '', fn.length ? esc(t('mg.folder', { f: fn.join(', ') })) : ''].filter(Boolean).join(', ')}</li>` : ''}</ul></button>`;
+    const l1 = [s.key ? dn(s.key) : '', s.bpm ? s.bpm + ' BPM' : '', s.capo ? t('capo.title') + ' ' + s.capo : '', partsTxt((s.sections || []).length), s.fromT ? t('mg.came', { d: fmtDate(s.createdAt) }) : t('mg.added', { d: fmtDate(s.createdAt) })].filter(Boolean).join(' · ');
+    const l2 = [t('mg.rhythm') + ': ' + (st ? patternName(st) : sug ? patternName(sug) + '?' : '—'), t('mg.practiced') + ': ' + (h.plays || h.visits ? t('mg.times', { n: h.plays + h.visits }) : '—'), s.yt ? '▶ ' + t('mg.video') : '', fn.length ? t('mg.folder', { f: fn.join(', ') }) : ''].filter(Boolean).join(' · ');
+    return `<button type="button" class="tch-row mg-v${sel === s.id ? ' on' : ''}" data-v="${esc(s.id)}" role="radio" aria-checked="${sel === s.id}">
+      <span class="sr-ic" aria-hidden="true">${s.fromT ? '🎓' : '🎸'}</span>
+      <span><b class="who">${esc(label(s).replace(/^🎓 /, ''))}</b><small>${esc(l1)}</small><small>${esc(l2)}${h.ready ? ` · <em class="ok">✓ ${esc(t('rdy.ready'))}</em>` : ''}</small></span>
+      <i class="mg-radio" aria-hidden="true"></i></button>`;
+  };
+  const diffRow = (r, i) => {
+    const can = !!(r.la || r.lb);
+    const st = r.st === 'same' ? `<small>${esc(t('mg.same'))}</small>` : `<small class="diff">${esc(r.st === 'chords' ? t('mg.dChords') : r.st === 'text' ? t('mg.dText') : t('mg.only', { w: shortName(r.st === 'onlyA' ? a : b) }))}</small>`;
+    return `<button type="button" class="tch-row mg-r${r.st === 'same' ? ' same' : ''}" data-r="${i}"${can ? ` aria-expanded="${open === i}"` : ' disabled'}>
+      <span class="sr-ic${r.st === 'same' ? ' n' : ''}" aria-hidden="true">${r.st === 'same' ? '✓' : r.st === 'onlyA' || r.st === 'onlyB' ? '＋' : '≠'}</span><span><b>${esc(r.name)}</b>${st}</span>${can ? `<span class="chev" aria-hidden="true">${open === i ? '⌃' : '⌄'}</span>` : ''}</button>
+      ${open === i ? `<div class="mg-x"><div class="ln"><span class="tag">${esc(shortName(a))}</span><div>${lineHTML(r.la, r.lb)}</div></div><div class="ln"><span class="tag">${esc(shortName(b))}</span><div>${lineHTML(r.lb, r.la)}</div></div></div>` : ''}`;
   };
   const draw = () => {
     const S = sel === a.id ? a : b, O = S === a ? b : a, hO = O === a ? ha : hb;
     const lose = [hO.plays + hO.visits ? t('mg.times', { n: hO.plays + hO.visits }) : '', hO.ready ? '✓ ' + t('rdy.ready') : ''].filter(Boolean).join(' · ');
     const T = a.fromT ? a : b.fromT ? b : null;
-    wrap.innerHTML = `<div class="mg">
-      <div class="mg-top"><button type="button" class="mg-back" data-x>‹ ${esc(t('nav.songs'))}</button></div>
-      <h2>${esc(a.title || b.title)}</h2><p class="sub">${esc([a.artist || b.artist, t('mg.two')].filter(Boolean).join(' · '))}</p>
-      <div class="mg-k">${esc(t('mg.q1'))}</div>
-      <div class="mg-vs">${card(a, ha)}${card(b, hb)}</div>
-      <div class="mg-k">${esc(t('mg.diff'))}</div>
-      <div class="mg-d">${rows.length ? rows.map((r, i) => `<button type="button" class="mg-r" data-r="${i}"${r.la || r.lb ? '' : ' disabled'}><span class="s">${esc(r.name)}</span>${r.st === 'same' ? `<span class="same">${esc(t('mg.same'))}</span>` : r.st === 'chords' ? `<span class="diff">${esc(t('mg.dChords'))} ${open === i ? '▴' : '▾'}</span>` : r.st === 'text' ? `<span class="diff">${esc(t('mg.dText'))} ${open === i ? '▴' : '▾'}</span>` : `<span class="diff">${esc(t('mg.only', { w: shortName(r.st === 'onlyA' ? a : b) }))}</span>`}</button>${open === i ? `<div class="mg-x"><div class="ln"><span class="tag">${esc(shortName(a))}</span><div>${lineHTML(r.la, r.lb)}</div></div><div class="ln"><span class="tag">${esc(shortName(b))}</span><div>${lineHTML(r.lb, r.la)}</div></div></div>` : ''}`).join('') : `<div class="mg-r"><span class="same">${esc(t('mg.same'))}</span></div>`}</div>
-      <div class="mg-k">${esc(t('mg.q2'))}</div>
+    wrap.innerHTML = `<section class="view mg">
+      <button type="button" class="back mg-back" data-x>‹ ${esc(t('nav.songs'))}</button>
+      <h1>${esc(a.title || b.title)}</h1><p class="muted mg-sub">${esc([a.artist || b.artist, t('mg.two')].filter(Boolean).join(' · '))}</p>
+      <div class="tch-sec"><span>${esc(t('mg.q1'))}</span></div>
+      <div class="set-grp" role="radiogroup">${card(a, ha)}${card(b, hb)}</div>
+      <div class="tch-sec"><span>${esc(t('mg.diff'))}</span></div>
+      <div class="set-grp">${rows.length ? rows.map(diffRow).join('') : `<div class="tch-row"><span><small>${esc(t('mg.same'))}</small></span></div>`}</div>
+      <div class="tch-sec"><span>${esc(t('mg.q2'))}</span></div>
       <div class="mg-a">
-        <button type="button" class="mg-b pri" data-do="merge">${esc(t('mg.merge'))}<small>${esc(t('mg.mergeSub', { w: S.fromT ? t('mg.textOf', { name: shortName(S) }) : same(a, b) ? t('mg.textOfV', { v: label(S) }) : t('mg.textMine') }))}${T && S !== T ? ' · ' + esc(t('mg.stayLinked', { name: shortName(T) })) : ''}</small></button>
-        <button type="button" class="mg-b" data-do="keep">${esc(t('mg.keep', { w: S.fromT ? shortName(S) : same(a, b) ? label(S) : t('mg.mineShort') }))}<small>${esc(lose ? t('mg.keepLose', { w: label(O), what: lose }) : t('mg.keepSub', { w: label(O) }))}${O.fromT ? ' · ' + esc(t('mg.askAgain', { name: shortName(O) })) : ''}</small></button>
-        <button type="button" class="mg-l" data-do="both">${esc(t('mg.both'))}</button>
-      </div></div>`;
+        <button type="button" class="btn primary wide" data-do="merge">${esc(t('mg.merge'))}</button>
+        <p class="mg-why" data-why="merge">${esc(t('mg.mergeSub', { w: S.fromT ? t('mg.textOf', { name: shortName(S) }) : same(a, b) ? t('mg.textOfV', { v: label(S) }) : t('mg.textMine') }))}${T && S !== T ? ' · ' + esc(t('mg.stayLinked', { name: shortName(T) })) : ''}</p>
+        <button type="button" class="btn wide" data-do="keep">${esc(t('mg.keep', { w: S.fromT ? shortName(S) : same(a, b) ? label(S) : t('mg.mineShort') }))}</button>
+        <p class="mg-why" data-why="keep">${esc(lose ? t('mg.keepLose', { w: label(O), what: lose }) : t('mg.keepSub', { w: label(O) }))}${O.fromT ? ' · ' + esc(t('mg.askAgain', { name: shortName(O) })) : ''}</p>
+        <button type="button" class="linkish mg-both" data-do="both">${esc(t('mg.both'))}</button>
+      </div></section>`;
   };
   const close = () => { wrap.remove(); removeEventListener('hashchange', close); removeEventListener('keydown', onKey); document.body.classList.remove('mg-open'); };
   const onKey = (e) => { if (e.key === 'Escape') close(); };

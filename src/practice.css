@@ -592,9 +592,15 @@ body.trk-open { overflow: hidden; }
 .cs-fromsong { display: block; margin: 0 0 10px; padding: 9px 12px; border-radius: 12px; background: var(--accent-soft); color: var(--accent); text-decoration: none; font-size: .85rem; font-weight: 600; }
 /* v2.4.17: „Pevaj uz tekst“ */
 .sg-lead { color: var(--muted); font-size: .88rem; line-height: 1.45; margin: 0 0 10px; }
-.sg-prev { margin-top: 12px; padding: 4px 12px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); font-size: 1rem; line-height: 1.5; }
-.sg-prev p { padding-top: 1.35em; }
-.sg-prev p, .sg-lyr p { margin: 0; }
+.sg-prev { margin-top: 10px; padding: 6px 14px 14px; border-radius: 18px; background: var(--surface); border: 1px solid var(--line); font-family: var(--mono); font-size: .98rem; line-height: 1.3; overflow-x: auto; }
+.sg-prev .pl { margin-top: 10px; }
+.sg-prev .pc { color: var(--accent); font-weight: 700; white-space: pre; min-height: 1.3em; }
+.sg-prev .pc .sw { font-weight: 700; }
+.sg-prev .pt { white-space: pre-wrap; color: var(--text); }
+.sg-prev .pl.ins .pc { color: var(--muted); }
+.sg-prev .sw::before { content: none; }
+.sg-prev .sg-head { margin-top: 12px; font-family: var(--sans); }
+.sg-lyr p { margin: 0; }
 .sg-wrap { position: fixed; inset: 0; z-index: 900; background: #000; color: var(--text); display: flex; justify-content: center; }
 body.sg-open { overflow: hidden; }
 .sg { width: 100%; max-width: 760px; display: flex; flex-direction: column; padding: max(14px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom)); }
@@ -624,25 +630,27 @@ body.sg-open { overflow: hidden; }
 .pl-step.opt { border-style: dashed; }
 .pl-step.opt:not(.done) .pl-n { background: none; border: 1px solid var(--line); }
 
-/* v2.4.26: „Spremi se“ — odbrojavanje pre početka */
-.gr-dim { position: fixed; inset: 0; z-index: 960; display: grid; place-items: center; background: rgba(0, 0, 0, .92); animation: chipPopIn .15s ease-out; cursor: pointer; padding: 16px; }
-.gr { position: relative; display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; max-width: 340px; }
-.gr-k { color: var(--muted); font: 800 .85rem var(--sans); letter-spacing: .12em; text-transform: uppercase; }
-.gr-n { display: grid; place-items: center; width: 150px; height: 150px; font: 800 5rem var(--sans); color: var(--accent); }
-.gr-ring { position: absolute; top: 34px; width: 150px; height: 150px; transform: rotate(-90deg); pointer-events: none; }
-.gr-ring circle { fill: none; stroke: var(--surface-2, #22252b); stroke-width: 6; }
-.gr-ring .gr-p { stroke: var(--accent); stroke-linecap: round; stroke-dasharray: 339.3; stroke-dashoffset: 0; animation: grRing linear forwards; }
-@keyframes grRing { to { stroke-dashoffset: 339.3; } }
-.gr-first { margin: 0; color: var(--text); font-size: 1.05rem; }
-.gr-first b { color: var(--accent); font-size: 1.3rem; margin-left: 4px; }
-.gr-go { min-width: 180px; }
-@media (prefers-reduced-motion: reduce) { .gr-ring .gr-p { animation: none; } }
+/* v2.4.26/2.4.29: „Spremi se“ — kartica kao ostatak aplikacije */
+.gr-dim { position: fixed; inset: 0; z-index: 960; display: grid; place-items: center; background: rgba(0, 0, 0, .78); animation: fade .15s; padding: 16px; }
+.gr { width: 100%; max-width: 360px; background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 6px 18px 18px; animation: rise .18s ease-out; }
+.gr .tch-sec { margin: 12px 0 6px; justify-content: center; }
+.gr-main { display: flex; align-items: center; justify-content: center; gap: 18px; min-height: 120px; }
+.gr-n { font: 800 5.2rem/1 var(--sans); color: var(--accent); min-width: 1.2em; text-align: center; font-variant-numeric: tabular-nums; }
+.gr-ch { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.gr-chd { display: block; width: 96px; }
+.gr-chd svg { width: 100%; height: auto; display: block; }
+.gr-ch small { color: var(--muted); font-size: .84rem; }
+.gr-ch small b { color: var(--accent); font-size: 1rem; }
+.gr-bar { height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; margin: 10px 0 4px; }
+.gr-bar i { display: block; height: 100%; background: var(--accent); transform-origin: left center; border-radius: 3px; }
+.gr-secs { grid-template-columns: repeat(3, 1fr); margin: 12px 0 12px; }
+@media (prefers-reduced-motion: reduce) { .gr-bar i { transition: none !important; } }
 
 /* v2.4.26: Pevaj uz tekst — više delova zaredom, nazivi delova, instrumental */
 .sg-chips .chip.in { background: rgba(245, 165, 36, .12); }
-.sg-sel { margin: 10px 0 0; text-align: center; color: var(--muted); font-size: .9rem; }
-.sg-sel b { color: var(--text); }
-.sg-rhint { margin: 4px 0 0; text-align: center; color: var(--muted); font-size: .8rem; }
+.sg-sum { margin-top: 12px; }
+.sg-sum .tch-row { cursor: default; }
+.sg-rhint { margin: 6px 4px 0; color: var(--muted); font-size: .82rem; }
 .sg-head { margin-top: 8px; color: var(--muted); font: 800 .7rem var(--sans); letter-spacing: .1em; text-transform: uppercase; line-height: 1.2; }
 .sg-lyr .sg-head { font-size: .5em; text-align: center; margin-top: 0; }
 p.ins .sw { display: inline-block; min-width: 2.8em; color: var(--muted); }
