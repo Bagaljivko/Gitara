@@ -17,8 +17,10 @@ async function flow(ctx, dev) {
   expect(await T.$('#tLes [data-l="next"]'), dev + ': nema odeljka Časovi na stranici učenika');
   // sledeći čas: za 20 sati (podsetnik dan ranije)
   await T.click('#tLes [data-l="next"]'); await T.waitForTimeout(400);
-  const when = await T.evaluate(() => { const d = new Date(Date.now() + 20 * 3600e3); const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; });
-  await T.fill('#lnWhen', when); await T.click('.modal-backdrop .btn.primary'); await T.waitForTimeout(800);
+  // v2.4.24: dijalog termina (dan, vreme, „Samo jednom“, od datuma)
+  const w = await T.evaluate(() => { const d = new Date(Date.now() + 20 * 3600e3); const p = (n) => String(n).padStart(2, '0'); return { day: `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`, hm: `${p(d.getHours())}:${p(d.getMinutes())}`, dow: (d.getDay() + 6) % 7 }; });
+  await T.click(`.sch-dlg [data-dow="${w.dow}"]`); await T.fill('#schHm', w.hm); await T.fill('#schFrom', w.day); await T.click('.sch-dlg [data-ev="0"]');
+  await T.click('.modal-backdrop .btn.primary'); await T.waitForTimeout(1200);
   // beleška sa časa
   await T.click('#tLes [data-l="note"]'); await T.waitForTimeout(400);
   await T.fill('#lnDid', 'G–C promene, strum D-DU'); await T.fill('#lnHw', 'Pauk 10 min dnevno'); await T.click('.modal-backdrop .btn.primary'); await T.waitForTimeout(1200);

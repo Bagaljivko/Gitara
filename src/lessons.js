@@ -184,23 +184,7 @@ export async function groupFlow(preSel = []) {
 }
 
 /** Sledeći čas (datum i vreme) — oboje vide, podsetnik dan ranije. */
-export async function nextFlow(sid) {
-  const tm = await TM(); const st = await tm.getStudent(sid); if (!st) return false;
-  const def = st.next && st.next > Date.now() ? st.next : (() => { const d = new Date(Date.now() + 7 * 864e5); d.setMinutes(0, 0, 0); return d.getTime(); })();
-  const p = dialog({ title: t('les.nextT', { name: st.name }), html: true, className: 'tch-dlg les-dlg', body: `
-    <label class="tch-lab">${t('les.when')}</label><input type="datetime-local" id="lnWhen" value="${localInput(def)}">
-    <p class="muted small">${t('les.nextNote')}</p>`,
-  buttons: [...(st.next ? [{ label: t('les.clear'), value: 'clr', kind: 'ghost' }] : []), { label: t('common.cancel'), value: null }, { label: t('common.save'), value: 'ok', kind: 'primary' }] });
-  const box = [...document.querySelectorAll('.modal-backdrop')].pop();
-  let v = localInput(def); box.querySelector('#lnWhen').addEventListener('input', (e) => (v = e.target.value));
-  const r = await p;
-  if (r === 'clr') { await tm.updateStudent(sid, { next: 0 }); await put(sid, { key: 'lesson', kind: 'lesson', next: 0 }); return true; }
-  if (r !== 'ok') return false;
-  const ts = new Date(v).getTime(); if (!ts || ts < Date.now() - 3600e3) { toast(t('les.badDate')); return false; }
-  await tm.updateStudent(sid, { next: ts });
-  if (await put(sid, { key: 'lesson', kind: 'lesson', next: ts })) toast(t('les.nextSet', { name: st.name, w: lessonWhen(ts) }));
-  return true;
-}
+export async function nextFlow(sid) { return (await import('./schedule.js')).slotFlow(sid); } // v2.4.24: redovan termin (ili samo jednom)
 
 /** Podsetnik za vežbanje (jedan po danu po učeniku). */
 export async function nudge(sid, quiet = false) {
@@ -344,7 +328,7 @@ export async function receive(it, m) {
     return { t: t('les.ntNote', { t: m.name || t('tch.teacher') }), s: n.hw ? t('les.hwShort', { hw: n.hw }) : n.did };
   }
   if (it.kind === 'lesson') {
-    await tm.setMyTeacher({ ...cur, next: Number(it.next) || 0, nextKey: it.key });
+    await tm.setMyTeacher({ ...cur, next: Number(it.next) || 0, nextKey: it.key, nextDur: Math.max(0, Math.min(240, Number(it.dur) || 0)), nextEvery: [0, 1, 2].includes(Number(it.every)) ? Number(it.every) : 0 }); // v2.4.24
     return Number(it.next) ? { t: t('les.ntNext', { t: m.name || t('tch.teacher') }), s: lessonWhen(Number(it.next)) } : null;
   }
   if (it.kind === 'nudge') return { t: t('les.ntNudge', { t: m.name || t('tch.teacher') }), s: t('les.ntNudgeSub'), href: '#/vezbe' };
@@ -412,7 +396,8 @@ export async function studentCardHTML(m) {
   const next = m.next && m.next > Date.now() - 3600e3 ? m.next : 0;
   if (!n && !next) return '';
   return `<div class="card les-card">
-    ${next ? `<div class="les-row"><span class="les-ic">${CAL}</span><span><small>${esc(t('les.nextLesson'))}</small><b>${esc(lessonWhen(next))}</b></span></div>` : ''}
+    ${next ? `<div class="les-row"><span class="les-ic">${CAL}</span><span><small>${esc(t('les.nextLesson'))}</small><b>${esc(lessonWhen(next))}</b>${m.nextDur ? `<small>${esc([m.nextDur + ' min', m.nextEvery === 2 ? t('sch.r2') : m.nextEvery === 1 ? t('sch.r1') : ''].filter(Boolean).join(' · '))}</small>` : ''}</span></div>
+    <div class="les-acts2"><button type="button" class="btn small" data-lcal>📅 ${esc(t('sch.addCal'))}</button><button type="button" class="btn small ghost" data-lcant>${esc(t('sch.cant'))}</button></div>` : ''}
     ${n ? `<div class="les-row les-hw"><span class="les-ic">📝</span><span><small>${esc(t('les.fromLesson', { d: dShort(n.at) }))}</small>${n.hw ? `<b>${esc(t('les.hwShort', { hw: n.hw }))}</b>` : ''}${n.did ? `<p>${esc(n.did)}</p>` : ''}</span></div>
     ${reactsHTML(n.key || 'note:' + n.id, n.hw || n.did, (m.myReacts || {})[n.key || 'note:' + n.id])}` : ''}
     ${(m.notes || []).length > 1 ? `<button type="button" class="linkish les-older" data-lhist>${esc(t('les.older', { n: m.notes.length - 1 }))} ›</button>` : ''}
@@ -422,7 +407,17 @@ export async function drawStudent(box) {
   if (!box) return;
   const tm = await TM(); const m = await tm.getMyTeacher(); if (!m) { box.innerHTML = ''; return; }
   box.innerHTML = await studentCardHTML(m);
-  if (!box.dataset.bound) { box.dataset.bound = '1'; bindReacts(box); box.addEventListener('click', (e) => { if (e.target.closest('[data-lhist]')) studentHistory(); }); }
+  if (!box.dataset.bound) { box.dataset.bound = '1'; bindReacts(box); box.addEventListener('click', async (e) => {
+    if (e.target.closest('[data-lhist]')) studentHistory();
+    const cur = await (await TM()).getMyTeacher(); if (!cur || !cur.next) return;
+    const S = await import('./schedule.js');
+    if (e.target.closest('[data-lcal]')) S.downloadIcs(t('sch.icsMine'), S.icsFor({ title: t('sch.icsMineT', { t: cur.name || t('tch.teacher') }), start: cur.next, dur: cur.nextDur || 45, every: cur.nextEvery || 0, uid: 'les-me' }));
+    if (e.target.closest('[data-lcant]')) { // v2.4.24: „Ne mogu da dođem“ → nastavniku (zvonce)
+      const ok = await dialog({ title: t('sch.cantT'), body: t('sch.cantBody', { t: cur.name || t('tch.teacher'), w: lessonWhen(cur.next) }), buttons: [{ label: t('common.cancel'), value: null }, { label: t('sch.cantSend'), value: 'y', kind: 'primary' }] });
+      if (ok !== 'y') return;
+      const B = await BX(); if (await B.outPush({ id: 'cant' + cur.next, type: 'cant', ts: cur.next })) toast(t('sch.cantSent', { t: cur.name || t('tch.teacher') })); else toast(t('box.failed'), 'error');
+    }
+  }); }
   const keys = [(m.notes || [])[0] && ((m.notes[0].key) || 'note:' + m.notes[0].id), m.next ? m.nextKey || 'lesson' : ''].filter(Boolean);
   if (keys.length) markSeen(keys);
 }

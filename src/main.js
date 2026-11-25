@@ -136,9 +136,9 @@ async function routeInner() {
   const shared = hasSharedSong();
   const hash = shared ? '#/primljena' : location.hash || '#/tuner';
   const [, page, arg] = hash.match(/^#\/([^/?]*)\/?(.*)$/) || [, 'tuner', ''];
-  const tab = { tuner: 'tuner', akordi: 'akordi', pesme: 'pesme', pesma: 'pesme', uredi: 'pesme', setlista: 'pesme', nastup: 'pesme', primljena: 'pesme', podesavanja: 'podesavanja', provera: 'podesavanja', vezbe: 'vezbe', ucenici: 'podesavanja', ucenik: 'podesavanja', 'od-nastavnika': 'pesme', vezbanje: 'vezbanje' }[page] || 'tuner'; // v2.4.22: „vezbanje“ = obična stranica (traka: Vežbe/Nastava)
-  const tabT = page === 'vezbanje' || (document.body.classList.contains('nastava-on') && (page === 'ucenici' || page === 'ucenik' || page === 'od-nastavnika')) ? 'vezbe' // v2.0: Nastava
-    : (page === 'ucenici' || page === 'ucenik') && document.body.classList.contains('teach-nav') && DESK_NAV.matches ? 'ucenici' : tab; // v1.81
+  const tab = { tuner: 'tuner', akordi: 'akordi', pesme: 'pesme', pesma: 'pesme', uredi: 'pesme', setlista: 'pesme', nastup: 'pesme', primljena: 'pesme', podesavanja: 'podesavanja', provera: 'podesavanja', vezbe: 'vezbe', ucenici: 'podesavanja', ucenik: 'podesavanja', raspored: 'podesavanja', 'od-nastavnika': 'pesme', vezbanje: 'vezbanje' }[page] || 'tuner'; // v2.4.22: „vezbanje“ = obična stranica (traka: Vežbe/Nastava)
+  const tabT = page === 'vezbanje' || (document.body.classList.contains('nastava-on') && (page === 'ucenici' || page === 'ucenik' || page === 'od-nastavnika' || page === 'raspored')) ? 'vezbe' // v2.0: Nastava
+    : (page === 'ucenici' || page === 'ucenik' || page === 'raspored') && document.body.classList.contains('teach-nav') && DESK_NAV.matches ? 'ucenici' : tab; // v1.81
   if (!shared && tab !== 'vezbanje') { try { localStorage.setItem('marli-last-tab', '#/' + tab); } catch {} } // v2.0: sledeći put otvori ovde
   refreshTeachNav();
   document.body.classList.toggle('tuner-screen', tab === 'tuner');
@@ -248,6 +248,7 @@ async function routeInner() {
     else if (page === 'uredi') await renderEditor(el, dec);
     else if (page === 'podesavanja') await renderSettings(el);
     else if (page === 'provera') await renderChordCheck(el);
+    else if (page === 'raspored') await (await import('./schedule.js')).renderSchedule(el, params); // v2.4.24: raspored časova
     else if (page === 'vezbanje') await (await import('./overview.js')).renderPracticeOverview(el, dec); // v2.4.22: Moje vežbanje / učenikovo
     else if (page === 'ucenici' || page === 'ucenik' || page === 'od-nastavnika') { // v1.78: nastava
       const V = await import('./teachView.js');

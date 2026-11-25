@@ -314,6 +314,10 @@ export async function ingestOut(st, out) {
         const cur = (await tm.getStudent(st.id)) || st; const step = Math.max(0, Math.min(20, Number(o.step) || 0)), of = Math.max(1, Math.min(20, Number(o.of) || 1));
         await tm.updateStudent(st.id, { rp: { ...(cur.rp || {}), [clip(o.ex, 40)]: { step, of, name: clip(o.name, 60), at: Number(o.at) || Date.now() } } });
         if (step >= of) await note(st, 'rp:' + o.id, t('nt.rpDone', { name: st.name }), clip(o.name, 80));
+      } else if (o.type === 'cant' && o.ts) { // v2.4.24: „Ne mogu da dođem“
+        const L = await import('./lessons.js');
+        await note(st, 'cant:' + o.ts, t('sch.ntCant', { name: st.name }), L.lessonWhen(Number(o.ts)));
+        seen[st.id + ':' + o.id] = Date.now(); n++; continue;
       } else if (o.type === 'hello') { // v2.4.21: učenik se upravo povezao
         const cur = (await tm.getStudent(st.id)) || st;
         if (!cur.connAt) { await tm.updateStudent(st.id, { connAt: Number(o.at) || Date.now() }); await connNote(st); }
@@ -339,6 +343,7 @@ export function initTeacherPoll() {
     for (const st of await tm.getStudents()) if (st.prog && st.prog.fileId) await P.studentProgress(st, { fresh: true }).catch(() => null);
     await (await import('./lessons.js')).teacherReminders().catch(() => {}); // v2.4.2: sutrašnji časovi u zvonce
     await (await import('./studentProfile.js')).dateReminders().catch(() => {}); // v2.4.23: rođendani i godišnjice
+    await (await import('./schedule.js')).refreshNext().catch(() => {}); // v2.4.24: sledeći čas iz redovnog termina
   };
   let last = 0; const maybe = () => { if (Date.now() - last > 2 * 60000) { last = Date.now(); run().catch(() => {}); } };
   setTimeout(maybe, 8000);

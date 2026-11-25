@@ -13,7 +13,7 @@ export const sinceOf = (s) => Number(s.since) || Number(s.connAt) || Number(s.cr
 export function togetherText(since, now = Date.now()) {
   const a = new Date(since), b = new Date(now);
   let m = (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth()); if (b.getDate() < a.getDate()) m--;
-  if (m < 1) return countOf(Math.max(0, Math.floor((now - since) / 864e5)), DAYS);
+  if (m < 1) { const d = Math.floor((now - since) / 864e5); return d < 1 ? '' : countOf(d, DAYS); }
   const y = Math.floor(m / 12), r = m % 12;
   return [y ? t('spf.years', { n: y }) : '', r ? t('spf.months', { n: r }) : ''].filter(Boolean).join(' ');
 }
@@ -103,7 +103,7 @@ export async function heroHTML(s, pr = null) {
     if (w && w.streak) chips.push(`<span class="sp-chip">🔥 ${esc(t('ov.streak', { n: w.streak }))}</span>`);
   }
   return `<div class="tch-hero sp-hero"><button type="button" class="sp-avbtn" id="spEdit" aria-label="${esc(t('spf.title'))}">${T.avatarHTML(s, 76)}<span class="sp-cam" aria-hidden="true">📷</span></button>
-    <div><h1>${esc(s.name)}</h1><small class="muted">${esc(t('spf.together', { d: togetherText(sinceOf(s)), from: fmtDate(sinceOf(s)) }))}${s.contact ? ' · ' + esc(s.contact) : ''}</small></div></div>
+    <div><h1>${esc(s.name)}</h1><small class="muted">${esc(togetherText(sinceOf(s)) ? t('spf.together', { d: togetherText(sinceOf(s)), from: fmtDate(sinceOf(s)) }) : t('spf.since1', { from: fmtDate(sinceOf(s)) }))}${s.contact ? ' · ' + esc(s.contact) : ''}</small></div></div>
     ${chips.length ? `<div class="sp-chips">${chips.join('')}</div>` : ''}`;
 }
 

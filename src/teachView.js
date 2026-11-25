@@ -575,7 +575,7 @@ export async function renderDashboard(root) {
   };
   root.innerHTML = `<section class="view tch-view tch-dash">
     <a class="back tch-back" href="#/pesme">‹ ${t('lib.title')}</a>
-    <div class="db-h"><div><h1>${t('tch.students')}</h1><small class="muted">${t('prog.dSub')}</small></div><div class="db-h-btns"><button class="btn" id="dMe">⚙ ${t('tch.me')}</button><button class="btn" id="dQrCard">🖨 ${t('inst.cardBtn')}</button><button class="btn" id="dSendSet">${t('tch.d.sendSet')}</button><button class="btn" id="dGroup">👥 ${t('les.groupBtn')}</button><button class="btn primary" id="tAdd">+ ${t('tch.student')}</button></div></div>
+    <div class="db-h"><div><h1>${t('tch.students')}</h1><small class="muted">${t('prog.dSub')}</small></div><div class="db-h-btns"><a class="btn" href="#/raspored">📅 ${t('sch.title')}</a><button class="btn" id="dMe">⚙ ${t('tch.me')}</button><button class="btn" id="dQrCard">🖨 ${t('inst.cardBtn')}</button><button class="btn" id="dSendSet">${t('tch.d.sendSet')}</button><button class="btn" id="dGroup">👥 ${t('les.groupBtn')}</button><button class="btn primary" id="tAdd">+ ${t('tch.student')}</button></div></div>
     <div class="db-kpis">
       <div class="db-kpi"><small>${t('tch.d.kStudents')}</small><b>${students.length}</b><em>${t('prog.kSharing', { n: students.filter((s) => s.prog).length })}</em></div>
       <div class="db-kpi"><small>${t('prog.kPracticed')}</small><b>${practiced} / ${sharing.length}</b>${diff(practiced, practicedLast, (n) => String(n))}</div>
@@ -755,6 +755,7 @@ async function renderStudentsTouch(root) {
     <header class="view-head tch-head"><h1>${t('tch.students')}</h1><button class="linkish tch-me" id="tMe">⚙ ${t('tch.me')}</button></header>
     <p class="muted tch-sub">${t('tch.touchSub')}</p>
     <div class="tch-big"><button class="btn primary" id="tBulk">↗ ${t('bulk.btn')}</button><button class="btn" id="tAdd">＋ ${t('tch.newStudent')}</button></div>
+    ${list.length ? `<a class="tch-row tch-ovrow sch-entry" href="#/raspored"><span class="sr-ic" aria-hidden="true">📅</span><span><b>${t('sch.title')}</b><small>${t('sch.entrySub')}</small></span><span class="chev" aria-hidden="true">›</span></a>` : ''}
     ${list.length > 1 ? `<button type="button" class="btn wide tch-group" id="tGroup">👥 ${t('les.groupBtn')}</button>` : ''}
     <div id="tIdle" class="les-idle-box"></div>
     ${list.length ? `<div class="tch-sec"><span>${t('tch.yours')}</span></div><div class="set-grp">${list.map((s) => {
