@@ -84,11 +84,15 @@ export async function renderStudent(root, id) {
   const sets = await setlistsOf(id), recs = await recsOf(id);
   const oo = (r) => (r.status === 'open' || r.status === 'editing' ? 0 : 1);
   const reqs = (await T.getRequests()).filter((r) => r.sid === id).sort((a, b) => oo(a) - oo(b) || b.at - a.at);
+  const SP = await import('./studentProfile.js'); // v2.4.23: profil učenika (i na računaru)
+  const pr0 = s.prog ? await (await import('./progress.js')).studentProgress(s).catch(() => null) : null;
+  const heroP = await SP.heroHTML(s, pr0), profP = await SP.profileHTML(s, pr0);
   root.innerHTML = `<section class="view tch-view">
     <a class="back tch-back" href="#/ucenici">‹ ${t('tch.students')}</a>
-    <div class="tch-hero">${T.avatarHTML(s, 56)}<div><h1>${esc(s.name)}</h1><small class="muted">${esc([s.contact, t('tch.since', { d: ((d) => `${d.getDate()}. ${d.getMonth() + 1}. ${d.getFullYear()}.`)(new Date(s.createdAt || Date.now())) })].filter(Boolean).join(' · '))}</small></div></div>
+    ${heroP}
     <div class="tch-actions"><button class="btn primary" id="tSend">${t('tch.sendTo', { name: s.name })}</button><button class="btn" id="tMore" aria-label="${esc(t('tch.more'))}">⋯</button></div>
     <p class="tch-keys" aria-label="${esc(t('les.keysLabel'))}"><span><kbd>N</kbd> ${t('les.k.n')}</span><span><kbd>L</kbd> ${t('les.k.l')}</span><span><kbd>G</kbd> ${t('les.k.g')}</span><span><kbd>R</kbd> ${t('les.k.r')}</span><span><kbd>H</kbd> ${t('les.k.h')}</span><span><kbd>S</kbd> ${t('les.k.s')}</span><span><kbd>P</kbd> ${t('les.k.p')}</span><span><kbd>←</kbd><kbd>→</kbd> ${t('les.k.arrows')}</span></p>
+    ${profP}
     <div id="tLes" class="les-box"></div>
     <div id="tProg">${s.prog ? `<div class="tch-sec"><span>${t('prog.head')}</span><a class="linkish" href="#/vezbanje/${encodeURIComponent(s.id)}">📈 ${t('ov.openT')} ›</a></div><p class="muted small tch-none">${t('prog.loading')}</p>` : ''}</div>
     <div id="tPlan" class="pl-tch"></div>
@@ -124,6 +128,7 @@ export async function renderStudent(root, id) {
     await V.drawTeacherPlan(box, id, null);
     if (s.prog) { const P = await import('./progress.js'); const pr = await P.studentProgress(s, { fresh: true }).catch(() => null); if (pr && !pr.err && !pr.gone && box.isConnected) V.drawTeacherPlan(box, id, pr); }
   })().catch((e) => console.error(e));
+  SP.bindProfile(root, s, () => renderStudent(root, id)); // v2.4.23
   root.querySelector('#tNewSet').addEventListener('click', async () => {
     const { askName } = await import('./setlistsView.js');
     const name = await askName(t('tch.newSet'), t('tch.forNextLesson'));
@@ -135,7 +140,7 @@ export async function renderStudent(root, id) {
   root.querySelector('#tMore').addEventListener('click', async () => {
     const v = await dialog({ title: s.name, buttons: [{ label: t('tch.editStudent'), value: 'edit' }, { label: t('qr.btn'), value: 'qr' }, { label: t('qr.copy'), value: 'inv' }, { label: t('tch.delStudent'), value: 'del', kind: 'danger' }] });
     if (v === 'qr') return showInviteQR(s);
-    if (v === 'edit') { await addStudentFlow(s); renderStudent(root, id); }
+    if (v === 'edit') { if (await (await import('./studentProfile.js')).editProfile(s)) renderStudent(root, id); }
     if (v === 'inv') await T.copyInvite(s);
     if (v === 'del') {
       const ok = await dialog({ title: t('tch.delTitle', { name: s.name }), body: t('tch.delBody'), buttons: [{ label: t('common.cancel'), value: null }, { label: t('tch.delStudent'), value: 'y', kind: 'danger' }] });
@@ -775,25 +780,29 @@ async function renderStudentTouch(root, id) {
   const oo = (r) => (r.status === 'open' || r.status === 'editing' ? 0 : 1);
   const reqs = (await T.getRequests()).filter((r) => r.sid === id && oo(r) === 0).sort((a, b) => b.at - a.at);
   const recs = (await recsOf(id)).filter((r) => r.fromStudent).slice(0, 12); // snimci koje je učenik poslao (ne pregled)
+  const SP = await import('./studentProfile.js'); // v2.4.23: profil učenika
+  const pr0 = s.prog ? await (await import('./progress.js')).studentProgress(s).catch(() => null) : null;
+  const heroP = await SP.heroHTML(s, pr0), profP = await SP.profileHTML(s, pr0);
   const conn = !!(s.box && s.box.f); // v2.4.21: povezan — QR više ne treba (ostaje u ⋯ „Ponovo poveži“)
   root.innerHTML = `<section class="view tch-view tch-touch">
     <a class="back tch-back" href="#/ucenici">‹ ${t('tch.students')}</a>
-    <div class="tch-hero">${T.avatarHTML(s, 56)}<div><h1>${esc(s.name)}</h1><small class="muted">${esc([s.contact, s.prog ? t('tch.sharesProg') : '', t('tch.since', { d: ((d) => `${d.getDate()}. ${d.getMonth() + 1}. ${d.getFullYear()}.`)(new Date(s.createdAt || Date.now())) })].filter(Boolean).join(' · '))}</small></div></div>
+    ${heroP}
     <div class="tch-big${conn ? ' one' : ''}"><button class="btn primary" id="tSend">↗ ${t('bulk.btnOne')}</button>${conn ? '' : `<button class="btn" id="tQr">▦ ${t('qr.btn')}</button>`}</div>
     <button class="linkish tch-more2" id="tMore">${t('tch.editStudent')} · ${t(conn ? 'tch.reconnect' : 'qr.copy')}</button>
-    ${s.prog ? `<a class="tch-row tch-ovrow" href="#/vezbanje/${encodeURIComponent(s.id)}"><span class="sr-ic" aria-hidden="true">📈</span><span><b>${t('ov.openT')}</b><small>${t('ov.openTSub', { name: s.name })}</small></span><span class="chev" aria-hidden="true">›</span></a>` : ''}
+    ${profP}
     <div id="tLes" class="les-box"></div>
     ${reqs.length ? `<div class="tch-sec"><span>${t('tch.rq.head')}</span></div><div class="set-grp tch-reqs">${reqs.map((r) => reqHTML(r)).join('')}</div>` : ''}
     <div id="tPlan" class="pl-tch"></div>
     ${recs.length ? `<div class="tch-sec"><span>${t('tch.recsFrom', { name: s.name })}</span></div><div class="set-grp">${recs.map((r) => `<a class="tch-row" href="#/pesma/${encodeURIComponent(r.id)}">${ic('play')}<span><b>${esc(when(r.createdAt))} <em class="tch-from">${esc(t('tch.fromName', { name: s.name }))}</em></b><small>${esc([r.recording ? '' : r.title, chordsOf(r), r.recording ? dur(r.recording.dur) : ''].filter(Boolean).join(' · '))}</small></span>${CHEV}</a>`).join('')}</div>` : ''}
   </section>`;
   root.querySelector('#tSend').addEventListener('click', () => bulkSend([s]));
+  SP.bindProfile(root, s, () => renderStudentTouch(root, id));
   import('./lessons.js').then((L) => L.drawTeacher(root.querySelector('#tLes'), id)).catch((e) => console.error(e)); // v2.4.2: časovi
   root.querySelector('#tQr')?.addEventListener('click', () => showInviteQR(s));
   root.querySelector('#tMore').addEventListener('click', async () => {
     const v = await dialog({ title: s.name, buttons: [{ label: t('tch.editStudent'), value: 'edit' }, ...(conn ? [{ label: '▦ ' + t('tch.reconnect'), value: 'qr' }] : []), { label: t('qr.copy'), value: 'inv' }] });
     if (v === 'qr') return showInviteQR(s);
-    if (v === 'edit') { await addStudentFlow(s); renderStudentTouch(root, id); }
+    if (v === 'edit') { if (await (await import('./studentProfile.js')).editProfile(s)) renderStudentTouch(root, id); }
     if (v === 'inv') await T.copyInvite(s);
   });
   bindReqs(root, () => renderStudentTouch(root, id));

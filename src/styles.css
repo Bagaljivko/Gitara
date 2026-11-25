@@ -3407,3 +3407,27 @@ body.desk-shell .hint-card.on-song { bottom: 96px; }
 .ov-empty { padding: 6px 2px; }
 .st-ovlink { display: block; text-align: right; margin-top: 8px; color: var(--accent); font-weight: 700; font-size: .85rem; text-decoration: none; }
 .tch-ovrow { border: 1px solid var(--line); border-radius: 16px; background: var(--surface); margin: 0 0 12px; }
+/* v2.4.23: profil učenika */
+img.tch-av.tch-ph { object-fit: cover; background: #222; padding: 0; }
+.sp-hero { margin-top: 10px; }
+.sp-avbtn { position: relative; flex: none; padding: 0; border: 0; background: none; cursor: pointer; border-radius: 50%; box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px rgba(245, 165, 36, .55); }
+.sp-cam { position: absolute; right: -3px; bottom: -3px; width: 26px; height: 26px; border-radius: 50%; background: #22252c; border: 2px solid var(--bg); display: grid; place-items: center; font-size: 12px; }
+.sp-hero small { display: block; margin-top: 2px; }
+.sp-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 12px; }
+.sp-chip { display: inline-flex; align-items: center; gap: 5px; padding: 6px 11px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); font-size: .82rem; }
+.sp-chip b { color: var(--accent); }
+.sp-chip.hot { border-color: rgba(245, 165, 36, .55); background: rgba(245, 165, 36, .1); }
+.sp-row small { white-space: normal; }
+.sp-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+.sp-tags span { font-size: .75rem; padding: 2px 8px; border-radius: 99px; background: #22252c; color: #c7cbd3; }
+.sp-tags span.auto { background: rgba(245, 165, 36, .12); color: var(--accent); }
+.sp-phrow { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; }
+.sp-phbtns { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.sp-phbtns label.btn { cursor: pointer; }
+.sp-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media (max-width: 380px) { .sp-2 { grid-template-columns: 1fr; } }
+.sp-bd { display: grid; grid-template-columns: 1fr 2fr 1.3fr; gap: 8px; }
+.sp-bd select, .sp-bd input { min-width: 0; }
+.sp-dlg textarea { width: 100%; }
+.sp-crop { display: grid; place-items: center; margin: 4px 0 10px; }
+.sp-crop canvas { width: 220px; height: 220px; border-radius: 50%; touch-action: none; cursor: grab; box-shadow: 0 0 0 3px rgba(245, 165, 36, .6); }

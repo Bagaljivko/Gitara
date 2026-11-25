@@ -38,8 +38,8 @@ export async function run(ctx) {
   const t = await open(ctx, 'phone'); await fakeDrive(t, drive); await boot(t, ctx, '#/tuner', 900);
   const ids = await t.evaluate(async () => { const M = await import('./src/teach.js'); await M.setTeacher({ on: true, name: 'Mile' }); const a = await M.addStudent({ name: 'Ana' }); await M.updateStudent(a.id, { prog: { fileId: 'PROG' }, box: { f: 'BX' } }); const b = await M.addStudent({ name: 'Marko' }); return [a.id, b.id]; });
   await t.go('#/ucenik/' + ids[0], 1200);
-  expect(await t.$('.tch-ovrow'), 'nastavnik: na stranici učenika nema „Vežbanje — pregled“');
-  await t.click('.tch-ovrow'); await t.waitForTimeout(1800);
+  expect(await t.$('a.sp-row[href^="#/vezbanje/"]'), 'nastavnik: na stranici učenika nema „Napredak“ (pregled vežbanja)');
+  await t.click('a.sp-row[href^="#/vezbanje/"]'); await t.waitForTimeout(1800);
   const tv = await t.evaluate(() => ({ h: document.querySelector('.ov-top h1')?.textContent, songs: [...document.querySelectorAll('.ov-row b')].map((b) => b.textContent), note: document.querySelector('.ov-share')?.textContent || '' }));
   expect(tv.h === 'Ana — vežbanje' && tv.songs.includes('Tišina') && /deli napredak/.test(tv.note), 'nastavnik: pregled učenika', tv);
   if (SHOT) await t.screenshot({ path: SHOT + 'ana.png' });

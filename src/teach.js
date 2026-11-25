@@ -61,7 +61,9 @@ export async function removeStudent(id) {
   const tc = await getTeacher(); if ((tc.sentLog || []).some((e) => e.sid === id)) await setTeacher({ sentLog: tc.sentLog.filter((e) => e.sid !== id) });
 }
 export const initialOf = (name) => (String(name || '?').trim()[0] || '?').toUpperCase();
-export const avatarHTML = (s, size = 40) => `<span class="tch-av" style="--c:${esc(s.color || COLORS[0])};--s:${size}px" aria-hidden="true">${esc(initialOf(s.name))}</span>`;
+export const avatarHTML = (s, size = 40) => (s.photo && /^data:image\/(jpeg|png|webp);base64,/.test(s.photo) // v2.4.23: slika iz profila
+  ? `<img class="tch-av tch-ph" src="${esc(s.photo)}" alt="" style="--c:${esc(s.color || COLORS[0])};--s:${size}px" aria-hidden="true">`
+  : `<span class="tch-av" style="--c:${esc(s.color || COLORS[0])};--s:${size}px" aria-hidden="true">${esc(initialOf(s.name))}</span>`);
 
 // ---------------- učenik: moj nastavnik ----------------
 export async function getMyTeacher() { return (await settings.get('myTeacher', null)) || null; }

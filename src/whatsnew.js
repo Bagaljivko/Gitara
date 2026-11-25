@@ -5,6 +5,10 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '2.4.23', date: '2026-11-25', items: [
+    { i: '👤', sr: ['Profil učenika', 'Na stranici učenika: slika (aplikacija je sama smanji i iseče), koliko ste zajedno, rođendan, napredak, šta želi da nauči, omiljene pesme (najviše svira + one koje dodaš) i beleške. Sve to ostaje samo kod nastavnika.'], en: ['Student profile', 'On the student’s page: a photo (the app shrinks and crops it by itself), how long you’ve worked together, birthday, progress, what they want to learn, favourite songs (most played + the ones you add) and notes. All of it stays with the teacher only.'] },
+    { i: '🎂', sr: ['Rođendani i godišnjice', 'U zvoncu: „Ana danas slavi rođendan“ i „Godinu dana radiš sa…“ — kad otvoriš aplikaciju tog dana.'], en: ['Birthdays and anniversaries', 'In the bell: “Ana has a birthday today” and “One year working with…” — when you open the app that day.'] },
+  ] },
   { v: '2.4.22', date: '2026-11-25', items: [
     { i: '📈', sr: ['Moje vežbanje', 'Pregled vežbanja po nedelji, mesecu ili ukupno: vreme (i razlika prema prošlom periodu), dani i niz, stubići po danu (sviranje pesama + vežbe), pesme sa vremenom i zvezdicama po vežbi, i igre. U Vežbama (ispod „Ove nedelje“) i na stranici „Od nastavnika“.'], en: ['My practice', 'A practice overview by week, month or all time: time (and the change from the previous period), days and streak, bars per day (playing songs + exercises), songs with time and stars per exercise, and games. In Practice (under This week) and on the From teacher page.'] },
     { i: '🎓', sr: ['Nastavnik vidi isti pregled', 'Kad učenik deli napredak, na njegovoj stranici je „Vežbanje — pregled“ — isti pregled, sa domaćim. Opis deljenja je ažuriran: nastavnik vidi i nazive pesama koje učenik vežba (ne tekst ni snimke).'], en: ['The teacher sees the same overview', 'When a student shares progress, their page has “Practice — overview” — the same overview, with homework. The sharing description is updated: the teacher also sees the names of songs the student practises (not their text or recordings).'] },

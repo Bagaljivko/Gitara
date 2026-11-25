@@ -338,6 +338,7 @@ export function initTeacherPoll() {
     const P = await import('./progress.js');
     for (const st of await tm.getStudents()) if (st.prog && st.prog.fileId) await P.studentProgress(st, { fresh: true }).catch(() => null);
     await (await import('./lessons.js')).teacherReminders().catch(() => {}); // v2.4.2: sutrašnji časovi u zvonce
+    await (await import('./studentProfile.js')).dateReminders().catch(() => {}); // v2.4.23: rođendani i godišnjice
   };
   let last = 0; const maybe = () => { if (Date.now() - last > 2 * 60000) { last = Date.now(); run().catch(() => {}); } };
   setTimeout(maybe, 8000);
