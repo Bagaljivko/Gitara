@@ -34,10 +34,12 @@ function rows() {
   else if (g === 'ready') L = L.filter((s) => st.ready && st.ready.has(s.id)); // v2.4.10
   else if (g === 'dupes') { const d = dupeIds(L); L = L.filter((s) => d.has(s.id)); }
   else if (g === 'teacher') L = L.filter((s) => s.fromT); // v2.4.16: sve što je nastavnik poslao
+  else if (g === 'top') L = L.filter((s) => st.top && st.top.has(s.id)); // v2.4.21: najviše sviram
   else if (g.startsWith('f:')) L = L.filter((s) => (s.folders || []).includes(g.slice(2)));
   if (st.q) { const q = fold(st.q); L = L.filter((s) => fold(s.title + ' ' + (s.artist || '')).includes(q) || fold((s.sections || []).map((x) => (x.lines || []).map((l) => l.text).join(' ')).join(' ')).includes(q)); }
   const { col, dir } = st.sort;
   const val = (s) => (col === 'artist' ? fold(s.artist) : col === 'key' ? keyOf(s) : col === 'date' ? -(s.updatedAt || s.createdAt || 0) : col === 'video' ? (hasVideo(s) ? 0 : 1) : col === 'folder' ? fold(folderNames(s)) : fold(s.title));
+  if (g === 'top' && st.top) return L.sort((a, b) => (st.top.get(b.id) || 0) - (st.top.get(a.id) || 0)); // v2.4.21: najviše vremena prvo
   return L.sort((a, b) => { const x = val(a), y = val(b); return (x < y ? -1 : x > y ? 1 : 0) * dir || fold(a.title).localeCompare(fold(b.title)); });
 }
 const folderNames = (s) => (s.folders || []).map((id) => folderLabel(st.folders.find((f) => f.id === id))).filter(Boolean).join(', ');
@@ -45,6 +47,7 @@ const groupTitle = () => {
   const g = st.group;
   if (g.startsWith('f:')) return folderLabel(st.folders.find((f) => f.id === g.slice(2))) || t('desk.all');
   if (g === 'teacher') return '🎓 ' + t('tch.fromTeacher');
+  if (g === 'top') return '🔥 ' + t('lib.groupTop');
   return t({ all: 'desk.all', recent: 'desk.recent', novideo: 'desk.noVideo', nostrum: 'desk.noStrum', ready: 'rdy.group', dupes: 'desk.dupes' }[g] || 'desk.all');
 };
 const fmtDate = (ts) => { if (!ts) return ''; const d = new Date(ts), n = new Date(); if (d.toDateString() === n.toDateString()) return t('desk.today'); if (n - d < 2 * DAY && n.getDate() - d.getDate() === 1) return t('desk.yesterday'); return `${d.getDate()}. ${d.getMonth() + 1}.`; };
@@ -59,7 +62,7 @@ function sideHTML() {
   const it = (g, label, n, ico = FOLDER_SVG, extra = '') => `<button type="button" class="ds-it${st.group === g ? ' on' : ''}" data-g="${esc(g)}"${extra}>${ico}<span class="ds-name">${esc(label)}</span><b>${n}</b></button>`;
   const d = dupeIds(L).size;
   return `<div class="ds-sec"><div class="ds-ttl">${t('desk.library')}</div>
-      ${it('all', t('desk.all'), L.length)}${it('recent', t('desk.recent'), cnt((s) => Date.now() - (s.updatedAt || s.createdAt || 0) < 30 * DAY))}</div>
+      ${it('all', t('desk.all'), L.length)}${it('recent', t('desk.recent'), cnt((s) => Date.now() - (s.updatedAt || s.createdAt || 0) < 30 * DAY))}${st.top && st.top.size ? it('top', '🔥 ' + t('lib.groupTop'), cnt((s) => st.top.has(s.id))) : ''}</div>
     <div class="ds-sec"><div class="ds-ttl">${t('desk.check')}</div>
       ${it('novideo', t('desk.noVideo'), cnt((s) => !hasVideo(s)))}${it('nostrum', t('desk.noStrum'), cnt((s) => !hasStrum(s) && s.type !== 'tab'))}${d ? it('dupes', t('desk.dupes'), d) : ''}${st.ready && st.ready.size ? it('ready', '✓ ' + t('rdy.group'), cnt((s) => st.ready.has(s.id))) : ''}</div>
     <div class="ds-sec"><div class="ds-ttl">${t('desk.folders')}<button type="button" class="ds-add" data-a="newFolder" title="${t('desk.newFolder')}" aria-label="${t('desk.newFolder')}">+</button></div>
@@ -117,6 +120,7 @@ export async function deskReload() { if (side && document.body.contains(side)) a
 async function reload() {
   [st.all, st.folders, st.sets] = await Promise.all([db.all(), getFolders(), getSetlists()]);
   try { st.ready = await (await import('./songs.js')).loadReady(); } catch { st.ready = null; } // v2.4.10
+  try { st.top = await (await import('./songs.js')).loadTop(); } catch { st.top = null; } // v2.4.21
   try { const T = await import('./teach.js'); const [tc, my, sts] = await Promise.all([T.getTeacher(), T.getMyTeacher(), T.getStudents()]); st.teach = { on: !!tc.on, sts, my }; } catch { st.teach = null; } // v1.78
   const ids = new Set(st.all.map((s) => s.id));
   for (const id of [...st.sel]) if (!ids.has(id)) st.sel.delete(id);

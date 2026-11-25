@@ -292,7 +292,13 @@ export async function ingestFromStudent(st, o) {
   if (o.type === 'got' && Array.isArray(o.keys)) { // v2.4.14: stiglo
     const got = { ...(cur.got || {}) }; let any = false;
     for (const k of o.keys.slice(0, 40)) { const key = clip(k, 80); if (!got[key]) { got[key] = Number(o.at) || Date.now(); any = true; } }
-    if (any) await tm.updateStudent(st.id, { got: Object.fromEntries(Object.entries(got).sort((a, b) => b[1] - a[1]).slice(0, 200)) });
+    if (any) {
+      await tm.updateStudent(st.id, { got: Object.fromEntries(Object.entries(got).sort((a, b) => b[1] - a[1]).slice(0, 200)) });
+      // v2.4.21: 🔔 „Ana je primila …“ (imena iz poslatog)
+      const fresh = o.keys.slice(0, 40).map((k) => (cur.sent || []).find((e) => e.key === clip(k, 80))).filter(Boolean);
+      const N = await import('./notify.js');
+      await N.add({ id: st.id + ':got:' + clip(o.id || o.at, 40), who: (String(st.name || '?')[0] || '?').toUpperCase(), c: st.color || '', t: t('nt.gotT', { name: st.name }), s: fresh.map((e) => e.name).filter(Boolean).slice(0, 3).join(', '), href: '#/ucenik/' + encodeURIComponent(st.id) });
+    }
     return any;
   }
   if (o.type === 'seen' && Array.isArray(o.keys)) {

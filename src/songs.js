@@ -65,6 +65,10 @@ let STUDENT_NAMES = new Map(); // v1.78: id učenika → ime (za oznaku na snimk
 let READY = new Set();
 export async function loadReady() { try { const { settings } = await import('./db.js'); const V = await import('./statsView.js'); const p = (await settings.get('practice', null)) || {}; READY = new Set(Object.entries(p.songs || {}).filter(([, r]) => V.readinessOf(r) === 'ready').map(([id]) => id)); } catch {} return READY; }
 export const isReady = (id) => READY.has(id);
+// v2.4.21: „Najviše sviram“ — vreme sviranja + vežbanja po pesmi (iz activity.js), bar 3 minuta
+let TOP = new Map();
+export async function loadTop() { try { const A = await import('./activity.js'); const tot = await A.loadTotals(); TOP = new Map(Object.entries(tot.songs || {}).map(([id, o]) => [id, (o.p || 0) + (o.x || 0)]).filter(([, ms]) => ms >= 180000)); } catch {} return TOP; }
+const topTime = (ms) => { const m = Math.round(ms / 60000); return m >= 60 ? `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')}` : `${m} min`; };
 export async function loadStudentNames() { try { const T = await import('./teach.js'); STUDENT_NAMES = new Map((await T.getStudents()).map((s) => [s.id, s.name])); } catch {} }
 function libBadges(s) {
   const b = [];
@@ -81,6 +85,7 @@ function libBadges(s) {
 export async function renderLibrary(root, params = new URLSearchParams()) {
   await loadStudentNames(); // v1.78
   await loadReady(); // v2.4.10
+  await loadTop(); // v2.4.21
   const sortPref = localStorageGet('gitara-sort') || 'new';
   const tab = params.get('tab') === 'sl' ? 'sl' : 'songs';
   root.innerHTML = `
@@ -124,7 +129,7 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
   let folders = await getFolders();
   // grupa: '' = sve, id foldera, 'artist:<ime>', 'auto:tab', 'auto:recent'
   let folderFilter = localStorageGet('gitara-folder') || '';
-  const validGroup = (g) => !g || g === 'auto:tab' || g === 'auto:recent' || g === 'auto:ready' || folders.some((f) => f.id === g); // izvođači više nisu grupa (pretraga ih nalazi)
+  const validGroup = (g) => !g || g === 'auto:tab' || g === 'auto:recent' || g === 'auto:ready' || g === 'auto:top' || g === 'auto:teacher' || folders.some((f) => f.id === g); // izvođači više nisu grupa (pretraga ih nalazi)
   if (!validGroup(folderFilter)) folderFilter = '';
 
   // Sekcije: Pesme / Setliste
@@ -141,7 +146,7 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
   if (tab === 'sl') renderSetlistsPane($('lSlPane'));
 
   // Grupa pesama u naslovu („Sve pesme ▾“): dodir otvara panel sa grupama (automatske + moji folderi)
-  const groupLabel = (g) => !g ? t('lib.groupAll') : g === 'auto:tab' ? t('lib.groupTab') : g === 'auto:recent' ? t('lib.groupRecent') : g === 'auto:ready' ? t('rdy.group') : g === 'auto:teacher' ? '🎓 ' + t('tch.fromTeacher')
+  const groupLabel = (g) => !g ? t('lib.groupAll') : g === 'auto:tab' ? t('lib.groupTab') : g === 'auto:recent' ? t('lib.groupRecent') : g === 'auto:ready' ? t('rdy.group') : g === 'auto:top' ? '🔥 ' + t('lib.groupTop') : g === 'auto:teacher' ? '🎓 ' + t('tch.fromTeacher')
     : g.startsWith('artist:') ? (all.find((s) => artistKey(s) === g.slice(7))?.artist || g.slice(7)) : folderLabel(folders.find((f) => f.id === g) || { name: '' });
   // v2.0: čipovi grupa ispod naslova (telefon) — Sve, Od nastavnika, folderi (i Moji snimci), TAB; jedan dodir
   let myT = null; import('./teach.js').then((T) => T.getMyTeacher()).then((m) => { myT = m; drawChips(); }).catch(() => {});
@@ -150,6 +155,7 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
     const n = (g) => all.filter((x) => inGroup(x, g)).length;
     const fo = [...folders].sort((a, b) => (isSystemFolder(b.id) ? 1 : 0) - (isSystemFolder(a.id) ? 1 : 0));
     const chips = [['', t('lib.chipAll'), n('')]];
+    const ntop = n('auto:top'); if (ntop) chips.push(['auto:top', '🔥 ' + t('lib.groupTop'), ntop]); // v2.4.21
     if ((myT && myT.tid) || all.some((x) => x.fromT)) chips.push(['auto:teacher', '🎓 ' + (myT && myT.name ? myT.name : t('tch.fromTeacher')), n('auto:teacher'), 't']);
     for (const f of fo) chips.push([f.id, (isSystemFolder(f.id) ? '' : '📁 ') + folderLabel(f), n(f.id)]);
     const nt = n('auto:tab'); if (nt) chips.push(['auto:tab', t('lib.groupTab'), nt]);
@@ -196,6 +202,7 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
     if (g === 'auto:tab') return s.type === 'tab' || !!s.hasTabs;
     if (g === 'auto:recent') return (rec || recentIds()).has(s.id);
     if (g === 'auto:ready') return READY.has(s.id);
+    if (g === 'auto:top') return TOP.has(s.id);
     if (g === 'auto:teacher') return !!s.fromT; // v2.4.16: sve pesme od nastavnika, same stižu
     if (g.startsWith('artist:')) return artistKey(s) === g.slice(7);
     return (s.folders || []).includes(g);
@@ -205,12 +212,14 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
     const q = fold($('lSearch').value);
     // snimci iz „Samo sviraj“ su samo u folderu „Moji snimci“ (ne u „Sve“)
     const rec = folderFilter === 'auto:recent' ? recentIds() : null;
-    $('lTNote').hidden = folderFilter !== 'auto:teacher';
+    $('lTNote').hidden = folderFilter !== 'auto:teacher' && folderFilter !== 'auto:top';
+    $('lTNote').textContent = t(folderFilter === 'auto:top' ? 'lib.topNote' : 'lib.teacherNote');
     let list = all.filter((s) => inGroup(s, folderFilter, rec)).filter((s) => !q || folded(s).t.includes(q) || folded(s).a.includes(q) ||
       (s.find ?? '').includes(q));
     const sort = $('lSort').value;
     const cmp = srCompare; // srpska latinica: C Č Ć … S Š … Z Ž
-    if (sort === 'title') list.sort((a, b) => cmp(a.title, b.title));
+    if (folderFilter === 'auto:top') list.sort((a, b) => (TOP.get(b.id) || 0) - (TOP.get(a.id) || 0)); // v2.4.21: najviše vremena prvo
+    else if (sort === 'title') list.sort((a, b) => cmp(a.title, b.title));
     else if (sort === 'artist') list.sort((a, b) => cmp(a.artist, b.artist) || cmp(a.title, b.title));
     else if (sort === 'recent' || folderFilter === 'auto:recent') { const op = openedMap(); list.sort((a, b) => (op[b.id] || 0) - (op[a.id] || 0) || (b.updatedAt || 0) - (a.updatedAt || 0)); }
     else list.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
@@ -226,7 +235,7 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
       <li class="song-item${s.id === selectedId ? ' selected' : ''}" data-id="${esc(s.id)}">
         <a href="#/pesma/${encodeURIComponent(s.id)}" class="song-link">
           <span class="song-title">${esc(s.title)}</span>
-          <span class="song-sub">${[s.artist ? esc(s.artist) : '', ((k) => (k ? `<span class="key">${esc(dn(k))}</span>` : ''))(libKey(s))].filter(Boolean).join(' · ')}${libBadges(s)}</span>
+          <span class="song-sub">${[s.artist ? esc(s.artist) : '', ((k) => (k ? `<span class="key">${esc(dn(k))}</span>` : ''))(libKey(s))].filter(Boolean).join(' · ')}${folderFilter === 'auto:top' && TOP.get(s.id) ? `<span class="lib-top">· ⏱ ${esc(topTime(TOP.get(s.id)))}</span>` : ''}${libBadges(s)}</span>
         </a>
         <button class="icon-btn more-btn" data-more="${esc(s.id)}" aria-label="${esc(t('lib.songMenu', { title: s.title }))}">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm0 6a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm0 6a2 2 0 1 1 0-4 2 2 0 0 1 0 4z"/></svg>
@@ -340,6 +349,7 @@ function openGroupSheet({ all, folders, cur, inGroup, anchor, teach = null }) {
       ${rec.size ? row('auto:recent', t('lib.groupRecent'), GRP_ICONS['auto:recent'], n('auto:recent')) : ''}
       ${n('auto:tab') ? row('auto:tab', t('lib.groupTab'), GRP_ICONS['auto:tab'], n('auto:tab')) : ''}
       ${n('auto:ready') ? row('auto:ready', t('rdy.group'), GRP_ICONS['auto:ready'], n('auto:ready')) : ''}
+      ${n('auto:top') ? row('auto:top', '🔥 ' + t('lib.groupTop'), GRP_ICONS['auto:ready'], n('auto:top')) : ''}
       ${sys.map((f) => row(f.id, folderLabel(f), GRP_ICONS.rec, n(f.id))).join('')}
       ${(teach && teach.my) || n('auto:teacher') ? row('auto:teacher', t('tch.fromTeacher'), GRP_ICONS.students, n('auto:teacher')) : ''}
       <div class="grp-sep"></div>

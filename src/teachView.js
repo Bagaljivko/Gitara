@@ -77,6 +77,7 @@ export async function addStudentFlow(edit = null) {
 
 // ---------------- jedan učenik ----------------
 export async function renderStudent(root, id) {
+  setTimeout(() => T.getStudent(id).then((s) => s && import('./teachTour.js').then((X) => X.maybe('t', s.name, { sid: s.id }))).catch(() => {}), 700); // v2.4.21: tura posle povezivanja
   if (!COMPUTER()) return renderStudentTouch(root, id);
   const s = await T.getStudent(id);
   if (!s) { location.replace('#/ucenici'); return; }
@@ -301,6 +302,7 @@ function boxLastText() {
 export async function renderFromTeacher(root) {
   const m = await T.getMyTeacher();
   if (!m) { location.replace('#/pesme'); return; }
+  setTimeout(() => import('./teachTour.js').then((X) => X.maybe('s', m.name)).catch(() => {}), 700); // v2.4.21: tura posle povezivanja
   const all = await db.list();
   const songsFrom = all.filter((s) => s.fromT).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   const c = await import('./collections.js');
@@ -341,6 +343,7 @@ export async function renderFromTeacher(root) {
     ${sets.length || songsFrom.length ? `<div class="set-grp">${sets.filter((sl) => !newSets.includes(sl)).map((sl) => `<a class="tch-row" href="#/setlista/${encodeURIComponent(sl.id)}">${ic('list')}<span><b>${esc(sl.name)}</b><small>${songsCount((sl.songIds || []).length)}</small></span>${CHEV}</a>`).join('')}${songsFrom.filter((x) => !newIds.has(x.id)).map((s) => `<a class="tch-row" href="#/pesma/${encodeURIComponent(s.id)}">${ic('song')}<span><b>${esc(s.title)}</b><small>${esc(s.artist || '')}</small></span>${CHEV}</a>`).join('')}</div>` : `<p class="muted small tch-none">${t('tch.nothingArrived')}</p>`}
     <button class="btn primary wide tch-sendback" id="tBack">🎙 ${t('tch.sendToTeacher')}</button>
     <p class="tch-lock">🔒 ${t('tch.lockStudentSide', { t: m.name || t('tch.teacher') })}</p>
+    <button type="button" class="linkish tch-tour" id="tTour">💡 ${t('tour.again')}</button>
     <button class="btn small tch-disc" id="tDisc">${t('tch.disconnect')}</button>
   </section>`;
   root.querySelector('#tBack').addEventListener('click', () => sendToTeacher());
@@ -362,6 +365,7 @@ export async function renderFromTeacher(root) {
   root.querySelector('#tWish').addEventListener('click', async () => { if (await askTeacherFlow('wish')) renderFromTeacher(root); });
   root.querySelector('#tAsk').addEventListener('click', async () => { if (await askTeacherFlow('ask')) renderFromTeacher(root); });
   root.querySelector('#tDisc').addEventListener('click', () => disconnectTeacher());
+  root.querySelector('#tTour')?.addEventListener('click', () => import('./teachTour.js').then((X) => X.maybe('s', m.name, { force: true })));
   root.querySelector('#tProgG')?.addEventListener('click', async () => { const P = await import('./progress.js'); if (await P.setProgressShare(true).catch(() => false)) toast(t('prog.turnedOn', { t: tn })); renderFromTeacher(root); });
   root.querySelector('#tProgQr')?.addEventListener('click', async () => { const P = await import('./progress.js'); const cur = await T.getMyTeacher(); if (cur.prog && cur.prog.fileId) await P.showBackQR(cur.prog.fileId); });
   root.querySelectorAll('[data-save]').forEach((b) => b.addEventListener('click', async () => {
@@ -444,6 +448,12 @@ export async function acceptInvite(hash) {
   await T.setMyTeacher({ ...(same ? old : {}), tid: decodeURIComponent(mm[1]), sid: decodeURIComponent(mm[2]), name, contact: p.get('c') || '', at: Date.now(), ...(bx ? { box: bx } : {}) });
   if (bx) import('./teachBox.js').then((B) => { B.initBox(); return B.checkBox({ force: true }); }).catch(() => {});
   toast(t('tch.inv.done', { t: name || t('tch.teacher') }));
+  if (!same) { // v2.4.21: 🔔 „Povezan si sa …“ + kratka tura (jednom) + pozdrav nastavniku (kad stigne, i on dobije obaveštenje)
+    const tn = name || t('tch.teacher');
+    import('./notify.js').then((N) => N.add({ id: 'conn:me:' + decodeURIComponent(mm[1]), who: (tn[0] || 'M').toUpperCase(), c: '#f5a524', t: t('nt.connMe', { t: tn }), s: t('nt.connMeSub'), href: '#/od-nastavnika' })).catch(() => {});
+    import('./teachTour.js').then((X) => X.pending('s')).catch(() => {});
+    setTimeout(() => import('./teachBox.js').then((B) => B.outPush({ id: 'hello', type: 'hello' }, { interactive: false })).catch(() => {}), 4000);
+  }
   try { dispatchEvent(new CustomEvent('marli-invite-ok', { detail: { link: location.origin + location.pathname + hash } })); } catch {} // v2.0: link za iPhone (aplikacija sa početnog ekrana ima svoju memoriju) // v1.87: posle prihvatanja — poziv „Instaliraj“ (telefon/tablet)
   location.hash = '#/od-nastavnika';
   const cur = await T.getMyTeacher();
@@ -764,11 +774,12 @@ async function renderStudentTouch(root, id) {
   const oo = (r) => (r.status === 'open' || r.status === 'editing' ? 0 : 1);
   const reqs = (await T.getRequests()).filter((r) => r.sid === id && oo(r) === 0).sort((a, b) => b.at - a.at);
   const recs = (await recsOf(id)).filter((r) => r.fromStudent).slice(0, 12); // snimci koje je učenik poslao (ne pregled)
+  const conn = !!(s.box && s.box.f); // v2.4.21: povezan — QR više ne treba (ostaje u ⋯ „Ponovo poveži“)
   root.innerHTML = `<section class="view tch-view tch-touch">
     <a class="back tch-back" href="#/ucenici">‹ ${t('tch.students')}</a>
     <div class="tch-hero">${T.avatarHTML(s, 56)}<div><h1>${esc(s.name)}</h1><small class="muted">${esc([s.contact, s.prog ? t('tch.sharesProg') : '', t('tch.since', { d: ((d) => `${d.getDate()}. ${d.getMonth() + 1}. ${d.getFullYear()}.`)(new Date(s.createdAt || Date.now())) })].filter(Boolean).join(' · '))}</small></div></div>
-    <div class="tch-big"><button class="btn primary" id="tSend">↗ ${t('bulk.btnOne')}</button><button class="btn" id="tQr">▦ ${t('qr.btn')}</button></div>
-    <button class="linkish tch-more2" id="tMore">${t('tch.editStudent')} · ${t('qr.copy')}</button>
+    <div class="tch-big${conn ? ' one' : ''}"><button class="btn primary" id="tSend">↗ ${t('bulk.btnOne')}</button>${conn ? '' : `<button class="btn" id="tQr">▦ ${t('qr.btn')}</button>`}</div>
+    <button class="linkish tch-more2" id="tMore">${t('tch.editStudent')} · ${t(conn ? 'tch.reconnect' : 'qr.copy')}</button>
     <div id="tLes" class="les-box"></div>
     ${reqs.length ? `<div class="tch-sec"><span>${t('tch.rq.head')}</span></div><div class="set-grp tch-reqs">${reqs.map((r) => reqHTML(r)).join('')}</div>` : ''}
     <div id="tPlan" class="pl-tch"></div>
@@ -776,9 +787,10 @@ async function renderStudentTouch(root, id) {
   </section>`;
   root.querySelector('#tSend').addEventListener('click', () => bulkSend([s]));
   import('./lessons.js').then((L) => L.drawTeacher(root.querySelector('#tLes'), id)).catch((e) => console.error(e)); // v2.4.2: časovi
-  root.querySelector('#tQr').addEventListener('click', () => showInviteQR(s));
+  root.querySelector('#tQr')?.addEventListener('click', () => showInviteQR(s));
   root.querySelector('#tMore').addEventListener('click', async () => {
-    const v = await dialog({ title: s.name, buttons: [{ label: t('tch.editStudent'), value: 'edit' }, { label: t('qr.copy'), value: 'inv' }] });
+    const v = await dialog({ title: s.name, buttons: [{ label: t('tch.editStudent'), value: 'edit' }, ...(conn ? [{ label: '▦ ' + t('tch.reconnect'), value: 'qr' }] : []), { label: t('qr.copy'), value: 'inv' }] });
+    if (v === 'qr') return showInviteQR(s);
     if (v === 'edit') { await addStudentFlow(s); renderStudentTouch(root, id); }
     if (v === 'inv') await T.copyInvite(s);
   });

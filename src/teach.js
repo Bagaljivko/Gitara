@@ -283,9 +283,9 @@ export async function receiveProgress(hash) {
   if (!me.on || d.ft !== me.id) { toast(t('tch.rq.notMine')); return null; }
   const st = await getStudent(d.fs); if (!st) { toast(t('tch.rq.noStudent')); return null; }
   if (!d.f || !/^[\w-]{6,}$/.test(d.f)) { toast(t('tch.rq.bad')); return null; }
-  await updateStudent(st.id, { prog: { fileId: d.f, since: Date.now() } });
+  await updateStudent(st.id, { prog: { fileId: d.f, since: Date.now() }, connAt: st.connAt || Date.now() }); // v2.4.21: connAt — „povezala se“ samo jednom
   toast(t('prog.got', { name: st.name }));
-  (await import('./notify.js')).add({ id: st.id + ':conn:' + d.f, who: (st.name[0] || '?').toUpperCase(), c: st.color || '', t: t('nt.conn', { name: st.name }), s: t('nt.connSub'), href: '#/ucenik/' + encodeURIComponent(st.id) }).catch(() => {});
+  if (!st.connAt) (await import('./teachBox.js')).connNote(st).catch(() => {});
   return st;
 }
 async function receiveProgressMsg(z) {

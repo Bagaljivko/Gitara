@@ -196,6 +196,7 @@ export function checkBox({ force = false } = {}) {
         else if (it.kind === 'plan') await (await import('./plan.js')).acceptPlanFile(it.f);
         else if (it.kind === 'rp') { if (!(await (await import('./pRP.js')).receive(it.rp, fromT))) continue; } // v2.1: Ritam i promene od nastavnika
         else if (it.kind === 'ex') { if (!(await (await import('./myEx.js')).receive(it.ex, fromT))) continue; } // v1.97: vežba od nastavnika
+        else if (it.kind !== 'rcv') continue; // v2.4.21: „rcv“ = nastavnik je primio moj snimak (samo obaveštenje)
         seen[it.key] = it.at || Date.now(); n++;
         notes.push(it);
       } catch (e) { console.warn('box', e); }
@@ -218,6 +219,7 @@ export function checkBox({ force = false } = {}) {
       for (const x of notes.filter((y) => y.kind === 'ex')) await N.add({ id: 'ex:' + x.key + x.at, who, c: '#f5a524', t: t('nt.ex', { t: tn, name: x.name || '' }), s: x.ex && x.ex.goal ? t('ex.goalShort', { n: x.ex.goal.n, bpm: x.ex.goal.bpm || '' }) : '', href: '#/vezbe' });
       for (const x of notes.filter((y) => y.kind === 'rp')) await N.add({ id: 'rp:' + x.key + x.at, who, c: '#f5a524', t: t('nt.rp', { t: tn, name: x.name || '' }), s: t('nt.rpSub'), href: '#/vezbe/rp?ex=' + encodeURIComponent((x.rp && x.rp.id) || '') });
       for (const { it: x, r } of les) await N.add({ id: 'les:' + x.key + ':' + x.at, who, c: '#f5a524', t: r.t, s: r.s || '', href: r.href || '#/od-nastavnika' }); // v2.4.2
+      for (const x of notes.filter((y) => y.kind === 'rcv')) await N.add({ id: 'rcv:' + x.key, who, c: '#3dd68c', t: t('nt.rcv', { t: tn }), s: x.name || '', href: '#/od-nastavnika' }); // v2.4.21
       for (const x of notes.filter((y) => y.kind === 'plan')) await N.add({ id: 'plan:' + x.at, who, c: '#f5a524', t: t('nt.plan', { t: tn }), s: t('nt.planSub'), href: '#/vezbe' });
     }
     return n;
@@ -269,6 +271,11 @@ export async function outPush(item, { interactive = true } = {}) {
 
 // ---------------- nastavnik: primi ono što su učenici poslali (iz njihovih fajlova napretka) ----------------
 /** Iz učenikovog fajla napretka: želje/pitanja, „proveri“, snimci — svaka stavka samo jednom. Vraća broj novih. */
+/** v2.4.21: nastavnik — „Ana se povezala s tobom“ (jednom) i kratka tura. */
+export async function connNote(st) {
+  await note(st, 'conn', t('nt.conn', { name: st.name }), t('nt.connSub2'));
+  (await import('./teachTour.js')).pending('t', st.id);
+}
 async function note(st, id, title, sub) { const N = await import('./notify.js'); return N.add({ id: st.id + ':' + id, who: (String(st.name || '?')[0] || '?').toUpperCase(), c: st.color || '', t: title, s: sub, href: '#/ucenik/' + encodeURIComponent(st.id) }); }
 /** v1.95: nastavnik — urađeni zadaci iz učenikovog napretka (svaki samo jednom). */
 export async function ingestDone(st, d) {
@@ -302,10 +309,15 @@ export async function ingestOut(st, out) {
         await I.importTagged(pkg, o.f, (song) => ({ student: st.id, fromStudent: 1, ...(song.recording ? { folders: [REC_FOLDER] } : {}) }));
         toast(t('box.gotRec', { name: st.name }));
         await note(st, 'rec:' + o.id, t('nt.rec', { name: st.name }), o.title || '');
+        boxPut(st.id, [{ key: 'rcv:' + String(o.id).slice(0, 40), kind: 'rcv', name: String(o.title || '').slice(0, 80), at: Date.now() }], { interactive: false }).catch(() => {}); // v2.4.21: učenik vidi „primio tvoj snimak ✓“
       } else if (o.type === 'rp' && o.ex) { // v2.1: napredak u „Ritam i promene“ (korak n od m)
         const cur = (await tm.getStudent(st.id)) || st; const step = Math.max(0, Math.min(20, Number(o.step) || 0)), of = Math.max(1, Math.min(20, Number(o.of) || 1));
         await tm.updateStudent(st.id, { rp: { ...(cur.rp || {}), [clip(o.ex, 40)]: { step, of, name: clip(o.name, 60), at: Number(o.at) || Date.now() } } });
         if (step >= of) await note(st, 'rp:' + o.id, t('nt.rpDone', { name: st.name }), clip(o.name, 80));
+      } else if (o.type === 'hello') { // v2.4.21: učenik se upravo povezao
+        const cur = (await tm.getStudent(st.id)) || st;
+        if (!cur.connAt) { await tm.updateStudent(st.id, { connAt: Number(o.at) || Date.now() }); await connNote(st); }
+        seen[st.id + ':' + o.id] = Date.now(); n++; continue;
       } else if (o.type === 'seen' || o.type === 'react' || o.type === 'session' || o.type === 'got') { await (await import('./lessons.js')).ingestFromStudent(st, o); seen[st.id + ':' + o.id] = Date.now(); n++; continue; } // v2.4.2
       else continue;
       if (o.type === 'wish' || o.type === 'ask') await note(st, 'rq:' + o.id, t(o.type === 'wish' ? 'nt.wish' : 'nt.ask', { name: st.name, title: clip(o.title, 80) }), [clip(o.artist, 60), o.note ? '„' + clip(o.note, 80) + '“' : ''].filter(Boolean).join(' · '));

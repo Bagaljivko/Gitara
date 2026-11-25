@@ -5,6 +5,11 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '2.4.21', date: '2026-11-25', items: [
+    { i: '🔔', sr: ['Obaveštenja između nastavnika i učenika', 'Kad se povežete, oboje dobijete obaveštenje i kratku turu „šta sad možeš“. Nastavnik vidi kad učenik primi poslate pesme („primljeno ✓“), a učenik kad nastavnik primi njegov snimak.'], en: ['Notifications between teacher and student', 'When you connect, you both get a notification and a short “what you can do now” tour. The teacher sees when the student receives the songs (“received ✓”), and the student when the teacher receives their recording.'] },
+    { i: '🔥', sr: ['Najviše sviram', 'U Pesmama nova grupa „🔥 Najviše sviram“ — pesme koje najviše sviraš i vežbaš, sa vremenom (na računaru levo, pod Biblioteka).'], en: ['Most played', 'Songs has a new “🔥 Most played” group — the songs you play and practise most, with the time (on a computer on the left, under Library).'] },
+    { i: '▦', sr: ['Bez QR-a kad ste povezani', 'Na stranici povezanog učenika više nema velikog QR dugmeta — ako zatreba (nov telefon), „Ponovo poveži“ je u „Izmeni učenika“.'], en: ['No QR once connected', 'A connected student’s page no longer has the big QR button — if needed (a new phone), “Connect again” is under “Edit student”.'] },
+  ] },
   { v: '2.4.20', date: '2026-11-25', items: [
     { i: '▶', sr: ['Videi na jednom mestu — u čipu ▶', 'Dodir na čip ▶: „Snimak — sviraj uz njega“ (ista mala traka kao do sada) ili „Tutorijal — nauči pesmu“ (otvara se YouTube). Oba imaju „Promeni“. U ⋯ više nema „Video i tutorijal“.'], en: ['Videos in one place — the ▶ chip', 'Tap the ▶ chip: “Video — play along” (the same small bar as before) or “Tutorial — learn the song” (opens YouTube). Both have “Change”. ⋯ no longer has “Video and tutorial”.'] },
   ] },
