@@ -125,6 +125,7 @@ export async function profileHTML(s, pr = null) {
     ${row('📈', t('spf.progress'), s.prog ? t('spf.progressSub') : t('spf.progressOff', { name: s.name }), '', s.prog ? { href: '#/vezbanje/' + encodeURIComponent(s.id) } : { sp: 'prog' })}
     ${row('⭐', t('spf.wishes'), wishes.length ? t('spf.wishesSub') : t('spf.wishesNone'), tags(wishes.map((w) => `<span>${esc(w.title)}</span>`)), { sp: 'wish' })}
     ${row('❤️', t('spf.favs'), t('spf.favsSub'), tags([...auto.map((x) => `<span class="auto">🔥 ${esc(x.t)}${x.ms ? ' · ' + esc(fmtDur(x.ms)) : ''}</span>`), ...man.map((x) => `<span>❤ ${esc(x)}</span>`)]), { sp: 'favs' })}
+    ${row('📅', t('att.row'), await (await import('./attendance.js')).summaryText(s), '', { sp: 'att' })}
     ${row('🗒', t('spf.notes'), s.memo ? String(s.memo).slice(0, 140) : t('spf.notesNone'), '', { sp: 'edit' })}
   </div>`;
 }
@@ -136,6 +137,7 @@ export function bindProfile(root, s, redraw) {
     const k = b.dataset.sp;
     if (k === 'edit') { if (await editProfile(s)) redraw(); }
     else if (k === 'favs') { if (await editFavs(s)) redraw(); }
+    else if (k === 'att') { if (await (await import('./attendance.js')).attFlow(s.id)) redraw(); } // v2.4.32: dolasci
     else if (k === 'wish') (root.querySelector('.tch-reqs') || root.querySelector('#tMore'))?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     else if (k === 'prog') toast(t('spf.progressOff', { name: s.name }));
   }));

@@ -3592,3 +3592,32 @@ img.tch-av.tch-ph { object-fit: cover; background: #222; padding: 0; }
 .sec-head .od-pill:active { background: var(--accent-soft); }
 .stage-lyrics .od-pill, .two-pane-mode .od-pill.hide { display: none; }
 @media print { .od-pill { display: none !important; } }
+
+/* v2.4.32: dolasci na časove (po mesecima) */
+.att-nav { display: flex; align-items: center; justify-content: space-between; margin: 0 0 10px; }
+.att-nav b { font-size: 1.05rem; }
+.att-nav .icon-btn { font-size: 1.4rem; }
+.att-sum { display: grid; grid-template-columns: repeat(auto-fit, minmax(70px, 1fr)); gap: 8px; margin-bottom: 12px; }
+.att-sum span { background: var(--surface-2); border-radius: 12px; padding: 8px 10px; text-align: center; }
+.att-sum b { display: block; font-size: 1.3rem; color: var(--ok); }
+.att-sum .n b { color: var(--danger, #ff6b6b); } .att-sum .x b, .att-sum .f b { color: var(--muted); }
+.att-sum small { color: var(--muted); font-size: .76rem; }
+.att-list .tch-row { cursor: default; }
+.att-ic { flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; background: var(--surface-2); color: var(--muted); }
+.att-r.s-y .att-ic { background: #14291e; color: var(--ok); }
+.att-r.s-n .att-ic { background: rgba(255, 107, 107, .15); color: var(--danger, #ff6b6b); }
+.att-seg { flex: none; display: flex; gap: 4px; }
+.att-seg button { appearance: none; width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); font: 800 .95rem var(--sans); cursor: pointer; }
+.att-seg button.on[data-set="y"] { background: #14291e; border-color: var(--ok); color: var(--ok); }
+.att-seg button.on[data-set="n"] { background: rgba(255, 107, 107, .15); border-color: var(--danger, #ff6b6b); color: var(--danger, #ff6b6b); }
+.att-seg button.on[data-set="x"] { background: var(--surface-2); border-color: var(--muted); color: var(--text); }
+.att-add { margin: 10px 0 4px; }
+.att-hist { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; align-items: end; }
+.att-hb { appearance: none; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 6px 4px; display: flex; flex-direction: column; align-items: center; gap: 2px; color: var(--text); cursor: pointer; height: 96px; justify-content: flex-end; position: relative; overflow: hidden; }
+.att-hb i { position: absolute; left: 0; right: 0; bottom: 0; background: rgba(61, 214, 140, .18); }
+.att-hb b, .att-hb small { position: relative; }
+.att-hb b { font-size: .85rem; } .att-hb small { color: var(--muted); font-size: .7rem; }
+.att-hb.on { border-color: var(--accent); }
+.att-ic { font-style: normal; }
+.att-list .tch-row small { white-space: normal; }
+.att-list .tch-row b { white-space: normal; }

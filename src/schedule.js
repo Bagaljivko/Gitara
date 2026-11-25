@@ -22,7 +22,7 @@ export function cleanSlot(x) {
 }
 
 /** Časovi učenika u [fromMs, toMs): [{ ts, dur, sid, key (datum termina), moved, slot }]. */
-export function occurrences(st, fromMs, toMs) {
+export function occurrences(st, fromMs, toMs, { withOff = false } = {}) { // v2.4.32: withOff — i otkazani (za dolaske)
   const out = [];
   const s = cleanSlot(st.slot);
   if (s) {
@@ -32,7 +32,7 @@ export function occurrences(st, fromMs, toMs) {
     const lastDay = s.every === 0 ? first : toMs + 14 * DAY;
     for (let d = first; d <= lastDay; d = day0(d + step * DAY + 3 * 3600e3)) {
       const k = dkey(d);
-      if (s.off[k]) { if (s.every === 0) break; continue; }
+      if (s.off[k]) { if (withOff) { const ts0 = atHm(d, s.hm); if (ts0 >= fromMs && ts0 < toMs) out.push({ ts: ts0, dur: s.dur, sid: st.id, key: k, moved: false, slot: true, off: true }); } if (s.every === 0) break; continue; }
       const ts = Number(s.moved[k]) || atHm(d, s.hm);
       if (ts >= fromMs && ts < toMs) out.push({ ts, dur: s.dur, sid: st.id, key: k, moved: !!s.moved[k], slot: true });
       if (s.every === 0) break;
@@ -113,8 +113,12 @@ export async function slotFlow(sid) {
 /** Pomeri ili otkaži jedan čas. */
 async function occFlow(o, st, redraw) {
   const T = await import('./teach.js'); const L = await import('./lessons.js');
-  const v = await dialog({ title: `${st.name} · ${L.lessonWhen(o.ts)}`, className: 'dlg-stack', buttons: [{ label: t('sch.openSt'), value: 'open' }, { label: t('sch.move'), value: 'mv' }, { label: t('sch.cancelOne'), value: 'x', kind: 'danger' }, { label: t('common.close'), value: null, kind: 'ghost' }] });
+  const past = o.ts + (o.dur || 45) * 60000 <= Date.now(); // v2.4.32: prošao čas — da li je bio
+  const v = await dialog({ title: `${st.name} · ${L.lessonWhen(o.ts)}`, className: 'dlg-stack', buttons: [
+    ...(past ? [{ label: '✓ ' + t('att.y1'), value: 'att:y', kind: 'primary' }, { label: '✗ ' + t('att.n1'), value: 'att:n' }] : []),
+    { label: t('sch.openSt'), value: 'open' }, ...(past ? [] : [{ label: t('sch.move'), value: 'mv' }, { label: t('sch.cancelOne'), value: 'x', kind: 'danger' }]), { label: t('common.close'), value: null, kind: 'ghost' }] });
   if (v === 'open') { location.hash = '#/ucenik/' + encodeURIComponent(st.id); return; }
+  if (v && v.startsWith('att:')) { await (await import('./attendance.js')).setMark(st.id, o.key, v.slice(4), o.slot ? 0 : o.ts); toast(t('att.saved')); redraw(); return; }
   if (v === 'mv') {
     const loc = (ms) => { const d = new Date(ms); const p2 = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}T${p2(d.getHours())}:${p2(d.getMinutes())}`; };
     const pp = dialog({ title: t('sch.move'), html: true, className: 'tch-dlg', body: `<label class="tch-lab">${t('les.when')}</label><input type="datetime-local" id="schMv" value="${loc(o.ts)}">`, buttons: [{ label: t('common.cancel'), value: null }, { label: t('common.save'), value: 'ok', kind: 'primary' }] });
