@@ -1971,30 +1971,26 @@ export async function renderSong(root, id, nav = null) {
   const videoChoice = async () => {
     const yt = stored.yt || {};
     const v = await moreMenu(null, [
-      { value: 'along', label: t('vc.along'), sub: t('vc.alongSub'), icon: 'listen' },
+      { value: 'along', label: t('vc.along'), sub: t('vc.alongSub'), icon: 'listen', ...(yt.listen ? { alt: { value: 'along:change', label: t('yt.change') } } : {}) },
       { value: 'tutorial', label: t('vc.tut'), sub: t(yt.tutorial ? 'vc.tutSub' : 'vc.tutFind'), icon: 'tutorial', ...(yt.tutorial ? { alt: { value: 'tutorial:change', label: t('yt.change') } } : {}) }]);
     if (v === 'along') $('paBtn')?.click();
+    else if (v === 'along:change') { (await import('./ytPick.js')).ytAction('listen', stored, save, { change: true, open: false }).then(() => pa.refresh?.()); } // v2.4.20: snimak za sviranje se menja ovde (ne u ⋯)
     else if (v && v.startsWith('tutorial')) { (await import('./ytPick.js')).ytAction('tutorial', stored, save, { change: v.endsWith(':change') }).then(() => pa.refresh?.()); }
   };
   $('sMore').addEventListener('click', async () => {
     // v1.78: nastava — „Pošalji učeniku…“ (nastavnik) i „Pošalji nastavniku“ (učenik)
     let teachItems = []; // v1.80: i „Proveri sa nastavnikom“ / „Pošalji ispravku“ (zajedničko sa TAB pesmama)
     try { teachItems = await (await import('./teachView.js')).teachMenuItems(stored); } catch {}
-    // v2.4.18: ⋯ = šta radiš sa pesmom (uredi, video linkovi, dijagrami, podeli, nastavnik, verzije); kako zvuči/izgleda je u ⚙
-    const yt = stored.yt || {};
+    // v2.4.18: ⋯ = šta radiš sa pesmom (uredi, dijagrami, podeli, nastavnik, verzije); kako zvuči/izgleda je u ⚙; videi su u čipu ▶ (v2.4.20)
     const hasTE = touchOk() && !!root.querySelector('.song-view.calm');
     let v = await moreMenu('song:' + id, [
       { value: 'edit', label: t('mn.edit'), sub: hasTE ? t('mn.editSub') : t('song.editSub'), icon: 'edit' },
-      { value: 'video', label: t('mn.video'), sub: `${t(yt.listen ? 'mn.vidOn' : 'mn.vidOff')} · ${t(yt.tutorial ? 'mn.tutOn' : 'mn.tutOff')} — ${t('mn.vidChange')}`, icon: 'listen' },
       { value: 'details', label: t('mn.diagrams'), sub: t('mn.diagramsSub'), icon: 'details' },
       { value: 'share', label: t('mn.share'), sub: t('mn.shareSub'), icon: 'share' },
       ...(teachItems.length ? [{ value: 'teach', label: t('mn.teach'), sub: teachItems.map((x) => x.label).join(' · '), icon: 'students' }] : []),
     ]);
     // druga lista samo kad red ima više mogućnosti
     if (v === 'edit' && hasTE) v = await moreMenu(null, [{ value: 'edit', label: t('mn.editText'), sub: t('song.editSub'), icon: 'edit' }, { value: 'chords', label: t('te.menu'), sub: t('te.menuSub'), icon: 'edit' }]);
-    else if (v === 'video') v = await moreMenu(null, [
-      { value: 'listen:change', label: t(yt.listen ? 'mn.vidChangeL' : 'mn.vidPickL'), sub: t('mn.vidLSub'), icon: 'listen' },
-      { value: 'tutorial:change', label: t(yt.tutorial ? 'mn.vidChangeT' : 'mn.vidPickT'), sub: t('mn.vidTSub'), icon: 'tutorial' }]);
     else if (v === 'share') v = await moreMenu(null, [{ value: 'share', label: t('stb.shareLink'), sub: t('stb.shareTip'), icon: 'share' }, { value: 'pdf', label: t('song.pdf'), sub: t('ss.pdfSub'), icon: 'pdf' }]);
     else if (v === 'teach') v = teachItems.length === 1 ? teachItems[0].value : await moreMenu(null, teachItems);
     if (v && teachItems.some((x) => x.value === v)) { await (await import('./teachView.js')).handleTeachMenu(v, stored); return; }

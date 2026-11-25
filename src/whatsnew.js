@@ -5,6 +5,9 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '2.4.20', date: '2026-11-25', items: [
+    { i: '▶', sr: ['Videi na jednom mestu — u čipu ▶', 'Dodir na čip ▶: „Snimak — sviraj uz njega“ (ista mala traka kao do sada) ili „Tutorijal — nauči pesmu“ (otvara se YouTube). Oba imaju „Promeni“. U ⋯ više nema „Video i tutorijal“.'], en: ['Videos in one place — the ▶ chip', 'Tap the ▶ chip: “Video — play along” (the same small bar as before) or “Tutorial — learn the song” (opens YouTube). Both have “Change”. ⋯ no longer has “Video and tutorial”.'] },
+  ] },
   { v: '2.4.19', date: '2026-11-25', items: [
     { i: '?', sr: ['Tutorijal na kraju, po želji', 'U „Vežbaj pesmu“ tutorijal više nije prvi korak — na kraju plana je „Treba ti tutorijal?“ (otvara se YouTube). I dalje je i u čipu videa i u ⋯ → Video i tutorijal.'], en: ['Tutorial at the end, if you need it', 'In Practise a song the tutorial is no longer the first step — at the end of the plan there is “Need a tutorial?” (opens YouTube). It is still in the video chip and in ⋯ → Video and tutorial.'] },
   ] },

@@ -1,5 +1,5 @@
-// v2.4.18: ⋯ i ⚙ bez ponavljanja. ⋯ = šta radiš sa pesmom (Uredi, Video i tutorijal, Dijagrami akorda, Podeli, Nastavnik);
-// ⚙ = kako zvuči/izgleda (bez „Uz video“, „Akordi u pesmi“, „Vežbaj ovu pesmu“). Čip videa: snimak (u aplikaciji)
+// v2.4.18: ⋯ i ⚙ bez ponavljanja. ⋯ = šta radiš sa pesmom (Uredi, Dijagrami akorda, Podeli, Nastavnik; v2.4.20 bez videa);
+// ⚙ = kako zvuči/izgleda (bez „Uz video“, „Akordi u pesmi“, „Vežbaj ovu pesmu“). Čip videa: snimak (u aplikaciji, „Promeni“)
 // ili tutorijal (otvara YouTube). „Vežbaj pesmu“: na kraju „Treba ti tutorijal?“ otvara YouTube i dobija ✓.
 import { open, boot, addSong, expect } from '../lib.mjs';
 export const name = 'meniji pesme bez ponavljanja (⋯, ⚙), čip videa (snimak / tutorijal), tutorijal po želji na kraju plana';
@@ -13,7 +13,7 @@ export async function run(ctx) {
   // ⋯
   await p.click('#sMore'); await p.waitForTimeout(500);
   const m1 = await p.evaluate(() => [...document.querySelectorAll('.more-item')].map((x) => x.dataset.v).join(','));
-  expect(m1 === 'edit,video,details,share,teach', '⋯ meni', m1);
+  expect(m1 === 'edit,details,share,teach', '⋯ meni (v2.4.20: bez videa — videi su u čipu ▶)', m1);
   if (SHOT) await p.screenshot({ path: SHOT + 'more.png' });
   await p.click('.more-item[data-v="share"]'); await p.waitForTimeout(400);
   const m2 = await p.evaluate(() => [...document.querySelectorAll('.more-item')].map((x) => x.dataset.v).join(','));
@@ -32,6 +32,8 @@ export async function run(ctx) {
   await p.click('#sChips [data-pa]'); await p.waitForTimeout(500);
   const vc = await p.evaluate(() => [...document.querySelectorAll('.more-item')].map((x) => x.dataset.v).join(','));
   expect(vc === 'along,tutorial', 'čip videa: snimak / tutorijal', vc);
+  const alts = await p.evaluate(() => [...document.querySelectorAll('.more-item .more-alt')].map((x) => x.dataset.v).join(','));
+  expect(alts === 'along:change,tutorial:change', 'čip videa: „Promeni“ za oba videa', alts);
   if (SHOT) await p.screenshot({ path: SHOT + 'chip.png' });
   await p.click('.more-item[data-v="tutorial"]'); await p.waitForTimeout(500);
   expect(await p.evaluate(() => (window.__opened || []).some((u) => /bbbbbbbbbbb/.test(u))), 'tutorijal se ne otvara na YouTube-u');
