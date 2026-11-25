@@ -26,10 +26,10 @@ export async function run(ctx) {
       await q.click('.qe-pop [data-qe="brk"]'); await q.waitForTimeout(500);
       expect(await g() === 'C G Am', 'računar: [ ] se ne uklanja', await g());
     } else {
-      // telefon: ⚙ → Akordi u pesmi (uređivanje) → dodir na G → [ ] U jednom ritmu
-      await q.click('#sChips [data-sheet="all"]'); await q.waitForTimeout(400);
-      if (!(await q.$('.ss-item[data-k="chords"] [data-ss="chords"]:visible'))) { await q.click('.ss-more'); await q.waitForTimeout(300); }
-      await q.click('.ss-item[data-k="chords"] [data-ss="chords"]'); await q.waitForTimeout(600);
+      // telefon: ⋯ → Uredi → Uredi akorde (v2.4.18; ranije ⚙ → Akordi u pesmi) → dodir na G → [ ] U jednom ritmu
+      await q.click('#sMore'); await q.waitForTimeout(500);
+      await q.click('.more-item[data-v="edit"]'); await q.waitForTimeout(500);
+      await q.click('.more-item[data-v="chords"]'); await q.waitForTimeout(600);
       const c = await q.evaluate(() => { const r = [...document.querySelectorAll('#sLyrics .ln')][1].querySelectorAll('.ch')[1].getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
       await q.touchscreen.tap(c.x, c.y); await q.waitForTimeout(500);
       expect(await q.$('.te-sheet [data-te="brk"]'), 'telefon: nema [ ] u uređivanju akorda');

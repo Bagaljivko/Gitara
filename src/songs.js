@@ -2,7 +2,7 @@
 const loadEditor = () => import('./songEditor.js');
 import { sectionLabel } from './sectionLabel.js';
 import { practiceLineHTML, fillPractice } from './songPracticeCard.js';
-import { MORE_ICON, moreMenu, attachPinch, versionTipOnce, openPanel, zoomPillHTML, bindZoomPill, songMenuItems } from './songChrome.js';
+import { MORE_ICON, moreMenu, attachPinch, versionTipOnce, openPanel, zoomPillHTML, bindZoomPill } from './songChrome.js';
 import { paButtonHTML, bindPlayAlong, YT_ICON } from './playAlong.js';
 import { dragList, gripHTML, zoneOf } from './dragList.js';
 import { songs as db } from './db.js';
@@ -1242,10 +1242,11 @@ export async function renderSong(root, id, nav = null) {
         practice: `${sp ? `<div class="ss-r"><span class="ss-l">${t('ss.practice')}</span>${go(esc(t('ss.parts')), 'practice', ' acc')}</div>` : ''}`,
         metro: `<div class="ss-r"><span class="ss-l">${t('ss.metro')}<small>${esc(t('ss.metroSub'))}</small></span><button class="ss-tog${metro ? ' on' : ''}" data-ss="metro" role="switch" aria-checked="${!!metro}" aria-label="${esc(t('ss.metro'))}"><i></i></button></div>`,
       };
-      const top = barOrder(), rest = BAR_ALL.filter((k) => !top.includes(k));
+      // v2.4.18: ⚙ je samo „kako zvuči i izgleda“ — video (čip), akordi (⋯ Uredi) i vežba (red „Vežbaj“) ovde samo ako su na vrhu
+      const top = barOrder(), rest = BAR_ALL.filter((k) => !top.includes(k) && !['video', 'chords', 'practice'].includes(k));
       const it = (k) => (R[k] && R[k].trim() ? `<div class="ss-item" data-k="${k}">${R[k].replace('<div class="ss-r">', `<div class="ss-r">${gripHTML(esc(t('ss.dragRow')))}`)}</div>` : '');
       const restN = rest.filter((k) => R[k] && R[k].trim()).length;
-      rows.innerHTML = `<div class="ss-sep" data-dl-sep="top">${t('ss.secTop')}<small>${t('ss.secTopHint')}</small></div>${top.map(it).join('')}<div class="ss-sep ss-more${ssMem.more ? ' open' : ''}" data-dl-sep="rest" data-ss="more" role="button" tabindex="0" aria-expanded="${ssMem.more}">${t('ss.secRest')}<small>${esc(t('ss.moreN', { n: restN }))}</small><svg class="ss-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.4 8.6 12 13.2l4.6-4.6L18 10l-6 6-6-6z"/></svg></div>${ssMem.more ? rest.map(it).join('') : rest.map(it).join('').replace(/class="ss-item"/g, 'class="ss-item ss-hide"')}`;
+      rows.innerHTML = `<div class="ss-sep" data-dl-sep="top">${t('ss.secTop')}<small>${t('ss.secTopHint')}</small></div>${top.filter((k) => k !== 'video').map(it).join('')}<div class="ss-sep ss-more${ssMem.more ? ' open' : ''}" data-dl-sep="rest" data-ss="more" role="button" tabindex="0" aria-expanded="${ssMem.more}">${t('ss.secRest')}<small>${esc(t('ss.moreN', { n: restN }))}</small><svg class="ss-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.4 8.6 12 13.2l4.6-4.6L18 10l-6 6-6-6z"/></svg></div>${ssMem.more ? rest.map(it).join('') : rest.map(it).join('').replace(/class="ss-item"/g, 'class="ss-item ss-hide"')}`;
     };
     const onEsc = (e) => { if (e.key === 'Escape') close(); };
     const close = () => { stopStrum(); document.removeEventListener('keydown', onEsc); wrap.remove(); sheetRefresh = null; drawChips(); };
@@ -1329,7 +1330,7 @@ export async function renderSong(root, id, nav = null) {
       if (sheetRefresh) render();
     });
     render();
-    dragList(rows, { item: '.ss-item', onDrop: (items) => { const top = items.filter((x) => zoneOf(x) === 'top').map((x) => x.dataset.k); const hidden = barOrder().filter((k) => !items.some((x) => x.dataset.k === k)); setBarOrder([...top, ...hidden.filter((k) => !top.includes(k))]); drawChips(); } });
+    dragList(rows, { item: '.ss-item', onDrop: (items) => { const top = items.filter((x) => zoneOf(x) === 'top').map((x) => x.dataset.k); const bo = barOrder(); if (bo.includes('video') && !top.includes('video')) top.splice(Math.min(bo.indexOf('video'), top.length), 0, 'video'); /* v2.4.18: čip videa ostaje na svom mestu (red nije u ⚙) */ const hidden = barOrder().filter((k) => !items.some((x) => x.dataset.k === k)); setBarOrder([...top, ...hidden.filter((k) => !top.includes(k))]); drawChips(); } });
     document.body.appendChild(wrap);
     // vrati se na red koji si poslednji menjao (ako je ispod vidljivog dela)
     const last = ssMem.k && rows.querySelector(`.ss-item[data-k="${ssMem.k}"]:not(.ss-hide)`);
@@ -1966,18 +1967,36 @@ export async function renderSong(root, id, nav = null) {
   const closeAa = () => { aaPop.hidden = true; document.removeEventListener('pointerdown', outsideAa, true); };
   const outsideAa = (e) => { if (!aaPop.contains(e.target)) closeAa(); };
   // „⋯“: veličina slova (isti klizač kao ranije „Aa“), prethodne verzije; dva prsta = uvećanje teksta
+  // v2.4.18: čip videa — „Snimak, sviraj uz njega“ (u aplikaciji) ili „Tutorijal, nauči pesmu“ (otvara YouTube)
+  const videoChoice = async () => {
+    const yt = stored.yt || {};
+    const v = await moreMenu(null, [
+      { value: 'along', label: t('vc.along'), sub: t('vc.alongSub'), icon: 'listen' },
+      { value: 'tutorial', label: t('vc.tut'), sub: t(yt.tutorial ? 'vc.tutSub' : 'vc.tutFind'), icon: 'tutorial', ...(yt.tutorial ? { alt: { value: 'tutorial:change', label: t('yt.change') } } : {}) }]);
+    if (v === 'along') $('paBtn')?.click();
+    else if (v && v.startsWith('tutorial')) { (await import('./ytPick.js')).ytAction('tutorial', stored, save, { change: v.endsWith(':change') }).then(() => pa.refresh?.()); }
+  };
   $('sMore').addEventListener('click', async () => {
     // v1.78: nastava — „Pošalji učeniku…“ (nastavnik) i „Pošalji nastavniku“ (učenik)
     let teachItems = []; // v1.80: i „Proveri sa nastavnikom“ / „Pošalji ispravku“ (zajedničko sa TAB pesmama)
     try { teachItems = await (await import('./teachView.js')).teachMenuItems(stored); } catch {}
-    const v = await moreMenu('song:' + id, songMenuItems(stored, [
-      { value: 'easy', label: t('sug.easyBtn'), sub: easyActive() ? t('song.easyOnSub') : t('song.easySub'), icon: 'easy', on: easyActive() },
-      { value: 'details', label: t('song.detailsMenu'), sub: t('song.detailsSub'), icon: 'details' },
-      { value: 'share', label: t('song.share'), sub: t('stb.shareTip'), icon: 'share' },
-      { value: 'pdf', label: t('song.pdf'), sub: t('ss.pdfSub'), icon: 'pdf' },
-      ...(touchOk() && root.querySelector('.song-view.calm') ? [{ value: 'chords', label: t('te.menu'), sub: t('te.menuSub'), icon: 'edit' }] : []),
-      ...teachItems,
-    ]));
+    // v2.4.18: ⋯ = šta radiš sa pesmom (uredi, video linkovi, dijagrami, podeli, nastavnik, verzije); kako zvuči/izgleda je u ⚙
+    const yt = stored.yt || {};
+    const hasTE = touchOk() && !!root.querySelector('.song-view.calm');
+    let v = await moreMenu('song:' + id, [
+      { value: 'edit', label: t('mn.edit'), sub: hasTE ? t('mn.editSub') : t('song.editSub'), icon: 'edit' },
+      { value: 'video', label: t('mn.video'), sub: `${t(yt.listen ? 'mn.vidOn' : 'mn.vidOff')} · ${t(yt.tutorial ? 'mn.tutOn' : 'mn.tutOff')} — ${t('mn.vidChange')}`, icon: 'listen' },
+      { value: 'details', label: t('mn.diagrams'), sub: t('mn.diagramsSub'), icon: 'details' },
+      { value: 'share', label: t('mn.share'), sub: t('mn.shareSub'), icon: 'share' },
+      ...(teachItems.length ? [{ value: 'teach', label: t('mn.teach'), sub: teachItems.map((x) => x.label).join(' · '), icon: 'students' }] : []),
+    ]);
+    // druga lista samo kad red ima više mogućnosti
+    if (v === 'edit' && hasTE) v = await moreMenu(null, [{ value: 'edit', label: t('mn.editText'), sub: t('song.editSub'), icon: 'edit' }, { value: 'chords', label: t('te.menu'), sub: t('te.menuSub'), icon: 'edit' }]);
+    else if (v === 'video') v = await moreMenu(null, [
+      { value: 'listen:change', label: t(yt.listen ? 'mn.vidChangeL' : 'mn.vidPickL'), sub: t('mn.vidLSub'), icon: 'listen' },
+      { value: 'tutorial:change', label: t(yt.tutorial ? 'mn.vidChangeT' : 'mn.vidPickT'), sub: t('mn.vidTSub'), icon: 'tutorial' }]);
+    else if (v === 'share') v = await moreMenu(null, [{ value: 'share', label: t('stb.shareLink'), sub: t('stb.shareTip'), icon: 'share' }, { value: 'pdf', label: t('song.pdf'), sub: t('ss.pdfSub'), icon: 'pdf' }]);
+    else if (v === 'teach') v = teachItems.length === 1 ? teachItems[0].value : await moreMenu(null, teachItems);
     if (v && teachItems.some((x) => x.value === v)) { await (await import('./teachView.js')).handleTeachMenu(v, stored); return; }
     if (v && /^(listen|tutorial)/.test(v)) { (await import('./ytPick.js')).ytAction(v.split(':')[0], stored, save, { change: v.endsWith(':change') }).then(() => pa.refresh()); return; }
     if (v === 'edit') { location.hash = '#/uredi/' + encodeURIComponent(id); return; }
@@ -2015,7 +2034,7 @@ export async function renderSong(root, id, nav = null) {
   deskMq.addEventListener?.('change', setCalm);
   window.addEventListener('hashchange', function offMq() { deskMq.removeEventListener?.('change', setCalm); window.removeEventListener('hashchange', offMq); });
   $('sChips').addEventListener('click', async (e) => {
-    if (e.target.closest('[data-pa]')) { $('paBtn')?.click(); return; }
+    if (e.target.closest('[data-pa]')) { videoChoice(); return; }
     const a = e.target.closest('[data-sca]')?.dataset.sca; // v2.2: čipovi koji odmah rade (bez ⚙)
     if (a === 'easy') { await toggleEasy(); syncEasyTop(); drawChips(); return; }
     if (a === 'chords') return editChords();

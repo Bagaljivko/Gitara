@@ -36,9 +36,9 @@ export function songPracticeUI(o) {
     api.opts.innerHTML = plan ? `
       <div class="spr-sec-h">${t('pl.head', { n: plan.reduce((a, x) => a + (x.min || 0), 0) })}<small>${t('pl.headSub')}</small></div>
       <div class="pl-steps">${plan.map((x, i) => `<div class="pl-step${x.done ? ' done' : ''}${x.id === on ? ' on' : ''}" data-plan="${x.id}" role="button" tabindex="0">
-        <span class="pl-n">${x.done ? '✓' : i + 1}</span>
+        <span class="pl-n">${x.done ? '✓' : plan[0].id === 'tut' ? i : i + 1}</span>
         <span class="pl-b"><b>${esc(x.title)}${x.min ? `<i class="pl-min">${t('pl.min', { n: x.min })}</i>` : ''}</b><small class="pl-what">${esc(x.what)}</small>${x.sub ? `<small>${esc(x.sub)}</small>` : ''}</span>
-        <span class="pl-btn${x.id === on ? ' pri' : ''}">${x.done ? t('pl.again') : t('pr.start')}</span></div>`).join('')}</div>
+        <span class="pl-btn${x.id === on ? ' pri' : ''}">${x.done ? t('pl.again') : x.btn || t('pr.start')}</span></div>`).join('')}</div>
       <div class="spr-sec-h">${t('pr.pesma.practicePart')}<small>${t('pr.pesma.pickHint')}</small></div>
       ${groupsHTML(nx, L)}` : `
       <button class="btn primary big wide spr-whole" data-start="${o.wholeId}">${PLAY}<span>${t('pr.pesma.wholeBtn')}</span>${prog(o.wholeId).includes('spr-stars') ? `<small class="spr-whole-prog">${prog(o.wholeId)}</small>` : ''}</button>

@@ -48,7 +48,7 @@ export async function run(ctx) {
   // ⚙: panel sa stavkama i odeljcima
   await p.click('#sChips [data-sheet="all"]'); await p.waitForTimeout(500);
   const items = await p.evaluate(() => document.querySelectorAll('.song-sheet .ss-item').length);
-  expect(items >= 8, 'panel ⚙ nema stavke', items);
+  expect(items >= 7, 'panel ⚙ nema stavke', items); // v2.4.18: bez Uz video, Akordi u pesmi, Vežbaj (sada 7: ton, kapo, tempo, metronom, ritam, lakša, veličina)
   // izbor čipova važi za sve pesme
   const id2 = await addSong(p, { title: 'Druga' });
   await p.go('#/pesma/' + id2, 1300);
