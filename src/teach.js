@@ -79,7 +79,7 @@ export async function removeStudent(id) {
   await settings.set('students', strip((await getStudents()).filter((s) => s.id !== id)));
   await setPhoto(id, '');
   const { songs } = await import('./db.js');
-  for (const s of await songs.all()) if (s.student === id) { const { student, ...rest } = s; await songs.save(rest); }
+  for (const x of await songs.list()) if (x.student === id) { const s = await songs.get(x.id); if (!s) continue; const { student, ...rest } = s; await songs.save(rest); } // v2.5.65: spisak umesto svih celih pesama
   const c = await import('./collections.js');
   for (const sl of await c.getSetlists()) if ((sl.students || []).includes(id)) await c.updateSetlist(sl.id, { students: sl.students.filter((x) => x !== id) });
   // v1.79: i njegovi zahtevi i zapis poslatog

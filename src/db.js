@@ -77,6 +77,7 @@ const changed = (type, detail, remote = false) => {
 };
 /** Sinhronizacija je upisala u bazu mimo ovog modula: osveži indeks i javi ekranima. */
 export function notifyRemote(keys) {
+  sCache.clear(); // v2.5.65
   let songsHit = false;
   const sets = new Set();
   for (const k of keys) {
@@ -229,6 +230,7 @@ function setWithSync(key, val, removed) {
  * uređaje; ako ovde nema ključa, uzima se onaj koji je u međuvremenu stigao sa naloga (čuvan sa strane dok je bilo isključeno).
  */
 export function setKeySync(on) {
+  sCache.clear(); // v2.5.65
   return txMulti(['settings', 'sync', 'syncState'], (s, y, ss) => {
     s.put(!!on, 'keySync');
     if (!on) return;
@@ -240,10 +242,19 @@ export function setKeySync(on) {
     };
   }).then(() => { changed('settings-changed', 'geminiKey'); });
 }
+// v2.5.65: kratak keš čitanja (1,5 s) — ekran Podešavanja je čitao iste vrednosti i po 7 puta. Svaki upis, promena sa
+// drugog uređaja i ključ ga brišu; vraća se kopija (pozivalac sme da menja dobijeni objekat).
+const sCache = new Map(); const S_TTL = 1500;
+export const clearSettingsCache = (key) => { if (key) sCache.delete(key); else sCache.clear(); };
+const sClone = (v) => (v && typeof v === 'object' ? structuredClone(v) : v);
 export const settings = {
-  get: (key, def) => tx('settings', 'readonly', (s) => s.get(key)).then((v) => (v === undefined ? def : v)),
-  set: (key, val) => setWithSync(key, val, false).then(() => { changed('settings-changed', key); }),
-  remove: (key) => setWithSync(key, undefined, true).then(() => { if (SYNCED_SETTING(key)) changed('settings-changed', key); }),
+  get: (key, def) => {
+    const c = sCache.get(key);
+    if (c && Date.now() - c.at < S_TTL) return Promise.resolve(c.v === undefined ? def : sClone(c.v));
+    return tx('settings', 'readonly', (s) => s.get(key)).then((v) => { sCache.set(key, { v: sClone(v), at: Date.now() }); return v === undefined ? def : v; });
+  },
+  set: (key, val) => { sCache.delete(key); return setWithSync(key, val, false).then(() => { sCache.delete(key); changed('settings-changed', key); }); },
+  remove: (key) => { sCache.delete(key); return setWithSync(key, undefined, true).then(() => { sCache.delete(key); if (SYNCED_SETTING(key)) changed('settings-changed', key); }); },
   keys: () => tx('settings', 'readonly', (s) => s.getAllKeys()), // v1.71: rezervna kopija cele aplikacije
 };
 

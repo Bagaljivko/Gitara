@@ -382,7 +382,7 @@ const idle = window.requestIdleCallback || ((f) => setTimeout(f, 1200));
 // v1.68: tastatura i miš (računar): prečice, Ctrl + točkić, „?“ = spisak prečica
 idle(() => import('./keys.js').then((m) => m.initKeys()).catch(() => {}));
 // v1.70: „Šta je novo“ — zlatna tačka na Podešavanjima posle ažuriranja
-idle(() => import('./version.js').then((V) => V.wnUnseen() && import('./whatsnew.js').then((m) => m.navDot())).catch(() => {})); // v2.3.3: 52 KB samo kad ima novosti
+idle(() => import('./version.js').then((V) => V.navDot()).catch(() => {})); // v2.5.65: bez učitavanja liste novosti
 idle(() => import('./activity.js').then((m) => m.startActivity()).catch(() => {})); // v1.73: svirano / vežbano
 idle(() => import('./remind.js').then((m) => m.initRemind()).catch(() => {})); // v2.4.3: podsetnik za vežbanje
 idle(() => import('./session.js').then((m) => m.initSession()).catch(() => {})); // v2.4.3: pregled posle vežbanja

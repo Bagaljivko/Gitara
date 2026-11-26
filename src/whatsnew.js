@@ -5,6 +5,9 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '2.5.65', date: '2026-11-26', items: [
+    { i: '⚡', sr: ['Brže i lakše prstom', 'Spisak pesama i Podešavanja se otvaraju brže (manje ponovljenih čitanja), tačka „novo“ više ne učitava celu listu novosti, a brisanje učenika ne čita sve pesme. Akordi iznad teksta, „Ne, hvala“ i „Pregled vežbanja“ imaju veću površinu za dodir, a − / + za tempo u igrama su veći.'], en: ['Faster and easier to tap', 'The song list and Settings open faster (fewer repeated reads), the “new” dot no longer loads the whole news list, and removing a student no longer reads every song. Chords above the lyrics, “No, thanks” and “Practice overview” have a bigger tap area, and − / + for tempo in the games are bigger.'] },
+  ] },
   { v: '2.5.64', date: '2026-11-26', items: [
     { i: '🎓', sr: ['Kursevi i obrisane pesme', 'Obrisana pesma izlazi i iz kursa („Poništi“ vraća oba), a kad spojiš dve verzije pesme, kurs pokazuje na onu koja ostaje. Kartica kursa više ne kaže „sve pesme su spremne“ kad sledeća fali.'], en: ['Courses and deleted songs', 'A deleted song also leaves its course (“Undo” brings both back), and when you merge two versions of a song the course points to the one you kept. The course card no longer says “all songs ready” when the next one is missing.'] },
     { i: '🛠', sr: ['Popravke iz velike provere', 'Prazna pesma nudi „Dodaj tekst“; pesma bez naslova je „Bez naslova“; dugačak naslov ima najviše 3 reda, a dugačka reč u tekstu se prelama; loš ili zastareo link nastavnika kaže „Link nije ispravan“; „‹ Pesme“ više ne pravi krug sa dugmetom nazad na Androidu; Raspored ima tačne datume posle promene vremena; Moji snimci (Samo sviraj) se sinhronizuju; dnevna kopija koristi tvoj datum; oštećena kopija ne može da pokvari Učenike; veća dugmad za tempo u igrama.'], en: ['Fixes from a big check-up', 'An empty song offers “Add lyrics”; a song without a title is “Untitled”; a long title takes at most 3 lines and a long word in lyrics wraps; a bad or old teacher link says “Link is not valid”; “‹ Songs” no longer loops with the Android back button; Schedule has the right dates after the clock change; My recordings (Just play) now sync; the daily copy uses your date; a damaged copy can no longer break Students; bigger tempo buttons in the games.'] },
@@ -460,9 +463,5 @@ export async function showWhatsNew(all = false) {
 }
 
 /** Zlatna tačka na „Podešavanja“ posle ažuriranja (dok se „Šta je novo“ ne pogleda). */
-export function navDot() {
-  if (!unseen()) return;
-  const a = document.querySelector('.nav a[data-tab="podesavanja"]');
-  if (a && !a.querySelector('.wn-dot')) a.insertAdjacentHTML('beforeend', '<i class="wn-dot" aria-hidden="true"></i>');
-}
+export { navDot } from './version.js'; // v2.5.65
 

@@ -104,9 +104,7 @@ function libBadges(s) {
   return b.length ? ' ' + b.join(' ') : '';
 }
 export async function renderLibrary(root, params = new URLSearchParams()) {
-  await loadStudentNames(); // v1.78
-  await loadReady(); // v2.4.10
-  await loadTop(); // v2.4.21
+  await Promise.all([loadStudentNames(), loadReady(), loadTop()]); // v1.78, v2.4.10, v2.4.21 — v2.5.65: istovremeno
   const sortPref = localStorageGet('gitara-sort') || 'new';
   if (params.get('tab') === 'k') { location.replace('#/vezbe?t=k'); return; } // v2.4.38: Kursevi su u Vežbama
   const tab = params.get('tab') === 'sl' ? 'sl' : 'songs';
