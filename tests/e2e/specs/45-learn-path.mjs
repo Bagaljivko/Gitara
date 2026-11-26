@@ -1,12 +1,12 @@
 // v2.4.31: „Nauči ovu pesmu“ — put kroz pesmu iz sadržaja pesme (novi akordi, najteže promene, ritam, deo po deo,
 // pevanje, cela pesma; tutorijal po želji). Ništa nije zaključano; predložen je prvi neurađen korak. „Prošli put“ sa
 // Ponovi / Sledeće. Ulaz na ekranu pesme (korak i traka). „▶ odavde“ uz delove pesme → Pevaj uz tekst od tog dela.
-import { open, boot, addSong, expect, eq } from '../lib.mjs';
+import { open, boot, addSong, expect, eq, fakeMic } from '../lib.mjs';
 export const name = 'Nauči ovu pesmu: otvoren put, prošli put, ulaz na pesmi, ▶ odavde, poznati akordi';
 export const timeout = 150;
 export async function run(ctx) {
   for (const dev of ['phone', 'desktop']) {
-    const p = await open(ctx, dev); await boot(p, ctx, '#/tuner', 900);
+    const p = await open(ctx, dev, { init: fakeMic }); await p.context().grantPermissions(['microphone']); await boot(p, ctx, '#/tuner', 900);
     const id = await addSong(p, { title: 'Volio bih da si tu', artist: 'Crvena jabuka', chords: ['Em', 'D', 'Am', 'B7'], bpm: 90 });
     // poznati akordi: Em i D (čist prolaz ranije) → novi su Am i H7
     await p.evaluate(async () => { const S = await import('./src/songPath.js'); await S.addKnown(['Em', 'D']); });

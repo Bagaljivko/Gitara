@@ -367,8 +367,10 @@ export function createTrack({ t, onExit, lookBeats = 4.5, onInfo = null, speed =
       }
       pop(text, 'miss');
     },
-    big(text) {
+    big(text, hold = false) {
       bigEl.textContent = text || '';
+      bigEl.getAnimations().forEach((a) => a.cancel()); // novi broj zamenjuje prethodni (i zadržani)
+      if (text && hold) { bigEl.animate([{ opacity: 0, transform: 'scale(1.4)' }, { opacity: 1, transform: 'scale(1)' }], { duration: 260, easing: 'ease-out', fill: 'forwards' }); return; } // v2.5.6: broj ostaje do sledećeg
       if (text) bigEl.animate([{ opacity: 0, transform: 'scale(1.6)' }, { opacity: 1, transform: 'scale(1)', offset: 0.25 }, { opacity: 0, transform: 'scale(.9)' }], { duration: 700, easing: 'ease-out', fill: 'forwards' });
     },
     pop,
@@ -562,7 +564,7 @@ export function runTrack({ api, track, t, items, bpm, wait = null, mode = 'norma
       lastCur = c;
       track.setCurrent(c);
       track.handLight(c ? (fingersOf ? fingersOf(c) : c.finger ? [c.finger] : []) : []);
-      if (!demo) track.caption('');
+      if (!demo && !readying) track.caption('');
       if (c?.lyric !== undefined) track.lyric(c.lyric);
     }
     if (paused || counting) return;
@@ -638,7 +640,7 @@ export function runTrack({ api, track, t, items, bpm, wait = null, mode = 'norma
     const done = () => { if (!readying || my !== gen) return; readying = false; readyOff?.(); readyOff = null; track.caption(''); go(); };
     readyOff = track.tapOnce(done);
     track.caption(t('pr.ready.cap'));
-    for (let i = 0; i < steps; i++) later(() => { if (readying && my === gen) track.big(String(secs - i)); }, i * per);
+    for (let i = 0; i < steps; i++) later(() => { if (readying && my === gen) { track.big(String(secs - i), true); track.caption(t('pr.ready.cap')); } }, i * per); // natpis ponovo (staza ga briše kad se pojavi prvi akord)
     later(done, steps * per);
   }
   // Uspravno usred runde → pauza; položeno → novo odbrojavanje

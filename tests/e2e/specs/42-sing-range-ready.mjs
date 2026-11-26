@@ -1,10 +1,11 @@
 // v2.4.26: „Pevaj uz tekst“ — samo delovi sa tekstom, više delova zaredom (od–do, i delovi između), cela pesma redom
 // (ponovljeni refren i instrumental); „Spremi se“ 5 s pre početka (dodir = odmah, Stop/odlazak prekida); Ritam: kartica staje.
-import { open, boot, expect, eq } from '../lib.mjs';
+import { open, boot, expect, eq, fakeMic } from '../lib.mjs';
 export const name = 'Pevaj uz tekst: od–do i cela pesma redom, „Spremi se“ 5 s, kartica ritma staje na telefon';
 export const timeout = 120;
 export async function run(ctx) {
   const p = await open(ctx, 'phone', { init: () => localStorage.setItem('marli-songbar', JSON.stringify(['rhythm', 'metro', 'tempo'])) });
+  await p.context().addInitScript(fakeMic); await p.context().grantPermissions(['microphone']); // v2.5.6: trka traži mikrofon odmah (odbrojavanje je na stazi)
   await boot(p, ctx, '#/tuner', 900);
   const id = await p.evaluate(async () => {
     const { songs } = await import('./src/db.js');
