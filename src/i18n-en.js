@@ -957,7 +957,7 @@ export default {
   'common.undo': 'Undo',
   'room.title': 'Room',
   'bk.laterTitle': 'The copy reaches Drive a bit later',
-  'bk.driveLater': 'Google Drive has temporarily slowed the app down. The copy will save itself to Drive as soon as it allows (usually in a few minutes) — you don't need to do anything. If you need it now, save it as a file.',
+  'bk.driveLater': 'Google Drive has temporarily slowed the app down. The copy will save itself to Drive as soon as it allows (usually in a few minutes) — you don’t need to do anything. If you need it now, save it as a file.',
   'bk.savedLater': 'The copy is saved to Google Drive',
   'ss.eshapesChip': 'Easier barré',
   'sch.calT': 'Add the lesson to your calendar',
