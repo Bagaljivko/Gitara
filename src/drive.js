@@ -412,6 +412,7 @@ export const songKeep = (s) => {
     if (Object.keys(sh).length) out.shapes = sh;
   }
   if (typeof s.marli === 'string' && s.marli) out.marli = s.marli.slice(0, 40);
+  if (s.grips) { const g = cleanGripsLocal(s.grips); if (g) out.grips = g; } // v2.5.5: hvatovi sa lista
   if (s.tips && typeof s.tips === 'object') { const tp = cleanTips(s.tips); if (tp) out.tips = tp; } // v2.5.2: saveti sa lista
   if (Array.isArray(s.cmts)) {
     const c = s.cmts.filter((x) => x && typeof x === 'object' && x.id).slice(0, 20).map((x) => ({ id: clip(x.id, 40), at: Number(x.at) || 0, text: clip(x.text, 1000), ...(x.voice ? { voice: clip(x.voice, 120) } : {}), ...(x.key ? { key: clip(x.key, 80) } : {}) }));
@@ -428,6 +429,7 @@ export function cleanTips(t) {
   if (Array.isArray(t.seq)) { const q = t.seq.filter((c) => typeof c === 'string').slice(0, 8).map((c) => c.slice(0, 20)); if (q.length >= 2) out.seq = q; }
   return out.en || out.sr ? out : null;
 }
+const cleanGripsLocal = (g) => { const out = {}; if (g && typeof g === 'object') for (const [k, v] of Object.entries(g).slice(0, 40)) if (k.length <= 24 && typeof v === 'string' && /^[0-9a-ex]{6}\/[0-5]{6}$/.test(v)) out[k] = v; return Object.keys(out).length ? out : null; };
 export async function backupSongs() {
   const all = await db.all();
   return all.map((sg) => ({ id: sg.id, title: sg.title, artist: sg.artist, key: sg.key, sections: sg.sections, transpose: sg.transpose || 0, createdAt: sg.createdAt, updatedAt: sg.updatedAt, ...songExtras(sg), ...songMeta(sg), ...teachTags(sg), ...songKeep(sg), folders: sg.folders || [] }));

@@ -52,6 +52,7 @@ export async function createGame(api) {
     try {
       const { songs } = await import('./db.js'); const P = await import('./songParts.js');
       const song = await songs.get(sid);
+      if (song) (await import('./chords.js')).setSongGrips(song); // v2.5.5: hvatovi sa lista
       const parts = song ? P.songParts(song) : [];
       // v2.4.30: „Upoznaj akorde“ iz puta kroz pesmu (&ch=Em-B7): tačno ti akordi, rezultat [pesma, 'ak']
       const want = (api.params.get('ch') || '').split('-').filter((c) => c && CS.known(c));

@@ -25,6 +25,7 @@ export async function createGame(api) {
   const songId = api.args[0] ? decodeURIComponent(api.args[0]) : '';
   if (!songId) return pickSong(api);
   const song = await db.get(songId);
+  if (song) (await import('./chords.js')).setSongGrips(song); // v2.5.5
   const empty = (msg) => { api.stage.innerHTML = `<p class="muted center">${msg}</p>`; return { noTempo: true, noStart: true, beats: 0, start() { api.stopNow(); }, stop() {} }; };
   if (!song) return empty(t('song.notFound'));
   if (song.type === 'tab') return (await import('./pTab.js')).createTabGame(api, song, songId); // TAB pesma (prebiranje)

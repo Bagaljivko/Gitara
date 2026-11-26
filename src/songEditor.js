@@ -67,9 +67,10 @@ export async function importPdf(file) {
       }
     }
     const chart = await m.pdfChordChart(read.pages, isChordLine); // v2.4.33: lista akorada bez teksta (delovi, ×N, redosled, kapo)
-    const ch = chart ? { title: chart.title, artist: chart.artist, text: chart.text, capo: chart.capo, strum: chart.strum, shapes: chart.shapes, series: chart.series } : m.pdfChordText(read.pages, isChordLine);
+    const ch = chart ? { title: chart.title, artist: chart.artist, text: chart.text, capo: chart.capo, strum: chart.strum, shapes: chart.shapes, grips: chart.grips, series: chart.series } : m.pdfChordText(read.pages, isChordLine);
     if (ch) {
       let song = normalizeSong({ title: fixCaps(ch.title), artist: fixCaps(ch.artist), key: '', sections: textToSections(ch.text), ...(ch.capo ? { capo: ch.capo } : {}), ...(ch.strum ? { strum: ch.strum } : {}) });
+      if (ch.grips) song.grips = ch.grips; // v2.5.5
       if (ch.shapes) song.shapes = ch.shapes; // v2.4.35: hvatovi i ritam sa lista
       if (ch.series) song.__series = ch.series; // v2.4.37: kurs serije
       const vids = await m.pdfVideos(read.pages).catch(() => null); if (vids) song.yt = vids; // v2.4.36: video sa lista (lekcija / Uz video)
@@ -676,7 +677,7 @@ export async function renderEditor(root, id) {
     const keyText = $('eKey').value.trim();
     let rec0 = {
       // ponovo skenirana pesma zadržava sve svoje (kapodaster, ritam, YouTube, folderi, setliste — isti id)
-      ...(base ? base : isNew ? { ...songExtras(song), ...(song.shapes ? { shapes: song.shapes } : {}) } : song),
+      ...(base ? base : isNew ? { ...songExtras(song), ...(song.shapes ? { shapes: song.shapes } : {}), ...(song.grips ? { grips: song.grips } : {}) } : song),
       title,
       artist: $('eArtist').value.trim(),
       tuning: $('eTuning').value === 'standard' ? undefined : $('eTuning').value,
@@ -735,7 +736,7 @@ export async function renderEditor(root, id) {
   }
 }
 // „Zameni“ posle ponovnog skeniranja: ovo ostaje od postojeće pesme
-const KEEP_ON_REPLACE = ['id', 'createdAt', 'folders', 'capo', 'key', 'keyN', 'keyAlt', 'keyAsk', 'transpose', 'strum', 'yt', 'bpm', 'scrollSpeed', 'shapes', 'tuning', 'seen', 'recording'];
+const KEEP_ON_REPLACE = ['id', 'createdAt', 'folders', 'capo', 'key', 'keyN', 'keyAlt', 'keyAsk', 'transpose', 'strum', 'yt', 'bpm', 'scrollSpeed', 'shapes', 'grips', 'tuning', 'seen', 'recording'];
 
 // v1.77.1: dok se visina meri, polje se na trenutak skupi, pa je telefon gubio položaj ekrana i vraćao tekst ispod
 // tastature posle svakog slova (prijava korisnika). Položaj stranice se sada sačuva i vrati.

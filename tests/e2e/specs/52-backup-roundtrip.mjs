@@ -15,7 +15,7 @@ export async function run(ctx) {
     const D = await import('./src/drive.js');
     const sec = [{ name: 'Strofa', type: 'verse', lines: [{ text: 'jedan stih', chords: [{ pos: 0, chord: 'G' }, { pos: 6, chord: 'C' }] }] }];
     const s = await songs.save({ title: 'Puna pesma', artist: 'A', sections: sec, capo: 2, bpm: 88, strum: { id: 'folk', sig: '4/4', steps: 'D-DU-UDU' },
-      yt: { tutorial: 'https://www.youtube.com/watch?v=abcdefghijk' }, shapes: { G: 1, Fmaj7: 2 }, marli: 'marli-1', cmts: [{ id: 'c1', at: 5, text: 'lepo' }], folders: ['f1'] });
+      yt: { tutorial: 'https://www.youtube.com/watch?v=abcdefghijk' }, shapes: { G: 1, Fmaj7: 2 }, grips: { D: 'x5x07x/010030' }, marli: 'marli-1', cmts: [{ id: 'c1', at: 5, text: 'lepo' }], folders: ['f1'] });
     await settings.set('folders', [{ id: 'f1', name: 'Moj folder' }]);
     await settings.set('setlists', [{ id: 'sl1', name: 'Subota', songIds: [s.id], createdAt: 1 }]);
     await settings.set('courses', [{ v: 1, id: 'c1', name: 'Leto', ic: '📚', items: [{ s: s.id }], updatedAt: 1 }]);
@@ -42,7 +42,7 @@ export async function run(ctx) {
     const many = { ...data, songs: Array.from({ length: 300 }, (_, i) => ({ ...data.songs[0], id: 'x' + i, title: 'Pesma ' + i, sections: Array.from({ length: 6 }, (_, k) => ({ name: 'Deo ' + k, lines: Array.from({ length: 6 }, (_, l) => ({ text: `Stih ${i}-${k}-${l} sa malo reči za probu ${Math.random().toString(36).slice(2, 9)}`, chords: [{ pos: 0, chord: 'G' }, { pos: 12, chord: 'Em' }] })) })) })) };
     const raw = JSON.stringify(many).length, gz = (await E.gzip(many)).length;
     return {
-      song: { shapes: got.shapes, marli: got.marli, cmts: (got.cmts || []).map((c) => c.text), strum: got.strum && got.strum.steps, yt: !!(got.yt && got.yt.tutorial), capo: got.capo, folders: got.folders },
+      song: { shapes: got.shapes, grips: got.grips, marli: got.marli, cmts: (got.cmts || []).map((c) => c.text), strum: got.strum && got.strum.steps, yt: !!(got.yt && got.yt.tutorial), capo: got.capo, folders: got.folders },
       steps: Object.keys(pr[got.id] || {}).sort(),
       known: await settings.get('knownChords', []),
       courses: ((await settings.get('courses', [])) || []).map((c) => c.items.length),
@@ -52,7 +52,7 @@ export async function run(ctx) {
       size: { raw, gz },
     };
   });
-  eq(r.song, { shapes: { G: 1, Fmaj7: 2 }, marli: 'marli-1', cmts: ['lepo'], strum: 'D-DU-UDU', yt: true, capo: 2, folders: ['f1'] }, 'pesma posle vraćanja');
+  eq(r.song, { shapes: { G: 1, Fmaj7: 2 }, grips: { D: 'x5x07x/010030' }, marli: 'marli-1', cmts: ['lepo'], strum: 'D-DU-UDU', yt: true, capo: 2, folders: ['f1'] }, 'pesma posle vraćanja');
   eq(r.steps, ['ak', 'all', 'chg', 'rp', 'tut'], 'napredak pesme (i koraci puta)');
   eq(r.known, ['G', 'C', 'D'], 'akordi koje znam');
   eq(r.courses, [1], 'kursevi'); eq(r.sets, ['Subota'], 'set liste');

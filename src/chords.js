@@ -5,6 +5,7 @@ import { parseChord, formatChord } from './music.js';
 // fingers: 0 = bez prsta. barre: { fret, from, to } (indeksi žica 0..5).
 const OPEN = {
   E5: ['022xxx', '011000'], A5: ['x022xx', '001100'], D5: ['xx023x', '000130'], // v2.5.2: power akordi (prazna žica)
+  Em11: ['000000', '000000'], Am11: ['x00010', '000010'], // v2.5.5: sve prazne žice (Let It Be) · Am11
   C: ['x32010', '032010'],
   A: ['x02220', '001230'],
   G: ['320003', '210003'],
@@ -49,6 +50,7 @@ const OPEN = {
 // Pokretni oblici: offset u odnosu na prag korena; null = prigušena.
 const E_SHAPES = {
   '5': [0, 2, 2, null, null, null], // v2.5.2: power akord
+  m11: [0, 0, 0, 0, 0, 0], '11': [0, 0, 0, 1, 0, 0], // v2.5.5
   '': [0, 2, 2, 1, 0, 0],
   m: [0, 2, 2, 0, 0, 0],
   '7': [0, 2, 0, 1, 0, 0],
@@ -63,6 +65,7 @@ const E_SHAPES = {
 };
 const A_SHAPES = {
   '5': [null, 0, 2, 2, null, null],
+  m11: [null, 0, 0, 0, 1, 0], '11': [null, 0, 0, 0, 2, 0], // v2.5.5
   '': [null, 0, 2, 2, 2, 0],
   m: [null, 0, 2, 2, 1, 0],
   '7': [null, 0, 2, 0, 2, 0],
@@ -83,7 +86,7 @@ const A_SHAPES = {
 };
 
 // Ako nema oblika za kvalitet, prikaži najbliži jednostavniji.
-const FALLBACK = { add9: '', m9: 'm7', '9': '7', '6': '', m6: 'm', dim7: 'dim', mmaj7: 'm', '7sus4': 'sus4', m7b5: 'dim', aug: '', dim: 'm', sus2: '' };
+const FALLBACK = { maj9: 'maj7', '13': '7', add11: '', add9: '', m9: 'm7', '9': '7', '6': '', m6: 'm', dim7: 'dim', mmaj7: 'm', '7sus4': 'sus4', m7b5: 'dim', aug: '', dim: 'm', sus2: '' };
 
 const E_ROOT = 4; // E
 const A_ROOT = 9; // A
@@ -156,7 +159,23 @@ const cache = new Map();
  * Vraća listu položaja za akord (prvi je preporučeni), ili [] ako nije prepoznat.
  * Svaki položaj: { frets, fingers, barre, baseFret, name, approx }
  */
+// v2.5.5: hvatovi pesme sa lista („sa lista“) — npr. Blackbird, Everlong. Važe samo dok je otvorena ta pesma (ili vežba
+// te pesme): prvi su u dijagramu, ostali hvatovi iz biblioteke ostaju posle njih. Rečnik akorda i druge pesme ih ne vide.
+let SONG_GRIPS = { id: '', map: {} };
+export function setSongGrips(song) { SONG_GRIPS = song && song.id && song.grips && typeof song.grips === 'object' ? { id: String(song.id), map: song.grips } : { id: '', map: {} }; }
+const gripsNow = () => { if (!SONG_GRIPS.id || typeof location === 'undefined') return null; const h = String(location.hash || ''); return h.includes(SONG_GRIPS.id) || h.includes(encodeURIComponent(SONG_GRIPS.id)) ? SONG_GRIPS.map : null; };
+export const gripString = (frets, fingers) => frets.map((f) => (f < 0 ? 'x' : Number(f).toString(36))).join('') + '/' + (fingers || []).map((f) => Math.max(0, Math.min(5, Number(f) || 0))).join('');
+export const cleanGrips = (g) => { const out = {}; if (g && typeof g === 'object') for (const [k, v] of Object.entries(g).slice(0, 40)) if (k.length <= 24 && typeof v === 'string' && /^[0-9a-ex]{6}\/[0-5]{6}$/.test(v)) out[k] = v; return Object.keys(out).length ? out : null; };
+/** Ključ za keš dijagrama: hvat pesme (ako važi) menja crtež. */
+export const gripKey = (name) => { const g = gripsNow(); return (g && g[String(name).trim()]) || ''; };
 export function getVoicings(chordName) {
+  const base = libVoicings(chordName);
+  const g = gripsNow(), grip = g && g[String(chordName).trim()];
+  if (!grip) return base;
+  const [fr, fi] = grip.split('/'); const v = fromString(fr, fi || '000000');
+  return [{ ...v, baseFret: baseFret(v), approx: false, grip: true }, ...base.filter((x) => x.frets.join() !== v.frets.join())];
+}
+function libVoicings(chordName) {
   const p = parseChord(chordName);
   if (!p) return [];
   const full = formatChord(p, { flat: false }), raw = String(chordName).trim();
@@ -203,7 +222,7 @@ export function getVoicings(chordName) {
 /** v2.4.35: indeks hvata sa istim pragovima (prsti mogu da se razlikuju) ili -1. */
 export function matchVoicing(name, frets) {
   const want = (frets || []).join();
-  return getVoicings(name).findIndex((v) => v.frets.join() === want);
+  return libVoicings(name).findIndex((v) => v.frets.join() === want);
 }
 /** v2.4.33: indeks lakšeg hvata (ili -1). */
 export function easyIndex(name) { return getVoicings(name).findIndex((v) => v.easy); }

@@ -25,6 +25,13 @@ export const QUALITIES = {
   dim7: { intervals: [0, 3, 6, 9], label: 'smanjeni septakord' },
   mmaj7: { intervals: [0, 3, 7, 11], label: 'mol sa velikom septimom' },
   m9: { intervals: [0, 3, 7, 10, 2], label: 'molski nonakord' },
+  // v2.5.5: power akord i prošireni akordi (do sada su se čitali kao osnovni: Em11 → Em, Cmaj9 → Cmaj7/C)
+  '5': { intervals: [0, 7], label: 'kvinta (power akord)' },
+  m11: { intervals: [0, 3, 7, 10, 5], label: 'molski undecimakord' },
+  '11': { intervals: [0, 7, 10, 5], label: 'undecimakord' },
+  add11: { intervals: [0, 4, 7, 5], label: 'add11' },
+  maj9: { intervals: [0, 4, 7, 11, 2], label: 'veliki nonakord' },
+  '13': { intervals: [0, 4, 10, 9], label: 'tercdecimakord' },
 };
 
 // Alias -> kanonski kvalitet. Redosled je bitan (duži prvo).
@@ -34,6 +41,7 @@ const QUALITY_ALIASES = [
   ['m7b5', 'm7b5'], ['m7-5', 'm7b5'], ['ø7', 'm7b5'], ['ø', 'm7b5'],
   ['min7', 'm7'], ['mi7', 'm7'], ['-7', 'm7'], ['m7', 'm7'],
   ['min9', 'm9'], ['m9', 'm9'],
+  ['m11', 'm11'], ['min11', 'm11'], ['m7add11', 'm11'], ['maj9', 'maj9'], ['Maj9', 'maj9'], ['M9', 'maj9'], ['add11', 'add11'], ['11', '11'], ['13', '13'], // v2.5.5
   ['dim7', 'dim7'], ['°7', 'dim7'],
   ['7sus4', '7sus4'], ['7sus', '7sus4'],
   ['sus2', 'sus2'], ['sus4', 'sus4'], ['sus', 'sus4'],

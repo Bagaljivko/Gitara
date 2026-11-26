@@ -969,6 +969,8 @@ const sr = {
   'tuner.resetBtn': 'Počni ispočetka',
   'common.undo': 'Poništi',
   'room.title': 'Soba',
+  'diagram.thumb': 'P',
+  'chord.gripShape': 'Hvat sa lista',
   'sch.newT': '{name} — novi čas',
   'sch.hasSlot': '{name} već ima stalni termin: {w}.',
   'sch.extraOpt': 'Dodatni čas — samo jednom',

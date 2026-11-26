@@ -477,7 +477,8 @@ export async function pdfChordChart(pages, isChordLine) {
   const X = (await import('./sheetExtras.js')).sheetExtras(pages);
   const { matchVoicing } = await import('./chords.js');
   const shapes = {};
-  for (const [name, v] of Object.entries(X.shapes)) { const i = matchVoicing(name, v.frets); if (i > 0) shapes[name] = i; }
+  const { gripString } = await import('./chords.js'); const grips = {};
+  for (const [name, v] of Object.entries(X.shapes)) { const i = matchVoicing(name, v.frets); if (i > 0) shapes[name] = i; else if (i < 0 && v.frets.some((f) => f > 0)) grips[name] = gripString(v.frets, v.fingers); } // v2.5.5: hvat kog nema u biblioteci ostaje kao „sa lista“
   let strum = null;
   if (X.strum) {
     const { PATTERNS } = await import('./rhythm.js');
@@ -486,7 +487,7 @@ export async function pdfChordChart(pages, isChordLine) {
   }
   const { seriesFromLines } = await import('./chordChart.js');
   const series = seriesFromLines(lines); // v2.4.37: „THE SONG PATH LEVEL 3 … Song 6 of 10“ → kurs
-  return { title, artist, capo: r.capo, text: r.text, ...(Object.keys(shapes).length ? { shapes } : {}), ...(strum ? { strum } : {}), ...(series ? { series } : {}) };
+  return { title, artist, capo: r.capo, text: r.text, ...(Object.keys(shapes).length ? { shapes } : {}), ...(Object.keys(grips).length ? { grips } : {}), ...(strum ? { strum } : {}), ...(series ? { series } : {}) };
 }
 
 /** v2.4.36: YouTube linkovi sa lista → { tutorial?, listen? } (ili null). */

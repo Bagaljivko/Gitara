@@ -1068,6 +1068,7 @@ const ssMem = { k: '', more: (() => { try { return localStorage.getItem('marli-s
 let chipPop = null; // v2.3: otvorena mala traka ispod čipa (jedna u isto vreme) // v2.1: red čipova se ponovo uklapa kad se promeni veličina ekrana
 export async function renderSong(root, id, nav = null) {
   let stored = await db.get(id);
+  import('./chords.js').then((C) => C.setSongGrips(stored)).catch(() => {}); // v2.5.5: hvatovi sa lista ove pesme
   if (!stored) {
     root.innerHTML = `<section class="view"><p>${t('song.notFound')}</p><a class="btn" href="#/pesme">${t('song.back')}</a></section>`;
     return;

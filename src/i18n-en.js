@@ -956,6 +956,8 @@ export default {
   'tuner.resetBtn': 'Start over',
   'common.undo': 'Undo',
   'room.title': 'Room',
+  'diagram.thumb': 'T',
+  'chord.gripShape': 'Shape from the sheet',
   'sch.newT': '{name} — new lesson',
   'sch.hasSlot': '{name} already has a regular time: {w}.',
   'sch.extraOpt': 'Extra lesson — just once',

@@ -152,6 +152,7 @@ function songSecs(song, t) {
 export async function songExAuto(id, t) {
   const { songs } = await import('./db.js');
   const song = await songs.get(id); if (!song) return null;
+  (await import('./chords.js')).setSongGrips(song); // v2.5.5
   const secs = songSecs(song, t); if (!secs.length) return null;
   const n = secs.map((x) => new Set(x.ch).size), si = n.indexOf(Math.max(...n));
   return songEx(song, secs, si);

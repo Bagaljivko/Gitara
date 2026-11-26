@@ -1,6 +1,6 @@
 // SVG prikaz dijagrama akorda.
 import { t } from './i18n.js';
-import { getVoicings } from './chords.js';
+import { getVoicings, gripKey } from './chords.js';
 import { dn } from './naming.js';
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -13,7 +13,7 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
 // Već nacrtani dijagrami (isti akord se ne crta ponovo pri svakom osvežavanju ekrana)
 const cache = new Map();
 export function chordSVG(name, opts = {}) {
-  const k = [name, opts.voicing || 0, opts.showName !== false, opts.showFingers !== false, opts.colorFingers !== false, dn(name), t('diagram.chord', { name: '' })].join('|');
+  const k = [name, gripKey(name), opts.voicing || 0, opts.showName !== false, opts.showFingers !== false, opts.colorFingers !== false, dn(name), t('diagram.chord', { name: '' })].join('|');
   let svg = cache.get(k);
   if (svg === undefined) {
     svg = drawChordSVG(name, opts);
@@ -60,7 +60,7 @@ function drawChordSVG(name, { voicing = 0, showName = true, showFingers = true, 
     if (v.barre && f === v.barre.fret && i >= v.barre.from && i <= v.barre.to) return;
     const x = left + i * sw, y = top + (f - base + 0.5) * fh;
     s += `<circle cx="${x}" cy="${y}" r="6" class="cd-dot${colorFingers && v.fingers[i] ? ' fc' + v.fingers[i] : ''}"/>`;
-    if (showFingers && v.fingers[i]) s += `<text x="${x}" y="${y + 3.6}" class="cd-finger" text-anchor="middle">${v.fingers[i]}</text>`;
+    if (showFingers && v.fingers[i]) s += `<text x="${x}" y="${y + 3.6}" class="cd-finger" text-anchor="middle">${v.fingers[i] === 5 ? esc(t('diagram.thumb')) : v.fingers[i]}</text>`; // v2.5.5: palac (sa lista)
   });
   s += '</svg>';
   return s;
@@ -85,7 +85,7 @@ export function shapeNavHTML(name, voicing) {
   const arrow = (d, label, path) => `<button class="icon-btn shape-arrow" data-shape="${d}" aria-label="${esc(label)}" title="${esc(label)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="${path}"/></svg></button>`;
   return `<div class="shape-nav">
     ${arrow(-1, t('chord.prevShape'), 'M15.4 7.4 14 6l-6 6 6 6 1.4-1.4L10.8 12z')}
-    <div class="shape-lbl"><b>${esc(getVoicings(name)[i]?.easy ? t('chord.easyShape') : t('chord.shapeOf', { i: i + 1, n }))}</b>${base > 1 ? `<span>${esc(t('chord.fretPos', { n: base }))}</span>` : ''}</div>
+    <div class="shape-lbl"><b>${esc(getVoicings(name)[i]?.grip ? t('chord.gripShape') : getVoicings(name)[i]?.easy ? t('chord.easyShape') : t('chord.shapeOf', { i: i + 1, n }))}</b>${base > 1 ? `<span>${esc(t('chord.fretPos', { n: base }))}</span>` : ''}</div>
     ${arrow(1, t('chord.nextShape'), 'M8.6 16.6 10 18l6-6-6-6-1.4 1.4 4.6 4.6z')}
   </div>`;
 }
