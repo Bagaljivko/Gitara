@@ -20,8 +20,9 @@ export async function run(ctx) {
   await p.go('#/pesme', 1500);
   const badge = await p.evaluate(() => [...document.querySelectorAll('.song-item')].map((x) => x.innerText.replace(/\s+/g, ' ')).join(' | '));
   expect(/Spremna.*spremna/.test(badge) && !/Nije[^|]*spremna/.test(badge), 'oznaka „spremna“ u spisku', badge);
-  expect(await p.$('[data-chip="auto:ready"]'), 'nema grupe „Spremne za svirku“');
-  await p.click('[data-chip="auto:ready"]'); await p.waitForTimeout(400);
+  await p.click('[data-lt="sl"]'); await p.waitForTimeout(800); // v2.5: pametne liste su u Listama
+  expect(await p.$('#lSlPane [data-lst="a:auto:ready"]'), 'nema grupe „Spremne za svirku“');
+  await p.click('#lSlPane [data-lst="a:auto:ready"]'); await p.waitForTimeout(600);
   expect(await p.evaluate(() => document.querySelectorAll('.song-item').length) === 1, 'grupa „Spremne“ ne filtrira');
   await p.go('#/pesma/' + a, 1500);
   expect(/Spremna za svirku/.test(await p.evaluate(() => document.querySelector('.sp-line')?.innerText || '')), 'pesma ne kaže „Spremna za svirku“');

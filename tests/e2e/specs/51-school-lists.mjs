@@ -39,7 +39,7 @@ export async function run(ctx) {
   await clk('#lSlPane [data-more="f:fT"]'); await p.waitForSelector('.modal-backdrop [data-m="del"]');
   await clk('.modal-backdrop [data-m="del"]'); await p.waitForTimeout(500);
   await clk('.modal-backdrop button:has-text("Lista i pesme (2)")'); await p.waitForTimeout(600);
-  const checks = await p.evaluate(() => [...document.querySelectorAll('.modal-backdrop .pick-row')].map((r) => r.querySelector('span').textContent.trim().split(' ')[0] + ':' + r.querySelector('input').checked));
+  const checks = await p.evaluate(() => [...document.querySelectorAll('.modal-backdrop .pick-row')].map((r) => r.querySelector('span').textContent.trim().split(' ')[0] + ':' + r.querySelector('input').checked).sort());
   eq(checks, ['Alfa:true', 'Beta:false'], 'pesma iz druge liste nije označena');
   await clk('.modal-backdrop .btn.danger'); await p.waitForTimeout(1200);
   const after = await p.evaluate(async () => { const { songs, settings } = await import('./src/db.js'); return { n: (await songs.list()).filter((s) => !s.demo).map((s) => s.title).sort(), f: ((await settings.get('folders', [])) || []).map((x) => x.id) }; });

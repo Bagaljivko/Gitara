@@ -235,7 +235,7 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
       ...COURSES.map((c) => ({ g: 'course:' + c.id, ic: c.marli ? MARLI_LOGO : c.fromT ? '🎓' : '📚', label: c.name, n: (c.items || []).filter((x) => x.s).length })),
     ],
     folders: folders.map((f) => ({ id: f.id, label: folderLabel(f), n: all.filter((x) => inGroup(x, f.id)).length, sys: isSystemFolder(f.id) })),
-    open: (g) => { folderFilter = g; localStorageSet('gitara-folder', g); root.querySelector('[data-lt="songs"]').click(); },
+    open: (g) => { folderFilter = g; localStorageSet('gitara-folder', g); root.querySelector('[data-lt="songs"]').click(); draw(); },
     action: listAction,
   })).catch((e) => console.warn(e));
   if (tab === 'sl') renderLists();
