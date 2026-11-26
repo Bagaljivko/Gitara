@@ -1,6 +1,6 @@
 // Uređaj za sinhronizaciju: IndexedDB kao izvor istine (radi u Web Worker-u, a bez njega i na glavnoj niti).
 // Upisuje direktno u bazu (bez ponovnog označavanja „čeka slanje“); ekrani dobijaju obaveštenje preko poruke.
-import { transaction, summarize, keepVersion, SYNC_SETTING_OF, PREF_KEYS } from './db.js';
+import { transaction, summarize, keepVersion, SYNC_SETTING_OF, PREF_KEYS, LIST_KEYS, WHOLE_KEYS, isListItem } from './db.js';
 const PREFS = new Set(PREF_KEYS);
 import { hlcStr } from './syncEngine.js';
 
@@ -26,7 +26,7 @@ function readInto(st, key, out) {
   const setting = SYNC_SETTING_OF(key);
   if (!setting) return get(syncState, 'x:' + key, (v) => (out.value = v ?? null)); // nepoznata vrsta (novija aplikacija) — čuva se netaknuto
   get(settings, setting, (v) => {
-    if (key.startsWith('set:') || key.startsWith('folder:') || key.startsWith('dev:') || key.startsWith('course:')) {
+    if (isListItem(key)) {
       const id = key.slice(key.indexOf(':') + 1);
       out.value = (Array.isArray(v) ? v : []).find((x) => x && x.id === id) ?? null;
     } else out.value = v ?? null;
@@ -44,7 +44,7 @@ function writeInto(st, key, data) {
   }
   const setting = SYNC_SETTING_OF(key);
   if (!setting) { if (data == null) syncState.delete('x:' + key); else syncState.put(data, 'x:' + key); return; }
-  if (key.startsWith('set:') || key.startsWith('folder:') || key.startsWith('dev:') || key.startsWith('course:')) {
+  if (isListItem(key)) {
     const id = key.slice(key.indexOf(':') + 1);
     get(settings, setting, (v) => {
       const list = Array.isArray(v) ? v.slice() : [];
@@ -104,11 +104,8 @@ export function seed(node) {
         for (const k of keys.result) {
           get(settings, k, (v) => {
             if (v == null) return;
-            if (k === 'setlists' && Array.isArray(v)) v.forEach((x) => x && x.id && add('set:' + x.id, x.updatedAt));
-            else if (k === 'folders' && Array.isArray(v)) v.forEach((x) => x && x.id && add('folder:' + x.id, 1));
-            else if (k === 'devices' && Array.isArray(v)) v.forEach((x) => x && x.id && add('dev:' + x.id, x.at)); // v2.4.4
-            else if (k === 'courses' && Array.isArray(v)) v.forEach((x) => x && x.id && add('course:' + x.id, x.updatedAt || 1)); // v2.4.37
-            else if (k === 'practice' || k === 'skale' || k === 'activity' || k === 'teacher' || k === 'students' || k === 'myTeacher' || k === 'requests' || k === 'myRequests' || k === 'myEx' || k === 'rpList') add(k, 1);
+            if (LIST_KEYS[k] && Array.isArray(v)) v.forEach((x) => x && x.id && add(LIST_KEYS[k] + x.id, x.updatedAt || x.at || 1)); // set liste, folderi, uređaji, kursevi, slike učenika
+            else if (WHOLE_KEYS.includes(k)) add(k, 1);
             else if (k === 'geminiKey') add('secret', 1);
             else if (PREFS.has(k)) add('pref:' + k, 1);
           });
@@ -134,6 +131,6 @@ export function resetForAccount() {
 export function wipeForAccount() {
   return run(['songs', 'lib', 'deleted', 'settings', 'sync', 'syncState', 'versions'], 'readwrite', (songs, lib, deleted, settings, y, s, v) => {
     songs.clear(); lib.clear(); deleted.clear(); y.clear(); s.clear(); v.clear();
-    for (const k of ['setlists', 'courses', 'folders', 'practice', 'skale', 'activity', 'teacher', 'students', 'myTeacher', 'requests', 'myRequests', 'myEx', 'rpList', 'geminiKey']) settings.delete(k);
+    for (const k of [...Object.keys(LIST_KEYS).filter((x) => x !== 'devices'), ...WHOLE_KEYS, 'geminiKey']) settings.delete(k);
   });
 }

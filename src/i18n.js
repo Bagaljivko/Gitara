@@ -2973,7 +2973,7 @@ const sr = {
   // Google Drive (podešavanja)
   'sync.group': 'Sinhronizacija između uređaja',
   'sync.title': "Sinhronizacija između uređaja",
-  'sync.intro': "Pesme, set liste, napredak u Vežbama, podešavanja, snimci (note) i Gemini ključ se sami usklađuju na svim tvojim uređajima, preko skrivene fascikle aplikacije na tvom Google Drive-u. Fotografije se nikad ne šalju. Sve radi i bez mreže — šalje se kad se veza vrati.",
+  'sync.intro': "Pesme, liste, kursevi, napredak u Školi, nastava (učenici, časovi), podešavanja, snimci (note) i Gemini ključ se sami usklađuju na svim tvojim uređajima, preko skrivene fascikle aplikacije na tvom Google Drive-u. Šalje se samo ono što se promenilo. Fotografije sa skeniranja se ne šalju (samo male slike učenika). Sve radi i bez mreže — šalje se kad se veza vrati.",
   'sync.longTitle': 'Sinhronizacija bez prekida',
   'sync.longBody': 'Potvrdi Google nalog još jednom. Posle toga MARLI obnavlja vezu sa Drive-om sama, u pozadini — bez Google-ovog prozora koji se ponekad na tren pojavi pri otvaranju.',
   'sync.longOk': 'Potvrdi',

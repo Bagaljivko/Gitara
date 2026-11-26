@@ -50,7 +50,10 @@ const MERGE = {
   practice: (a, b) => mergePractice(mergePractice(null, a), b),
   skale: (a, b) => mergeSkale(a, b),
   activity: (a, b) => mergeActivity(a, b), // v1.73: po uređaju, noviji zapis istog uređaja pobeđuje
+  knownChords: (a, b) => unionList(a, b, 300), // v2.5.1: akordi koje znam — unija sa svih uređaja
+  dupIgnore: (a, b) => unionList(a, b, 500), // v2.5.1: „nisu duplikati“
 };
+const unionList = (a, b, max) => [...new Set([...(Array.isArray(a) ? a : []), ...(Array.isArray(b) ? b : [])].filter((x) => typeof x === 'string'))].slice(-max);
 const mergeFor = (key) => MERGE[key] || null;
 
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);

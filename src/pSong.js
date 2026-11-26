@@ -83,7 +83,7 @@ export async function createGame(api) {
   try { pathSt = await SP.pathState(song, stats()); } catch {}
   const enc = encodeURIComponent;
   const openStep = (id) => {
-    if (id === 'tut') { try { localStorage.setItem('gitara-tut-' + songId, String(Date.now())); } catch {} import('./ytPick.js').then((Y) => Y.ytAction('tutorial', song, () => db.save(song))).catch(() => {}); refreshPath(); return; }
+    if (id === 'tut') { try { localStorage.setItem('gitara-tut-' + songId, String(Date.now())); } catch {} import('./songPath.js').then((P) => P.markTutorial(songId)).then(refreshPath).catch(() => {}); import('./ytPick.js').then((Y) => Y.ytAction('tutorial', song, () => db.save(song))).catch(() => {}); refreshPath(); return; }
     if (id === 'ak') location.hash = '#/vezbe/promena?song=' + enc(songId) + '&ch=' + enc(((pathSt && pathSt.analysis.akSeq) || []).join('-'));
     else if (id === 'bare') location.hash = '#/vezbe/bare?song=' + enc(songId); // v2.4.33
     else if (id === 'chg') { const sh = ((pathSt && pathSt.analysis.hard) || []).find((h) => h.sheet); location.hash = '#/vezbe/promena?song=' + enc(songId) + (sh ? '&ch=' + enc(sh.a + '-' + sh.b) + '&k=chg' : ''); } // v2.4.35: promena sa lista

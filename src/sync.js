@@ -307,6 +307,8 @@ async function doInit() {
   if (!c.on) { emit(); return; }
   setStatus(navigator.onLine === false ? 'offline' : 'syncing');
   begin();
+  // v2.5.1: nove vrste podataka (akordi koje znam, „nisu duplikati“, slike učenika) — jednom dodati u slanje (seed dodaje samo ono čega nema)
+  try { if (localStorage.getItem('marli-seed') !== '2.5.1') setTimeout(() => call({ t: 'seed' }, 'seeded').then(() => { try { localStorage.setItem('marli-seed', '2.5.1'); } catch {} syncNow(); }).catch(() => {}), 8000); } catch {}
   setTimeout(() => offerLongAccess().catch(() => {}), 6000);
 }
 
@@ -346,21 +348,23 @@ async function cleanOwnEchoes() {
 }
 
 /** „Poveži Google nalog“: prijava, provera naloga, spajanje (nikad prepisivanje), prvo slanje. */
-export async function connectSync({ pick = false } = {}) {
+export async function connectSync({ pick = false, silent = false } = {}) {
   await call({ t: 'pause' }, 'paused');
-  try { return await connectInner(pick); }
+  try { return await connectInner(pick, silent); }
   finally { startWorker().send({ t: 'resume' }); if (st.on && st.leader) setTimeout(runNow, 0); }
 }
-async function connectInner(pick) {
+async function connectInner(pick, silent = false) {
   const drive = await import('./drive.js');
   const prev = { ...lsGet(), ...((await settings.get(CFG, null)) || {}) };
   let tk = null;
   if (!pick) { try { tk = await drive.syncTokenStored(); } catch {} } // već sačuvan ključ sa oba ovlašćenja: bez novog Google prozora (bez tihog Google zahteva — on bi preskočio „Dozvoli“ i dugotrajnu dozvolu)
+  if ((!tk || !tk.token) && silent) return false; // v2.5.1: tiho prebacivanje — bez Google prozora
   if (!tk || !tk.token) tk = await drive.syncToken({ interactive: true, pick, hint: pick ? '' : prev.email || '' });
   startWorker().send({ t: 'setToken', token: tk.token, exp: tk.exp });
   const ab = await call({ t: 'about' }, 'about');
   if (ab.error || !ab.value || !ab.value.id) throw Object.assign(new Error(t(ab.error === 'OFFLINE' ? 'sync.offline' : 'sync.e.account')), { user: true });
   const acct = ab.value;
+  if (silent && prev.id && prev.id !== acct.id) return false; // drugi nalog — pita se samo na dodir
   if (prev.id && prev.id !== acct.id) {
     // drugi Google nalog na ovom uređaju
     const pending = await syncMeta.pending();

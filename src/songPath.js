@@ -88,6 +88,15 @@ export function sheetTips(song) {
 const ARW = { D: '↓', U: '↑', x: '×', B: '↓', '-': '·' };
 export const strumArrows = (song) => (song.strum && song.strum.steps ? [...song.strum.steps].map((x) => ARW[x] || '·').join(' ') : '');
 
+/** v2.5.1: „Tutorijal pogledan“ ide u napredak pesme (practice.songs[id].tut) — vidi se na svim uređajima i u rezervnoj kopiji. */
+export async function markTutorial(songId) {
+  const st = (await settings.get('practice', null)) || { v: 1, games: {}, songs: {} };
+  st.songs = st.songs || {}; const rec = st.songs[songId] || {};
+  if ((rec.tut || {}).best) return;
+  const d = new Date(); rec.tut = { best: 100, streak: 0, lastDay: `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`, plays: 1 };
+  st.songs[songId] = rec; await settings.set('practice', st);
+}
+
 /** Stanje puta: koraci sa urađeno/sub, predlog, poslednja vežba. rec = practice.songs[id]. */
 export async function pathState(song, rec = null, a = null) {
   a = a || (await analyze(song));
@@ -107,7 +116,7 @@ export async function pathState(song, rec = null, a = null) {
     { id: 'deo', game: t('lp.g.deo'), title: t('lp.deo'), sub: t('lp.deoSub', { n: partsDone, total: partIds.length }), done: partIds.length > 0 && partsDone >= partIds.length },
     ...(a.lyrics ? [{ id: 'sing', game: t('lp.g.sing'), title: t('lp.sing'), sub: t('lp.singSub'), done: best('sing') >= DONE_AT, score: best('sing') }] : []), // v2.4.37: samo uz tekst
     { id: 'all', game: t('lp.g.all'), title: t('lp.all', { bpm }), sub: t('lp.allSub'), done: best('all') >= DONE_AT, score: best('all'), star: true },
-    { id: 'tut', game: t('lp.g.tut'), title: t('lp.tut'), sub: t('lp.tutSub'), optional: true, done: (() => { try { return !!localStorage.getItem('gitara-tut-' + song.id); } catch { return false; } })() }, // otvoren tutorijal = ✓
+    { id: 'tut', game: t('lp.g.tut'), title: t('lp.tut'), sub: t('lp.tutSub'), optional: true, done: best('tut') > 0 || (() => { try { return !!localStorage.getItem('gitara-tut-' + song.id); } catch { return false; } })() }, // otvoren tutorijal = ✓ (v2.5.1: u napretku — sinhronizuje se)
   ];
   const main = steps.filter((s) => !s.optional);
   const on = (main.find((s) => !s.done) || {}).id || null;

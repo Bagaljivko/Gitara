@@ -25,7 +25,7 @@ export function cleanPractice(p) {
   for (const [id, parts] of Object.entries(p.songs || {})) {
     if (typeof id !== 'string' || id.length > 80 || !parts || typeof parts !== 'object') continue;
     const o = {};
-    for (const [pk, v] of Object.entries(parts)) if (/^(\d{1,3}|all)$/.test(pk)) { const r = rec(v); if (r) o[pk] = r; }
+    for (const [pk, v] of Object.entries(parts)) if (/^(\d{1,3}|all|[a-z]{2,6})$/.test(pk)) { const r = rec(v); if (r) o[pk] = r; } // v2.5.1: i koraci puta kroz pesmu (ak, chg, pt, rp, sing, bare, tut)
     if (Object.keys(o).length) songs[id] = o;
   }
   return { v: 1, games, songs };

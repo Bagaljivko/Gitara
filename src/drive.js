@@ -24,7 +24,7 @@ const UPLOAD = 'https://www.googleapis.com/upload/drive/v3';
 const FOLDER_NAME = 'Gitara';
 const BACKUP_NAME = 'gitara-backup.json';
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
-const BACKUP_DELAY = 4000; // ms posle izmene
+const BACKUP_DELAY = 60000; // ms posle izmene (v2.5.1: minut mira — ne šalje celu biblioteku posle svakog dodira)
 export const BACKUP_SETTINGS = ['a4', 'geminiModel', 'geminiModelSel', 'lang', 'metBpm', 'folders', 'setlists', 'tunerRoom', 'tuning', 'wakeMode', 'wakeMinutes', 'noteNames', 'practice', 'freeplayRecs', 'skale', 'myRhythms', 'strumSuggest']; // Gemini ključ se NIKAD ne šalje na Drive
 
 export class DriveError extends Error {
@@ -402,9 +402,25 @@ const teachTags = (s) => ({
   ...(typeof s.src === 'string' && s.src ? { src: s.src.slice(0, 120) } : {}),
   ...(typeof s.chk === 'string' && s.chk ? { chk: s.chk.slice(0, 40) } : {}),
 });
+// v2.5.1: novije oznake pesme koje rezervna kopija mora da nosi (i vraća): hvatovi sa lista, MARLI put / kurs, komentari na snimak
+const clip = (v, n) => String(v ?? '').slice(0, n);
+export const songKeep = (s) => {
+  const out = {};
+  if (s.shapes && typeof s.shapes === 'object') {
+    const sh = {};
+    for (const [k, v] of Object.entries(s.shapes).slice(0, 80)) if (k.length <= 24 && Number.isInteger(v) && v >= 0 && v <= 40) sh[k] = v;
+    if (Object.keys(sh).length) out.shapes = sh;
+  }
+  if (typeof s.marli === 'string' && s.marli) out.marli = s.marli.slice(0, 40);
+  if (Array.isArray(s.cmts)) {
+    const c = s.cmts.filter((x) => x && typeof x === 'object' && x.id).slice(0, 20).map((x) => ({ id: clip(x.id, 40), at: Number(x.at) || 0, text: clip(x.text, 1000), ...(x.voice ? { voice: clip(x.voice, 120) } : {}), ...(x.key ? { key: clip(x.key, 80) } : {}) }));
+    if (c.length) out.cmts = c;
+  }
+  return out;
+};
 export async function backupSongs() {
   const all = await db.all();
-  return all.map((sg) => ({ id: sg.id, title: sg.title, artist: sg.artist, key: sg.key, sections: sg.sections, transpose: sg.transpose || 0, createdAt: sg.createdAt, updatedAt: sg.updatedAt, ...songExtras(sg), ...songMeta(sg), ...teachTags(sg), folders: sg.folders || [] }));
+  return all.map((sg) => ({ id: sg.id, title: sg.title, artist: sg.artist, key: sg.key, sections: sg.sections, transpose: sg.transpose || 0, createdAt: sg.createdAt, updatedAt: sg.updatedAt, ...songExtras(sg), ...songMeta(sg), ...teachTags(sg), ...songKeep(sg), folders: sg.folders || [] }));
 }
 export const backupDeleted = () => db.deleted();
 
@@ -415,7 +431,7 @@ async function buildBackup() {
   return {
     app: 'gitara', version: 1, type: 'backup', exportedAt: new Date().toISOString(),
     deleted: await db.deleted(), // obrisane pesme (id → vreme): vraćanje ih ne donosi nazad
-    songs: all.map((sg) => ({ id: sg.id, title: sg.title, artist: sg.artist, key: sg.key, sections: sg.sections, transpose: sg.transpose || 0, createdAt: sg.createdAt, updatedAt: sg.updatedAt, ...songExtras(sg), ...songMeta(sg), folders: sg.folders || [] })),
+    songs: all.map((sg) => ({ id: sg.id, title: sg.title, artist: sg.artist, key: sg.key, sections: sg.sections, transpose: sg.transpose || 0, createdAt: sg.createdAt, updatedAt: sg.updatedAt, ...songExtras(sg), ...songMeta(sg), ...teachTags(sg), ...songKeep(sg), folders: sg.folders || [] })),
     settings: s,
   };
 }
@@ -466,7 +482,7 @@ export function parseBackupData(data, modified = 0) {
     try {
       const n = normalizeSong(s);
       const folders = cleanSongFolders(s.folders);
-      songs.push({ ...n, ...songMeta({ ...s, sections: n.sections }), ...teachTags(s), ...(folders.length ? { folders } : {}), id: typeof s.id === 'string' ? s.id.slice(0, 80) : undefined, createdAt: Number(s.createdAt) || undefined, updatedAt: Number(s.updatedAt) || undefined });
+      songs.push({ ...n, ...songMeta({ ...s, sections: n.sections }), ...teachTags(s), ...songKeep(s), ...(folders.length ? { folders } : {}), id: typeof s.id === 'string' ? s.id.slice(0, 80) : undefined, createdAt: Number(s.createdAt) || undefined, updatedAt: Number(s.updatedAt) || undefined });
     } catch (e) { if (!(e instanceof SongFormatError)) throw e; }
   }
   const st = {};
@@ -535,11 +551,11 @@ async function quietFileToken() {
   return '';
 }
 /** Sačuvaj kopiju bez ikakvog prozora. 0 = nije moglo tiho (nema ključa / mreže). */
-export async function saveNamedQuiet(name, json) {
+export async function saveNamedQuiet(name, json, mime = 'application/json') { // v2.5.1: json može biti i sažet (gzip) sadržaj
   if (navigator.onLine === false || !(await quietFileToken())) return 0;
   const folder = await ensureFolder();
   const files = await findFiles(`name='${q(name)}' and '${folder}' in parents and trashed=false`);
-  const r = await uploadFile({ id: files[0] && files[0].id, name, mime: 'application/json', blob: new Blob([json], { type: 'application/json' }), parents: [folder] });
+  const r = await uploadFile({ id: files[0] && files[0].id, name, mime, blob: new Blob([json], { type: mime }), parents: [folder] });
   return Date.parse(r.modifiedTime) || Date.now();
 }
 /** Fajlovi u folderu „Gitara“ čije ime počinje sa prefix (najviše 50). quiet = bez prozora (prazno ako ne može). */
@@ -558,8 +574,13 @@ export async function readNamed(name) {
   if (!files.length) return null;
   const res = await api(`${API}/files/${files[0].id}?alt=media`);
   let data;
-  try { data = await res.json(); } catch { throw new DriveError(t('drive.e.corrupt'), 'format'); }
+  try { data = await readJsonMaybeGz(new Uint8Array(await res.arrayBuffer())); } catch { throw new DriveError(t('drive.e.corrupt'), 'format'); }
   return { data, modified: Date.parse(files[0].modifiedTime) || 0 };
+}
+/** v2.5.1: kopija je običan JSON ili sažeta (gzip, „.json.gz“) — prepoznaje se po prva dva bajta. */
+export async function readJsonMaybeGz(bytes) {
+  if (bytes[0] === 0x1f && bytes[1] === 0x8b) return (await import('./syncEngine.js')).gunzip(bytes);
+  return JSON.parse(new TextDecoder().decode(bytes));
 }
 /** Bez ikakvog prozora: kada je kopija pod tim imenom poslednji put sačuvana. { modified } | null (nema je) | undefined (ne zna se). */
 export async function peekNamed(name) {
@@ -789,6 +810,7 @@ async function doInit() {
   window.addEventListener('online', () => { if (state.pending) scheduleBackup(1500); });
   emit();
   if (!state.connected) return;
+  if (!syncOn()) setTimeout(() => moveToSync().catch(() => {}), 20000); // v2.5.1: stara kopija → sinhronizacija, tiho
   if (state.pending) scheduleBackup(3000);
   // Prazna biblioteka (npr. podaci su obrisani) → ponudi vraćanje ako je token još važeći.
   if (state.token && navigator.onLine !== false && !syncOn()) { // sa sinhronizacijom pesme stižu same
@@ -796,6 +818,19 @@ async function doInit() {
       try { if (!(await alreadyAsked()) && (await findBackup())) await offerRestore(); } catch {}
     }
   }
+}
+
+/**
+ * v2.5.1: nalozi povezani pre sinhronizacije (stara kopija „gitara-backup.json“ posle svake izmene) prelaze na
+ * sinhronizaciju — tiho, samo kad Google već dozvoljava i sinhronizaciju (bez ikakvog prozora). Ko je sinhronizaciju
+ * sam isključio, ostaje na staroj kopiji. Ako dozvola ne postoji, stara kopija i dalje radi (ređe — posle mira od 1 min).
+ */
+async function moveToSync() {
+  if (syncOn() || navigator.onLine === false || document.hidden) return;
+  if (await settings.get('syncCfg', null)) return; // već je imao sinhronizaciju (isključio je) — ne diramo
+  if (!(await syncTokenStored())) return;
+  const S = await import('./sync.js');
+  if (await S.connectSync({ silent: true })) logAuth('stara kopija → sinhronizacija');
 }
 
 // Modul se učitava tek kad zatreba (povezan Drive pri pokretanju, ili Podešavanja / PDF) — tada se odmah i pripremi

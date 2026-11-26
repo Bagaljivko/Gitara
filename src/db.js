@@ -89,14 +89,13 @@ export function notifyRemote(keys) {
 
 // ---- Sinhronizacija: svaka izmena u istoj transakciji označi stavku „čeka slanje“ (outbox) ----
 // Više izmena iste stavke pre slanja = jedna promena. Verzija (hibridni sat) je uvek veća od one koju zamenjuje.
-export const PREF_KEYS = ['a4', 'lang', 'metBpm', 'tunerRoom', 'tuning', 'wakeMode', 'wakeMinutes', 'noteNames', 'geminiModel', 'geminiModelSel', 'syncMigrated', 'myRhythms', 'strumSuggest', 'weekGoal', 'songBar', 'tunerPrec'];
-const LIST_KEYS = { setlists: 'set:', folders: 'folder:', devices: 'dev:', courses: 'course:' }; // v2.4.37: kursevi // v2.4.4: uređaji (svaki svoja stavka — ne gaze jedni druge) // nizovi: svaka set lista / folder je posebna stavka
-const WHOLE_KEYS = ['practice', 'skale', 'activity', 'teacher', 'students', 'myTeacher', 'requests', 'myRequests', 'myEx', 'rpList']; // v1.97: Moje vežbe // v1.73: activity = svirano/vežbano po uređaju; v1.78: nastava
+export const PREF_KEYS = ['a4', 'lang', 'metBpm', 'tunerRoom', 'tuning', 'wakeMode', 'wakeMinutes', 'noteNames', 'geminiModel', 'geminiModelSel', 'syncMigrated', 'myRhythms', 'strumSuggest', 'weekGoal', 'songBar', 'tunerPrec', 'shareName'];
+export const LIST_KEYS = { setlists: 'set:', folders: 'folder:', devices: 'dev:', courses: 'course:', studentPhotos: 'sph:' }; // v2.5.1: slike učenika — svaka svoj mali fajl (ne šalje se ponovo uz svaku izmenu učenika) // v2.4.37: kursevi // v2.4.4: uređaji (svaki svoja stavka — ne gaze jedni druge) // nizovi: svaka set lista / folder je posebna stavka
+export const WHOLE_KEYS = ['practice', 'skale', 'activity', 'teacher', 'students', 'myTeacher', 'requests', 'myRequests', 'myEx', 'rpList', 'knownChords', 'dupIgnore']; // v2.5.1: akordi koje znam, „nisu duplikati“ // v1.97: Moje vežbe // v1.73: activity = svirano/vežbano po uređaju; v1.78: nastava
+/** Stavka liste (set lista, folder, uređaj, kurs, slika učenika…) — ključ sa prefiksom iz LIST_KEYS. */
+export const isListItem = (k) => Object.values(LIST_KEYS).some((pre) => k.startsWith(pre));
 export function SYNC_SETTING_OF(k) {
-  if (k.startsWith('set:')) return 'setlists';
-  if (k.startsWith('folder:')) return 'folders';
-  if (k.startsWith('dev:')) return 'devices';
-  if (k.startsWith('course:')) return 'courses';
+  for (const [setting, pre] of Object.entries(LIST_KEYS)) if (k.startsWith(pre)) return setting;
   if (k.startsWith('pref:')) return k.slice(5);
   if (k === 'secret') return 'geminiKey';
   return WHOLE_KEYS.includes(k) ? k : null;

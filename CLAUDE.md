@@ -11,6 +11,7 @@
   - boje i mere iz `:root` (`--accent`, `--surface`, `--line`, `--muted`, `--radius`, `--mono`).
 - Akordi iznad teksta izgledaju kao na ekranu pesme (narandžasti akordi u redu iznad teksta, monospace).
 - **Ako zahtev ne može da stane u to** — nešto bi radilo lošije, ne bi se uklopilo u izgled, ili bi se dupliralo sa postojećim — **ne gradi odmah: prvo se javi i predloži bolje rešenje.**
+- **Sinhronizacija i rezervna kopija (važi za svaku promenu):** sve što nova funkcija čuva odmah ide u sinhronizaciju i rezervnu kopiju (i vraćanje) — ili je izričito označeno kao „samo na ovom uređaju“ (npr. poslednja otvorena kartica). Test vraćanja to proverava.
 - Vidljive promene: prvo maketa iz prave aplikacije (privremeni `tests/e2e/specs/99-shot.mjs`, posle obrisati), pa gradnja.
 
 ## Izdanje

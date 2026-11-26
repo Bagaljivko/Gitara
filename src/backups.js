@@ -13,7 +13,7 @@ import { APP_VERSION } from './version.js';
 const EXCL_SETTINGS = new Set(['driveToken', 'driveRT', 'drive', 'syncCfg', 'syncMigrated', 'syncOffered', 'geminiModels', 'shareFolder', 'held:secret']);
 const LOCAL_RE = /^(gitara-|marli-)/;
 const EXCL_LOCAL = new Set(['gitara-diag', 'gitara-boots', 'gitara-lastscan', 'gitara-sync', 'gitara-echo-clean', 'marli-keycheck', 'marli-pdf-queue', 'marli-bk', 'marli-rp', 'marli-songbar',
-  'marli-autobk', 'marli-def1701', 'marli-def-test', 'marli-dev', 'marli-intro', 'marli-intro-gate', 'marli-invite-test', 'marli-fb-q', 'marli-fb-url-test', 'marli-last-tab']); // v2.0: poslednja kartica je samo navigacija na ovom uređaju — ne u kopiju
+  'marli-autobk', 'marli-seed', 'marli-drive-cool', 'marli-def1701', 'marli-def-test', 'marli-dev', 'marli-intro', 'marli-intro-gate', 'marli-invite-test', 'marli-fb-q', 'marli-fb-url-test', 'marli-last-tab']); // v2.0: poslednja kartica je samo navigacija na ovom uređaju — ne u kopiju
 const KEY_RE = /^[\w.\-]{10,300}$/; // stari (AIza…, 39) i novi Google oblik (AQ.…, sa tačkom)
 const LAST = 'marli-bk'; // kada je poslednja kopija napravljena (na ovom uređaju)
 
@@ -25,6 +25,7 @@ const noteLast = (kind, where) => { try { const o = lastBackups(); o[kind] = { a
 function logErr(what, e) { try { const L = JSON.parse(localStorage.getItem('gitara-diag') || '[]'); L.push({ t: Date.now(), k: 'backup', m: `${what}: ${(e && (e.code || e.name)) || ''} ${(e && e.message) || e}${e && e.reason ? ' [' + e.reason + ']' : ''}`.slice(0, 400) }); localStorage.setItem('gitara-diag', JSON.stringify(L.slice(-60))); } catch {} }
 const driveName = async (kind) => { const d = await import('./drive.js'); return kind === 'full' ? d.BK_FULL : d.BK_SONGS; };
 
+const syncIsOn = async () => !!(((await settings.get('syncCfg', null)) || {}).on);
 export async function isConnected() {
   const d = (await settings.get('drive', null)) || {}, s = (await settings.get('syncCfg', null)) || {};
   return !!(d.connected || s.on);
@@ -105,8 +106,10 @@ export async function saveBackup(kind) {
 // Bez ikakvog Google prozora: ako ključ ne može tiho da se obnovi, pokušava se sledeći put.
 export const DAILY = 'MARLI – dnevna kopija ';
 const AUTO = 'marli-autobk';
-const dailyName = (d) => `${DAILY}${d}.json`;
-export const dailyDate = (name) => (/(\d{4}-\d{2}-\d{2})\.json$/.exec(name || '') || [])[1] || '';
+// v2.5.1: dnevna kopija je sažeta (gzip, „.json.gz“ — 5–8× manja); starije „.json“ se i dalje čitaju i brišu po rasporedu
+const canGz = () => typeof CompressionStream === 'function' && typeof DecompressionStream === 'function';
+const dailyName = (d, gz = canGz()) => `${DAILY}${d}.json${gz ? '.gz' : ''}`;
+export const dailyDate = (name) => (/(\d{4}-\d{2}-\d{2})\.json(\.gz)?$/.exec(name || '') || [])[1] || '';
 export const autoInfo = () => { try { return JSON.parse(localStorage.getItem(AUTO) || '{}') || {}; } catch { return {}; } };
 export async function autoOn() { return (await settings.get('autoBackup', true)) !== false; }
 export async function setAutoOn(on) { await settings.set('autoBackup', !!on); if (on) autoBackup({ force: true }).catch(() => {}); }
@@ -137,14 +140,18 @@ export async function autoBackup({ force = false } = {}) {
     const store = (o) => { try { localStorage.setItem(AUTO, JSON.stringify({ ...last, ...o })); } catch {} };
     if (!force && last.hash === hash) { store({ day: today }); return 'same'; }
     const drive = await import('./drive.js');
-    const at = await drive.saveNamedQuiet(dailyName(today), JSON.stringify(data));
+    let files = null;
+    try { files = await drive.listNamed(DAILY, { quiet: true }); } catch (e) { logErr('auto list', e); }
+    // v2.5.1: uz sinhronizaciju su podaci isti na svim uređajima — ako je drugi uređaj danas već sačuvao kopiju, ne šalje se još jedna
+    if (!force && files && files.some((f) => dailyDate(f.name) === today) && (await syncIsOn())) { store({ day: today }); return 'same'; }
+    const gz = canGz(), name = dailyName(today, gz), json = JSON.stringify(data);
+    const at = await drive.saveNamedQuiet(name, gz ? await (await import('./syncEngine.js')).gzip(data) : json, gz ? 'application/gzip' : 'application/json');
     if (!at) return 'later';
     store({ day: today, hash, at, n: (data.songs || []).length });
-    // čišćenje starih
+    // čišćenje starih (i današnje stare „.json“ kad je nova sažeta)
     try {
-      const files = await drive.listNamed(DAILY, { quiet: true });
-      const keep = keepDaily(files.map((f) => dailyDate(f.name)).filter(Boolean));
-      for (const f of files) if (dailyDate(f.name) && !keep.has(dailyDate(f.name))) await drive.deleteFileId(f.id).catch(() => {});
+      const keep = keepDaily((files || []).map((f) => dailyDate(f.name)).filter(Boolean).concat(today));
+      for (const f of files || []) { const d = dailyDate(f.name); if (d && (!keep.has(d) || (d === today && f.name !== name))) await drive.deleteFileId(f.id).catch(() => {}); }
     } catch (e) { logErr('auto prune', e); }
     return 'saved';
   } catch (e) { logErr('auto', e); return 'later'; } finally { autoRunning = false; }
@@ -194,9 +201,14 @@ function dayLabel(d) {
 // ---------------- Vraćanje ----------------
 /** Fajl sa uređaja (JSON) ili null. */
 async function fromFile() {
-  const file = await pickFile('.json,application/json,text/plain');
+  const file = await pickFile('.json,.gz,application/json,application/gzip,text/plain');
   if (!file) return null;
-  const text = await file.text();
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  if (bytes[0] === 0x1f && bytes[1] === 0x8b) { // v2.5.1: sažeta dnevna kopija preuzeta sa Drive-a
+    try { const data = await (await import('./drive.js')).readJsonMaybeGz(bytes); return { data, modified: file.lastModified || 0, text: JSON.stringify(data), src: 'file' }; }
+    catch { return { data: null, modified: 0, text: '', src: 'file' }; }
+  }
+  const text = new TextDecoder().decode(bytes);
   try { return { data: JSON.parse(text), modified: file.lastModified || 0, text, src: 'file' }; }
   catch { return { data: null, modified: 0, text, src: 'file' }; }
 }
@@ -228,6 +240,26 @@ function summaryHtml(src, items) {
     <ul class="bk-chips">${items.map(([k, v, ok]) => `<li class="${ok === false ? 'no' : ''}"><span>${esc(k)}</span><b>${esc(String(v))}</b></li>`).join('')}</ul></div>`;
 }
 
+/** Primena kopije cele aplikacije (bez pitanja): pesme, sva podešavanja, ključ, oznake na uređaju. */
+export async function applyFull(data, parsed = null) {
+  const drive = await import('./drive.js');
+  parsed = parsed || drive.parseBackupData(data);
+  const full = data.app === 'marli' && data.type === 'full';
+  // 1) pesme + poznata podešavanja (provereno, kao ranije); pesme iz kopije se vraćaju i ako su ovde bile obrisane
+  await drive.applyRestore(parsed, 'replace', { revive: true });
+  // 2) sve ostalo iz nove kopije: ostala podešavanja, Gemini ključ, „već viđeno“ oznake
+  if (full) {
+    const known = new Set([...drive.BACKUP_SETTINGS, ...Object.keys(parsed.settings || {})]);
+    for (const [k, v] of Object.entries(data.settings || {})) {
+      if (EXCL_SETTINGS.has(k) || known.has(k) || v === undefined) continue;
+      if (k === 'geminiKey') { if (typeof v === 'string' && KEY_RE.test(v.trim())) await settings.set('geminiKey', v.trim()); continue; }
+      if (k === 'keySync') { await (await import('./db.js')).setKeySync(v !== false); continue; }
+      await settings.set(k, v);
+    }
+    try { for (const [k, v] of Object.entries(data.local || {})) if (LOCAL_RE.test(k) && !EXCL_LOCAL.has(k) && typeof v === 'string') localStorage.setItem(k, v); } catch {}
+  }
+}
+
 /** „Vrati sve“: kopija cele aplikacije sa Drive-a (ili iz fajla: from='file') zamenjuje sve. */
 export async function restoreFull({ from = 'drive', name = '' } = {}) {
   if (from === 'drive' && !name) { // v1.85: izbor — ručna kopija ili jedna od dnevnih
@@ -251,19 +283,7 @@ export async function restoreFull({ from = 'drive', name = '' } = {}) {
   const ok = await dialog({ title: t('bk.restoreFullTitle'), html: true, body: html, className: 'bk-modal',
     buttons: [{ label: t('common.cancel'), value: false }, { label: t('bk.restoreAllBtn'), value: true, kind: 'danger' }] });
   if (!ok) return false;
-  // 1) pesme + poznata podešavanja (provereno, kao ranije); pesme iz kopije se vraćaju i ako su ovde bile obrisane
-  await drive.applyRestore(parsed, 'replace', { revive: true });
-  // 2) sve ostalo iz nove kopije: ostala podešavanja, Gemini ključ, „već viđeno“ oznake
-  if (full) {
-    const known = new Set(drive.BACKUP_SETTINGS);
-    for (const [k, v] of Object.entries(data.settings || {})) {
-      if (EXCL_SETTINGS.has(k) || known.has(k) || v === undefined) continue;
-      if (k === 'geminiKey') { if (typeof v === 'string' && KEY_RE.test(v.trim())) await settings.set('geminiKey', v.trim()); continue; }
-      if (k === 'keySync') { await (await import('./db.js')).setKeySync(v !== false); continue; }
-      await settings.set(k, v);
-    }
-    try { for (const [k, v] of Object.entries(data.local || {})) if (LOCAL_RE.test(k) && !EXCL_LOCAL.has(k) && typeof v === 'string') localStorage.setItem(k, v); } catch {}
-  }
+  await applyFull(data, parsed);
   toast(t('bk.restoredFull'));
   setTimeout(() => location.reload(), 1400); // jezik, izgled, Vežbe… — sve iz kopije odmah na snazi
   return true;

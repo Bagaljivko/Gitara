@@ -32,12 +32,35 @@ export async function teacherName() {
 }
 
 // ---------------- učenici ----------------
-export async function getStudents() { return ((await settings.get('students', [])) || []).filter((s) => s && s.id); }
+// v2.5.1: slika učenika je u posebnoj listi „studentPhotos“ ([{ id, u }], svaka slika svoj mali fajl pri sinhronizaciji) —
+// spisak učenika (časovi, beleške, prisustvo) ostaje mali tekst i ne šalje ponovo sve slike pri svakoj izmeni.
+const getPhotos = async () => ((await settings.get('studentPhotos', [])) || []).filter((x) => x && x.id && typeof x.u === 'string');
+async function setPhoto(id, u) {
+  const list = (await getPhotos()).filter((x) => x.id !== id);
+  await settings.set('studentPhotos', u ? [...list, { id, u, at: Date.now() }] : list);
+}
+const rawStudents = async () => ((await settings.get('students', [])) || []).filter((s) => s && s.id);
+/** Stari zapis (slika u spisku učenika) → slike u svoju listu; jednom, tiho. */
+async function movePhotos(list) {
+  if (!list.some((s) => s.photo)) return list;
+  const ph = await getPhotos(); const have = new Set(ph.map((x) => x.id));
+  const add = list.filter((s) => s.photo && !have.has(s.id)).map((s) => ({ id: s.id, u: s.photo, at: Date.now() }));
+  if (add.length) await settings.set('studentPhotos', [...ph, ...add]);
+  const clean = list.map(({ photo, ...rest }) => rest);
+  await settings.set('students', clean);
+  return clean;
+}
+const strip = (list) => list.map(({ photo, ...rest }) => rest);
+export async function getStudents() {
+  const list = await movePhotos(await rawStudents());
+  const ph = new Map((await getPhotos()).map((x) => [x.id, x.u]));
+  return list.map((s) => (ph.has(s.id) ? { ...s, photo: ph.get(s.id) } : s));
+}
 export async function getStudent(id) { return (await getStudents()).find((s) => s.id === id) || null; }
 export async function addStudent({ name, contact = '' }) {
   const list = await getStudents();
   const s = { id: uid(), name: clip(name, 60), contact: clip(contact, 120), color: COLORS[list.length % COLORS.length], createdAt: Date.now() };
-  await settings.set('students', [...list, s]);
+  await settings.set('students', strip([...list, s]));
   return s;
 }
 export async function updateStudent(id, patch) {
@@ -45,13 +68,15 @@ export async function updateStudent(id, patch) {
   const i = list.findIndex((s) => s.id === id);
   if (i < 0) return null;
   list[i] = { ...list[i], ...patch, name: clip(patch.name ?? list[i].name, 60), contact: clip(patch.contact ?? list[i].contact, 120) };
-  await settings.set('students', list);
+  if ('photo' in patch) await setPhoto(id, patch.photo || '');
+  await settings.set('students', strip(list));
   return list[i];
 }
 /** Brisanje učenika: ime i kontakt nestaju; njegovi snimci ostaju („Bez učenika“), set liste ostaju (bez njega). */
 export async function removeStudent(id) {
   const gone = await getStudent(id); if (gone && gone.planFile) await (await import('./plan.js')).dropPlanFile(gone).catch(() => {}); // v1.83: i fajl sa planom
-  await settings.set('students', (await getStudents()).filter((s) => s.id !== id));
+  await settings.set('students', strip((await getStudents()).filter((s) => s.id !== id)));
+  await setPhoto(id, '');
   const { songs } = await import('./db.js');
   for (const s of await songs.all()) if (s.student === id) { const { student, ...rest } = s; await songs.save(rest); }
   const c = await import('./collections.js');

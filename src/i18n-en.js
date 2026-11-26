@@ -2936,7 +2936,7 @@ export default {
   'kw.origBtn': 'Original ({k})',
   'sync.group': 'Sync between devices',
   'sync.title': "Sync between devices",
-  'sync.intro': "Songs, set lists, practice progress, settings, recordings (notes) and your Gemini key stay in step on all your devices through the app’s hidden folder in your Google Drive. Photos are never sent. Everything works offline — changes are sent when you’re back online.",
+  'sync.intro': "Songs, lists, courses, progress in School, teaching (students, lessons), settings, recordings (notes) and your Gemini key stay in step on all your devices through the app’s hidden folder in your Google Drive. Only what changed is sent. Scan photos are never sent (only small student pictures). Everything works offline — changes are sent when you’re back online.",
   'sync.longTitle': 'Uninterrupted sync',
   'sync.longBody': 'Confirm your Google account one more time. After that MARLI renews its Drive connection by itself, in the background — without the Google window that sometimes flashes when you open the app.',
   'sync.longOk': 'Confirm',
