@@ -8,7 +8,7 @@ export async function run(ctx) {
   const p = await open(ctx, 'phoneLand', { init: fakeMic }); // staza igre je položena (uspravno traži okretanje)
   await p.context().grantPermissions(['microphone']);
   await boot(p, ctx, '#/vezbe/pauk', 2000);
-  await p.evaluate(() => { localStorage.setItem('gitara-pr-waittip', '1'); localStorage.setItem('gitara-pr-pauk-start', '1'); });
+  await p.evaluate(() => { localStorage.setItem('gitara-pr-waittip', '1'); localStorage.setItem('gitara-pr-pauk-start', '1'); localStorage.setItem('marli-ready-secs', '3'); }); // v2.5.6: bez dodatnog „Spremi se“ (3 s = samo odbrojavanje)
   const w = await p.$('#prWait'); if (w && !(await w.isChecked())) { await p.evaluate(() => document.getElementById('prWait').click()); await p.waitForTimeout(400); }
   await p.evaluate(() => document.querySelectorAll('.modal-backdrop').forEach((m) => m.remove()));
   await p.click('#prGo'); await p.waitForTimeout(3500);
