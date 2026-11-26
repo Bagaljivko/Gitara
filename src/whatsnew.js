@@ -5,6 +5,9 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '2.5.3', date: '2026-11-26', items: [
+    { i: '✋', sr: ['Ruka sa strane dlana', 'Ruka u legendi prstiju i u igrama sada je kao tvoja leva ruka na vratu kad je gledaš: palac levo, prsti 1 · 2 · 3 · 4 sleva nadesno.'], en: ['The hand from the palm side', 'The hand in the finger legend and in the games now looks like your left hand on the neck as you see it: thumb on the left, fingers 1 · 2 · 3 · 4 from left to right.'] },
+  ] },
   { v: '2.5.2', date: '2026-11-26', items: [
     { i: '🎸', sr: ['MARLI put — 30 pesama', 'Tri nivoa po deset pesama, od prvih akorada do barréa i Travis trzanja. Stižu sami: pesme su u Pesme sa malim MARLI znakom (čip „MARLI put“ pokazuje samo njih), a nivoi u Škola → Kursevi, sa napretkom. Ništa nije zaključano. Svaka pesma ima kapodaster, ritam i hvatove sa lista, a „Pronađi tekst“ dodaje reči.'], en: ['MARLI path — 30 songs', 'Three levels of ten songs, from first chords to barré and Travis picking. They arrive by themselves: the songs are in Songs with a small MARLI mark (the “MARLI path” chip shows only them), and the levels are in School → Courses, with progress. Nothing is locked. Every song has the capo, strum and shapes from the sheet, and “Find lyrics” adds the words.'] },
     { i: '💡', sr: ['Saveti sa lista', 'Umesto engleskih beleški: kartica „Saveti sa lista“ — Novo u pesmi, Pazi na (dodir → vežba te promene), Vežbaj (dodir → vežba sa lista) i ostali saveti. Važi i za uvezene listove akorada.'], en: ['Tips from the sheet', 'Instead of notes: a “Tips from the sheet” card — New in this song, Watch out for (tap → practise that change), Practise (tap → the sheet exercise) and more tips. Imported chord sheets get it too.'] },
