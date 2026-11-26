@@ -3642,3 +3642,11 @@ img.tch-av.tch-ph { object-fit: cover; background: #222; padding: 0; }
 .lyr-prev { max-height: 46vh; overflow: auto; border: 1px solid var(--line); border-radius: var(--radius); padding: 10px; }
 .lyr-dlg textarea { min-height: 180px; font: inherit; }
 .lyr-note { margin: 0 0 8px; }
+
+/* v2.5: Škola — Progres · Vežbe · Kursevi; Liste */
+.pr-tabs { display: flex; margin: 4px 0 14px; }
+.pr-tabs > button { flex: 1; white-space: nowrap; }
+.lst-more { flex: none; font-size: 1.3rem; color: var(--muted); }
+.marli-mark { width: 18px; height: 18px; border-radius: 5px; vertical-align: -4px; margin: 0 2px 0 6px; }
+.lib-chip .marli-mark { width: 16px; height: 16px; margin: 0 5px 0 0; vertical-align: -3px; }
+.tch-row .sr-ic .marli-mark { width: 24px; height: 24px; margin: 0; }

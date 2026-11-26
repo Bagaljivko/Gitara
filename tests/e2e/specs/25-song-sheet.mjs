@@ -81,7 +81,7 @@ export async function run(ctx) {
     await addSong(p, { title: 'X' }); await p.go(dev === 'desk' ? '#/pesme' : '#/pesme?tab=sl', 1500);
     const b = await p.evaluate((dev) => dev === 'desk'
       ? [...document.querySelectorAll('.ds-it[data-set]')].map((x) => x.textContent.replace(/\s+/g, ' ').trim() + (x.querySelector('.ds-tch') ? ' [T]' : ''))
-      : [...document.querySelectorAll('#lSlPane .slp-item')].map((x) => x.textContent.replace(/\s+/g, ' ').trim() + (x.querySelector('.tch-badge') ? ' [T]' : '')), dev);
+      : [...document.querySelectorAll('#lSlPane .tch-row')].map((x) => x.textContent.replace(/\s+/g, ' ').trim() + (/nastavnik/i.test(x.querySelector('small')?.textContent || '') ? ' [T]' : '')), dev);
     expect(b.some((x) => /Od Mile.*\[T\]/.test(x)) && b.some((x) => /Moja/.test(x) && !/\[T\]/.test(x)), dev + ': setlista od nastavnika nema oznaku', b);
   }
   // ekran: pesma — bez odbrojavanja; setlista — odbrojava minute

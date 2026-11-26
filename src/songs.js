@@ -71,15 +71,33 @@ let TOP = new Map();
 export async function loadTop() { try { const A = await import('./activity.js'); const tot = await A.loadTotals(); TOP = new Map(Object.entries(tot.songs || {}).map(([id, o]) => [id, (o.p || 0) + (o.x || 0)]).filter(([, ms]) => ms >= 180000)); } catch {} return TOP; }
 const topTime = (ms) => { const m = Math.round(ms / 60000); return m >= 60 ? `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')}` : `${m} min`; };
 export async function loadStudentNames() { try { const T = await import('./teach.js'); STUDENT_NAMES = new Map((await T.getStudents()).map((s) => [s.id, s.name])); } catch {} }
+// v2.4.38: kursevi po pesmi (za oznake i pametne liste „Iz kurseva“): id → { marli, own: 'Naziv · 2/5' }
+let COURSE_OF = new Map(), COURSES = [];
+export const MARLI_LOGO = '<img class="marli-mark" src="./icons/marli-192.png" alt="MARLI put" title="MARLI put">';
+async function loadCourseMarks() {
+  try {
+    COURSES = await (await import('./courses.js')).getCourses();
+    const m = new Map();
+    for (const c of COURSES) (c.items || []).forEach((x, i) => {
+      if (!x.s) return; const o = m.get(x.s) || {};
+      if (c.marli) o.marli = true; else if (!c.fromT && !o.own) o.own = `${c.name} · ${i + 1}/${c.items.length}`;
+      m.set(x.s, o);
+    });
+    COURSE_OF = m;
+  } catch { COURSE_OF = new Map(); COURSES = []; }
+}
 function libBadges(s) {
   const b = [];
+  const co = COURSE_OF.get(s.id);
+  if (co && co.marli) b.push(MARLI_LOGO);
   if (s.type === 'tab') b.push('<span class="badge-sm tab-badge">TAB</span>');
   if (s.capo) b.push(`<span class="badge-sm" title="${esc(t('capo.title'))}">${esc(t('lib.badgeCapo', { n: s.capo }))}</span>`);
   if (s.tuning && s.tuning !== 'standard') b.push(`<span class="badge-sm">${esc(t('tuning.' + s.tuning))}</span>`);
   if (s.type !== 'tab' && (s.hasTabs ?? (s.sections || []).some((x) => (x.tabs || []).length))) b.push('<span class="badge-sm tab-badge">TAB</span>'); // isti izgled svuda
   // v1.78: nastava — čiji je snimak / od nastavnika
   if (s.student && STUDENT_NAMES.has(s.student)) b.push(`<span class="badge-sm tch-badge">${esc(STUDENT_NAMES.get(s.student))}</span>`);
-  if (s.fromT) b.push(`<span class="badge-sm tch-badge">${esc(t('tch.fromTeacherShort'))}</span>`);
+  if (s.fromT) b.push(`<span class="badge-sm tch-badge">🎓 ${esc(t('tch.fromTeacherShort'))}</span>`);
+  if (co && co.own) b.push(`<span class="badge-sm">📚 ${esc(co.own)}</span>`);
   if (READY.has(s.id)) b.push(`<span class="badge-sm rdy-badge" title="${esc(t('rdy.tip'))}">✓ ${esc(t('rdy.short'))}</span>`);
   return b.length ? ' ' + b.join(' ') : '';
 }
@@ -88,7 +106,8 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
   await loadReady(); // v2.4.10
   await loadTop(); // v2.4.21
   const sortPref = localStorageGet('gitara-sort') || 'new';
-  const tab = ['sl', 'k'].includes(params.get('tab')) ? params.get('tab') : 'songs'; // v2.4.37: k = Kursevi
+  if (params.get('tab') === 'k') { location.replace('#/vezbe?t=k'); return; } // v2.4.38: Kursevi su u Vežbama
+  const tab = params.get('tab') === 'sl' ? 'sl' : 'songs';
   root.innerHTML = `
   <section class="view lib-view">
     <header class="view-head lib-head"><h1 class="lib-h1"><button class="lib-title" id="lGroup" aria-haspopup="menu" aria-expanded="false"><span id="lGroupName">${t('lib.title')}</span><svg class="lib-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.4 8.6 12 13.2l4.6-4.6L18 10l-6 6-6-6z"/></svg></button></h1>
@@ -99,11 +118,9 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
     </header>
     <div class="seg-tabs lib-tabs" role="tablist">
       <button role="tab" data-lt="songs" class="${tab === 'songs' ? 'active' : ''}">${t('lib.tabSongs')}</button>
-      <button role="tab" data-lt="sl" class="${tab === 'sl' ? 'active' : ''}">${t('lib.tabSetlists')}</button>
-      <button role="tab" data-lt="k" class="${tab === 'k' ? 'active' : ''}">${t('crs.tab')}</button>
+      <button role="tab" data-lt="sl" class="${tab === 'sl' ? 'active' : ''}">${t('lib.tabLists')}</button>
     </div>
     <div id="lSlPane" ${tab === 'sl' ? '' : 'hidden'}></div>
-    <div id="lCoPane" ${tab === 'k' ? '' : 'hidden'}></div>
     <div id="lSongsPane" ${tab !== 'songs' ? 'hidden' : ''}>
     <div class="lib-chips" id="lChips" role="toolbar" aria-label="${t('lib.groups')}"></div>
     <p class="lib-tnote" id="lTNote" hidden>${t('lib.teacherNote')}</p>
@@ -130,6 +147,7 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
   $('lSort').value = sortPref;
   await seedDemoSong(getLang()).catch(() => {});
   let all = await db.list(); // brzi indeks (bez akorda) — dovoljan za listu
+  await loadCourseMarks(); // v2.4.38
   // v2.4.27: dve verzije iste pesme — kratka najava „Uporedi“ (jedna po jedna)
   const drawDup = async () => {
     const box = $('lDup'); if (!box) return;
@@ -142,7 +160,7 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
   let folders = await getFolders();
   // grupa: '' = sve, id foldera, 'artist:<ime>', 'auto:tab', 'auto:recent'
   let folderFilter = localStorageGet('gitara-folder') || '';
-  const validGroup = (g) => !g || g === 'auto:tab' || g === 'auto:recent' || g === 'auto:ready' || g === 'auto:top' || g === 'auto:teacher' || folders.some((f) => f.id === g); // izvođači više nisu grupa (pretraga ih nalazi)
+  const validGroup = (g) => !g || (g && g.startsWith('course:')) || g === 'auto:tab' || g === 'auto:recent' || g === 'auto:ready' || g === 'auto:top' || g === 'auto:teacher' || folders.some((f) => f.id === g); // izvođači više nisu grupa (pretraga ih nalazi)
   if (!validGroup(folderFilter)) folderFilter = '';
 
   // Sekcije: Pesme / Setliste
@@ -151,32 +169,40 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
     const k = b.dataset.lt, sl = k === 'sl';
     $('lSongsPane').hidden = k !== 'songs';
     $('lSlPane').hidden = !sl;
-    $('lCoPane').hidden = k !== 'k';
     $('lAdd').hidden = k !== 'songs';
     drawFolders();
     history.replaceState(null, '', k === 'songs' ? '#/pesme' : '#/pesme?tab=' + k);
-    if (sl) renderSetlistsPane($('lSlPane'));
-    if (k === 'k') import('./coursesView.js').then((m) => m.renderCoursesPane($('lCoPane'))).catch((e) => console.warn(e));
+    if (sl) renderLists();
   }));
-  if (tab === 'sl') renderSetlistsPane($('lSlPane'));
-  if (tab === 'k') import('./coursesView.js').then((m) => m.renderCoursesPane($('lCoPane'))).catch((e) => console.warn(e)); // v2.4.37
 
   // Grupa pesama u naslovu („Sve pesme ▾“): dodir otvara panel sa grupama (automatske + moji folderi)
-  const groupLabel = (g) => !g ? t('lib.groupAll') : g === 'auto:tab' ? t('lib.groupTab') : g === 'auto:recent' ? t('lib.groupRecent') : g === 'auto:ready' ? t('rdy.group') : g === 'auto:top' ? '🔥 ' + t('lib.groupTop') : g === 'auto:teacher' ? '🎓 ' + t('tch.fromTeacher')
+  const groupLabel = (g) => g && g.startsWith('course:') ? courseLabel(g) : !g ? t('lib.groupAll') : g === 'auto:tab' ? t('lib.groupTab') : g === 'auto:recent' ? t('lib.groupRecent') : g === 'auto:ready' ? t('rdy.group') : g === 'auto:top' ? '🔥 ' + t('lib.groupTop') : g === 'auto:teacher' ? '🎓 ' + t('tch.fromTeacher')
     : g.startsWith('artist:') ? (all.find((s) => artistKey(s) === g.slice(7))?.artist || g.slice(7)) : folderLabel(folders.find((f) => f.id === g) || { name: '' });
   // v2.0: čipovi grupa ispod naslova (telefon) — Sve, Od nastavnika, folderi (i Moji snimci), TAB; jedan dodir
   let myT = null; import('./teach.js').then((T) => T.getMyTeacher()).then((m) => { myT = m; drawChips(); }).catch(() => {});
+  // v2.4.38: pametne liste i folderi (za karticu „Liste“ i čipove)
+  const autoLists = () => {
+    const n = (g) => all.filter((x) => inGroup(x, g)).length;
+    const hasT = (myT && myT.tid) || all.some((x) => x.fromT);
+    return [
+      { g: 'auto:top', ic: '🔥', label: t('lib.groupTop'), n: n('auto:top') },
+      { g: 'auto:ready', ic: '✓', label: t('rdy.group'), n: n('auto:ready') },
+      { g: 'auto:recent', ic: '🕑', label: t('lib.groupRecent'), n: n('auto:recent') },
+      ...(hasT ? [{ g: 'auto:teacher', ic: '🎓', label: myT && myT.name ? t('lst.fromT', { name: myT.name }) : t('tch.fromTeacher'), n: n('auto:teacher') }] : []),
+      { g: 'auto:tab', ic: 'TAB', label: t('lib.groupTab'), n: n('auto:tab') },
+    ].filter((a) => a.n > 0 || a.g === 'auto:teacher');
+  };
+  const courseLabel = (g) => { if (g === 'course:marli') return 'MARLI put'; const c = COURSES.find((x) => 'course:' + x.id === g); return c ? (c.fromT ? '🎓 ' : c.marli ? '' : '📚 ') + c.name : ''; };
+  const chipLabel = (g) => { if (g.startsWith('course:')) return courseLabel(g); const a = autoLists().find((x) => x.g === g); if (a) return (a.ic === 'TAB' ? '' : a.ic + ' ') + a.label; const f = folders.find((x) => x.id === g); return f ? (isSystemFolder(f.id) ? '' : '📁 ') + folderLabel(f) : ''; };
+  const defaultPins = () => ['auto:top', ...((myT && myT.tid) || all.some((x) => x.fromT) ? ['auto:teacher'] : [])];
+  let LL = null; const libLists = async () => (LL = LL || (await import('./libLists.js')));
   const drawChips = () => {
     const box = $('lChips'); if (!box) return;
     const n = (g) => all.filter((x) => inGroup(x, g)).length;
-    const fo = [...folders].sort((a, b) => (isSystemFolder(b.id) ? 1 : 0) - (isSystemFolder(a.id) ? 1 : 0));
-    const chips = [['', t('lib.chipAll'), n('')]];
-    const ntop = n('auto:top'); if (ntop) chips.push(['auto:top', '🔥 ' + t('lib.groupTop'), ntop]); // v2.4.21
-    if ((myT && myT.tid) || all.some((x) => x.fromT)) chips.push(['auto:teacher', '🎓 ' + (myT && myT.name ? myT.name : t('tch.fromTeacher')), n('auto:teacher'), 't']);
-    for (const f of fo) chips.push([f.id, (isSystemFolder(f.id) ? '' : '📁 ') + folderLabel(f), n(f.id)]);
-    const nt = n('auto:tab'); if (nt) chips.push(['auto:tab', t('lib.groupTab'), nt]);
-    const nr = n('auto:ready'); if (nr) chips.push(['auto:ready', '✓ ' + t('rdy.group'), nr]); // v2.4.10
-    box.innerHTML = chips.map(([g, label, c, cls]) => `<button type="button" class="lib-chip${g === folderFilter ? ' on' : ''}${cls ? ' ' + cls : ''}" data-chip="${esc(g)}">${esc(label)}${c != null ? `<i>${c}</i>` : ''}</button>`).join('');
+    let pins = defaultPins(); try { const v = JSON.parse(localStorage.getItem('marli-chips') || 'null'); if (Array.isArray(v)) pins = v; } catch {}
+    const show = [...pins.filter((g) => chipLabel(g)), ...(folderFilter && !pins.includes(folderFilter) && chipLabel(folderFilter) ? [folderFilter] : [])];
+    const chips = [['', t('lib.chipAll'), n('')], ...show.map((g) => [g, chipLabel(g), n(g), g === 'auto:teacher' ? 't' : ''])];
+    box.innerHTML = chips.map(([g, label, c, cls]) => `<button type="button" class="lib-chip${g === folderFilter ? ' on' : ''}${cls ? ' ' + cls : ''}" data-chip="${esc(g)}">${g === 'course:marli' ? MARLI_LOGO : ''}${esc(label)}${c != null ? `<i>${c}</i>` : ''}</button>`).join('');
   };
   $('lChips').addEventListener('click', (e) => {
     const b = e.target.closest('[data-chip]'); if (!b) return;
@@ -185,9 +211,44 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
     folderFilter = g; localStorageSet('gitara-folder', folderFilter); drawFolders(); draw();
     b.scrollIntoView({ inline: 'nearest', block: 'nearest' });
   });
+  const pinsNow = () => { try { const v = JSON.parse(localStorage.getItem('marli-chips') || 'null'); return Array.isArray(v) ? v : defaultPins(); } catch { return defaultPins(); } };
+  const listIds = (it) => (it.kind === 'set' ? null : all.filter((x) => inGroup(x, it.id)).map((x) => x.id));
+  const listAction = async (it, m) => {
+    const L = await libLists();
+    if (m === 'pin') { L.togglePin(it.id, pinsNow()); }
+    else if (m === 'ren') {
+      const nm = await askName(t('lst.rename'), it.label); if (!nm) return;
+      if (it.kind === 'folder') { const C = await import('./collections.js'); await C.renameFolder(it.id, nm); } else { const C = await import('./collections.js'); await C.updateSetlist(it.id, { name: nm }); }
+    } else if (m === 'toSet') { const sl = await L.folderToSet(it.label, listIds(it)); if (sl) { location.hash = '#/setlista/' + encodeURIComponent(sl.id); return; } }
+    else if (m === 'del') {
+      const ids = it.kind === 'set' ? (((await (await import('./collections.js')).getSetlist(it.id)) || {}).songIds || []) : listIds(it);
+      if (!(await L.deleteList(it, ids))) return;
+      if (folderFilter === it.id) { folderFilter = ''; localStorageSet('gitara-folder', ''); }
+    }
+    folders = await getFolders(); all = await db.list(); drawFolders(); draw();
+    if (!$('lSlPane').hidden) renderLists();
+  };
+  const renderLists = () => libLists().then((L) => L.renderListsPane($('lSlPane'), {
+    autos: autoLists(), pins: pinsNow(),
+    courses: [
+      ...(COURSES.some((c) => c.marli) ? [{ g: 'course:marli', ic: MARLI_LOGO, label: 'MARLI put', n: all.filter((x) => inGroup(x, 'course:marli')).length }] : []),
+      ...COURSES.map((c) => ({ g: 'course:' + c.id, ic: c.marli ? MARLI_LOGO : c.fromT ? '🎓' : '📚', label: c.name, n: (c.items || []).filter((x) => x.s).length })),
+    ],
+    folders: folders.map((f) => ({ id: f.id, label: folderLabel(f), n: all.filter((x) => inGroup(x, f.id)).length, sys: isSystemFolder(f.id) })),
+    open: (g) => { folderFilter = g; localStorageSet('gitara-folder', g); root.querySelector('[data-lt="songs"]').click(); },
+    action: listAction,
+  })).catch((e) => console.warn(e));
+  if (tab === 'sl') renderLists();
+  // dugi pritisak (ili desni klik) na čip → meni (Preimenuj, Sakrij/Prikaži kao čip, Napravi setlistu, Obriši)
+  libLists().then((L) => L.onLongPress($('lChips'), '[data-chip]', async (el) => {
+    const g = el.dataset.chip; if (!g) return;
+    const f = folders.find((x) => x.id === g);
+    const it = f ? { kind: 'folder', id: g, label: folderLabel(f), sys: isSystemFolder(g), pinned: pinsNow().includes(g) } : { kind: 'auto', id: g, label: chipLabel(g), pinned: pinsNow().includes(g) };
+    const m = await L.listMenu(it); if (m) await listAction(it, m);
+  })).catch(() => {});
   const drawFolders = () => {
-    const sl = !$('lSlPane').hidden, co = !$('lCoPane').hidden;
-    $('lGroupName').textContent = sl ? t('lib.tabSetlists') : co ? t('crs.tab') : groupLabel(folderFilter);
+    const sl = !$('lSlPane').hidden, co = false;
+    $('lGroupName').textContent = sl ? t('lib.tabLists') : co ? t('crs.tab') : groupLabel(folderFilter);
     $('lGroup').disabled = sl || co;
     drawChips();
   };
@@ -221,6 +282,8 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
     if (g === 'auto:top') return TOP.has(s.id);
     if (g === 'auto:teacher') return !!s.fromT; // v2.4.16: sve pesme od nastavnika, same stižu
     if (g.startsWith('artist:')) return artistKey(s) === g.slice(7);
+    if (g === 'course:marli') return !!(COURSE_OF.get(s.id) || {}).marli; // v2.4.38: Iz kurseva
+    if (g.startsWith('course:')) { const c = COURSES.find((x) => x.id === g.slice(7)); return !!(c && (c.items || []).some((x) => x.s === s.id)); }
     return (s.folders || []).includes(g);
   }
 
@@ -228,7 +291,7 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
     const q = fold($('lSearch').value);
     // snimci iz „Samo sviraj“ su samo u folderu „Moji snimci“ (ne u „Sve“)
     const rec = folderFilter === 'auto:recent' ? recentIds() : null;
-    $('lTNote').hidden = folderFilter !== 'auto:teacher' && folderFilter !== 'auto:top';
+    $('lTNote').hidden = (folderFilter !== 'auto:teacher' && folderFilter !== 'auto:top') || (() => { try { const k = 'marli-note-' + folderFilter; if (localStorage.getItem(k)) return true; setTimeout(() => { try { localStorage.setItem(k, '1'); } catch {} }, 4000); return false; } catch { return false; } })(); // v2.4.38: samo prvi put
     $('lTNote').textContent = t(folderFilter === 'auto:top' ? 'lib.topNote' : 'lib.teacherNote');
     let list = all.filter((s) => inGroup(s, folderFilter, rec)).filter((s) => !q || folded(s).t.includes(q) || folded(s).a.includes(q) ||
       (s.find ?? '').includes(q));

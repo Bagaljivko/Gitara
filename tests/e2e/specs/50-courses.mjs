@@ -28,8 +28,8 @@ export async function run(ctx) {
     await addSong(p, { title: 'Teška', chords: ['F', 'Bm', 'C#m', 'G#'], text: () => 'teška pesma ide kasnije' });
     await p.reload(); await p.waitForTimeout(900); // ugrađena kopija: aplikacija čita pesme iznova
     // 1) Kursevi: prazno, + Napravi kurs
-    await p.go('#/pesme?tab=k', 1200);
-    const empty = await p.evaluate(() => ({ tab: document.querySelector('[data-lt="k"]')?.classList.contains('active'), txt: document.querySelector('#lCoPane')?.innerText.replace(/\s+/g, ' ') || '' }));
+    await p.go('#/vezbe?t=k', 1500);
+    const empty = await p.evaluate(() => ({ tab: document.querySelector('[data-pt="k"]')?.classList.contains('active'), txt: document.querySelector('#prCourses')?.innerText.replace(/\s+/g, ' ') || '' }));
     expect(empty.tab && /Moji kursevi/i.test(empty.txt) && /nije zaključan/.test(empty.txt), dev + ': kartica Kursevi', empty);
     await p.click('#cNew'); await p.waitForSelector('#nameInput'); await p.fill('#nameInput', 'Leto'); await p.click('.modal-backdrop .btn.primary'); await p.waitForTimeout(1200);
     expect(/^#\/kurs\//.test(await p.evaluate(() => location.hash)), dev + ': otvoren nov kurs');

@@ -70,10 +70,10 @@ async function addMarli(m) {
 export async function renderCourse(root, id) {
   if (id.startsWith('marli:')) {
     const m = (await marliCourses()).find((x) => x.id === id.slice(6));
-    if (!m) { location.hash = '#/pesme?tab=k'; return; }
+    if (!m) { location.hash = '#/vezbe?t=k'; return; }
     const have = (await K.getCourses()).find((c) => c.marli === m.id);
     if (have) { location.replace('#/kurs/' + encodeURIComponent(have.id)); return; }
-    root.innerHTML = `<section class="view crs-view"><header class="topbar"><a href="#/pesme?tab=k" class="back">‹ ${esc(t('crs.back'))}</a></header>
+    root.innerHTML = `<section class="view crs-view"><header class="topbar"><a href="#/vezbe?t=k" class="back">‹ ${esc(t('crs.back'))}</a></header>
       <h1>${esc(m.name)}</h1><p class="muted">${esc(m.about || '')}</p>
       <div class="tch-sec"><span>${esc(t('crs.order'))}</span></div>
       <div class="set-grp">${(m.songs || []).map((s, i) => `<div class="tch-row crs-ro"><span class="sr-ic crs-n">${i + 1}</span><span><b>${esc(s.title)}</b><small>${esc([s.artist, s.what].filter(Boolean).join(' · '))}</small></span></div>`).join('')}</div>
@@ -82,16 +82,16 @@ export async function renderCourse(root, id) {
     return;
   }
   let c = await K.getCourse(id);
-  if (!c) { location.hash = '#/pesme?tab=k'; return; }
+  if (!c) { location.hash = '#/vezbe?t=k'; return; }
   let edit = false;
   const own = !c.fromT;
   root.innerHTML = `<section class="view crs-view">
-    <header class="topbar"><a href="#/pesme?tab=k" class="back">‹ ${esc(t('crs.back'))}</a>
+    <header class="topbar"><a href="#/vezbe?t=k" class="back">‹ ${esc(t('crs.back'))}</a>
       ${own ? `<div class="topbar-actions"><button class="btn small" id="cEdit">${esc(t('crs.edit'))}</button></div>` : ''}</header>
     <div id="cBody"></div></section>`;
   const body = root.querySelector('#cBody');
   const draw = async () => {
-    c = await K.getCourse(id); if (!c) { location.hash = '#/pesme?tab=k'; return; }
+    c = await K.getCourse(id); if (!c) { location.hash = '#/vezbe?t=k'; return; }
     const sums = await db.list(); const byId = new Map(sums.map((s) => [s.id, s]));
     const items = (c.items || []).map((x) => (x.s && !byId.has(x.s) ? { n: 0, miss: true } : x));
     const st = await stateOf({ ...c, items });
@@ -155,7 +155,7 @@ export async function renderCourse(root, id) {
     if (b.id === 'cRen') { const { askName } = await import('./setlistsView.js'); const n = await askName(t('crs.rename'), c.name); if (n) { await K.updateCourse(id, { name: n }); await draw(); } return; }
     if (b.id === 'cDel') {
       const ok = await dialog({ title: t('crs.delT', { name: c.name }), body: t('crs.delB'), buttons: [{ label: t('common.cancel'), value: false }, { label: t('common.delete'), value: true, kind: 'danger' }] });
-      if (ok) { await K.deleteCourse(id); location.hash = '#/pesme?tab=k'; }
+      if (ok) { await K.deleteCourse(id); location.hash = '#/vezbe?t=k'; }
       return;
     }
     if (b.dataset.imp) {

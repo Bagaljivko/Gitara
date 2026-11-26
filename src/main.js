@@ -184,7 +184,7 @@ async function routeInner() {
     const { renderChordCheck } = page === 'provera' ? await loadChordCheck() : {};
     if (routeId !== myRoute) return;
     // Tablet položeno: dva panela — lista pesama levo, izabrana pesma desno
-    const twoPane = TWO_PANE.matches && (page === 'pesme' || page === 'pesma') && params.get('tab') !== 'sl' && params.get('tab') !== 'k'; // v2.4.37: Kursevi — cela strana
+    const twoPane = TWO_PANE.matches && (page === 'pesme' || page === 'pesma') && params.get('tab') !== 'sl';
     document.body.classList.toggle('two-pane-mode', twoPane);
     // v1.70: računar (širok ekran + miš) — upravljač biblioteke: folderi/set liste levo, tabela, pesma desno
     const desk = twoPane && DESK_MQ.matches; // tablet položeno: bez učitavanja upravljača za računar

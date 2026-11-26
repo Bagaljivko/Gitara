@@ -10,7 +10,7 @@ export async function run(ctx) {
     const cdp = await throttle(p, 6);
     const t0 = Date.now(); await p.reload(); await p.waitForSelector('#tStartBtn', { timeout: 20000 }); const start = Date.now() - t0;
     const times = {};
-    for (const [h, sel] of [['#/pesme', '.song-item, .dk-table tr[data-id]'], ['#/pesma/' + ids[3], '#sLyrics .lyr-line, #sLyrics'], ['#/vezbe', '.pr-card'], ['#/podesavanja', '[data-open]']]) {
+    for (const [h, sel] of [['#/pesme', '.song-item, .dk-table tr[data-id]'], ['#/pesma/' + ids[3], '#sLyrics .lyr-line, #sLyrics'], ['#/vezbe', '.pr-tabs'], ['#/podesavanja', '[data-open]']]) {
       await p.go('#/tuner', 800); const t = Date.now(); await p.evaluate((h) => { location.hash = h; }, h); await p.waitForSelector(sel, { timeout: 20000 }); times[h.slice(0, 9)] = Date.now() - t;
     }
     await p.go('#/pesma/' + ids[3], 1500);

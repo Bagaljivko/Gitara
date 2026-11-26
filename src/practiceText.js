@@ -1,7 +1,7 @@
 // Vežbe: tekstovi igara (srpski i engleski). Učitava ih practice.js kad se otvori tab „Vežbe“,
 // pa ne povećavaju pokretanje aplikacije. Ostaju u i18n.js samo naziv taba i oznaka prečice iz pesme.
 export const sr = {
-  'pr.title': 'Vežbe',
+  'pr.title': 'Škola',
   'pr.intro': 'Kratke igre za prste, ritam i sluh. Aplikacija sluša tvoju gitaru i odmah ti kaže da li je tačno.',
   'pr.g.skale': 'Skale',
   'pr.d.skale': 'Skale korak po korak, uz tempo i malo teorije.',
@@ -437,7 +437,7 @@ export const sr = {
 };
 
 export const en = {
-  'pr.title': 'Practice',
+  'pr.title': 'School',
   'pr.intro': 'Short games for your fingers, timing and ear. The app listens to your guitar and tells you right away if it was right.',
   'pr.g.skale': 'Scales',
   'pr.d.skale': 'Scales step by step, with tempo and a little theory.',

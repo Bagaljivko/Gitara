@@ -129,7 +129,7 @@ export async function renderPractice(root, parts = [], params = new URLSearchPar
   await cssReady;
   const id = parts[0] || '';
   const game = GAMES.find((g) => g.id === id);
-  if (!game) return renderHub(root);
+  if (!game) return renderHub(root, params);
   return renderGame(root, game, parts.slice(1), params);
 }
 
@@ -204,7 +204,7 @@ function skeleton(sec, kind) {
   sec.insertAdjacentHTML('beforeend', `<div class="pr-skel pr-skel-${kind}" aria-hidden="true">${rows}</div>`);
 }
 
-async function renderHub(root) {
+async function renderHub(root, params = null) {
   setWakeZone(null);
   const st = await loadStats();
   // Skale: napredak puta (mali zapis; bez učitavanja koda igre)
@@ -215,17 +215,22 @@ async function renderHub(root) {
   let streak = Math.max(0, ...GAMES.map((g) => currentStreak(st.games[g.id]))), doneToday = GAMES.some((g) => st.games[g.id]?.lastDay === today());
   try { const [A, S] = await Promise.all([import('./activity.js'), import('./streak.js')]); const r = S.streakOf(S.daysMs((await A.loadTotals()).days), A.dayNum()); streak = r.streak; doneToday = doneToday || r.todayDone; } catch {}
   const sug = await todaySuggestion(st);
+  const hubTab = (() => { const q = params && params.get && params.get('t'); if (['n', 'v', 'k'].includes(q)) return q; try { const v = localStorage.getItem('marli-pr-tab'); return ['n', 'v', 'k'].includes(v) ? v : 'n'; } catch { return 'n'; } })();
   root.innerHTML = `
   <section class="view practice-view">
     <header class="view-head pr-hub-head"><h1>${t('pr.title')}</h1></header>
-    <p class="muted pr-intro">${t('pr.intro')}</p>
+    <p class="muted pr-intro" hidden>${t('pr.intro')}</p>
+    <div class="seg-tabs pr-tabs" role="tablist">${['n', 'v', 'k'].map((k) => `<button type="button" role="tab" data-pt="${k}" class="${hubTab === k ? 'active' : ''}" aria-selected="${hubTab === k}">${t('pr.tab.' + k)}</button>`).join('')}</div>
+    <div class="pr-pane" data-pane="n"${hubTab === 'n' ? '' : ' hidden'}>
+    ${todayCardHTML(sug, streak, doneToday)}
     <div id="prFirst"></div>
     <div id="stWeekBox"></div>
     <div id="prTeach"></div>
     <div id="prNudge"></div>
     <div id="prPlan"></div>
     <div id="prMyEx"></div>
-    ${todayCardHTML(sug, streak, doneToday)}
+    </div>
+    <div class="pr-pane" data-pane="v"${hubTab === 'v' ? '' : ' hidden'}>
     <div class="pr-cards">
       ${GAMES.map((g) => {
         const rec = st.games[g.id] || {};
@@ -242,8 +247,23 @@ async function renderHub(root) {
         </a>`;
       }).join('')}
     </div>
-    <div id="stSongsBox"></div>
+    </div>
+    <div class="pr-pane" data-pane="k"${hubTab === 'k' ? '' : ' hidden'}><div id="prCourses"></div></div>
   </section>`;
+  // Napredak: moje pesme ispod nedelje i nastave
+  root.querySelector('[data-pane="n"]').insertAdjacentHTML('beforeend', '<div id="stSongsBox"></div>');
+  const drawCourses = () => import('./coursesView.js').then((m) => m.renderCoursesPane(root.querySelector('#prCourses'))).catch((e) => console.warn(e));
+  if (hubTab === 'k') drawCourses();
+  // v2.5: kartice Progres · Vežbe · Kursevi (pamti se poslednja)
+  root.querySelector('.pr-tabs').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-pt]'); if (!b) return;
+    const k = b.dataset.pt;
+    root.querySelectorAll('[data-pt]').forEach((x) => { x.classList.toggle('active', x === b); x.setAttribute('aria-selected', String(x === b)); });
+    root.querySelectorAll('.pr-pane').forEach((p) => { p.hidden = p.dataset.pane !== k; });
+    if (k === 'k') drawCourses();
+    try { localStorage.setItem('marli-pr-tab', k); } catch {}
+    window.scrollTo(0, 0);
+  });
   // v2.3.3: kartice iznad igara (Nastava, nedelja, moje vežbe) stižu malo kasnije — ekran se pokaže kad su tu
   // (najviše ~0,35 s), da se igre ne pomere naniže ispod prsta
   const sec = root.querySelector('.practice-view'); sec.style.visibility = 'hidden';
