@@ -411,7 +411,7 @@ export async function drawStudent(box) {
     if (e.target.closest('[data-lhist]')) studentHistory();
     const cur = await (await TM()).getMyTeacher(); if (!cur || !cur.next) return;
     const S = await import('./schedule.js');
-    if (e.target.closest('[data-lcal]')) S.downloadIcs(t('sch.icsMine'), S.icsFor({ title: t('sch.icsMineT', { t: cur.name || t('tch.teacher') }), start: cur.next, dur: cur.nextDur || 45, every: cur.nextEvery || 0, uid: 'les-me' }));
+    if (e.target.closest('[data-lcal]')) S.calFlow({ title: t('sch.icsMineT', { t: cur.name || t('tch.teacher') }), start: cur.next, dur: cur.nextDur || 45, every: cur.nextEvery || 0, uid: 'les-me' }, t('sch.icsMine'));
     if (e.target.closest('[data-lcant]')) { // v2.4.24: „Ne mogu da dođem“ → nastavniku (zvonce)
       const ok = await dialog({ title: t('sch.cantT'), body: t('sch.cantBody', { t: cur.name || t('tch.teacher'), w: lessonWhen(cur.next) }), buttons: [{ label: t('common.cancel'), value: null }, { label: t('sch.cantSend'), value: 'y', kind: 'primary' }] });
       if (ok !== 'y') return;

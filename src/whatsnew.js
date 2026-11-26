@@ -5,6 +5,9 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '2.5.61', date: '2026-11-26', items: [
+    { i: '📅', sr: ['Čas u Google kalendar', '„Dodaj u kalendar“ sada otvara Google kalendar sa već popunjenim časom (naslov, dan, vreme, trajanje, svake nedelje) — samo tapneš Sačuvaj. Bez fajla i bez novih dozvola. Za Apple ili Outlook kalendar tu je „Drugi kalendar“. Isto i za nastavnika kad sačuva termin.'], en: ['Lesson in Google Calendar', '“Add to calendar” now opens Google Calendar with the lesson already filled in (title, day, time, length, every week) — you just tap Save. No file and no new permissions. For Apple or Outlook there is “Other calendar”. The same for teachers when they save a lesson time.'] },
+  ] },
   { v: '2.5.6', date: '2026-11-26', items: [
     { i: '⏱', sr: ['Jedno odbrojavanje', 'Uz „Počni“ biraš 3, 5 ili 10 sekundi (pamti se). Odbrojavanje kreće tek kad okreneš telefon — 5 · 4 · 3 · 2 · 1 · Kreni, poslednje uz klikove metronoma — i prvi akord je već na stazi. Dodir bilo gde = kreni odmah; ako vratiš telefon uspravno, kreće ispočetka. Važi za sve igre na stazi.'], en: ['One countdown', 'Next to “Start” you choose 3, 5 or 10 seconds (remembered). The countdown starts only when you turn the phone — 5 · 4 · 3 · 2 · 1 · Go, the last ones with the metronome clicks — and the first chord is already on the track. Tap anywhere = go now; turn the phone back upright and it starts over. For all games on the track.'] },
   ] },

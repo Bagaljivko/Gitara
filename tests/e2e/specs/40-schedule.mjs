@@ -2,7 +2,7 @@
 // pomeri/otkaži jedan čas (učenik obavešten), .ics za kalendar telefona, „Raspored“ (telefon lista, računar mreža),
 // rođendan u nedelji, učenik: sledeći čas sa „Dodaj u kalendar“ i „Ne mogu da dođem“ → nastavniku 🔔.
 import { open, boot, expect, fakeDrive, overflowCheck } from '../lib.mjs';
-export const name = 'raspored: redovan termin, pomeri/otkaži, kalendar (.ics), učenik — sledeći čas, ne mogu da dođem';
+export const name = 'raspored: redovan termin, pomeri/otkaži, kalendar (Google / .ics), učenik — sledeći čas, ne mogu da dođem';
 export const timeout = 220;
 const SHOT = process.env.MARLI_SHOTS || '';
 export async function run(ctx) {
@@ -64,5 +64,10 @@ export async function run(ctx) {
   const sc = await s.evaluate(() => ({ card: document.querySelector('.les-card')?.innerText || '', cal: !!document.querySelector('[data-lcal]'), cant: !!document.querySelector('[data-lcant]') }));
   expect(/60 min/.test(sc.card) && /Svake nedelje/.test(sc.card) && sc.cal && sc.cant, 'učenik: kartica sledećeg časa', sc);
   if (SHOT) await s.screenshot({ path: SHOT + 'ucenik.png' });
+  // v2.5.61: „Dodaj u kalendar“ → Google kalendar (popunjen, svake nedelje) ili drugi kalendar (.ics)
+  await s.click('[data-lcal]'); await s.waitForTimeout(700);
+  const gc = await s.evaluate(() => { const a = document.querySelector('.cal-dlg [data-cal="g"]'); const u = a ? new URL(a.href) : null; return { ics: !!document.querySelector('.cal-dlg [data-cal="ics"]'), host: u && u.host, blank: a && a.target, text: u && u.searchParams.get('text'), dates: u && u.searchParams.get('dates'), recur: u && u.searchParams.get('recur') }; });
+  expect(gc.host === 'calendar.google.com' && gc.blank === '_blank' && gc.ics && /Mile/.test(gc.text) && /^\d{8}T173000\/\d{8}T183000$/.test(gc.dates) && gc.recur === 'RRULE:FREQ=WEEKLY;INTERVAL=1', 'učenik: Google kalendar (popunjen) i drugi kalendar', gc);
+  await s.evaluate(() => document.querySelectorAll('.modal-backdrop').forEach((m) => m.remove()));
   expect(!s.errs.length, 'učenik: greške', s.errs);
 }

@@ -2,7 +2,7 @@
 // every (1 = svake nedelje, 2 = na dve nedelje, 0 = samo jednom), from (dan početka, ms), off: {datum: 1} (otkazano),
 // moved: {datum: ms} (pomereno) }. „Sledeći čas“ (st.next) se računa sam iz termina i šalje učeniku (kao i ranije).
 // Raspored (#/raspored): nedelja — telefon: dani i lista; računar: mreža po satima. Rođendani i godišnjice na svom danu.
-// „Dodaj u kalendar telefona“: .ics fajl (ponavljanje) — telefon podseća i kad je aplikacija zatvorena.
+// „Dodaj u kalendar“: Google kalendar (popunjen događaj) ili .ics fajl (v2.5.61) — telefon podseća i kad je aplikacija zatvorena.
 // v2.5.4 (Mile): uz stalni termin i drugi stalni termin (slots2: [slot…], npr. ponedeljak i četvrtak) i dodatni čas samo jednom
 // (extra: [{ ts, dur }]) — stalni termin ostaje. Dodavanje časa učeniku koji već ima termin pita šta je.
 import { t, getLang, countOf, DAYS } from './i18n.js';
@@ -78,6 +78,33 @@ export function downloadIcs(name, text) {
   document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
 }
 
+// v2.5.61: „Dodaj u kalendar“ → Google kalendar (otvara se popunjen događaj — naslov, vreme, trajanje, ponavljanje; samo
+// „Sačuvaj“; bez novih dozvola) ili „Drugi kalendar“ (.ics za Apple, Outlook…). Ništa se ne čuva u aplikaciji.
+export function gcalUrl({ title, start, dur, every = 0, details = '' }) {
+  let tz = ''; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch {}
+  const q = new URLSearchParams({ action: 'TEMPLATE', text: title, dates: `${icsDate(start)}/${icsDate(start + dur * 60000)}` });
+  if (details) q.set('details', details);
+  if (every) q.set('recur', `RRULE:FREQ=WEEKLY;INTERVAL=${every}`);
+  if (tz) q.set('ctz', tz);
+  return 'https://calendar.google.com/calendar/render?' + q.toString();
+}
+/** Izbor kalendara za jedan čas (ev: { title, start, dur, every, uid }, file: ime .ics fajla). */
+export async function calFlow(ev, file) {
+  const L = await import('./lessons.js');
+  const when = [L.lessonWhen(ev.start), ev.dur + ' min', ev.every === 2 ? t('sch.r2') : ev.every === 1 ? t('sch.r1') : ''].filter(Boolean).join(' · ');
+  const url = gcalUrl({ ...ev, details: t('sch.calDetails') });
+  const row = (k, ic, b, sub, href) => `<${href ? `a href="${esc(href)}" target="_blank" rel="noopener"` : 'button type="button"'} class="tch-row" data-cal="${k}"><span class="sr-ic" aria-hidden="true">${ic}</span><span><b>${esc(b)}</b><small>${esc(sub)}</small></span><span class="chev" aria-hidden="true">›</span></${href ? 'a' : 'button'}>`;
+  const p = dialog({ title: t('sch.calT'), html: true, className: 'tch-dlg cal-dlg', buttons: [], body: `<p class="small muted">${esc(ev.title)}<br>${esc(when)}</p>
+    <div class="set-grp">${row('g', '📅', t('sch.gcal'), t('sch.gcalSub'), url)}${row('ics', '📥', t('sch.icsOpt'), t('sch.icsOptSub'))}</div>` });
+  const box = [...document.querySelectorAll('.modal-backdrop')].pop();
+  box.addEventListener('click', (e) => {
+    const r = e.target.closest('[data-cal]'); if (!r) return;
+    if (r.dataset.cal === 'ics') downloadIcs(file, icsFor(ev));
+    setTimeout(() => box.__close && box.__close(), 0); // link se otvara, pa se prozor zatvara
+  });
+  return p;
+}
+
 // ---------------- nastavnik: redovan termin ----------------
 const DOWS = () => (getLang() === 'en' ? ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] : ['Pon', 'Uto', 'Sre', 'Čet', 'Pet', 'Sub', 'Ned']);
 const isoDay = (ms) => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
@@ -121,8 +148,8 @@ export async function extraFlow(sid, at = 0) {
   const dur = Number(box.querySelector('#schXdur').value) || 45;
   await T.updateStudent(sid, { extra: cleanExtra([...(st.extra || []).filter((x) => x && x.ts > Date.now() - 120 * DAY), { ts, dur }]) });
   await refreshNext({ only: sid });
-  if (box.querySelector('#schXcal').checked) downloadIcs(t('sch.icsName', { name: st.name }), icsFor({ title: t('sch.icsTitle', { name: st.name }), start: ts, dur, every: 0, uid: 'les-x-' + sid + '-' + ts }));
   toast(t('sch.extraSaved', { name: st.name, w: L.lessonWhen(ts) }));
+  if (box.querySelector('#schXcal').checked) calFlow({ title: t('sch.icsTitle', { name: st.name }), start: ts, dur, every: 0, uid: 'les-x-' + sid + '-' + ts }, t('sch.icsName', { name: st.name }));
   return true;
 }
 /** Stalni termin. si: 0 = glavni, 1… = drugi (slots2), 'new' = novi drugi termin. at: dan/sat iz dodira u rasporedu. */
@@ -163,9 +190,9 @@ export async function slotFlow(sid, { si = 0, at = 0 } = {}) {
   else await T.updateStudent(sid, { slot, next: -1 }); // -1: sledeći čas se sigurno preračuna i pošalje
   await refreshNext({ only: sid });
   const nx = nextOf(await T.getStudent(sid));
-  if (q('schCal').checked && nx) downloadIcs(t('sch.icsName', { name: st.name }), icsFor({ title: t('sch.icsTitle', { name: st.name }), start: nx, dur: slot.dur, every: slot.every, uid: 'les-' + sid }));
   const L = await import('./lessons.js');
   toast(nx ? t('sch.saved', { name: st.name, w: L.lessonWhen(nx) }) : t('sch.savedNone'));
+  if (q('schCal').checked && nx) calFlow({ title: t('sch.icsTitle', { name: st.name }), start: nx, dur: slot.dur, every: slot.every, uid: 'les-' + sid }, t('sch.icsName', { name: st.name }));
   return true;
 }
 
