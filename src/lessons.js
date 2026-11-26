@@ -184,7 +184,7 @@ export async function groupFlow(preSel = []) {
 }
 
 /** Sledeći čas (datum i vreme) — oboje vide, podsetnik dan ranije. */
-export async function nextFlow(sid) { return (await import('./schedule.js')).slotFlow(sid); } // v2.4.24: redovan termin (ili samo jednom)
+export async function nextFlow(sid) { return (await import('./schedule.js')).addFlow(sid); } // v2.5.4: sa terminom — pitanje (dodatni čas / drugi termin / promena) // v2.4.24: redovan termin (ili samo jednom)
 
 /** Podsetnik za vežbanje (jedan po danu po učeniku). */
 export async function nudge(sid, quiet = false) {

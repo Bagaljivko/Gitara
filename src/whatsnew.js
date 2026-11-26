@@ -5,6 +5,9 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '2.5.4', date: '2026-11-26', items: [
+    { i: '📅', sr: ['Dodatni čas — stalni termin ostaje', 'Kad upišeš čas učeniku koji već ima stalni termin, aplikacija pita: dodatni čas samo jednom (stalni ostaje), još jedan stalni termin (npr. ponedeljak i četvrtak) ili promena stalnog. Dodatni čas se vidi u Rasporedu sa oznakom „dodatni čas“, može da se pomeri ili otkaže, ulazi u dolaske, a učenik dobija „Sledeći čas“.'], en: ['Extra lesson — the regular time stays', 'When you add a lesson for a student who already has a regular time, the app asks: an extra lesson just once (the regular one stays), another regular time (e.g. Monday and Thursday) or a change of the regular time. The extra lesson shows in Schedule marked “extra lesson”, can be moved or cancelled, counts in attendance, and the student gets “Next lesson”.'] },
+  ] },
   { v: '2.5.3', date: '2026-11-26', items: [
     { i: '✋', sr: ['Ruka sa strane dlana', 'Ruka u legendi prstiju i u igrama sada je kao tvoja leva ruka na vratu kad je gledaš: palac levo, prsti 1 · 2 · 3 · 4 sleva nadesno.'], en: ['The hand from the palm side', 'The hand in the finger legend and in the games now looks like your left hand on the neck as you see it: thumb on the left, fingers 1 · 2 · 3 · 4 from left to right.'] },
   ] },
