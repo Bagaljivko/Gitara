@@ -5,6 +5,9 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '2.5.62', date: '2026-11-26', items: [
+    { i: '≡', sr: ['„Lakši hvatovi za barré“ se premešta', 'U podešavanjima pesme to je sada svoj red sa ≡ — premestiš ga gde hoćeš, i na vrh pesme kao čip „Lakši barré“ (jedan dodir uključi/isključi).'], en: ['“Easier shapes for barré” can be moved', 'In the song settings it is now its own row with ≡ — move it anywhere, also to the top of the song as an “Easier barré” chip (one tap on/off).'] },
+  ] },
   { v: '2.5.61', date: '2026-11-26', items: [
     { i: '📅', sr: ['Čas u Google kalendar', '„Dodaj u kalendar“ sada otvara Google kalendar sa već popunjenim časom (naslov, dan, vreme, trajanje, svake nedelje) — samo tapneš Sačuvaj. Bez fajla i bez novih dozvola. Za Apple ili Outlook kalendar tu je „Drugi kalendar“. Isto i za nastavnika kad sačuva termin.'], en: ['Lesson in Google Calendar', '“Add to calendar” now opens Google Calendar with the lesson already filled in (title, day, time, length, every week) — you just tap Save. No file and no new permissions. For Apple or Outlook there is “Other calendar”. The same for teachers when they save a lesson time.'] },
   ] },

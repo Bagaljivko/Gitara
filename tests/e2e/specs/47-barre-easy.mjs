@@ -30,11 +30,21 @@ export async function run(ctx) {
     await p.evaluate(() => { const m = document.querySelector('.ss-more:not(.open)'); if (m) m.click(); }); await p.waitForTimeout(300);
     const sw = await p.$('[data-ss="eshapes"]');
     expect(sw, dev + ': nema prekidača „Lakši hvatovi za barré“');
+    // v2.5.62: svoj red sa ≡ (premešta se sam, nije prilepljen uz „Lakša verzija“)
+    const it = await p.evaluate(() => { const r = document.querySelector('[data-ss="eshapes"]').closest('.ss-item'); return { k: r && r.dataset.k, grips: r ? r.querySelectorAll('.ss-r').length : 0, grip: !!(r && r.querySelector('.ss-r').firstElementChild?.matches('[class*="grip"], [class*="drag"]')) }; });
+    expect(it.k === 'eshapes' && it.grips === 1 && it.grip, dev + ': „Lakši hvatovi za barré“ nije svoj red sa ≡', it);
     await p.click('[data-ss="eshapes"]'); await p.waitForTimeout(600);
     const sh = await p.evaluate(async (id) => { const { songs } = await import('./src/db.js'); const C = await import('./src/chords.js'); const s = await songs.get(id); return { v: (s.shapes || {}).F, e: C.easyIndex('F') }; }, id);
     expect(sh.v === sh.e && sh.e > 0, dev + ': pesma ne pamti lakši hvat', sh);
     const items = await p.evaluate(async (id) => { const { songs } = await import('./src/db.js'); const s = await songs.get(id); const T = await import('./src/practiceTrack.js'); return T.chordItem('F', 0, 4, { voicing: s.shapes.F }).frets.join(','); }, id);
     eq(items, '-1,-1,3,2,1,1', dev + ': staza koristi lakši F');
+    // čip na vrhu pesme (kad ga premestiš gore)
+    await p.evaluate(() => localStorage.setItem('marli-songbar', JSON.stringify(['capo', 'eshapes']))); await p.go('#/pesme', 400); await p.go('#/pesma/' + id, 1500);
+    const chip = await p.evaluate(() => { const c = document.querySelector('#sChips [data-sca="eshapes"]'); return c ? c.getAttribute('aria-pressed') : null; });
+    expect(chip === 'true', dev + ': čip „Lakši barré“ na vrhu', chip);
+    await p.click('#sChips [data-sca="eshapes"]'); await p.waitForTimeout(600);
+    const off = await p.evaluate(async (id) => { const { songs } = await import('./src/db.js'); return ((await songs.get(id)).shapes || {}).F; }, id);
+    expect(off === undefined, dev + ': čip vraća običan hvat', off);
     expect(!p.errs.length, dev + ': greške', p.errs);
     await p.close();
   }

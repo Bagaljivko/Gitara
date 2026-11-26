@@ -969,6 +969,7 @@ const sr = {
   'tuner.resetBtn': 'Počni ispočetka',
   'common.undo': 'Poništi',
   'room.title': 'Soba',
+  'ss.eshapesChip': 'Lakši barré',
   'sch.calT': 'Dodaj čas u kalendar',
   'sch.gcal': 'Google kalendar',
   'sch.gcalSub': 'Popunjen — samo tapni Sačuvaj',

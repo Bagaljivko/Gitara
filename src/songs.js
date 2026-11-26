@@ -1055,7 +1055,7 @@ function showChord(name, opts = {}) {
 
 // ---------------- Prikaz pesme ----------------
 // v2.2: koja dugmad su na vrhu pesme i kojim redom (Podešavanja pesme → prevuci ≡); važi za sve pesme, sinhronizuje se
-const BAR_ALL = ['video', 'key', 'capo', 'easy', 'tempo', 'rhythm', 'size', 'chords', 'practice', 'metro']; // v2.4.4: metronom (v2.4.16: bez štoperice — vreme se beleži samo)
+const BAR_ALL = ['video', 'key', 'capo', 'easy', 'eshapes', 'tempo', 'rhythm', 'size', 'chords', 'practice', 'metro']; // v2.4.4: metronom (v2.4.16: bez štoperice — vreme se beleži samo)
 export const METRO_ICON = '<svg class="met-ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M9 3h6l4 18H5z"/><path d="M5.9 17h12.2"/><g class="met-arm"><path d="M12 17 16.2 6.5"/><circle cx="14.9" cy="9.8" r="1.5" fill="currentColor"/></g></svg>'; // v2.4.8: metronom (klatno se njiše u tempu dok svira)
 const BAR_DEF = ['video', 'capo', 'metro', 'rhythm']; // v2.5.2: Ton i BPM su u ⚙ (manje na prvi pogled) // v2.4.8: metronom odmah posle tempa
 function barOrder() { try { const v = JSON.parse(localStorage.getItem('marli-songbar') || 'null'); if (Array.isArray(v)) return v.filter((k) => BAR_ALL.includes(k)); } catch {} return BAR_DEF; }
@@ -1255,6 +1255,14 @@ export async function renderSong(root, id, nav = null) {
     drawChips();
     if (sheetRefresh) sheetRefresh();
   };
+  // v2.5.62: „Lakši hvatovi za barré“ je svoj red (≡ — premešta se sam, može i na vrh pesme kao čip)
+  const barreEasyList = () => (stored.recording || stored.type === 'tab' ? [] : songChords(shapesSong()).filter((c) => isBarre(c) && easyIndex(c) >= 0));
+  const eshapesOn = (bc = barreEasyList()) => bc.length > 0 && bc.every((c) => (stored.shapes || {})[c] === easyIndex(c));
+  const toggleEshapes = async () => { // v2.4.33: lakši hvatovi za sve barré akorde pesme (i nazad)
+    const bc = barreEasyList(); const sh = { ...(stored.shapes || {}) }; const on = eshapesOn(bc);
+    for (const c of bc) { if (on) delete sh[c]; else sh[c] = easyIndex(c); }
+    stored.shapes = sh; await save(); draw();
+  };
   // v1.88: jedan red sa vrednostima (Ton · Kapo · BPM · ritam · ⚙); dodir otvara „Podešavanja pesme“
   const drawChips = () => {
     const el = $('sChips'); if (!el) return;
@@ -1267,6 +1275,7 @@ export async function renderSong(root, id, nav = null) {
       key: () => `<button class="sc-chip" data-sheet="key"><small>${t('ctl.keyShort')}</small><b>${esc(dn(key) || '–')}</b>${tp ? `<small>${tp > 0 ? '+' + tp : '−' + Math.abs(tp)}</small>` : ''}</button>`,
       capo: () => `<button class="sc-chip" data-sheet="capo"><small>${t('ctl.capoShort')}</small>${capo ? `<b>${capo}</b>` : esc(t('capo.none'))}</button>`,
       easy: () => (stored.recording ? '' : `<button class="sc-chip sc-easy${easyActive() ? ' on' : ''}" data-sca="easy" aria-pressed="${easyActive()}">${esc(t('sug.easyBtn'))}</button>`),
+      eshapes: () => (barreEasyList().length ? `<button class="sc-chip sc-easy${eshapesOn() ? ' on' : ''}" data-sca="eshapes" aria-pressed="${eshapesOn()}">${esc(t('ss.eshapesChip'))}</button>` : ''),
       tempo: () => (bpm ? `<button class="sc-chip" data-sheet="tempo">${bpm} <small>BPM</small></button>` : ''),
       rhythm: () => (rh ? `<button class="sc-chip sc-rh" data-sheet="rhythm">♪ ${esc(rh)}</button>` : sugStrum() ? `<button class="sc-chip sc-rh sc-new" data-sheet="rhythm">♪ ${esc(t('ss.rhythmQ'))}</button>` : ''),
       size: () => `<button class="sc-chip sc-size" data-sheet="size" aria-label="${esc(t('ss.size'))} ${Math.round(zoom * 100)}%">Aa${chipPop && chipPop.k === 'size' ? ` <b>${Math.round(zoom * 100)}%</b>` : ''}</button>`, // v2.3.1: % samo dok se menja
@@ -1318,12 +1327,12 @@ export async function renderSong(root, id, nav = null) {
         key: `<div class="ss-r"><span class="ss-l">${t('ss.key')}${tp ? ` <button class="ss-reset" data-ss="t0">↺ ${esc(t('ss.original'))}</button>` : ''}</span>
           <span class="ss-st"><button class="ss-b" data-ss="t-" aria-label="${esc(t('song.transposeDown'))}">−</button><button class="ss-v" data-ss="wheel" aria-label="${esc(t('kw.open', { k: dn(key) || '?' }))}">${esc(dn(key) || '–')}</button><button class="ss-b" data-ss="t+" aria-label="${esc(t('song.transposeUp'))}">+</button></span></div>`,
         capo: `<div class="ss-r"><span class="ss-l">${t('ss.capo')}${capo && shapesKey ? `<small>${esc(t('capo.shapesShort', { k: dn(shapesKey) }))}</small>` : ''}</span>${step('ssCapo', capo || esc(t('capo.none')), 'c-', 'c+', t('ss.capo'))}</div>`,
-        easy: `${!stored.recording ? `<div class="ss-r"><span class="ss-l">${t('sug.easyBtn')}<small>${esc(easyActive() ? t('ss.easyOn', { n: capo }) : t('song.easySub'))}</small></span><button class="ss-tog${easyActive() ? ' on' : ''}" data-ss="easy" role="switch" aria-checked="${easyActive()}" aria-label="${esc(t('sug.easyBtn'))}"><i></i></button></div>` : ''}${(() => { // v2.4.33: lakši hvatovi za barré akorde (mali oblik) — uvek dostupni
-          const bc = stored.recording || stored.type === 'tab' ? [] : songChords(shapesSong()).filter((c) => isBarre(c) && easyIndex(c) >= 0);
-          if (!bc.length) return '';
-          const on = bc.every((c) => (stored.shapes || {})[c] === easyIndex(c));
+        easy: `${!stored.recording ? `<div class="ss-r"><span class="ss-l">${t('sug.easyBtn')}<small>${esc(easyActive() ? t('ss.easyOn', { n: capo }) : t('song.easySub'))}</small></span><button class="ss-tog${easyActive() ? ' on' : ''}" data-ss="easy" role="switch" aria-checked="${easyActive()}" aria-label="${esc(t('sug.easyBtn'))}"><i></i></button></div>` : ''}`,
+        eshapes: (() => { // v2.4.33: lakši hvatovi za barré akorde (mali oblik) — uvek dostupni
+          const bc = barreEasyList(); if (!bc.length) return '';
+          const on = eshapesOn(bc);
           return `<div class="ss-r"><span class="ss-l">${t('ss.easyShapes')}<small>${esc(t('ss.easyShapesSub', { c: bc.map((c) => dn(c)).join(', ') }))}</small></span><button class="ss-tog${on ? ' on' : ''}" data-ss="eshapes" role="switch" aria-checked="${on}" aria-label="${esc(t('ss.easyShapes'))}"><i></i></button></div>`;
-        })()}`,
+        })(),
         tempo: `<div class="ss-r"><span class="ss-l">${t('ss.tempo')}</span>${step('ssBpm', (Number(stored.bpm) || Number($('sTempo')?.textContent) || '…') + ' <small>BPM</small>', 'b-', 'b+', t('ss.tempo'))}</div>`,
         rhythm: `<div class="ss-r"><span class="ss-l">${t('ss.rhythm')}${!stored.strum && ss ? `<small class="ss-sugname">${esc(t('ss.suggested'))}: <b>${esc(patternName(ss))}</b></small>` : ''}</span>
           ${stored.strum ? go(esc(patternName(stored.strum)), 'rh-edit')
@@ -1404,12 +1413,7 @@ export async function renderSong(root, id, nav = null) {
       else if (a === 'c-') await setCapo(capo - 1);
       else if (a === 'c+') await setCapo(capo + 1);
       else if (a === 'easy') { await toggleEasy(); syncEasyTop(); }
-      else if (a === 'eshapes') { // v2.4.33: lakši hvatovi za sve barré akorde pesme (i nazad)
-        const bc = songChords(shapesSong()).filter((c) => isBarre(c) && easyIndex(c) >= 0);
-        const sh = { ...(stored.shapes || {}) }; const on = bc.every((c) => sh[c] === easyIndex(c));
-        for (const c of bc) { if (on) delete sh[c]; else sh[c] = easyIndex(c); }
-        stored.shapes = sh; await save(); draw();
-      }
+      else if (a === 'eshapes') await toggleEshapes();
       else if (a === 'metro') await toggleMetro(); // v2.4.4
       else if (a === 'b-') await setBpm(-5);
       else if (a === 'b+') await setBpm(5);
@@ -2181,6 +2185,7 @@ export async function renderSong(root, id, nav = null) {
     if (e.target.closest('[data-pa]')) { videoChoice(); return; }
     const a = e.target.closest('[data-sca]')?.dataset.sca; // v2.2: čipovi koji odmah rade (bez ⚙)
     if (a === 'easy') { await toggleEasy(); syncEasyTop(); drawChips(); return; }
+    if (a === 'eshapes') { await toggleEshapes(); drawChips(); return; }
     if (a === 'chords') return editChords();
     if (a === 'practice') return root.querySelector('.sp-line')?.click();
     if (a === 'metro') return toggleMetro(); // v2.4.4

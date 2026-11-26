@@ -956,6 +956,7 @@ export default {
   'tuner.resetBtn': 'Start over',
   'common.undo': 'Undo',
   'room.title': 'Room',
+  'ss.eshapesChip': 'Easier barré',
   'sch.calT': 'Add the lesson to your calendar',
   'sch.gcal': 'Google Calendar',
   'sch.gcalSub': 'Filled in — just tap Save',
