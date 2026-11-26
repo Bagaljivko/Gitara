@@ -26,6 +26,13 @@ export async function run(ctx) {
   expect(/Saveti sa lista/i.test(sp.tips) && /Pazi na/.test(sp.tips) && /Novo u pesmi/.test(sp.tips) && !sp.notes, 'Saveti sa lista (srpski), bez „Beleške“', sp);
   await p.click('#sTips [data-tip="chg"]'); await p.waitForTimeout(800);
   expect(/#\/vezbe\/promena\?song=marli-L1-07&ch=D-Am&k=chg/.test(await p.evaluate(() => location.hash)), 'Pazi na → Promene D → Am', await p.evaluate(() => location.hash));
+  // v2.5.5: Blackbird — hvat sa lista prvi u dijagramu, bez pitanja „Šta znači B“ (engleski listovi)
+  await p.go('#/pesma/marli-L3-10', 2500);
+  const bb = await p.evaluate(() => ({ ask: /Šta znači „B“/.test(document.body.innerText) }));
+  expect(!bb.ask, 'MARLI pesma ne pita šta znači B', bb);
+  await p.evaluate(() => document.querySelector('.diagram-row .diagram-btn')?.click()); await p.waitForTimeout(700);
+  expect(/Hvat sa lista/.test(await p.evaluate(() => document.querySelector('.chord-modal')?.innerText || '')), 'Blackbird: hvat sa lista u dijagramu');
+  await p.evaluate(() => document.querySelectorAll('.modal-backdrop').forEach((m) => m.remove()));
   // dvaput = bez duplikata; obrisana pesma se ne vraća (ni kad se nivo doda ponovo)
   const r = await p.evaluate(async () => {
     const { songs, settings } = await import('./src/db.js'); const C = await import('./src/coursesView.js'); const K = await import('./src/courses.js');

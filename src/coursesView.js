@@ -74,15 +74,14 @@ async function doEnsure() {
   await settings.set(ADDED, [...done]);
   // v2.5.5: pesme dodate ranije dobijaju hvatove sa lista (i Em11 u Let It Be) — jednom, ne dira ono što je korisnik menjao
   try {
-    if (localStorage.getItem('marli-grips') !== '1') {
+    if (localStorage.getItem('marli-grips') !== '2') {
       for (const m of marli) for (const s of m.songs || []) {
-        if (!s.grips && !s.shapes) continue;
         const cur = await db.get(s.id).catch(() => null); if (!cur) continue;
-        const patch = {}; if (s.grips && !cur.grips) patch.grips = s.grips;
+        const patch = {}; if (s.grips && !cur.grips) patch.grips = s.grips; if (!cur.naming) { patch.naming = 'en'; patch.namingAsk = false; }
         for (const [k, v] of Object.entries(s.shapes || {})) if (!(cur.shapes || {})[k]) (patch.shapes = patch.shapes || { ...(cur.shapes || {}) })[k] = v;
         if (Object.keys(patch).length) await db.put({ ...cur, ...patch });
       }
-      localStorage.setItem('marli-grips', '1');
+      localStorage.setItem('marli-grips', '2');
     }
   } catch {}
   return any;
@@ -99,7 +98,8 @@ async function addMarli(m) {
     const ex = all.find((x) => x.title === s.title && (x.artist || '') === (s.artist || '')); // već ima svoju — koristi nju
     if (ex) { items.push({ s: ex.id }); continue; }
     const song = normalizeSong({ title: s.title, artist: s.artist, key: s.key, sections: s.sections, ...(s.capo ? { capo: s.capo } : {}), ...(s.strum ? { strum: s.strum } : {}), ...(s.tuning ? { tuning: s.tuning } : {}) });
-    const rec = await db.save({ ...song, id: s.id, ...(s.shapes ? { shapes: s.shapes } : {}), ...(s.grips ? { grips: s.grips } : {}), ...(s.tips ? { tips: s.tips } : {}), ...(s.yt ? { yt: s.yt } : {}), marli: m.id });
+    const { upgradeSong } = await import('./songmodel.js');
+    const rec = await db.save({ ...upgradeSong({ ...song }, { naming: 'en' }), id: s.id, ...(s.shapes ? { shapes: s.shapes } : {}), ...(s.grips ? { grips: s.grips } : {}), ...(s.tips ? { tips: s.tips } : {}), ...(s.yt ? { yt: s.yt } : {}), marli: m.id }); // naming 'en': engleski listovi, B = H (bez pitanja)
     items.push({ s: rec.id });
   }
   return K.addCourse(en && m.en ? m.en.name : m.name, items, { id: m.id, ic: m.ic || '🎸', marli: m.id });
