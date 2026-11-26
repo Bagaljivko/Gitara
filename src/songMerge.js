@@ -59,6 +59,16 @@ function mergeActivity(act, from, to) {
     delete s[from];
   }
 }
+// v2.5.64: kurs pokazuje na pesmu koja ostaje (ranije je ostajao „prazan“ korak sa obrisanom pesmom)
+async function repointCourses(from, to) {
+  const list = (await settings.get('courses', [])) || []; let ch = false;
+  for (const c of list) {
+    if (!Array.isArray(c.items) || !c.items.some((x) => x && x.s === from)) continue;
+    const has = c.items.some((x) => x && x.s === to);
+    c.items = c.items.map((x) => (x && x.s === from ? (has ? null : { ...x, s: to }) : x)).filter(Boolean); c.updatedAt = Date.now(); ch = true;
+  }
+  if (ch) await settings.set('courses', list);
+}
 function repoint(sets, from, to) {
   let ch = false;
   for (const sl of sets) {
@@ -71,13 +81,14 @@ function repoint(sets, from, to) {
 
 const clone = (x) => (x == null ? x : JSON.parse(JSON.stringify(x))); // v2.4.34: radi i na starijim telefonima (bez structuredClone)
 async function snapshot(a, b) {
-  return { a, b, practice: clone((await settings.get('practice', {})) || {}), activity: clone((await settings.get('activity', null)) || null), setlists: clone((await settings.get('setlists', [])) || []) };
+  return { a, b, practice: clone((await settings.get('practice', {})) || {}), activity: clone((await settings.get('activity', null)) || null), setlists: clone((await settings.get('setlists', [])) || []), courses: clone((await settings.get('courses', [])) || []) };
 }
 async function restore(snap) {
   await db.put(snap.a, { force: true }); await db.put(snap.b, { force: true });
   await settings.set('practice', snap.practice);
   if (snap.activity) await settings.set('activity', snap.activity);
   await settings.set('setlists', snap.setlists);
+  if (snap.courses) await settings.set('courses', snap.courses);
 }
 
 /** Izabran tekst (sel) u jednoj pesmi; istorija ide u pesmu koja je ima više (base). */
@@ -103,6 +114,7 @@ export async function mergeSongs(selId, otherId) {
   const st = (await settings.get('practice', {})) || {}; mergePractice(st, other.id, base.id); await settings.set('practice', st);
   const act = await settings.get('activity', null); if (act) { mergeActivity(act, other.id, base.id); await settings.set('activity', act); }
   const sets = (await settings.get('setlists', [])) || []; if (repoint(sets, other.id, base.id)) await settings.set('setlists', sets);
+  await repointCourses(other.id, base.id);
   await db.remove(other.id);
   return { id: base.id, snap };
 }
@@ -113,6 +125,7 @@ export async function keepOnly(selId, otherId) {
   const snap = await snapshot(A, B);
   if (B.fromT && !A.fromT && B.src) await db.put({ ...A, src: B.src, keepMine: true, updatedAt: Date.now() }); // nove izmene od nastavnika — pitaj ponovo
   const sets = (await settings.get('setlists', [])) || []; if (repoint(sets, B.id, A.id)) await settings.set('setlists', sets);
+  await repointCourses(B.id, A.id);
   await db.remove(B.id);
   return { id: A.id, snap };
 }

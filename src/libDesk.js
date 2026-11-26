@@ -83,7 +83,7 @@ function listHTML() {
   const head = `<tr><th class="dt-ck"><span class="ck${R.length && R.every((s) => st.sel.has(s.id)) ? ' on' : ''}" data-a="all" role="checkbox" aria-label="${t('desk.selectAll')}"></span></th>${th('title', t('desk.col.title'))}${compact ? '' : th('artist', t('desk.col.artist'))}${th('key', t('desk.col.key'))}${compact ? '' : th('folder', t('desk.col.folder'))}${th('video', t('desk.col.video'))}${compact ? '' : th('date', t('desk.col.date'))}</tr>`;
   const body = R.map((s) => `<tr class="dk-row${st.sel.has(s.id) ? ' sel' : ''}${st.open === s.id ? ' cur' : ''}" data-id="${esc(s.id)}" draggable="true">
       <td class="dt-ck"><span class="ck${st.sel.has(s.id) ? ' on' : ''}" data-a="ck"></span></td>
-      <td class="dt-title"><b>${esc(s.title || '—')}</b>${compact && s.artist ? `<span class="muted">${esc(s.artist)}</span>` : ''}${s.type === 'tab' ? ' <span class="chip">TAB</span>' : ''}${st.ready && st.ready.has(s.id) ? ` <span class="badge-sm rdy-badge" title="${esc(t('rdy.tip'))}">✓</span>` : ''}</td>
+      <td class="dt-title"><b>${esc(s.title || t('common.untitled'))}</b>${compact && s.artist ? `<span class="muted">${esc(s.artist)}</span>` : ''}${s.type === 'tab' ? ' <span class="chip">TAB</span>' : ''}${st.ready && st.ready.has(s.id) ? ` <span class="badge-sm rdy-badge" title="${esc(t('rdy.tip'))}">✓</span>` : ''}</td>
       ${compact ? '' : `<td class="muted">${esc(s.artist || '')}</td>`}
       <td class="k">${esc(keyOf(s))}</td>
       ${compact ? '' : `<td>${folderNames(s) ? `<span class="chip">${esc(folderNames(s))}</span>` : ''}</td>`}
@@ -217,9 +217,11 @@ async function act(a, btn) {
   if (a === 'del') {
     const n = st.sel.size;
     if (!(await confirmDialog(t('desk.delTitle', { n }), t('desk.delBody'), t('common.delete'), 'danger'))) return;
-    for (const id of ids()) await db.remove(id);
+    const gone = [...ids()]; const saved = []; for (const id of gone) { const x = await db.get(id).catch(() => null); if (x) saved.push(x); }
+    for (const id of gone) await db.remove(id);
+    const K = await import('./courses.js'); const crsBefore = await K.dropSongs(gone); // v2.5.64: i iz kurseva; „Poništi“ vraća sve
     st.sel.clear();
-    toast(t('desk.deleted', { n }));
+    toast(t('desk.deleted', { n }), '', { label: t('common.undo'), onClick: async () => { for (const x of saved) await db.put(x, { force: true }); await K.restoreCourses(crsBefore); await reload(); } });
     if (st.open && !(await db.get(st.open))) location.hash = '#/pesme';
     await reload(); return;
   }

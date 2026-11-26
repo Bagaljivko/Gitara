@@ -80,8 +80,10 @@ export async function deleteList(it, songIds) {
   for (const id of rm) { const s = await db.get(id).catch(() => null); if (s) before.songs.push(s); }
   if (it.kind === 'folder') await C.deleteFolder(it.id); else await C.deleteSetlist(it.id);
   for (const id of rm) await db.remove(id);
+  const K = await import('./courses.js'); const crsBefore = await K.dropSongs(rm); // v2.5.64: i iz kurseva
   toast(rm.length ? t('lst.deletedN', { n: rm.length }) : t('lst.deleted'), '', { label: t('common.undo'), onClick: async () => {
     const { settings } = await import('./db.js');
+    await K.restoreCourses(crsBefore);
     if (it.kind === 'folder') await settings.set('folders', before.folders); else await settings.set('setlists', before.sets);
     for (const s of before.songs) await db.put(s, { force: true });
     toast(t('lst.restored'));

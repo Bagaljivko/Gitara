@@ -13,7 +13,7 @@ const LES = { sr: ['čas', 'časa', 'časova'], en: ['lesson', 'lessons'] };
 const inTxt = (ms) => { const m = Math.max(1, Math.round(ms / 60000)); return m < 60 ? t('sch.inMin', { n: m }) : t('sch.inH', { n: Math.round(m / 60) }); };
 const day0 = (ms) => { const d = new Date(ms); return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(); };
 export const dkey = (ms) => { const d = new Date(ms); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; };
-const monday = (ms) => { const d = new Date(day0(ms)); return day0(d.getTime() - ((d.getDay() + 6) % 7) * DAY); };
+export const monday = (ms) => { const d = new Date(day0(ms)); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.setHours(0, 0, 0, 0); }; // v2.5.64: po kalendaru (promena vremena)
 const atHm = (dayMs, hm) => { const [h, m] = String(hm || '17:00').split(':').map(Number); const d = new Date(dayMs); d.setHours(h || 0, m || 0, 0, 0); return d.getTime(); };
 const hmOf = (ms) => { const d = new Date(ms); return `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`; };
 
@@ -239,13 +239,15 @@ export async function renderSchedule(root, params = new URLSearchParams()) {
   let sel = day0(Date.now());
   const draw = async () => {
     const sts = await T.getStudents();
-    const mon = monday(Date.now()) + wk * 7 * DAY, end = mon + 7 * DAY;
+    // v2.5.64: dani po kalendaru (ne +24 h) — posle promene vremena (oktobar/mart) nedelja i datumi ostaju tačni
+    const dayAt = (i) => { const d = new Date(monday(Date.now())); d.setDate(d.getDate() + wk * 7 + i); d.setHours(0, 0, 0, 0); return d.getTime(); };
+    const mon = dayAt(0), end = dayAt(7);
     const occ = sts.flatMap((st) => occurrences(st, mon, end).map((o) => ({ ...o, st }))).sort((a, b) => a.ts - b.ts);
     const marks = [];
     for (const st of sts) {
-      if (st.bd && st.bd.d && st.bd.m) for (let d = mon; d < end; d += DAY) { const x = new Date(d + 3600e3); if (x.getDate() === st.bd.d && x.getMonth() + 1 === st.bd.m) marks.push({ day: day0(d + 3600e3), st, k: 'bd', age: st.bd.y ? x.getFullYear() - st.bd.y : 0 }); }
+      if (st.bd && st.bd.d && st.bd.m) for (let i = 0; i < 7; i++) { const d = dayAt(i), x = new Date(d); if (x.getDate() === st.bd.d && x.getMonth() + 1 === st.bd.m) marks.push({ day: d, st, k: 'bd', age: st.bd.y ? x.getFullYear() - st.bd.y : 0 }); }
       const since = new Date(SP.sinceOf(st));
-      for (let d = mon; d < end; d += DAY) { const x = new Date(d + 3600e3); const yrs = x.getFullYear() - since.getFullYear(); if (yrs >= 1 && x.getDate() === since.getDate() && x.getMonth() === since.getMonth()) marks.push({ day: day0(d + 3600e3), st, k: 'an', yrs }); }
+      for (let i = 0; i < 7; i++) { const d = dayAt(i), x = new Date(d); const yrs = x.getFullYear() - since.getFullYear(); if (yrs >= 1 && x.getDate() === since.getDate() && x.getMonth() === since.getMonth()) marks.push({ day: d, st, k: 'an', yrs }); }
     }
     const total = occ.reduce((a, o) => a + o.dur, 0);
     const { fmtDur } = await import('./statsView.js');
@@ -253,22 +255,22 @@ export async function renderSchedule(root, params = new URLSearchParams()) {
     const dstr = (ms) => { const d = new Date(ms); return `${d.getDate()}. ${d.getMonth() + 1}.`; };
     const head = `<a class="back" href="#/ucenici">‹ ${esc(t('tch.students'))}</a><h1>${esc(t('sch.title'))}</h1>
       <p class="sch-sub">${esc(occ.length ? t('sch.weekSum', { n: countOf(occ.length, LES), d: fmtDur(total * 60000) }) : t('sch.weekNone'))}</p>
-      <div class="sch-wk"><button type="button" class="sch-nav" data-w="-1" aria-label="${esc(t('sch.prevWk'))}">‹</button><b>${esc(dstr(mon))} – ${esc(dstr(end - DAY))}</b>${wk ? `<button type="button" class="linkish" data-w="0">${esc(t('sch.thisWk'))}</button>` : ''}<button type="button" class="sch-nav" data-w="1" aria-label="${esc(t('sch.nextWk'))}">›</button></div>`;
+      <div class="sch-wk"><button type="button" class="sch-nav" data-w="-1" aria-label="${esc(t('sch.prevWk'))}">‹</button><b>${esc(dstr(mon))} – ${esc(dstr(dayAt(6)))}</b>${wk ? `<button type="button" class="linkish" data-w="0">${esc(t('sch.thisWk'))}</button>` : ''}<button type="button" class="sch-nav" data-w="1" aria-label="${esc(t('sch.nextWk'))}">›</button></div>`;
     const card = (o) => `<button type="button" class="sch-c${o.ts <= Date.now() && o.ts + o.dur * 60000 > Date.now() ? ' now' : ''}${o.ts + o.dur * 60000 <= Date.now() ? ' past' : ''}" style="--c:${esc(o.st.color || '#f5a524')}" data-occ="${esc(o.sid + '|' + o.key + '|' + o.ts)}">${T.avatarHTML(o.st, 36)}<span><b>${esc(o.st.name)}</b><small>${esc([o.extra ? t('sch.extraTag') : '', o.moved ? t('sch.movedTag') : '', o.extra ? '' : o.slot ? t(((slotsOf(o.st).find((x) => x.si === (o.si || 0)) || {}).every) === 2 ? 'sch.r2' : ((slotsOf(o.st).find((x) => x.si === (o.si || 0)) || {}).every) === 0 ? 'sch.r0' : 'sch.r1') : t('sch.r0'), (o.st.notes || [])[0]?.hw ? t('les.hwShort', { hw: o.st.notes[0].hw }) : ''].filter(Boolean).join(' · '))}</small></span>${o.ts > Date.now() && o.ts - Date.now() < 3 * 3600e3 ? `<em class="sch-tag">${esc(inTxt(o.ts - Date.now()))}</em>` : o.ts + o.dur * 60000 <= Date.now() ? `<em class="sch-tag ok">✓</em>` : ''}</button>`;
     const markHTML = (m) => `<div class="sch-mark ${m.k}">${m.k === 'bd' ? '🎂' : '🤝'} <span>${esc(m.k === 'bd' ? t('sch.bd', { name: m.st.name }) + (m.age ? ` (${m.age})` : '') : t('sch.an', { name: m.st.name, n: m.yrs }))}</span></div>`;
     let body;
     if (!desk) {
-      const days = Array.from({ length: 7 }, (_, i) => mon + i * DAY + 3600e3).map(day0);
+      const days = Array.from({ length: 7 }, (_, i) => dayAt(i));
       if (!days.includes(sel)) sel = days.includes(today) ? today : days[0];
       body = `<div class="sch-days7">${days.map((d, i) => `<button type="button" class="${d === sel ? 'on' : ''}${d === today ? ' today' : ''}" data-day="${d}">${esc(DOWS()[i].slice(0, getLang() === 'en' ? 3 : 3))}<b>${new Date(d).getDate()}</b><i class="${occ.some((o) => day0(o.ts) === d) ? 'dot' : ''}"></i></button>`).join('')}</div>`
         + days.filter((d) => d >= sel).map((d) => { const os = occ.filter((o) => day0(o.ts) === d), ms = marks.filter((m) => m.day === d); if (!os.length && !ms.length && d !== sel) return ''; return `<div class="sch-h${d === today ? ' today' : ''}"><span>${esc(d === today ? t('sch.today') + ' · ' : '')}${esc(DOWS()[(new Date(d).getDay() + 6) % 7])} ${new Date(d).getDate()}.</span><span>${os.length ? esc(countOf(os.length, LES)) : ''}</span></div>${ms.map(markHTML).join('')}${os.map((o) => `<div class="sch-l"><div class="sch-t">${esc(hmOf(o.ts))}<small>${o.dur} min</small></div>${card(o)}</div>`).join('') || `<p class="muted small sch-empty">${esc(t('sch.free'))}</p>`}`; }).join('');
     } else {
       const hrs = occ.map((o) => new Date(o.ts).getHours()); const h0 = Math.min(14, ...hrs), h1 = Math.max(20, ...hrs.map((h) => h + 1));
-      const cols = Array.from({ length: 7 }, (_, i) => day0(mon + i * DAY + 3600e3));
+      const cols = Array.from({ length: 7 }, (_, i) => dayAt(i));
       let g = `<div class="sch-gh"></div>${cols.map((d, i) => `<div class="sch-gh${d === today ? ' on' : ''}">${esc(DOWS()[i])}<b>${new Date(d).getDate()}</b>${marks.filter((m) => m.day === d).map((m) => `<span class="sch-gm" title="${esc(m.st.name)}">${m.k === 'bd' ? '🎂' : '🤝'}</span>`).join('')}</div>`).join('')}`;
       for (let h = h0; h < h1; h++) {
         g += `<div class="sch-gt">${h}:00</div>`;
-        for (const d of cols) { const os = occ.filter((o) => day0(o.ts) === d && new Date(o.ts).getHours() === h); g += `<div class="sch-gc" data-add="${d + h * 3600e3}">${os.map((o) => `<button type="button" class="sch-ev" style="--c:${esc(o.st.color || '#f5a524')};top:${(new Date(o.ts).getMinutes() / 60) * 100}%;height:${Math.max(40, (o.dur / 60) * 100)}%" data-occ="${esc(o.sid + '|' + o.key + '|' + o.ts)}">${esc(o.st.name)}<small>${esc(hmOf(o.ts))} · ${o.dur} min${o.moved ? ' · ' + esc(t('sch.movedTag')) : ''}${o.extra ? ' · ' + esc(t('sch.extraTag')) : ''}</small></button>`).join('')}</div>`; }
+        for (const d of cols) { const os = occ.filter((o) => day0(o.ts) === d && new Date(o.ts).getHours() === h); g += `<div class="sch-gc" data-add="${new Date(d).setHours(h, 0, 0, 0)}">${os.map((o) => `<button type="button" class="sch-ev" style="--c:${esc(o.st.color || '#f5a524')};top:${(new Date(o.ts).getMinutes() / 60) * 100}%;height:${Math.max(40, (o.dur / 60) * 100)}%" data-occ="${esc(o.sid + '|' + o.key + '|' + o.ts)}">${esc(o.st.name)}<small>${esc(hmOf(o.ts))} · ${o.dur} min${o.moved ? ' · ' + esc(t('sch.movedTag')) : ''}${o.extra ? ' · ' + esc(t('sch.extraTag')) : ''}</small></button>`).join('')}</div>`; }
       }
       body = `<div class="sch-grid">${g}</div><p class="muted small">${esc(t('sch.deskHint'))}</p>`;
     }

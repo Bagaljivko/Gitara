@@ -262,6 +262,16 @@ async function routeInner() {
 }
 
 window.addEventListener('hashchange', route);
+// v2.5.64: „‹ Nazad“ (npr. „‹ Pesme“) vraća korak unazad kad je to baš prethodni ekran — ranije je dodavao nov korak,
+// pa je sistemsko „nazad“ na Androidu vraćalo na pesmu koju si upravo napustio (krug).
+{
+  const trail = []; const push = () => { const h = location.hash || '#/'; if (trail[trail.length - 1] !== h) { if (trail[trail.length - 2] === h) trail.pop(); else trail.push(h); if (trail.length > 30) trail.shift(); } };
+  push(); window.addEventListener('hashchange', push);
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest && e.target.closest('a.back[href^="#"]'); if (!a || e.defaultPrevented || e.metaKey || e.ctrlKey) return;
+    if (trail.length >= 2 && trail[trail.length - 2] === a.getAttribute('href')) { e.preventDefault(); history.back(); }
+  });
+}
 // Otvaranje aplikacije dok već radi (ikonica, deljeni link): pregledač samo vrati otvorenu aplikaciju (launch_handler
 // „focus-existing“ u manifestu), bez ponovnog učitavanja i belog ekrana. Deljeni link se otvori ovde, na licu mesta.
 if ('launchQueue' in window) {

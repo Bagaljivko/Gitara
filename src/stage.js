@@ -47,6 +47,7 @@ function firstChord(s) {
   return '';
 }
 
+let aaOff = null;
 export async function renderStage(root, setlistId, params) {
   // v2.4.7: „Sviraj“ jedne pesme — #/nastup/pesma:<id> (isti ekran, bez set liste)
   const one = String(setlistId).startsWith('pesma:') ? String(setlistId).slice(6) : '';
@@ -273,7 +274,9 @@ export async function renderStage(root, setlistId, params) {
   // Aa: veličina teksta (A− / A+) u malom meniju — zaglavlje ostaje čisto, naslov ima mesta
   const aaOpen = (on) => { $('stAaPop').hidden = !on; $('stAa').setAttribute('aria-expanded', String(on)); $('stAa').classList.toggle('on', on); };
   $('stAa').addEventListener('click', (e) => { e.stopPropagation(); aaOpen($('stAaPop').hidden); });
-  document.addEventListener('pointerdown', (e) => { if (!e.target.closest('.st-zoom') && $('stAaPop')) aaOpen(false); }, { capture: true });
+  if (aaOff) document.removeEventListener('pointerdown', aaOff, { capture: true }); // v2.5.64: jedan osluškivač (ranije novi pri svakom otvaranju scene)
+  aaOff = (e) => { if (!e.target.closest('.st-zoom') && $('stAaPop')) aaOpen(false); };
+  document.addEventListener('pointerdown', aaOff, { capture: true });
   $('stDown').addEventListener('click', () => setZoom(-0.1));
   $('stUp').addEventListener('click', () => setZoom(0.1));
   $('stExit').addEventListener('click', () => { location.hash = one ? '#/pesma/' + encodeURIComponent(one) : '#/setlista/' + encodeURIComponent(setlistId); });

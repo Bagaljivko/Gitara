@@ -9,20 +9,24 @@ import * as K from './courses.js';
 const CHEV = '<span class="chev" aria-hidden="true">›</span>';
 const LOGO = '<img class="crs-logo" src="./icons/marli-192.png" alt="">';
 /** Stanje pesama kursa: { map: id → 'ready'|'work'|'new', next: index prve nespremne stavke } */
-async function stateOf(course) {
+// v2.5.64: obrisana pesma („gone“: pesme više nema, ili je MARLI pesma obrisana pre dodavanja nivoa) se preskače —
+// nije „sledeća“, ne broji se u ukupno, a kartica više ne kaže „sve pesme su spremne“ kad sledeća fali
+const isGone = (x, has) => !!(x && (x.miss || (x.s && has && !has.has(x.s))));
+async function stateOf(course, has = null) {
   const S = await import('./statsView.js');
-  const ids = (course.items || []).filter((x) => x.s).map((x) => x.s);
+  const items = course.items || [];
+  const ids = items.filter((x) => x.s && !isGone(x, has)).map((x) => x.s);
   const r = await S.setReadiness(ids);
-  const next = (course.items || []).findIndex((x) => !x.s || r.map[x.s] !== 'ready');
-  return { map: r.map, ready: r.ready, next };
+  const next = items.findIndex((x) => !isGone(x, has) && (!x.s || r.map[x.s] !== 'ready'));
+  return { map: r.map, ready: r.ready, next, total: items.filter((x) => !isGone(x, has)).length, has };
 }
-const barHTML = (course, st) => `<span class="lp-steps" aria-hidden="true">${(course.items || []).map((x, i) => `<i class="${x.s && st.map[x.s] === 'ready' ? 'd' : i === st.next ? 'c' : ''}"></i>`).join('')}</span>`;
+const barHTML = (course, st) => `<span class="lp-steps" aria-hidden="true">${(course.items || []).map((x, i) => `<i class="${isGone(x, st.has) ? 'x' : x.s && st.map[x.s] === 'ready' ? 'd' : i === st.next ? 'c' : ''}"></i>`).join('')}</span>`;
 
 async function courseCard(c, href, titles) {
-  const st = await stateOf(c);
+  const st = await stateOf(c, new Set(titles.keys()));
   const n = (c.items || []).length, nx = (c.items || [])[st.next];
   const nextT = nx ? (nx.s ? titles.get(nx.s) || '' : t('crs.songN', { n: st.next + 1 })) : '';
-  const sub = [c.fromT ? t('crs.fromT', { name: c.fromT.name || '' }) : '', t('crs.progress', { n: st.ready, total: n }), nextT ? t('crs.nextIs', { s: nextT }) : t('crs.allDone')].filter(Boolean).join(' · ');
+  const sub = [c.fromT ? t('crs.fromT', { name: c.fromT.name || '' }) : '', t('crs.progress', { n: st.ready, total: st.total }), nx ? t('crs.nextIs', { s: nextT }) : st.total ? t('crs.allDone') : ''].filter(Boolean).join(' · ');
   return `<a class="sp-line lp-entry card crs-card" href="${href}"><span class="sr-ic" aria-hidden="true">${c.marli ? LOGO : esc(c.ic || '🎓')}</span><span class="lp-et"><b>${esc(c.name)}</b><small class="lp-es">${esc(sub)}</small>${n ? barHTML(c, st) : ''}</span>${CHEV}</a>`;
 }
 
@@ -132,10 +136,12 @@ export async function renderCourse(root, id) {
   const draw = async () => {
     c = await K.getCourse(id); if (!c) { location.hash = '#/vezbe?t=k'; return; }
     const sums = await db.list(); const byId = new Map(sums.map((s) => [s.id, s]));
-    const items = (c.items || []).map((x) => (x.s && !byId.has(x.s) ? { n: 0, miss: true } : x));
-    const st = await stateOf({ ...c, items });
-    const firstMiss = items.findIndex((x) => !x.s);
+    const has = new Set(byId.keys());
+    const items = c.items || [];
+    const st = await stateOf({ ...c, items }, has);
+    const firstMiss = items.findIndex((x) => !x.s && !isGone(x, has));
     const row = (x, i) => {
+      if (isGone(x, has)) return `<div class="tch-row crs-miss crs-gone"><span class="sr-ic crs-n">${i + 1}</span><span><b>${esc(x.t || t('crs.gone'))}</b><small>${esc(t('crs.goneSub'))}</small></span>${!edit && own ? `<button class="btn small" data-rm="${i}">${esc(t('crs.goneRm'))}</button>` : ''}${edit ? editBtns(i, items.length) : ''}</div>`;
       if (!x.s) return `<div class="tch-row crs-miss"><span class="sr-ic crs-n">${i + 1}</span><span><b>${esc(x.t || t('crs.songN', { n: i + 1 }))}</b><small>${esc(t('crs.missing'))}</small></span>${!edit && i === firstMiss ? `<button class="btn small" data-imp="${i}">${esc(t('crs.importPdf'))}</button>` : ''}${edit ? editBtns(i, items.length) : ''}</div>`;
       const s = byId.get(x.s), r = st.map[x.s];
       const tag = r === 'ready' ? '✓' : String(i + 1);
@@ -144,7 +150,7 @@ export async function renderCourse(root, id) {
     const editBtns = (i, n) => `<span class="crs-ed"><button class="icon-btn" data-up="${i}" ${i ? '' : 'disabled'} aria-label="${esc(t('crs.up'))}">▲</button><button class="icon-btn" data-dn="${i}" ${i + 1 < n ? '' : 'disabled'} aria-label="${esc(t('crs.down'))}">▼</button><button class="icon-btn" data-rm="${i}" aria-label="${esc(t('common.delete'))}">✕</button></span>`;
     const nx = items[st.next];
     body.innerHTML = `<h1>${esc(c.name)}</h1>
-      <a class="sp-line lp-entry card crs-card" ${nx && nx.s ? `href="#/vezbe/pesma/${encodeURIComponent(nx.s)}"` : ''}><span class="sr-ic">${esc(c.ic || '🎓')}</span><span class="lp-et"><b>${esc(t('crs.progress', { n: st.ready, total: items.length }))}</b><small class="lp-es">${esc(nx ? t('crs.nextIs', { s: nx.s ? byId.get(nx.s).title : t('crs.songN', { n: st.next + 1 }) }) : t('crs.allDone'))}</small>${items.length ? barHTML({ items }, st) : ''}</span>${nx && nx.s ? CHEV : ''}</a>
+      <a class="sp-line lp-entry card crs-card" ${nx && nx.s ? `href="#/vezbe/pesma/${encodeURIComponent(nx.s)}"` : ''}><span class="sr-ic">${esc(c.ic || '🎓')}</span><span class="lp-et"><b>${esc(t('crs.progress', { n: st.ready, total: st.total }))}</b><small class="lp-es">${esc(nx ? t('crs.nextIs', { s: nx.s ? byId.get(nx.s).title : t('crs.songN', { n: st.next + 1 }) }) : st.total ? t('crs.allDone') : t('crs.noSongs'))}</small>${items.length ? barHTML({ items }, st) : ''}</span>${nx && nx.s ? CHEV : ''}</a>
       <div class="tch-sec"><span>${esc(t('crs.order'))}</span></div>
       ${items.length ? `<div class="set-grp crs-list">${items.map(row).join('')}</div>` : `<p class="muted">${esc(t('crs.noSongs'))}</p>`}
       ${own ? `<div class="crs-btns"><button class="btn" id="cAdd">+ ${esc(t('crs.addSongs'))}</button>${items.filter((x) => x.s).length > 1 ? `<button class="btn" id="cSort">${esc(t('crs.sort'))}</button>` : ''}</div>

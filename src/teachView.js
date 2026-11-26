@@ -435,7 +435,7 @@ export async function sendToTeacher(song = null) {
 export async function acceptInvite(hash) {
   const mm = /^#poziv\/([^/?]+)\/([^/?]+)/.exec(hash);
   history.replaceState(null, '', location.pathname + '#/pesme');
-  if (!mm) return;
+  if (!mm) { (await import('./ui.js')).badLinkDialog(); return; }
   const p = T.linkParams(hash);
   const me = await T.getTeacher();
   if (me.id && me.id === decodeURIComponent(mm[1])) { toast(t('tch.ownInvite')); return; } // nastavnik otvorio svoj link

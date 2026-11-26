@@ -6,7 +6,7 @@
 import { settings, songs as db } from './db.js';
 import { t, countOf, ROUNDS } from './i18n.js';
 import { dayNum, loadTotals } from './activity.js';
-import { toast } from './ui.js';
+import { toast, badLinkDialog } from './ui.js';
 
 export const GAME_IDS = ['promena', 'ritam', 'pauk', 'lovac', 'sluh'];
 export const PAIRS = [['Em', 'G'], ['G', 'C'], ['C', 'Am'], ['D', 'A'], ['G', 'D'], ['Am', 'E'], ['C', 'F']];
@@ -168,10 +168,10 @@ export async function summaryTasks() {
 /** Učenik otvara link plana (#plan/<…>): zapamti fajl i odmah pročitaj. */
 export async function receivePlanLink(hash) {
   const tm = await TM();
-  let d; try { d = tm.decodeLink(hash.replace(/^#plan\//, '').split(/[?#]/)[0]); } catch { toast(t('tch.rq.bad')); return false; }
+  let d; try { d = tm.decodeLink(hash.replace(/^#plan\//, '').split(/[?#]/)[0]); } catch { badLinkDialog(); return false; }
   const m = await tm.getMyTeacher();
-  if (!m || d.tt !== m.tid || d.ts !== m.sid) { toast(t('plan.notYours')); return false; }
-  if (!d.f || !/^[\w-]{6,}$/.test(d.f)) { toast(t('tch.rq.bad')); return false; }
+  if (!m || d.tt !== m.tid || d.ts !== m.sid) { badLinkDialog(t('plan.notYours')); return false; }
+  if (!d.f || !/^[\w-]{6,}$/.test(d.f)) { badLinkDialog(); return false; }
   await tm.setMyTeacher({ ...m, planFile: d.f });
   watchTasks();
   const ok = await refreshPlan({ force: true });

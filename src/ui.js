@@ -72,6 +72,9 @@ export function dialog({ title = '', body = '', html = false, buttons = [{ label
   });
 }
 
+/** v2.5.64: oštećen ili istekao link (poziv, zahtev, napredak, plan, odgovor) — isto kao link sa pesmom, ne samo kratka poruka */
+export const badLinkDialog = (body = '') => dialog({ title: t('link.badTitle'), body: body || t('link.badTeach') });
+
 export const confirmDialog = (title, body, okLabel = t('common.yes'), kind = 'primary') =>
   dialog({ title, body, buttons: [{ label: t('common.cancel'), value: false }, { label: okLabel, value: true, kind }] });
 

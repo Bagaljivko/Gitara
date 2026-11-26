@@ -14,6 +14,8 @@ import { stopGroup } from './synth.js';
 import { parseChord, canonicalName } from './music.js';
 import { songChords, progressionSummary, transposeSong, parseSharedFile, safeFileName, SongFormatError, layoutChordLine, songExtras, songMeta, cleanUncertain, cleanYoutubeUrl } from './songformat.js';
 // Google Drive se učitava tek kad zatreba (ili odmah, ako je povezan — rezervna kopija kreće kao i ranije)
+// v2.5.64: pesma bez teksta i akorada — umesto „Nauči ovu pesmu“ i Poslušaj/Skroluj (nema šta) poziv da se doda tekst
+const isEmptySong = (s) => !s.recording && s.type !== 'tab' && !(s.sections || []).some((x) => (x.lines || []).some((l) => String(l.text || '').trim() || (l.chords || []).length));
 const driveConnected = async () => !!((await settings.get('drive', null)) || {}).connected;
 driveConnected().then((c) => c && import('./drive.js')).catch(() => {});
 import { t, getLang } from './i18n.js';
@@ -315,7 +317,7 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
     $('lList').innerHTML = list.map((s) => `
       <li class="song-item${s.id === selectedId ? ' selected' : ''}" data-id="${esc(s.id)}">
         <a href="#/pesma/${encodeURIComponent(s.id)}" class="song-link">
-          <span class="song-title">${esc(s.title)}</span>
+          <span class="song-title">${esc(s.title || t('common.untitled'))}</span>
           <span class="song-sub">${[s.artist ? esc(s.artist) : ''].filter(Boolean).join(' · ')}${folderFilter === 'auto:top' && TOP.get(s.id) ? `<span class="lib-top">· ⏱ ${esc(topTime(TOP.get(s.id)))}</span>` : ''}${libBadges(s)}</span>
         </a>
         <button class="icon-btn more-btn" data-more="${esc(s.id)}" aria-label="${esc(t('lib.songMenu', { title: s.title }))}">
@@ -359,9 +361,11 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
     }
     if (pick !== 'del') return;
     if (!(await confirmDialog(t('lib.deleteTitle'), t('lib.deleteBody', { title: s.title }), t('common.delete'), 'danger'))) return;
+    const full = await db.get(s.id).catch(() => null);
     await db.remove(s.id);
+    const K = await import('./courses.js'); const crsBefore = await K.dropSongs([s.id]); // v2.5.64: i iz kurseva; „Poništi“ vraća oba
     all = all.filter((x) => x.id !== s.id);
-    toast(t('lib.deleted'));
+    toast(t('lib.deleted'), '', full ? { label: t('common.undo'), onClick: async () => { await db.put(full, { force: true }); await K.restoreCourses(crsBefore); all = await db.list(); draw(); } } : undefined);
     draw();
   });
   // „+“: jedan ulaz za dodavanje (Skeniraj / Uvezi / Nova) — i na kartici dobrodošlice
@@ -689,7 +693,7 @@ export async function renderSharedSong(root) {
       <p class="small">${t('link.installHint')}</p>
       ${canPromptInstall() ? `<button class="btn small primary" id="shInstallBtn">${t('set.install')}</button>` : `<p class="small muted">${isIOS() ? t('set.installIos') : t(isComputer() ? 'set.installPc' : 'set.installAndroid')}</p>`}
     </div>`}
-    <h1 class="song-h1">${esc(song.title)}</h1>
+    <h1 class="song-h1">${esc(song.title || t('common.untitled'))}</h1>
     <p class="song-meta">${esc(song.artist || '')}${shownKey ? `${song.artist ? ' · ' : ''}${t('song.key')} <b>${esc(dn(shownKey))}</b>` : ''}${song.capo ? ` · ${t('capo.title')} ${song.capo}` : ''}</p>
     ${song.strum ? `<div class="strum-box card"><div class="strum-head"><span class="small muted">${t('strum.label')}</span> <b>${esc(patternName(song.strum))}</b></div>${patternHTML(song.strum)}</div>` : ''}
     ${chords.length ? `<div class="diagram-row">${chords.map((c) => `<div class="diagram-btn">${chordSVG(c, { voicing: (song.shapes || {})[c] || 0 })}</div>`).join('')}</div>` : ''}
@@ -729,7 +733,7 @@ async function renderSharedTab(root, song) {
   root.innerHTML = `<section class="view shared-view tab-view">
     <div class="card add-card"><h2>${t('link.addTitle')}</h2><p class="muted"><b>${esc(song.title)}</b>${song.artist ? ' — ' + esc(song.artist) : ''}</p>
       <div class="row"><button class="btn" id="shCancel">${t('common.cancel')}</button><button class="btn primary" id="shAdd">${t('link.add')}</button></div></div>
-    <h1 class="song-h1">${esc(song.title)} <span class="badge-sm tab-badge">TAB</span></h1>
+    <h1 class="song-h1">${esc(song.title || t('common.untitled'))} <span class="badge-sm tab-badge">TAB</span></h1>
     <p class="song-meta">${tv.tabMeta(song).map(esc).join(' · ')}</p>
     <div class="tab-staff2" id="shStaff"></div></section>`;
   requestAnimationFrame(() => tv.drawStaff(root.querySelector('#shStaff'), song.tab));
@@ -1070,7 +1074,7 @@ export async function renderSong(root, id, nav = null) {
   let stored = await db.get(id);
   import('./chords.js').then((C) => C.setSongGrips(stored)).catch(() => {}); // v2.5.5: hvatovi sa lista ove pesme
   if (!stored) {
-    root.innerHTML = `<section class="view"><p>${t('song.notFound')}</p><a class="btn" href="#/pesme">${t('song.back')}</a></section>`;
+    root.innerHTML = `<section class="view nf-view"><header class="topbar"><a href="#/pesme" class="back">‹ ${t('nav.songs')}</a></header><h1>${t('song.notFoundT')}</h1><div class="set-grp"><div class="tch-row"><span class="sr-ic" aria-hidden="true">🔍</span><span><b>${t('song.notFound')}</b><small>${t('song.notFoundSub')}</small></span></div></div><a class="btn primary wide" href="#/pesme">${t('song.back')}</a></section>`; // v2.5.64: izgled aplikacije
     return;
   }
   // Pesma još nije prebačena u novi zapis akorda (npr. otvorena pre jednokratne konverzije) — uradi to sada
@@ -1137,7 +1141,7 @@ export async function renderSong(root, id, nav = null) {
         <button class="btn stb-play" data-tb="stage" title="${esc(t('stb.playTip'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg><span>${t('stb.play')}</span> <kbd>P</kbd></button>
         <button class="btn stb-more" data-tb="more" title="${esc(t('song.more'))}" aria-label="${esc(t('song.more'))}">${MORE_ICON}</button>
       </div>`}
-      ${stored.recording ? '' : practiceLineHTML(id)}
+      ${stored.recording ? '' : isEmptySong(stored) ? `<div class="card song-empty"><span class="sr-ic" aria-hidden="true">✎</span><span><b>${esc(t('song.emptyT'))}</b><small>${esc(t('song.emptySub'))}</small></span><a class="btn small primary" href="#/uredi/${encodeURIComponent(id)}">${esc(t('song.emptyBtn'))}</a></div>` : practiceLineHTML(id)}
       <button type="button" class="st-line" id="sStats" hidden></button>
       <div id="sRecCmt"></div>
       <div id="sRecCmp" class="rc-box"></div>
@@ -1154,7 +1158,7 @@ export async function renderSong(root, id, nav = null) {
       <div id="sTips" class="tips-box"></div>
       <div class="diagram-row diag-col" id="sDiagCol" aria-label="${t('song.diagrams')}"></div>
     </div>
-    <div class="scroll-bar" id="sScrollBar">
+    <div class="scroll-bar" id="sScrollBar"${isEmptySong(stored) ? ' hidden' : ''}>
       <div class="loop-row" id="sLoopRow" hidden>
         <span class="loop-name"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10v3l4-4-4-4v3H5v6h2zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2z"/></svg><b id="sLoopName"></b></span>
         <span class="loop-bpm" role="group" aria-label="${t('loop.tempo')}">
@@ -1202,7 +1206,7 @@ export async function renderSong(root, id, nav = null) {
   // Ekran pesme je podeljen na delove; menja se samo deo čiji se podaci promenili (brže na dugim pesmama)
   const drawHead = () => {
     // Naslov i (desno, u istom redu) prečica za vežbanje delova ove pesme
-    $('sHead').innerHTML = `<div class="song-title-row"><h1 class="song-h1">${esc(stored.title)}</h1></div>
+    $('sHead').innerHTML = `<div class="song-title-row"><h1 class="song-h1" title="${esc(stored.title || '')}">${esc(stored.title || t('common.untitled'))}</h1></div>
       ${stored.recording ? `<button class="btn small fp-onneck" id="sFpReplay"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>${esc(t('song.playOnNeck'))}</button>` : ''}
       ${stored.artist || cleanTuning(stored.tuning) !== 'standard' ? `<p class="song-meta">${esc(stored.artist || '')}${cleanTuning(stored.tuning) !== 'standard'
         ? `${stored.artist ? ' · ' : ''}<button class="tuning-chip" id="sTune" title="${esc(t('tuning.tuneNow'))}">${esc(t('tuning.' + cleanTuning(stored.tuning)))} · ${esc(tuningNotes(stored.tuning))} ›</button>` : ''}</p>` : ''}`;

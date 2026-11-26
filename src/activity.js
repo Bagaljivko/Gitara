@@ -42,9 +42,10 @@ async function stageSong(hash) { // #/nastup/<setlista>?i=N → pesma na tom mes
   const m = /^#\/nastup\/([^?]+)\?i=(\d+)/.exec(hash); if (!m) return null;
   { const k = decodeURIComponent(m[1]); if (k.startsWith('pesma:')) return k.slice(6); } // v2.4.7: jedna pesma
   try {
-    if (!setCache || Date.now() - setCache.at > 30000) setCache = { at: Date.now(), list: (await settings.get('setlists', [])) || [] };
+    if (!setCache || Date.now() - setCache.at > 30000) { const { songs } = await import('./db.js'); setCache = { at: Date.now(), list: (await settings.get('setlists', [])) || [], have: new Set((await songs.list()).map((x) => x.id)) }; }
     const sl = setCache.list.find((x) => x.id === decodeURIComponent(m[1]));
-    const ids = (sl && (sl.songIds || (sl.items || []).map((x) => x.id))) || [];
+    // v2.5.64: isti spisak kao na sceni (bez obrisanih pesama) — inače vreme ide pesmi pored
+    const ids = ((sl && (sl.songIds || (sl.items || []).map((x) => x.id))) || []).filter((id) => setCache.have.has(id));
     return ids[Number(m[2])] || null;
   } catch { return null; }
 }
@@ -75,7 +76,9 @@ export async function flush() {
   if (!acc || !acc.pend) return;
   const add = acc.pend, a = acc; acc.pend = 0;
   const visit = a.newVisit; a.newVisit = false;
-  const act = (await settings.get(KEY, null)) || { v: 1, dev: {} };
+  let act = await settings.get(KEY, null);
+  if (!act || typeof act !== 'object' || Array.isArray(act)) act = { v: 1, dev: {} }; // v2.5.64: oštećen zapis ne zaustavlja merenje
+  if (!act.dev || typeof act.dev !== 'object') act.dev = {};
   const id = devId(), d = act.dev[id] || (act.dev[id] = { s: {}, g: {}, days: {} });
   d.s = d.s || {}; d.g = d.g || {}; d.days = d.days || {};
   const today = dayNum(), dk = String(today);

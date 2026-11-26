@@ -8,7 +8,7 @@ const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString
 const clean = (s, max = 60) => String(s || '').trim().replace(/\s+/g, ' ').slice(0, max);
 const MAX_ITEMS = 60;
 
-export const getCourses = async () => ((await settings.get('courses', [])) || []).filter((c) => c && c.id);
+export const getCourses = async () => { const v = await settings.get('courses', []); return (Array.isArray(v) ? v : []).filter((c) => c && c.id); }; // v2.5.64: oštećen zapis ne ruši ekran
 export const getCourse = async (id) => (await getCourses()).find((c) => c.id === id) || null;
 async function saveAll(list) { await settings.set('courses', list); }
 
@@ -26,6 +26,18 @@ export async function updateCourse(id, patch) {
   await saveAll(list);
   return list[i];
 }
+/** v2.5.64: obrisane pesme izlaze i iz kurseva (da kurs ne pokazuje na pesmu koje nema). Vraća stanje za „Poništi“ ili null. */
+export async function dropSongs(ids) {
+  const set = new Set(ids || []); if (!set.size) return null;
+  const list = await getCourses(); const before = JSON.parse(JSON.stringify(list)); let ch = false;
+  for (const c of list) {
+    const items = (c.items || []).filter((x) => !(x && x.s && set.has(x.s)));
+    if (items.length !== (c.items || []).length) { c.items = items; c.updatedAt = Date.now(); ch = true; }
+  }
+  if (!ch) return null;
+  await saveAll(list); return before;
+}
+export async function restoreCourses(before) { if (Array.isArray(before)) await saveAll(before); }
 export async function deleteCourse(id) { await saveAll((await getCourses()).filter((x) => x.id !== id)); }
 
 /** Kursevi u kojima je pesma: [{ course, index }] (index u items). */

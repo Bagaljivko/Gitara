@@ -16,10 +16,16 @@ const EXCL_LOCAL = new Set(['gitara-diag', 'gitara-boots', 'gitara-lastscan', 'g
   'marli-autobk', 'marli-bk-pending', 'marli-seed', 'marli-drive-cool', 'marli-def1701', 'marli-def-test', 'marli-dev', 'marli-intro', 'marli-intro-gate', 'marli-invite-test', 'marli-fb-q', 'marli-fb-url-test', 'marli-last-tab']); // v2.0: poslednja kartica je samo navigacija na ovom uređaju — ne u kopiju
 // v2.5.63: „marli-last-…“ = kada je pozadinski posao poslednji put rađen na ovom uređaju — samo ovde, ne u kopiju
 const keepLocal = (k) => LOCAL_RE.test(k) && !EXCL_LOCAL.has(k) && !k.startsWith('marli-last-');
+// v2.5.64: oblik poznatih podešavanja pri vraćanju kopije (spisak = niz, zapis = objekat)
+const ARR = new Set(['students', 'requests', 'myRequests', 'myEx', 'rpList', 'knownChords', 'dupIgnore', 'marliAdded', 'courses', 'setlists', 'folders', 'freeplayRecs', 'notes', 'myRhythms', 'studentPhotos', 'devices']);
+const OBJ = new Set(['practice', 'skale', 'activity', 'teacher', 'myTeacher']);
+const shapeOk = (k, v) => (ARR.has(k) ? Array.isArray(v) : OBJ.has(k) ? v === null || (typeof v === 'object' && !Array.isArray(v)) : true);
 const KEY_RE = /^[\w.\-]{10,300}$/; // stari (AIza…, 39) i novi Google oblik (AQ.…, sa tačkom)
 const LAST = 'marli-bk'; // kada je poslednja kopija napravljena (na ovom uređaju)
 
-const day = () => new Date().toISOString().slice(0, 10);
+// v2.5.64: lokalni datum (ranije UTC — kopija posle ponoći bila je „juče“, a „jednom dnevno“ je počinjalo u 1–2 h)
+const isoLocal = (ms = Date.now()) => { const d = new Date(ms); const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; };
+const day = () => isoLocal();
 const songsN = (n) => songsCount(n);
 export const lastBackups = () => { try { return JSON.parse(localStorage.getItem(LAST) || '{}') || {}; } catch { return {}; } };
 const noteLast = (kind, where) => { try { const o = lastBackups(); o[kind] = { at: Date.now(), where }; localStorage.setItem(LAST, JSON.stringify(o)); } catch {} };
@@ -233,7 +239,7 @@ async function pickFullCopy() {
   return (await p) === 'ok' ? pick : null;
 }
 function dayLabel(d) {
-  const today = day(), y = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
+  const today = day(), y = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return isoLocal(d.getTime()); })();
   const cap = (x) => x.charAt(0).toUpperCase() + x.slice(1);
   if (d === today) return cap(t('st.today')); if (d === y) return cap(t('st.yesterday'));
   const [Y, M, D] = d.split('-').map(Number); return `${D}. ${M}. ${Y}.`;
@@ -295,6 +301,7 @@ export async function applyFull(data, parsed = null) {
       if (EXCL_SETTINGS.has(k) || known.has(k) || v === undefined) continue;
       if (k === 'geminiKey') { if (typeof v === 'string' && KEY_RE.test(v.trim())) await settings.set('geminiKey', v.trim()); continue; }
       if (k === 'keySync') { await (await import('./db.js')).setKeySync(v !== false); continue; }
+      if (!shapeOk(k, v)) continue; // v2.5.64: oštećena vrednost (npr. učenici kao tekst) se preskače — ne kvari ekrane ni druge uređaje
       await settings.set(k, v);
     }
     try { for (const [k, v] of Object.entries(data.local || {})) if (keepLocal(k) && typeof v === 'string') localStorage.setItem(k, v); } catch {}

@@ -397,7 +397,7 @@ body.trk-open { overflow: hidden; }
 .pr-sp[data-sp="challenge"]:not(.on) { color: var(--text); }
 .pr-speed .pr-tempo { gap: 10px; margin: 4px 0 0; }
 .pr-speed .pr-tempo b { font-size: 1rem; }
-.btn.round.tiny { width: 30px; height: 30px; min-height: 30px; padding: 0; font-size: 1rem; }
+.btn.round.tiny { width: 40px; height: 40px; min-height: 40px; padding: 0; font-size: 1.1rem; } /* v2.5.65: 30 → 40 px (lakše prstom) */
 .pr-diff { margin-top: 6px; }
 .pr-explain.compact { background: none; border: 0; padding: 0 2px; margin: 2px 0 6px; gap: 6px; }
 .pr-ex-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }

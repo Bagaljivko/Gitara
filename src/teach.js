@@ -5,7 +5,7 @@
 // Učenik je običan korisnik: veza sa nastavnikom nastaje kad otvori pozivnicu i može da je prekine.
 import { settings } from './db.js';
 import { t } from './i18n.js';
-import { esc, dialog, toast } from './ui.js';
+import { esc, dialog, toast, badLinkDialog } from './ui.js';
 
 export const COLORS = ['#ff7cc3', '#5aa9ff', '#9be15d', '#ffd75e', '#b48cff', '#4fd1c5', '#ff9f5a', '#f472b6'];
 const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
@@ -39,7 +39,8 @@ async function setPhoto(id, u) {
   const list = (await getPhotos()).filter((x) => x.id !== id);
   await settings.set('studentPhotos', u ? [...list, { id, u, at: Date.now() }] : list);
 }
-const rawStudents = async () => ((await settings.get('students', [])) || []).filter((s) => s && s.id);
+const arr = (v) => (Array.isArray(v) ? v : []); // v2.5.64: oštećen zapis = prazan spisak (ne ruši ekran)
+const rawStudents = async () => arr(await settings.get('students', [])).filter((s) => s && s.id);
 /** Stari zapis (slika u spisku učenika) → slike u svoju listu; jednom, tiho. */
 async function movePhotos(list) {
   if (!list.some((s) => s.photo)) return list;
@@ -82,7 +83,7 @@ export async function removeStudent(id) {
   const c = await import('./collections.js');
   for (const sl of await c.getSetlists()) if ((sl.students || []).includes(id)) await c.updateSetlist(sl.id, { students: sl.students.filter((x) => x !== id) });
   // v1.79: i njegovi zahtevi i zapis poslatog
-  await settings.set('requests', ((await settings.get('requests', [])) || []).filter((r) => r && r.sid !== id));
+  await settings.set('requests', arr(await settings.get('requests', [])).filter((r) => r && r.sid !== id));
   const tc = await getTeacher(); if ((tc.sentLog || []).some((e) => e.sid === id)) await setTeacher({ sentLog: tc.sentLog.filter((e) => e.sid !== id) });
 }
 export const initialOf = (name) => (String(name || '?').trim()[0] || '?').toUpperCase();
@@ -221,12 +222,12 @@ export async function sentSongs() {
   try { const c = await import('./collections.js'); for (const sl of await c.getSetlists()) for (const [sid, at] of Object.entries(sl.sentTo || {})) for (const id of sl.songIds || []) add(id, '', '', sid, at); } catch {}
   return [...map.values()];
 }
-export async function getRequests() { return ((await settings.get('requests', [])) || []).filter((r) => r && r.id); }
+export async function getRequests() { return arr(await settings.get('requests', [])).filter((r) => r && r.id); }
 export async function setRequest(id, patch) {
   const list = await getRequests(); const i = list.findIndex((r) => r.id === id); if (i < 0) return null;
   list[i] = { ...list[i], ...patch }; await settings.set('requests', list); pingNav(); return list[i];
 }
-export async function getMyRequests() { return ((await settings.get('myRequests', [])) || []).filter((r) => r && r.id); }
+export async function getMyRequests() { return arr(await settings.get('myRequests', [])).filter((r) => r && r.id); }
 async function setMyRequest(id, patch) {
   const list = await getMyRequests(); const i = list.findIndex((r) => r.id === id); if (i < 0) return null;
   list[i] = { ...list[i], ...patch }; await settings.set('myRequests', list); return list[i];
@@ -251,11 +252,11 @@ export async function addRequest(r) {
 }
 /** Nastavnik otvara link zahteva → zahtev ide u spisak (kod tog učenika). Vraća učenika ili null. */
 export async function receiveRequest(hash) {
-  let d; try { d = b64d(hash.replace(/^#zahtev\//, '').split(/[?#]/)[0]); } catch { toast(t('tch.rq.bad')); return null; }
+  let d; try { d = b64d(hash.replace(/^#zahtev\//, '').split(/[?#]/)[0]); } catch { badLinkDialog(); return null; }
   const me = await getTeacher();
-  if (!me.on || d.ft !== me.id) { toast(t('tch.rq.notMine')); return null; }
-  const st = await getStudent(d.fs); if (!st) { toast(t('tch.rq.noStudent')); return null; }
-  if (!REQ_TYPES.includes(d.type) || !d.id || !d.title) { toast(t('tch.rq.bad')); return null; }
+  if (!me.on || d.ft !== me.id) { badLinkDialog(t('tch.rq.notMine')); return null; }
+  const st = await getStudent(d.fs); if (!st) { badLinkDialog(t('tch.rq.noStudent')); return null; }
+  if (!REQ_TYPES.includes(d.type) || !d.id || !d.title) { badLinkDialog(); return null; }
   const list = await getRequests();
   if (!list.some((r) => r.id === d.id)) {
     list.push({ id: clip(d.id, 40), sid: st.id, type: d.type, title: clip(d.title, 80), artist: clip(d.artist, 60), note: clip(d.note, 300), at: Number(d.at) || Date.now(), status: 'open' });
@@ -278,7 +279,7 @@ async function boxAnswer(req, s) {
 export const answerNone = (req) => boxAnswer(req, 'none');
 /** Učenik otvara „Nemam“ odgovor. */
 export async function receiveAnswer(hash) {
-  let d; try { d = b64d(hash.replace(/^#odgovor\//, '').split(/[?#]/)[0]); } catch { return; }
+  let d; try { d = b64d(hash.replace(/^#odgovor\//, '').split(/[?#]/)[0]); } catch { badLinkDialog(); return; }
   const m = await getMyTeacher(); if (!m || d.tt !== m.tid) return;
   const st = d.s === 'none' ? 'none' : d.s === 'ok' ? 'ok' : 'answered';
   const r = await setMyRequest(d.id, { status: st, answeredAt: Date.now() });
@@ -305,11 +306,11 @@ export async function progressLink(fileId) {
 export async function receiveProgress(hash) {
   const raw = hash.replace(/^#napredak\//, '').split(/[?#]/)[0];
   if (raw.startsWith('z.')) return receiveProgressMsg(raw.slice(2)); // v1.84: napredak poslat porukom (bez Google naloga)
-  let d; try { d = b64d(raw); } catch { toast(t('tch.rq.bad')); return null; }
+  let d; try { d = b64d(raw); } catch { badLinkDialog(); return null; }
   const me = await getTeacher();
-  if (!me.on || d.ft !== me.id) { toast(t('tch.rq.notMine')); return null; }
-  const st = await getStudent(d.fs); if (!st) { toast(t('tch.rq.noStudent')); return null; }
-  if (!d.f || !/^[\w-]{6,}$/.test(d.f)) { toast(t('tch.rq.bad')); return null; }
+  if (!me.on || d.ft !== me.id) { badLinkDialog(t('tch.rq.notMine')); return null; }
+  const st = await getStudent(d.fs); if (!st) { badLinkDialog(t('tch.rq.noStudent')); return null; }
+  if (!d.f || !/^[\w-]{6,}$/.test(d.f)) { badLinkDialog(); return null; }
   await updateStudent(st.id, { prog: { fileId: d.f, since: Date.now() }, connAt: st.connAt || Date.now() }); // v2.4.21: connAt — „povezala se“ samo jednom
   toast(t('prog.got', { name: st.name }));
   if (!st.connAt) (await import('./teachBox.js')).connNote(st).catch(() => {});
@@ -317,14 +318,14 @@ export async function receiveProgress(hash) {
 }
 async function receiveProgressMsg(z) {
   let d; try { const LZ = (await import('./lzstring.js')).default; d = JSON.parse(LZ.decompressFromEncodedURIComponent(z) || 'null'); } catch { d = null; }
-  if (!d || d.v !== 2) { toast(t('tch.rq.bad')); return null; }
+  if (!d || d.v !== 2) { badLinkDialog(); return null; }
   const me = await getTeacher();
-  if (!me.on || d.ft !== me.id) { toast(t('tch.rq.notMine')); return null; }
-  const st = await getStudent(d.fs); if (!st) { toast(t('tch.rq.noStudent')); return null; }
+  if (!me.on || d.ft !== me.id) { badLinkDialog(t('tch.rq.notMine')); return null; }
+  const st = await getStudent(d.fs); if (!st) { badLinkDialog(t('tch.rq.noStudent')); return null; }
   const at = Math.min(Date.now(), Number(d.at) || Date.now());
   if (st.prog && st.prog.msg && (st.prog.at || 0) > at) { toast(t('prog.olderMsg')); return st; } // stariji link: ne prepisuj noviji
   const data = (await import('./progress.js')).cleanSummary(d.d);
-  if (!data) { toast(t('tch.rq.bad')); return null; }
+  if (!data) { badLinkDialog(); return null; }
   await updateStudent(st.id, { prog: { msg: true, at, since: (st.prog && st.prog.since) || Date.now() }, progData: data });
   toast(t('prog.gotMsg', { name: st.name }));
   return st;

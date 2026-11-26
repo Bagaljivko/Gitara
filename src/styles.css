@@ -3586,6 +3586,8 @@ img.tch-av.tch-ph { object-fit: cover; background: #222; padding: 0; }
 .lp-entry .lp-steps i { flex: 1; height: 5px; border-radius: 3px; background: var(--surface-2); }
 .lp-entry .lp-steps i.d { background: var(--ok); }
 .lp-entry .lp-steps i.c { background: var(--accent); }
+.lp-entry .lp-steps i.x { background: transparent; border: 1px dashed var(--line); } /* v2.5.64: obrisana pesma kursa */
+.crs-gone b, .crs-gone .crs-n { opacity: .55; }
 .lp-entry .chev { color: var(--muted); font-size: 1.2rem; }
 /* v2.4.30: ▶ odavde uz naziv dela na ekranu pesme */
 .sec-head .od-pill { appearance: none; margin-left: auto; border: 1px solid var(--line); background: var(--surface); color: var(--accent); border-radius: 999px; font: 800 .74rem var(--sans); padding: 4px 10px; min-height: 28px; cursor: pointer; }
@@ -3659,3 +3661,20 @@ img.tch-av.tch-ph { object-fit: cover; background: #222; padding: 0; }
 .tips-all ul { margin: 0; padding: 2px 0 2px 18px; color: var(--muted); line-height: 1.5; }
 .tips-all li + li { margin-top: 6px; }
 .crs-logo { width: 30px; height: 30px; border-radius: 7px; display: block; }
+
+/* v2.5.64: prazna pesma — poziv da se doda tekst (umesto puta kroz pesmu) */
+.song-empty { display: flex; align-items: center; gap: 12px; padding: 14px; margin: 10px 0; }
+.song-empty > span:not(.sr-ic) { flex: 1; min-width: 0; }
+.song-empty b { display: block; }
+.song-empty small { display: block; color: var(--muted); font-size: .84rem; }
+/* v2.5.64: predugačka „reč“ u tekstu (link, „-----“, „lalala…“) se prelama umesto da nestane van ekrana; obične reči isto kao ranije */
+.ln .w, .ln .seg { max-width: 100%; }
+.ln .tx0, .ln .tx { overflow-wrap: anywhere; }
+.ln .w .tx0, .ln .tx { white-space: pre-wrap; }
+/* v2.5.64: veoma dug naslov pesme — najviše 3 reda (ceo naslov u opisu) */
+.song-view .song-h1 { display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+/* v2.5.65: veće površine za dodir bez promene izgleda (akord iznad teksta, „Ne, hvala“, „Pregled vežbanja“) */
+.lyrics .ch { position: relative; }
+.lyrics .ch::after { content: ''; position: absolute; inset: -9px -8px; }
+.nas-no, .st-ovlink { display: inline-flex; align-items: center; min-height: 44px; }
+.nf-view .btn.wide { margin-top: 14px; }
