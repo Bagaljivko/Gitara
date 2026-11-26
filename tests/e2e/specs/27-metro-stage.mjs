@@ -13,6 +13,9 @@ export async function run(ctx) {
   expect((await chip())?.on, 'metronom se ne uključuje');
   await p.evaluate(() => document.querySelector('#sChips [data-sca="metro"]').click()); await p.waitForTimeout(300);
   expect(!(await chip())?.on, 'metronom se ne isključuje');
+  // v2.5.2: BPM je podrazumevano u ⚙ — korisnik ga vraća u red (redosled iz ⚙); traka tempa radi i tada
+  expect(!(await p.$('#sChips [data-sheet="tempo"]')), 'BPM ne treba da je u podrazumevanom redu');
+  await p.evaluate(() => localStorage.setItem('marli-songbar', JSON.stringify(['video', 'capo', 'tempo', 'metro', 'rhythm']))); await p.go('#/pesme', 500); await p.go('#/pesma/' + id, 1500);
   await p.evaluate(() => document.querySelector('#sChips [data-sheet="tempo"]').click()); await p.waitForTimeout(300);
   expect(await p.$('.chip-pop [data-tap]') && !(await p.$('.chip-pop [data-met]')), 'traka tempa');
   { const o = await overflowCheck(p); expect(!o.page && !o.items.length, 'telefon: nešto izlazi van ekrana', o); }
