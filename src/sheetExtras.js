@@ -127,3 +127,22 @@ export function sheetExtras(pages) {
   }
   return { shapes, strum };
 }
+
+// v2.4.36: YouTube linkovi sa lista (klikabilni ili ispisani) → { tutorial?, listen? }. Tekst oko linka odlučuje:
+// lekcija/tutorijal/„learn it with me“ → tutorial; snimak/original/„play along with the record“ → listen (Uz video).
+const YT = /(https?:\/\/)?(www\.|m\.)?(youtube\.com\/(watch\?[^\s]*v=|shorts\/|live\/)|youtu\.be\/)[\w-]{6,}[^\s)\]]*/i;
+const TUT = /\b(learn|lesson|tutorial|watch|how to|lekcij|nauči|nauci|tutorijal|objašnj)/i;
+const LIS = /\b(record|original|listen|play ?along|official|audio|poslušaj|poslusaj|snimak|uz video)/i;
+export function sheetVideos(pages, clean = (u) => u) {
+  const found = [];
+  for (const p of pages || []) {
+    const ctx = (y) => (p.items || []).filter((it) => Math.abs(it.y - y) < 40).map((it) => it.str).join(' ');
+    for (const l of p.links || []) if (YT.test(l.url)) found.push({ url: l.url, ctx: ctx(l.y) });
+    for (const it of p.items || []) { const m = YT.exec(it.str); if (m) found.push({ url: /^https?:/.test(m[0]) ? m[0] : 'https://' + m[0], ctx: ctx(it.y) }); }
+  }
+  const out = {}, seen = new Set();
+  const list = found.map((f) => ({ ...f, url: clean(f.url) })).filter((f) => f.url && !seen.has(f.url) && seen.add(f.url));
+  for (const f of list) { const k = LIS.test(f.ctx) && !TUT.test(f.ctx) ? 'listen' : TUT.test(f.ctx) ? 'tutorial' : null; if (k && !out[k]) { out[k] = f.url; f.used = true; } }
+  for (const f of list) if (!f.used) { const k = !out.tutorial ? 'tutorial' : !out.listen ? 'listen' : null; if (k) out[k] = f.url; }
+  return out;
+}

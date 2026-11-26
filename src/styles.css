@@ -3621,3 +3621,4 @@ img.tch-av.tch-ph { object-fit: cover; background: #222; padding: 0; }
 .att-ic { font-style: normal; }
 .att-list .tch-row small { white-space: normal; }
 .att-list .tch-row b { white-space: normal; }
+.yt-ask .tch-row small { white-space: normal; } /* v2.4.36: Dodaj video uz pesmu */

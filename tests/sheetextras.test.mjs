@@ -2,10 +2,10 @@
 // Izmišljen list (koordinate kao što ih daje readPdf), bez tuđeg sadržaja.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { sheetShapes, sheetStrum, sheetExtras } from '../src/sheetExtras.js';
+import { sheetShapes, sheetStrum, sheetExtras, sheetVideos } from '../src/sheetExtras.js';
 import { matchVoicing, getVoicings } from '../src/chords.js';
 import { sheetTips } from '../src/songPath.js';
-import { textToSections } from '../src/songformat.js';
+import { textToSections, cleanYoutubeUrl } from '../src/songformat.js';
 import { chordTimeline } from '../src/songPlay.js';
 
 const SS = 14, FS = 17;
@@ -81,4 +81,14 @@ test('kućica na listu = jedan prolaz ritma (red samo sa akordima: takt po akord
   const tl = chordTimeline(song);
   assert.deepEqual(tl.segs.map((s) => s.len), [4, 4, 4, 4]);
   assert.equal(tl.events.filter((e) => e.chord === 'G').length, 6, 'ceo obrazac na jedan akord');
+});
+
+test('YouTube sa lista: klikabilan ili ispisan link → lekcija ili snimak za Uz video (po tekstu oko linka)', () => {
+  const page = { items: [it('Watch', 52, 700), it('Learn it with me in the video.', 52, 712), it('Play along with the record: youtu.be/RECORDabc12', 300, 760)], links: [{ url: 'https://www.youtube.com/watch?v=LESSONabc12', x: 80, y: 705 }, { url: 'https://example.com/x', x: 1, y: 1 }] };
+  const v = sheetVideos([page], cleanYoutubeUrl);
+  assert.match(v.tutorial, /LESSONabc12/);
+  assert.match(v.listen, /RECORDabc12/);
+  assert.deepEqual(sheetVideos([{ items: [it('bez linka', 1, 1)], links: [] }], cleanYoutubeUrl), {});
+  // jedan link bez objašnjenja = lekcija
+  assert.match(sheetVideos([{ items: [it('https://youtu.be/ONLYone1234', 1, 1)] }], cleanYoutubeUrl).tutorial, /ONLYone1234/);
 });

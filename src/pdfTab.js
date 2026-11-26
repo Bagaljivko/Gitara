@@ -73,7 +73,10 @@ export async function readPdf(data, pdfjs = null) {
         }
       }
     }
-    pages.push({ w: vp.width, h: vp.height, items, segs, dots });
+    // v2.4.36: linkovi (npr. YouTube lekcija) — klikabilne oblasti na strani
+    const links = [];
+    try { for (const a of await page.getAnnotations()) { const u = a && (a.url || a.unsafeUrl); if (u && a.rect) { const [x, y] = app(V, (a.rect[0] + a.rect[2]) / 2, (a.rect[1] + a.rect[3]) / 2); links.push({ url: String(u), x, y }); } } } catch {}
+    pages.push({ w: vp.width, h: vp.height, items, segs, dots, links });
     page.cleanup();
   }
   return { doc, pages, numPages: doc.numPages };
@@ -426,4 +429,11 @@ export async function pdfChordChart(pages, isChordLine) {
     strum = same ? { id: same.id, sig: same.sig, steps: same.steps } : { sig: X.strum.sig, steps: X.strum.steps, ...(X.strum.name ? { name: X.strum.name } : {}) };
   }
   return { title, artist, capo: r.capo, text: r.text, ...(Object.keys(shapes).length ? { shapes } : {}), ...(strum ? { strum } : {}) };
+}
+
+/** v2.4.36: YouTube linkovi sa lista → { tutorial?, listen? } (ili null). */
+export async function pdfVideos(pages) {
+  const [{ sheetVideos }, { cleanYoutubeUrl }] = await Promise.all([import('./sheetExtras.js'), import('./songformat.js')]);
+  const v = sheetVideos(pages, cleanYoutubeUrl);
+  return Object.keys(v).length ? v : null;
 }

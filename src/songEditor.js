@@ -71,6 +71,7 @@ export async function importPdf(file) {
     if (ch) {
       let song = normalizeSong({ title: fixCaps(ch.title), artist: fixCaps(ch.artist), key: '', sections: textToSections(ch.text), ...(ch.capo ? { capo: ch.capo } : {}), ...(ch.strum ? { strum: ch.strum } : {}) });
       if (ch.shapes) song.shapes = ch.shapes; // v2.4.35: hvatovi i ritam sa lista
+      const vids = await m.pdfVideos(read.pages).catch(() => null); if (vids) song.yt = vids; // v2.4.36: video sa lista (lekcija / Uz video)
       if (ch.capo) song = { ...song, sections: transposeSong(song, ch.capo).sections }; // hvatovi uz kapodaster → zvučni akordi
       song.importedFrom = 'pdf';
       song.__original = snapshotOriginal(song);
@@ -719,6 +720,12 @@ export async function renderEditor(root, id) {
     }
     if (base) await versions.save('song:' + base.id, base, 'rescan'); // stari sadržaj ostaje kao „Prethodna verzija“
     const rec = await db.save(rec0);
+    // v2.4.36: uvezen PDF — video sa lista je povezan; ako ga nema, odmah ponudi da se doda (lekcija / Uz video)
+    if (isNew && !base && song.importedFrom === 'pdf') {
+      const hasV = rec.yt && (rec.yt.tutorial || rec.yt.listen);
+      if (hasV) toast(t('yt.fromSheet'));
+      else { const Y = await import('./ytPick.js'); await Y.askVideo(rec, () => db.save(rec)); }
+    }
     if (isNew) { try { dispatchEvent(new Event('marli-song-saved')); } catch {} } // v1.87: dobar trenutak za poziv „Instaliraj“ (telefon/tablet)
     draft = null; draftImage = null; drafts = { chords: null, tab: null }; draftImgs = null;
     toast(msg);

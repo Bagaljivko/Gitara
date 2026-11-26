@@ -41,6 +41,7 @@ async function textSong(bytes) {
       // akordi na listu su hvatovi uz kapodaster („broji pragove od kapodastera“) — pesma čuva zvučne akorde
       if (chart.capo) { const { transposeSong } = await import('./songformat.js'); song = { ...song, sections: transposeSong(song, chart.capo).sections }; }
       if (chart.shapes) song.shapes = chart.shapes; // v2.4.35: hvatovi sa lista
+      const vids = await m.pdfVideos(read.pages); if (vids) song.yt = vids; // v2.4.36: video sa lista
       song.original = snapshotOriginal(song);
       return { song, doc: read.doc };
     }
@@ -48,6 +49,7 @@ async function textSong(bytes) {
     if (ch) {
       const { snapshotOriginal } = await import('./songmodel.js');
       const song = normalizeSong({ title: fixCaps(ch.title), artist: fixCaps(ch.artist), key: '', sections: textToSections(ch.text) });
+      const vids = await m.pdfVideos(read.pages); if (vids) song.yt = vids; // v2.4.36
       song.original = snapshotOriginal(song);
       return { song, doc: read.doc };
     }

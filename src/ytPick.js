@@ -5,7 +5,7 @@
 // Kvota: pretraga košta 100 jedinica od 10.000 dnevno, zajedničkih za sve korisnike ključa. Zato se rezultati čuvaju
 // uz pesmu (ytFound — ista pesma se nikad ne traži dvaput, ni na drugom telefonu), a kad se kvota potroši, tiho se
 // otvara obična YouTube pretraga „izvođač naslov“ (bez poruke o grešci) do ponoći po pacifičkom vremenu (reset kvote).
-import { esc, toast } from './ui.js';
+import { esc, toast, dialog } from './ui.js';
 import { t } from './i18n.js';
 import { SHARE_API_KEY } from './shareConfig.js';
 import { cleanYoutubeUrl, youtubeId } from './songformat.js';
@@ -72,7 +72,7 @@ export async function searchYt(q, { signal, embeddable = false } = {}) {
  * Panel odozdo: rezultati pretrage + „Nalepi link“. Vraća izabran link (i odmah ga otvara — dodir je korisnikov) ili null.
  * cached: ranije nađeni rezultati (bez pretrage); onFound(list): nova pretraga je uspela (da se sačuva uz pesmu).
  */
-export function pickVideo(song, kind, { cached = null, onFound = null, open = true, noSearch = false } = {}) {
+export function pickVideo(song, kind, { cached = null, onFound = null, open = true, noSearch = false, attach = false } = {}) {
   return new Promise((resolve) => {
     let ctrl = new AbortController();
     const wrap = document.createElement('div');
@@ -115,7 +115,7 @@ export function pickVideo(song, kind, { cached = null, onFound = null, open = tr
       const r = e.target.closest('[data-vid]');
       if (r) {
         const url = 'https://youtu.be/' + r.dataset.vid;
-        if (open) { window.open(url, '_blank', 'noopener'); return done(url); }
+        if (open) { if (!attach) window.open(url, '_blank', 'noopener'); return done(url); } // v2.4.36: attach = samo poveži
         checkAndLink(r, r.dataset.vid, url);
         return;
       }
@@ -176,7 +176,7 @@ export function pickVideo(song, kind, { cached = null, onFound = null, open = tr
 }
 
 /** Meni → „Slušaj“/„Tutorial“: povezan snimak se odmah pušta; inače (ili change) izbor snimka, pa se pamti uz pesmu. */
-export async function ytAction(kind, stored, save, { change = false, open = true } = {}) {
+export async function ytAction(kind, stored, save, { change = false, open = true, attach = false } = {}) {
   const cur = stored.yt && stored.yt[kind];
   if (cur && !change) { window.open(cur, '_blank', 'noopener'); return; }
   const q = query(stored, kind);
@@ -185,9 +185,9 @@ export async function ytAction(kind, stored, save, { change = false, open = true
   const cached = okHit && okHit.length ? okHit.map((v) => ({ id: v.id, title: v.t, channel: v.c, dur: v.d })) : null;
   // kvota već potrošena danas: bez pretrage, odmah YouTube (sinhrono, u istom dodiru)
   // („Uz video“: bez napuštanja aplikacije — panel sa „Otvori YouTube“ + „Nalepi link“)
-  if (!cached && quotaOut() && open) { openSearch(stored, kind); return; }
+  if (!cached && quotaOut() && open && !attach) { openSearch(stored, kind); return; }
   const url = await pickVideo(stored, kind, {
-    cached, open, noSearch: !cached && quotaOut(),
+    cached, open, attach, noSearch: !cached && quotaOut(),
     onFound: (list, qq = q) => {
       stored.ytFound = { ...(stored.ytFound || {}), [kind]: { q: qq, ...(open ? {} : { e: 1 }), v: list.map((v) => ({ id: v.id, t: v.title, c: v.channel, d: v.dur })) } };
       Promise.resolve(save()).catch(() => {});
@@ -237,4 +237,24 @@ export async function videoSeconds(id) {
     const m = /PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/.exec((d && d.contentDetails && d.contentDetails.duration) || '');
     return m ? (+m[1] || 0) * 3600 + (+m[2] || 0) * 60 + (+m[3] || 0) : 0;
   } catch { return 0; }
+}
+
+/**
+ * v2.4.36: posle uvoza lista bez videa — „Dodaj video“: lekcija (Tutorijal na putu kroz pesmu) i snimak za sviranje
+ * (Uz video). Svaki red otvara isti izbor snimka (pretraga ili nalepi link). Povezan red dobija ✓; „Kasnije“ zatvara.
+ */
+export async function askVideo(stored, save) {
+  for (;;) {
+    const yt = stored.yt || {};
+    const row = (k, ic, title, sub) => `<button type="button" class="tch-row" data-yk="${k}"><span class="sr-ic">${ic}</span><span><b>${esc(title)}</b><small>${esc(yt[k] ? t('yt.askLinked') : sub)}</small></span><span class="chev" aria-hidden="true">${yt[k] ? '✓' : '›'}</span></button>`;
+    let pick = null;
+    const p = dialog({ title: t('yt.askTitle'), html: true, className: 'yt-ask',
+      body: `<p class="muted small">${esc(t('yt.askSub'))}</p><div class="set-grp">${row('tutorial', '🎓', t('yt.askTut'), t('yt.askTutSub'))}${row('listen', '🎬', t('yt.askAlong'), t('yt.askAlongSub'))}</div>`,
+      buttons: [{ label: yt.tutorial || yt.listen ? t('yt.askDone') : t('common.later'), value: null }] });
+    const box = [...document.querySelectorAll('.modal-backdrop')].pop();
+    box.querySelector('.set-grp').addEventListener('click', (e) => { const r = e.target.closest('[data-yk]'); if (r) { pick = r.dataset.yk; box.__close && box.__close(); } });
+    await p;
+    if (!pick) return;
+    await ytAction(pick, stored, save, pick === 'listen' ? { change: true, open: false } : { change: true, attach: true });
+  }
 }
