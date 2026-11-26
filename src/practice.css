@@ -664,3 +664,9 @@ p.ins .sw { display: inline-block; min-width: 2.8em; color: var(--muted); }
 .br-rd { flex: none; width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--line); display: grid; place-items: center; }
 .br-st .on .br-rd { border-color: var(--accent); }
 .br-st .on .br-rd::after { content: ''; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
+
+/* v2.5.6: jedno odbrojavanje — izbor uz „Počni“, red na „Okreni telefon“ */
+.pr-ready { margin: 4px 0 10px; }
+.pr-ready-seg { display: flex; }
+.pr-ready-seg > button { flex: 1; }
+.trk-rot-ready { display: block; margin-top: 14px; padding: 10px 14px; color: var(--muted); font-size: .9rem; }

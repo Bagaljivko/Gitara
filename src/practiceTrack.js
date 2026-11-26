@@ -22,6 +22,7 @@ import { getVoicings } from './chords.js';
 import { audioCtx } from './synth.js';
 import { loadNote, nearestNote } from './guitarSamples.js';
 import { chordNotes } from './rhythm.js';
+import { readySecs } from './getReady.js'; // v2.5.6: odbrojavanje (3 / 5 / 10 s)
 
 /**
  * Zvuci gitare za ono što će se svirati (note, akordi, ritam na Em) učitaju se PRE nego što staza krene —
@@ -83,6 +84,7 @@ export function createTrack({ t, onExit, lookBeats = 4.5, onInfo = null, speed =
     <div class="trk-res" hidden></div>
     <div class="trk-rotate"><div class="trk-phone" aria-hidden="true"><i></i></div><b>${t('pr.trk.rotate')}</b><small>${t('pr.trk.rotateWhy')}</small>
       <small class="trk-rot-hint" hidden>${t('pr.trk.autoRotate')}</small>
+      <span class="card trk-rot-ready" hidden></span>
       <button class="btn small trk-x2">${t('pr.trk.exit')}</button></div>`;
   document.body.appendChild(el);
   document.body.classList.add('trk-open');
@@ -434,6 +436,10 @@ export function createTrack({ t, onExit, lookBeats = 4.5, onInfo = null, speed =
       });
     },
     onOrientation(fn) { orientSubs.add(fn); return () => orientSubs.delete(fn); },
+    /** v2.5.6: jedan dodir po stazi (npr. „kreni odmah“ tokom odbrojavanja). Vraća funkciju za odjavu. */
+    tapOnce(fn) { const h = (e) => { if (e.target.closest('button')) return; cw.removeEventListener('pointerdown', h); fn(); }; cw.addEventListener('pointerdown', h); return () => cw.removeEventListener('pointerdown', h); },
+    /** v2.5.6: na „Okreni telefon“ — koliko traje odbrojavanje (kreće tek kad se telefon okrene). */
+    readyNote(secs) { const n = q('.trk-rot-ready'); if (n) { n.hidden = !secs; n.textContent = secs ? t('pr.ready.rot', { n: secs }) : ''; } },
     /** Rezultat na stazi; buttons: [{ id, label, primary }] → Promise sa id-jem dugmeta. */
     results({ title, stars = 0, score, lines = [], note = '', buttons = [], after = '' }) {
       const box = q('.trk-res');
@@ -620,9 +626,25 @@ export function runTrack({ api, track, t, items, bpm, wait = null, mode = 'norma
     judgeIt(best, kind, kind === 'hit' ? t('pr.trk.hit') : t(kind === 'early' ? 'pr.trk.early' : 'pr.trk.late'));
   }
 
+  // v2.5.6: jedno odbrojavanje — „Spremi se“ sekunde (3 / 5 / 10, izbor uz „Počni“) prelaze pravo u odbrojavanje
+  // metronoma (3 · 2 · 1 · Kreni): 5 · 4 · 3 · 2 · 1 · Kreni. Kreće tek kad je telefon položen; dodir po stazi = odmah.
+  let readyOff = null, readying = false;
+  function ready(first, go) {
+    const secs = first && !demo ? readySecs() : 0;
+    const countMs = beg ? 3 * 650 : 3 * beatMs; // vreme za 3 · 2 · 1 (pa Kreni)
+    const steps = Math.max(0, secs - 3), per = steps ? Math.max(500, (secs * 1000 - countMs) / steps) : 0;
+    if (!steps) { go(); return; }
+    const my = gen; readying = true;
+    const done = () => { if (!readying || my !== gen) return; readying = false; readyOff?.(); readyOff = null; track.caption(''); go(); };
+    readyOff = track.tapOnce(done);
+    track.caption(t('pr.ready.cap'));
+    for (let i = 0; i < steps; i++) later(() => { if (readying && my === gen) track.big(String(secs - i)); }, i * per);
+    later(done, steps * per);
+  }
   // Uspravno usred runde → pauza; položeno → novo odbrojavanje
   function pause() {
     if (ended || paused) return;
+    if (readying) { readying = false; readyOff?.(); readyOff = null; track.caption(''); firstStart = true; } // okrenut nazad tokom odbrojavanja → kreće ispočetka
     paused = true; gen++;
     met?.stop(); met = null;
     const c = cur();
@@ -638,14 +660,15 @@ export function runTrack({ api, track, t, items, bpm, wait = null, mode = 'norma
     track.sleep(false);
     api.pauseHw?.(false);
     const f = firstStart; firstStart = false;
-    if (beg) startBeginner(f); else startMetronome(f);
+    ready(f, () => (beg ? startBeginner(f) : startMetronome(f)));
   }
   const offOrient = track.onOrientation((portrait) => (portrait ? pause() : resume()));
   function off() { offOrient(); timers.forEach(clearTimeout); timers = []; }
 
   sweepT = setInterval(sweep, 30);
+  track.readyNote(demo ? 0 : readySecs());
   if (track.isPortrait()) { paused = true; resumeBeat = 0; firstStart = true; track.sleep(true); api.pauseHw?.(true); } // počinje tek kad se telefon okrene
-  else if (beg) startBeginner(true); else startMetronome(true);
+  else ready(true, () => (beg ? startBeginner(true) : startMetronome(true)));
 
   let held = false;
   return {
@@ -653,7 +676,7 @@ export function runTrack({ api, track, t, items, bpm, wait = null, mode = 'norma
     /** Ručna pauza (npr. otvorena kartica „i“); nastavak ide uz novo odbrojavanje. */
     hold() { if (!paused) { held = true; pause(); } },
     release() { if (held) { held = false; if (!track.isPortrait()) resume(); } },
-    stop() { ended = true; gen++; clearInterval(sweepT); met?.stop(); off(); },
+    stop() { ended = true; gen++; readying = false; readyOff?.(); clearInterval(sweepT); met?.stop(); off(); },
     get beatMs() { return beatMs; },
   };
 }

@@ -16,8 +16,7 @@ export async function run(ctx) {
     expect(/new:Am/.test(st.chips) && /new:H7/.test(st.chips) && /ok:Em/.test(st.chips) && !st.last && st.cnt === '0 od 6', dev + ': novi akordi istaknuti, bez „prošli put“', st);
     // ništa nije zaključano: „Cela pesma“ se otvara iako ništa pre nije urađeno
     await p.click('.lp-nd[data-plan="all"]'); await p.waitForTimeout(700);
-    expect(await p.$('.gr-dim'), dev + ': cela pesma se ne otvara (zaključano?)');
-    await p.click('.gr-go'); await p.waitForTimeout(600);
+    expect(await p.evaluate(() => !!document.querySelector('.pr-game.running')), dev + ': cela pesma se ne otvara (zaključano?)'); // v2.5.6: odbrojavanje je na stazi
     await p.evaluate(() => document.getElementById('prGo')?.click()); await p.waitForTimeout(400); // stop
     // „Upoznaj akorde“ → Promene sa novim akordima (uz poznat susedni), rezultat [pesma, 'ak']
     await p.go('#/vezbe/pesma/' + id, 1500);

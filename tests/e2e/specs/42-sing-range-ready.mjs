@@ -54,10 +54,10 @@ export async function run(ctx) {
   // Delovi pesme (trka) takođe imaju „Spremi se“
   await p.go('#/vezbe/pesma/' + encodeURIComponent(id), 1800);
   await p.evaluate(() => document.querySelector('[data-plan="all"]')?.click()); await p.waitForTimeout(600);
-  const g2 = await p.evaluate(() => ({ n: document.querySelector('.gr-n')?.textContent, first: document.querySelector('.gr-ch small b')?.textContent }));
-  expect(g2.n === '5' && !!g2.first, 'Cela pesma (trka): „Spremi se“ pre početka', g2);
-  await p.click('.gr-go'); await p.waitForTimeout(400);
-  expect(await p.evaluate(() => !document.querySelector('.gr-dim')), '„Kreni odmah“ ne zatvara odbrojavanje');
+  // v2.5.6: trka nema odbrojavanje uspravno — „Okreni telefon“ kaže da odbrojavanje kreće kad se telefon okrene
+  const g2 = await p.evaluate(() => ({ dim: !!document.querySelector('.gr-dim'), rot: document.querySelector('.trk-rot-ready')?.textContent || '' }));
+  expect(!g2.dim && /5 s/.test(g2.rot), 'Cela pesma (trka): jedno odbrojavanje, kreće kad se telefon okrene', g2);
+  await p.evaluate(() => document.getElementById('prGo')?.click()); await p.waitForTimeout(300);
   // Ritam: kartica u dva reda staje u ekran, ceo naziv
   await p.go('#/pesma/' + id, 1500);
   await p.click('#sChips [data-sheet="rhythm"]'); await p.waitForTimeout(300);

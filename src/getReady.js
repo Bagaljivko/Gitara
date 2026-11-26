@@ -9,6 +9,8 @@ const KEY = 'marli-ready-secs';
 const OPTS = [3, 5, 10];
 let active = null;
 export function cancelReady() { active?.cancel(); }
+export function setReadySecs(n) { if (OPTS.includes(Number(n))) try { localStorage.setItem(KEY, String(n)); } catch {} }
+export const READY_OPTS = OPTS;
 export const readySecs = () => { try { const v = Number(localStorage.getItem(KEY)); return OPTS.includes(v) ? v : 5; } catch { return 5; } };
 
 /** first = akord (zapis kao u pesmi) — prikazuje se hvat i ime. */

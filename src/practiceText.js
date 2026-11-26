@@ -2,6 +2,9 @@
 // pa ne povećavaju pokretanje aplikacije. Ostaju u i18n.js samo naziv taba i oznaka prečice iz pesme.
 export const sr = {
   'pr.title': 'Škola',
+  'pr.ready.label': 'Odbrojavanje — kreće kad okreneš telefon',
+  'pr.ready.cap': 'Spremi se · dodirni bilo gde za start odmah',
+  'pr.ready.rot': '⏱ {n} s — odbrojavanje kreće kad okreneš telefon',
   'pr.intro': 'Kratke igre za prste, ritam i sluh. Aplikacija sluša tvoju gitaru i odmah ti kaže da li je tačno.',
   'pr.g.skale': 'Skale',
   'pr.d.skale': 'Skale korak po korak, uz tempo i malo teorije.',
@@ -438,6 +441,9 @@ export const sr = {
 
 export const en = {
   'pr.title': 'School',
+  'pr.ready.label': 'Countdown — starts when you turn the phone',
+  'pr.ready.cap': 'Get ready · tap anywhere to start now',
+  'pr.ready.rot': '⏱ {n} s — the countdown starts when you turn the phone',
   'pr.intro': 'Short games for your fingers, timing and ear. The app listens to your guitar and tells you right away if it was right.',
   'pr.g.skale': 'Scales',
   'pr.d.skale': 'Scales step by step, with tempo and a little theory.',

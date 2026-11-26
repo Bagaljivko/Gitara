@@ -2,6 +2,7 @@
 // ili prečica iz pesme — pokretanje tunera i biblioteke se ne menja.
 // Ovde: kartice igara, zajednički ekran igre (puls metronoma, „scena“, povratna informacija, tempo,
 // start/stop, rezultat) i čuvanje rezultata (najbolji rezultat, niz dana, poslednji tempo).
+import { readySecs, setReadySecs, READY_OPTS } from './getReady.js'; // v2.5.6
 import { t, LANGS, onLangChange } from './i18n.js';
 import * as TEXTS from './practiceText.js';
 import { esc } from './ui.js';
@@ -9,6 +10,7 @@ import { settings } from './db.js';
 import { keepAwake, allowSleep, setWakeZone } from './wakelock.js';
 import { stopGroup } from './synth.js';
 import { noteLabel } from './practiceBoard.js';
+const TRACK_GAMES = new Set(['pauk', 'skale', 'ritam', 'promena', 'rp', 'bare', 'pesma']); // igre na stazi (položeno)
 const starsOf = (score) => (score >= 92 ? 3 : score >= 75 ? 2 : score >= 50 ? 1 : 0);
 
 // Tekstovi i stilovi Vežbi se učitavaju tek ovde (ne pri pokretanju aplikacije)
@@ -336,6 +338,7 @@ async function renderGame(root, game, args, params) {
     </div>
     <div class="pr-opts" id="prOpts"></div>
     </div>
+    ${TRACK_GAMES.has(game.id) ? `<div class="pr-ready" id="prReady"><div class="pr-optlabel">${t('pr.ready.label')}</div><div class="seg-tabs pr-ready-seg" role="radiogroup">${READY_OPTS.map((n) => `<button type="button" role="radio" data-rs="${n}" class="${n === readySecs() ? 'active' : ''}" aria-checked="${n === readySecs()}">${n} s</button>`).join('')}</div></div>` : ''}
     <div class="pr-bar"><span class="pr-sum" id="prSum" aria-hidden="true"></span><button class="btn primary big wide" id="prGo">${t('pr.start')}</button></div>
     <div class="card pr-result" id="prRes" hidden></div>
   </section>`;
@@ -638,14 +641,7 @@ async function renderGame(root, game, args, params) {
     $('prGo').textContent = t('pr.stop');
     $('prGo').classList.remove('primary');
     keepAwake('practice'); // ekran ostaje upaljen samo dok igra traje
-    // v2.4.26: vežbe iz pesme — „Spremi se“ 5 s pre početka (da stigneš da uzmeš gitaru); „Pevaj uz tekst“ ima svoje
-    const songCtx = (game.id === 'pesma' && args[0]) || (params.get && params.get('song'));
-    if (!custom && songCtx && params.get('m') !== 'sing') {
-      const { getReady } = await import('./getReady.js');
-      readyH = getReady({ first: gameObj.firstChord ? gameObj.firstChord() : '' });
-      const go = await readyH.done; readyH = null;
-      if (!go || !running) { if (running) stopRun(false); return; }
-    }
+    // v2.5.6: „Spremi se“ je sada jedno odbrojavanje na stazi (kreće kad se telefon okrene) — izbor 3 / 5 / 10 s je uz „Počni“
     try { await (typeof custom === 'function' ? custom() : gameObj.start(bpm)); }
     catch (e) { api.feedback('miss', e && e.message ? e.message : t('mic.failed')); stopRun(); }
   }
@@ -665,6 +661,7 @@ async function renderGame(root, game, args, params) {
     allowSleep('practice');
   }
   $('prGo').addEventListener('click', () => (running ? stopRun() : startRun()));
+  root.querySelector('#prReady')?.addEventListener('click', (e) => { const b = e.target.closest('[data-rs]'); if (!b) return; setReadySecs(Number(b.dataset.rs)); root.querySelectorAll('#prReady [data-rs]').forEach((x) => { const on = x === b; x.classList.toggle('active', on); x.setAttribute('aria-checked', String(on)); }); });
   // „Ponovo, brže“ i slično pozivaju startRun() bez argumenata
 
   // Izlazak iz igre (druga stranica) ili aplikacija u pozadini → ugasi sve
