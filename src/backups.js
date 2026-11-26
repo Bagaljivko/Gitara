@@ -13,7 +13,7 @@ import { APP_VERSION } from './version.js';
 const EXCL_SETTINGS = new Set(['driveToken', 'driveRT', 'drive', 'syncCfg', 'syncMigrated', 'syncOffered', 'geminiModels', 'shareFolder', 'held:secret']);
 const LOCAL_RE = /^(gitara-|marli-)/;
 const EXCL_LOCAL = new Set(['gitara-diag', 'gitara-boots', 'gitara-lastscan', 'gitara-sync', 'gitara-echo-clean', 'marli-keycheck', 'marli-pdf-queue', 'marli-bk', 'marli-rp', 'marli-songbar',
-  'marli-autobk', 'marli-seed', 'marli-drive-cool', 'marli-def1701', 'marli-def-test', 'marli-dev', 'marli-intro', 'marli-intro-gate', 'marli-invite-test', 'marli-fb-q', 'marli-fb-url-test', 'marli-last-tab']); // v2.0: poslednja kartica je samo navigacija na ovom uređaju — ne u kopiju
+  'marli-autobk', 'marli-bk-pending', 'marli-seed', 'marli-drive-cool', 'marli-def1701', 'marli-def-test', 'marli-dev', 'marli-intro', 'marli-intro-gate', 'marli-invite-test', 'marli-fb-q', 'marli-fb-url-test', 'marli-last-tab']); // v2.0: poslednja kartica je samo navigacija na ovom uređaju — ne u kopiju
 const KEY_RE = /^[\w.\-]{10,300}$/; // stari (AIza…, 39) i novi Google oblik (AQ.…, sa tačkom)
 const LAST = 'marli-bk'; // kada je poslednja kopija napravljena (na ovom uređaju)
 
@@ -93,11 +93,46 @@ export async function saveBackup(kind) {
   } catch (e) {
     logErr('save ' + kind, e);
     if (e && e.code === 'cancelled') return null;
-    const v = await dialog({ title: t('bk.driveFailTitle'), body: t('bk.driveFail', { msg: (e && e.message) || '' }),
-      buttons: [{ label: t('common.cancel'), value: null }, { label: t('bk.saveFile'), value: 'file', kind: 'primary' }] });
+    // v2.5.62: Google „uspori“ / mreža / greška servera → kopija se sama sačuva čim Drive dozvoli (ranije je samo pisalo
+    // „pokušaću kasnije“, a ništa se nije ponavljalo)
+    const later = e && ['rate', 'offline', 'server'].includes(e.code);
+    if (later) setPending(kind);
+    const v = await dialog({ title: t(later ? 'bk.laterTitle' : 'bk.driveFailTitle'), body: later ? t('bk.driveLater') : t('bk.driveFail', { msg: (e && e.message) || '' }),
+      buttons: later ? [{ label: t('bk.saveFile'), value: 'file' }, { label: t('common.ok'), value: null, kind: 'primary' }] : [{ label: t('common.cancel'), value: null }, { label: t('bk.saveFile'), value: 'file', kind: 'primary' }] });
     if (v === 'file') await saveFile(kind);
     return null;
   }
+}
+
+// ---------------- v2.5.62: ručna kopija koja čeka (Drive je usporio) ----------------
+// Samo na ovom uređaju (posao, ne podatak): { kind, at }. Pokušava se tiho (bez Google prozora) kad prođe pauza,
+// pri povratku u aplikaciju i pri sledećem otvaranju; posle 3 dana se odustaje (dnevna kopija i sinhronizacija rade svoje).
+const PEND = 'marli-bk-pending';
+const pending = () => { try { return JSON.parse(localStorage.getItem(PEND) || 'null'); } catch { return null; } };
+let pendT = 0, pendBusy = false;
+function setPending(kind) {
+  const cur = pending(); const k = cur && cur.kind === 'full' ? 'full' : kind;
+  try { localStorage.setItem(PEND, JSON.stringify({ kind: k, at: Date.now() })); } catch {}
+  schedulePending();
+}
+export async function schedulePending(extra = 0) {
+  clearTimeout(pendT); if (!pending()) return;
+  const G = await import('./driveGate.js');
+  pendT = setTimeout(runPending, G.coolLeft() + 90000 + extra + Math.random() * 30000);
+}
+export async function runPending() {
+  const p = pending(); if (!p || pendBusy) return false;
+  if (Date.now() - p.at > 3 * 864e5) { try { localStorage.removeItem(PEND); } catch {} return false; }
+  if ((await import('./driveGate.js')).cooling()) { schedulePending(); return false; }
+  pendBusy = true;
+  try {
+    const drive = await import('./drive.js');
+    const at = await drive.saveNamedQuiet(await driveName(p.kind), await build(p.kind));
+    if (!at) { schedulePending(5 * 60000); return false; } // bez mreže ili ključa — kasnije
+    try { localStorage.removeItem(PEND); } catch {}
+    noteLast(p.kind, 'drive'); toast(t('bk.savedLater'));
+    return true;
+  } catch (e) { logErr('pending ' + p.kind, e); schedulePending(); return false; } finally { pendBusy = false; }
 }
 
 // ---------------- v1.85: automatska dnevna kopija (podrazumevano uključeno) ----------------
@@ -171,8 +206,8 @@ export function initAutoBackup() {
   // v2.4.11: dok Google traži pauzu — ne pokušavaj (svaki povratak u aplikaciju je ranije opet pokušavao i trošio limit)
   const cool = () => { try { return ((JSON.parse(localStorage.getItem('marli-drive-cool') || 'null') || {}).until || 0) > Date.now(); } catch { return false; } };
   const run = () => { if (autoInfo().day !== day() && !cool()) whenCalm(() => { if (!cool()) autoBackup().catch(() => {}); }); };
-  setTimeout(run, 25000);
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) setTimeout(run, 4000); });
+  setTimeout(run, 25000); schedulePending(-60000); // ručna kopija koja čeka (v2.5.62)
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { setTimeout(run, 4000); schedulePending(-60000); } });
 }
 /** „Vrati sve“ sa Drive-a: izbor kopije (ručna + dnevne). '' = ručna/najnovija, null = otkazano. */
 async function pickFullCopy() {

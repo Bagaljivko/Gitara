@@ -18,7 +18,7 @@ export const SCHEMA = 1;
 export const TOMB_DAYS = 90;
 export const SNAPSHOT = 'snapshot';
 const PAR = 4;                 // istovremeni zahtevi (čitanje)
-const PAR_W = 2, W_GAP = 300;  // v2.2: slanje — najviše 2 odjednom i bar 0,3 s razmaka (Google Drive ograničava upise)
+const PAR_W = 2, W_GAP = 450;  // v2.2: slanje — najviše 2 odjednom; v2.5.62: bar 0,45 s razmaka (Google: oko 3 upisa u sekundi po nalogu — ostaje rezerva za kopiju i sanduče)
 const SNAP_EVERY = 120;        // posle toliko pojedinačnih fajlova — nov snapshot (novi uređaj brže kreće)
 
 // ---------------- Hibridni logički sat ----------------
