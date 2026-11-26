@@ -3622,3 +3622,23 @@ img.tch-av.tch-ph { object-fit: cover; background: #222; padding: 0; }
 .att-list .tch-row small { white-space: normal; }
 .att-list .tch-row b { white-space: normal; }
 .yt-ask .tch-row small { white-space: normal; } /* v2.4.36: Dodaj video uz pesmu */
+/* v2.4.37: Kursevi (kartica u Pesmama, stranica kursa) i „Pesma nema tekst“ */
+.crs-card { display: flex; margin: 0 0 10px; }
+.tch-row .crs-n { font: 800 .95rem var(--sans); color: var(--text); }
+.tch-row .crs-n.ok { color: var(--accent); }
+.crs-on { box-shadow: inset 3px 0 0 var(--accent); }
+.crs-miss { opacity: .55; cursor: default; }
+.crs-miss .btn { opacity: 1; }
+.crs-ed { display: flex; gap: 2px; flex: none; }
+.crs-ed .icon-btn { width: 34px; height: 34px; font-size: .8rem; }
+.crs-btns { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0 4px; }
+.crs-open { margin: 12px 4px; }
+.crs-view h1 { margin: 6px 0 12px; }
+.crs-top { margin: 10px 0 4px; }
+.crs-add { margin-top: 14px; }
+.lyr-card { margin: 10px 0 14px; }
+.lyr-card .tch-row small { white-space: normal; }
+.lyr-btns { display: flex; gap: 8px; flex-wrap: wrap; padding: 0 14px 14px; }
+.lyr-prev { max-height: 46vh; overflow: auto; border: 1px solid var(--line); border-radius: var(--radius); padding: 10px; }
+.lyr-dlg textarea { min-height: 180px; font: inherit; }
+.lyr-note { margin: 0 0 8px; }

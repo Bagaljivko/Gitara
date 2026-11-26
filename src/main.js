@@ -136,7 +136,7 @@ async function routeInner() {
   const shared = hasSharedSong();
   const hash = shared ? '#/primljena' : location.hash || '#/tuner';
   const [, page, arg] = hash.match(/^#\/([^/?]*)\/?(.*)$/) || [, 'tuner', ''];
-  const tab = { tuner: 'tuner', akordi: 'akordi', pesme: 'pesme', pesma: 'pesme', uredi: 'pesme', setlista: 'pesme', nastup: 'pesme', primljena: 'pesme', podesavanja: 'podesavanja', provera: 'podesavanja', vezbe: 'vezbe', ucenici: 'podesavanja', ucenik: 'podesavanja', raspored: 'podesavanja', 'od-nastavnika': 'pesme', vezbanje: 'vezbanje' }[page] || 'tuner'; // v2.4.22: „vezbanje“ = obična stranica (traka: Vežbe/Nastava)
+  const tab = { tuner: 'tuner', akordi: 'akordi', pesme: 'pesme', pesma: 'pesme', uredi: 'pesme', setlista: 'pesme', kurs: 'pesme', nastup: 'pesme', primljena: 'pesme', podesavanja: 'podesavanja', provera: 'podesavanja', vezbe: 'vezbe', ucenici: 'podesavanja', ucenik: 'podesavanja', raspored: 'podesavanja', 'od-nastavnika': 'pesme', vezbanje: 'vezbanje' }[page] || 'tuner'; // v2.4.22: „vezbanje“ = obična stranica (traka: Vežbe/Nastava)
   const tabT = page === 'vezbanje' || (document.body.classList.contains('nastava-on') && (page === 'ucenici' || page === 'ucenik' || page === 'od-nastavnika' || page === 'raspored')) ? 'vezbe' // v2.0: Nastava
     : (page === 'ucenici' || page === 'ucenik' || page === 'raspored') && document.body.classList.contains('teach-nav') && DESK_NAV.matches ? 'ucenici' : tab; // v1.81
   if (!shared && tab !== 'vezbanje') { try { localStorage.setItem('marli-last-tab', '#/' + tab); } catch {} } // v2.0: sledeći put otvori ovde
@@ -184,7 +184,7 @@ async function routeInner() {
     const { renderChordCheck } = page === 'provera' ? await loadChordCheck() : {};
     if (routeId !== myRoute) return;
     // Tablet položeno: dva panela — lista pesama levo, izabrana pesma desno
-    const twoPane = TWO_PANE.matches && (page === 'pesme' || page === 'pesma') && params.get('tab') !== 'sl';
+    const twoPane = TWO_PANE.matches && (page === 'pesme' || page === 'pesma') && params.get('tab') !== 'sl' && params.get('tab') !== 'k'; // v2.4.37: Kursevi — cela strana
     document.body.classList.toggle('two-pane-mode', twoPane);
     // v1.70: računar (širok ekran + miš) — upravljač biblioteke: folderi/set liste levo, tabela, pesma desno
     const desk = twoPane && DESK_MQ.matches; // tablet položeno: bez učitavanja upravljača za računar
@@ -243,6 +243,7 @@ async function routeInner() {
     if (page === 'pesme') await renderLibrary(el, params);
     else if (page === 'pesma') await renderSong(el, dec, await setlistNav(params));
     else if (page === 'setlista') await renderSetlist(el, dec);
+    else if (page === 'kurs') await (await import('./coursesView.js')).renderCourse(el, dec); // v2.4.37
     else if (page === 'nastup') await renderStage(el, dec, params);
     else if (page === 'primljena') await renderSharedSong(el);
     else if (page === 'uredi') await renderEditor(el, dec);

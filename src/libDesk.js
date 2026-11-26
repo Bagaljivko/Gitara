@@ -69,6 +69,7 @@ function sideHTML() {
       ${st.folders.map((f) => it('f:' + f.id, folderLabel(f), cnt((s) => (s.folders || []).includes(f.id)), FOLDER_SVG, ` data-drop="f:${esc(f.id)}"${isSystemFolder(f.id) ? ' data-sys="1"' : ''}`)).join('') || `<p class="ds-empty">${t('desk.noFolders')}</p>`}</div>
     <div class="ds-sec"><div class="ds-ttl">${t('desk.setlists')}<button type="button" class="ds-add" data-a="newSet" title="${t('desk.newSet')}" aria-label="${t('desk.newSet')}">+</button></div>
       ${st.sets.map((x) => `<button type="button" class="ds-it" data-set="${esc(x.id)}" data-drop="s:${esc(x.id)}">${SET_SVG}<span class="ds-name">${esc(x.name)}</span>${x.fromT ? `<i class="ds-tch" title="${esc(t('tch.fromName', { name: x.fromT.name || t('tch.teacher') }))}">🎓</i>` : ''}<b>${(x.songIds || []).length}</b></button>`).join('') || `<p class="ds-empty">${t('desk.noSets')}</p>`}</div>
+    <div class="ds-sec"><div class="ds-ttl">${t('crs.tab')}</div><a class="ds-it" href="#/pesme?tab=k">${SET_SVG}<span class="ds-name">${t('crs.mine')}</span><b>›</b></a></div>
     ${st.teach && (st.teach.on || st.teach.my) ? `<div class="ds-sec"><div class="ds-ttl">${t('tch.section')}</div>
       ${st.teach.on ? `<a class="ds-it" href="#/ucenici">${PEOPLE_SVG}<span class="ds-name">${t('tch.students')}</span><b>${st.teach.sts.length}</b></a>` : ''}
       ${st.teach.my ? it('teacher', t('tch.fromTeacher'), cnt((s) => s.fromT), TEACH_SVG) : ''}</div>` : ''}

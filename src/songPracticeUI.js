@@ -33,7 +33,9 @@ export function songPracticeUI(o) {
       <a class="spr-change" href="#/vezbe/pesma">${t('pr.pesma.change')}</a></div>`;
     // v2.4.30: put kroz pesmu (otvoren — svaki korak se dodirom otvara; aplikacija samo predlaže)
     const ps = o.path ? o.path() : null;
-    if (ps) { api.opts.innerHTML = pathHTML(ps) + `<div class="spr-sec-h">${t('pr.pesma.practicePart')}<small>${t('pr.pesma.pickHint')}</small></div>${groupsHTML(nx, L)}`; return; }
+    const cn = o.course ? o.course() : null; // v2.4.37: kurs (red gore, sledeća/prethodna posle puta)
+    if (cn && cn.top) api.head.insertAdjacentHTML('beforeend', cn.top);
+    if (ps) { api.opts.innerHTML = pathHTML(ps) + (cn && cn.end ? cn.end : '') + `<div class="spr-sec-h">${t('pr.pesma.practicePart')}<small>${t('pr.pesma.pickHint')}</small></div>${groupsHTML(nx, L)}`; return; }
     const plan = o.plan ? o.plan() : null;
     const on = plan ? (plan.find((x) => !x.done && !x.optional) || {}).id : null; // po želji (tutorijal) nikad nije „na redu“
     api.opts.innerHTML = plan ? `

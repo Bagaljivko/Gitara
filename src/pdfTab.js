@@ -22,6 +22,52 @@ const app = (m, x, y) => [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]
  * PDF (ArrayBuffer/Uint8Array) → { doc, pages: [{ w, h, items: [{ str, x, y, w, size }], segs: [{ x0, y0, x1, y1 }], dots: [{ x, y }] }] }.
  * Koordinate su u tačkama strane, y raste naniže; x/y teksta je početak osnovne linije.
  */
+const rgbOf = (a) => {
+  if (typeof a[0] === 'string') { const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i.exec(a[0]); return m ? [1, 2, 3].map((k) => parseInt(m[k], 16)) : null; }
+  const v = [a[0], a[1], a[2]].map(Number); return v.some((x) => x > 1) ? v : v.map((x) => x * 255);
+};
+/**
+ * v2.4.37: tekst koji je posle nacrtan prekriven svetlim (pozadinskim) pravougaonikom se izbacuje. Stavke teksta se vežu
+ * za naredbe crtanja redom (showText ↔ stavka), pa se zna šta je nacrtano pre zakrpe.
+ */
+export function hideCovered(items, shows, fills) {
+  const light = fills.filter((f) => f.rgb && f.rgb.every((x) => x >= 225) && f.x1 - f.x0 > 4 && f.y1 - f.y0 > 4);
+  if (!light.length || !shows.length) return items;
+  const nz = (x) => String(x || '').replace(/\s+/g, '');
+  let j = 0, rem = nz(shows[0].s);
+  for (const it of items) {
+    const t = nz(it.str); if (!t) continue;
+    let k = j, r = rem, ok = false;
+    for (let g = 0; g < 40 && k < shows.length; g++) {
+      if (r.startsWith(t)) { ok = true; break; }
+      k++; r = k < shows.length ? nz(shows[k].s) : '';
+    }
+    if (!ok) continue; // ne zna se — stavka ostaje
+    it.op = shows[k].i; j = k; rem = r.slice(t.length);
+    if (!rem) { j++; rem = j < shows.length ? nz(shows[j].s) : ''; }
+  }
+  return items.filter((it) => {
+    if (it.op === undefined) return true;
+    const cx = it.x + (it.w || 0) / 2, cy = it.y - it.size * 0.35;
+    return !light.some((f) => f.i > it.op && cx >= f.x0 - 1 && cx <= f.x1 + 1 && cy >= f.y0 - 1 && cy <= f.y1 + 1);
+  });
+}
+/** v2.4.37: tekst koji kasniji tekst prekriva (isto mesto) se izbacuje — vidi se samo onaj nacrtan poslednji. */
+export function dropCovered(items) {
+  const box = (it) => ({ x0: it.x, x1: it.x + (it.w || it.size * 0.5 * it.str.length), y0: it.y - it.size * 0.8, y1: it.y + it.size * 0.2 });
+  const keep = items.map(() => true), B = items.map(box);
+  for (let j = 1; j < items.length; j++) {
+    const b = B[j];
+    for (let i = 0; i < j; i++) {
+      if (!keep[i]) continue;
+      const a = B[i], ix = Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0), iy = Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0);
+      if (ix > 0 && iy > 0 && ix * iy > 0.3 * Math.min((a.x1 - a.x0) * (a.y1 - a.y0), (b.x1 - b.x0) * (b.y1 - b.y0))) keep[i] = false;
+    }
+  }
+  let k = 0; for (let i = 0; i < items.length; i++) if (keep[i]) items[k++] = items[i];
+  items.length = k;
+  return items;
+}
 export async function readPdf(data, pdfjs = null) {
   const lib = pdfjs || (await loadPdfjs());
   const doc = await lib.getDocument({ data, verbosity: 0, isEvalSupported: false }).promise;
@@ -30,7 +76,7 @@ export async function readPdf(data, pdfjs = null) {
     const page = await doc.getPage(p), vp = page.getViewport({ scale: 1 });
     const V = vp.transform;
     const tc = await page.getTextContent();
-    const items = [];
+    let items = [];
     for (const it of tc.items) {
       if (!it.str || !it.str.trim()) continue;
       const [x, y] = app(V, it.transform[4], it.transform[5]);
@@ -39,15 +85,22 @@ export async function readPdf(data, pdfjs = null) {
     }
     const ol = await page.getOperatorList();
     const segs = [], dots = [];
+    // v2.4.37: tekst koji je kasnije prekriven svetlim pravougaonikom (izmenjen list: stari tekst ispod zakrpe) se ne vidi
+    const shows = [], fills = []; let fillRGB = null, lastRects = [];
     let ctm = [1, 0, 0, 1, 0, 0];
     const stack = [];
     for (let i = 0; i < ol.fnArray.length; i++) {
       const fn = ol.fnArray[i], a = ol.argsArray[i];
+      if (fn === OPS.showText) shows.push({ i, s: (a[0] || []).map((g) => (g && typeof g === 'object' ? g.unicode || '' : '')).join('') });
+      else if (fn === OPS.setFillRGBColor) fillRGB = rgbOf(a);
+      else if (fn === OPS.setFillGray) fillRGB = [a[0] * 255, a[0] * 255, a[0] * 255];
+      else if (fn === OPS.fill || fn === OPS.eoFill || fn === OPS.fillStroke || fn === OPS.eoFillStroke) { for (const r of lastRects) fills.push({ ...r, i, rgb: fillRGB }); lastRects = []; }
       if (fn === OPS.save) stack.push(ctm);
       else if (fn === OPS.restore) ctm = stack.pop() || [1, 0, 0, 1, 0, 0];
       else if (fn === OPS.transform) ctm = mul(ctm, a);
       else if (fn === OPS.constructPath) {
         const M = mul(V, ctm), sub = a[0], c = a[1];
+        lastRects = [];
         let k = 0, cx = 0, cy = 0, sx = 0, sy = 0, curve = false;
         const pts = [];
         const line = (x0, y0, x1, y1) => { const [X0, Y0] = app(M, x0, y0), [X1, Y1] = app(M, x1, y1); segs.push({ x0: X0, y0: Y0, x1: X1, y1: Y1 }); };
@@ -61,6 +114,7 @@ export async function readPdf(data, pdfjs = null) {
             const x = c[k++], y = c[k++], w = c[k++], h = c[k++];
             const [X0, Y0] = app(M, x, y), [X1, Y1] = app(M, x + w, y + h);
             const bw = Math.abs(X1 - X0), bh = Math.abs(Y1 - Y0);
+            lastRects.push({ x0: Math.min(X0, X1), x1: Math.max(X0, X1), y0: Math.min(Y0, Y1), y1: Math.max(Y0, Y1) });
             if (bh <= 2.5 && bw > bh) segs.push({ x0: Math.min(X0, X1), y0: (Y0 + Y1) / 2, x1: Math.max(X0, X1), y1: (Y0 + Y1) / 2 });
             else if (bw <= 4 && bh > bw) segs.push({ x0: (X0 + X1) / 2, y0: Math.min(Y0, Y1), x1: (X0 + X1) / 2, y1: Math.max(Y0, Y1) });
             else if (bw <= 4.5 && bh <= 4.5) dots.push({ x: (X0 + X1) / 2, y: (Y0 + Y1) / 2 });
@@ -76,6 +130,8 @@ export async function readPdf(data, pdfjs = null) {
     // v2.4.36: linkovi (npr. YouTube lekcija) — klikabilne oblasti na strani
     const links = [];
     try { for (const a of await page.getAnnotations()) { const u = a && (a.url || a.unsafeUrl); if (u && a.rect) { const [x, y] = app(V, (a.rect[0] + a.rect[2]) / 2, (a.rect[1] + a.rect[3]) / 2); links.push({ url: String(u), x, y }); } } } catch {}
+    items = hideCovered(items, shows, fills);
+    dropCovered(items); // i bez zakrpe: tekst preko teksta na istom mestu — ostaje kasniji
     pages.push({ w: vp.width, h: vp.height, items, segs, dots, links });
     page.cleanup();
   }
@@ -128,7 +184,7 @@ export function findStaves(segs) {
   return staves.sort((a, b) => a.top - b.top);
 }
 
-/** Taktne crte jedne tablature: x položaji granica (spojene duple crte) i da li je duplа / sa tačkama. */
+/** Taktne crte jedne tablature: x položaji granica (spojene duple crte) i da li je dupla / sa tačkama. */
 function barLines(st, segs, dots, glyphs = []) {
   const H = st.bottom - st.top;
   const xs = segs.filter((s) => Math.abs(s.x0 - s.x1) < 1 && Math.min(s.y0, s.y1) <= st.top + H * 0.15 && Math.max(s.y0, s.y1) >= st.bottom - H * 0.15
@@ -428,7 +484,9 @@ export async function pdfChordChart(pages, isChordLine) {
     const same = PATTERNS.find((p) => p.sig === X.strum.sig && p.steps === X.strum.steps && !p.swing);
     strum = same ? { id: same.id, sig: same.sig, steps: same.steps } : { sig: X.strum.sig, steps: X.strum.steps, ...(X.strum.name ? { name: X.strum.name } : {}) };
   }
-  return { title, artist, capo: r.capo, text: r.text, ...(Object.keys(shapes).length ? { shapes } : {}), ...(strum ? { strum } : {}) };
+  const { seriesFromLines } = await import('./chordChart.js');
+  const series = seriesFromLines(lines); // v2.4.37: „THE SONG PATH LEVEL 3 … Song 6 of 10“ → kurs
+  return { title, artist, capo: r.capo, text: r.text, ...(Object.keys(shapes).length ? { shapes } : {}), ...(strum ? { strum } : {}), ...(series ? { series } : {}) };
 }
 
 /** v2.4.36: YouTube linkovi sa lista → { tutorial?, listen? } (ili null). */

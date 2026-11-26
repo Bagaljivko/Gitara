@@ -39,6 +39,20 @@ export function tabTimeline(song, partName = (p) => `${p.from + 1}–${p.to + 1}
 export function chordHalves(line) {
   const ch = [...(line.chords || [])].sort((a, b) => a.position - b.position);
   if (!ch.length) return [];
+  // v2.4.37: [A B] — akordi u zagradi dele jedan takt (jedan prolaz ritma), npr. sa lista „Em7 na 1, G na 3“
+  if (ch.some((c) => c.g)) {
+    const base = halvesPlain(line, ch), out = base.slice();
+    for (let i = 0; i < ch.length; i++) {
+      if (!ch[i].g) continue;
+      let j = i; while (j + 1 < ch.length && ch[j].g) j++; // grupa i..j (poslednji bez g)
+      const n = j - i + 1; for (let k = i; k <= j; k++) out[k] = 2 / n;
+      i = j;
+    }
+    return out;
+  }
+  return halvesPlain(line, ch);
+}
+function halvesPlain(line, ch) {
   if (!String(line.text || '').trim() || ch.length === 1) return ch.map(() => 2);
   const L = Math.max(String(line.text).length, ch[ch.length - 1].position + String(ch[ch.length - 1].chord).length + 1);
   if (L < 20) return ch.map(() => 2); // kratak red: takt po akordu

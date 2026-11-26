@@ -41,6 +41,7 @@ async function textSong(bytes) {
       // akordi na listu su hvatovi uz kapodaster („broji pragove od kapodastera“) — pesma čuva zvučne akorde
       if (chart.capo) { const { transposeSong } = await import('./songformat.js'); song = { ...song, sections: transposeSong(song, chart.capo).sections }; }
       if (chart.shapes) song.shapes = chart.shapes; // v2.4.35: hvatovi sa lista
+      if (chart.series) song.__series = chart.series; // v2.4.37: pesma ide u kurs serije
       const vids = await m.pdfVideos(read.pages); if (vids) song.yt = vids; // v2.4.36: video sa lista
       song.original = snapshotOriginal(song);
       return { song, doc: read.doc };
@@ -58,10 +59,14 @@ async function textSong(bytes) {
 }
 
 async function saveSong(song) {
-  for (const k of ['__original', '__rescanOf', '__newId', 'sheetKind', 'importedFrom', 'scanModel']) delete song[k];
+  const series = song.__series;
+  for (const k of ['__original', '__rescanOf', '__newId', '__series', 'sheetKind', 'importedFrom', 'scanModel']) delete song[k];
   const { findExisting } = await import('./songIdentity.js');
-  if (findExisting(song, await db.all())) return null; // ista pesma već postoji — ne dupliraj
-  return (await db.save(song)).id;
+  const ex = findExisting(song, await db.all());
+  if (ex) { if (series) await (await import('./courses.js')).placeInSeries(ex.id, series).catch(() => {}); return null; } // ista pesma već postoji — ne dupliraj (ali ide u kurs)
+  const id = (await db.save(song)).id;
+  if (series) await (await import('./courses.js')).placeInSeries(id, series).catch(() => {}); // v2.4.37
+  return id;
 }
 
 async function processOne(it) {

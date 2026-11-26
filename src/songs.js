@@ -88,7 +88,7 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
   await loadReady(); // v2.4.10
   await loadTop(); // v2.4.21
   const sortPref = localStorageGet('gitara-sort') || 'new';
-  const tab = params.get('tab') === 'sl' ? 'sl' : 'songs';
+  const tab = ['sl', 'k'].includes(params.get('tab')) ? params.get('tab') : 'songs'; // v2.4.37: k = Kursevi
   root.innerHTML = `
   <section class="view lib-view">
     <header class="view-head lib-head"><h1 class="lib-h1"><button class="lib-title" id="lGroup" aria-haspopup="menu" aria-expanded="false"><span id="lGroupName">${t('lib.title')}</span><svg class="lib-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.4 8.6 12 13.2l4.6-4.6L18 10l-6 6-6-6z"/></svg></button></h1>
@@ -100,9 +100,11 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
     <div class="seg-tabs lib-tabs" role="tablist">
       <button role="tab" data-lt="songs" class="${tab === 'songs' ? 'active' : ''}">${t('lib.tabSongs')}</button>
       <button role="tab" data-lt="sl" class="${tab === 'sl' ? 'active' : ''}">${t('lib.tabSetlists')}</button>
+      <button role="tab" data-lt="k" class="${tab === 'k' ? 'active' : ''}">${t('crs.tab')}</button>
     </div>
     <div id="lSlPane" ${tab === 'sl' ? '' : 'hidden'}></div>
-    <div id="lSongsPane" ${tab === 'sl' ? 'hidden' : ''}>
+    <div id="lCoPane" ${tab === 'k' ? '' : 'hidden'}></div>
+    <div id="lSongsPane" ${tab !== 'songs' ? 'hidden' : ''}>
     <div class="lib-chips" id="lChips" role="toolbar" aria-label="${t('lib.groups')}"></div>
     <p class="lib-tnote" id="lTNote" hidden>${t('lib.teacherNote')}</p>
     <div class="mg-note" id="lDup" hidden></div>
@@ -122,7 +124,7 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
     <div id="lWelcome"></div>
     <ul class="song-list" id="lList"></ul>
     </div>
-    <button class="fab" id="lAdd" aria-label="${t('lib.add')}" title="${t('lib.add')}" ${tab === 'sl' ? 'hidden' : ''}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></svg></button>
+    <button class="fab" id="lAdd" aria-label="${t('lib.add')}" title="${t('lib.add')}" ${tab !== 'songs' ? 'hidden' : ''}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></svg></button>
   </section>`;
   const $ = (id) => root.querySelector('#' + id);
   $('lSort').value = sortPref;
@@ -146,15 +148,18 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
   // Sekcije: Pesme / Setliste
   root.querySelectorAll('[data-lt]').forEach((b) => b.addEventListener('click', () => {
     root.querySelectorAll('[data-lt]').forEach((x) => x.classList.toggle('active', x === b));
-    const sl = b.dataset.lt === 'sl';
-    $('lSongsPane').hidden = sl;
+    const k = b.dataset.lt, sl = k === 'sl';
+    $('lSongsPane').hidden = k !== 'songs';
     $('lSlPane').hidden = !sl;
-    $('lAdd').hidden = sl;
+    $('lCoPane').hidden = k !== 'k';
+    $('lAdd').hidden = k !== 'songs';
     drawFolders();
-    history.replaceState(null, '', sl ? '#/pesme?tab=sl' : '#/pesme');
+    history.replaceState(null, '', k === 'songs' ? '#/pesme' : '#/pesme?tab=' + k);
     if (sl) renderSetlistsPane($('lSlPane'));
+    if (k === 'k') import('./coursesView.js').then((m) => m.renderCoursesPane($('lCoPane'))).catch((e) => console.warn(e));
   }));
   if (tab === 'sl') renderSetlistsPane($('lSlPane'));
+  if (tab === 'k') import('./coursesView.js').then((m) => m.renderCoursesPane($('lCoPane'))).catch((e) => console.warn(e)); // v2.4.37
 
   // Grupa pesama u naslovu („Sve pesme ▾“): dodir otvara panel sa grupama (automatske + moji folderi)
   const groupLabel = (g) => !g ? t('lib.groupAll') : g === 'auto:tab' ? t('lib.groupTab') : g === 'auto:recent' ? t('lib.groupRecent') : g === 'auto:ready' ? t('rdy.group') : g === 'auto:top' ? '🔥 ' + t('lib.groupTop') : g === 'auto:teacher' ? '🎓 ' + t('tch.fromTeacher')
@@ -181,9 +186,9 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
     b.scrollIntoView({ inline: 'nearest', block: 'nearest' });
   });
   const drawFolders = () => {
-    const sl = !$('lSlPane').hidden;
-    $('lGroupName').textContent = sl ? t('lib.tabSetlists') : groupLabel(folderFilter);
-    $('lGroup').disabled = sl;
+    const sl = !$('lSlPane').hidden, co = !$('lCoPane').hidden;
+    $('lGroupName').textContent = sl ? t('lib.tabSetlists') : co ? t('crs.tab') : groupLabel(folderFilter);
+    $('lGroup').disabled = sl || co;
     drawChips();
   };
   $('lGroup').addEventListener('click', async () => {
@@ -1072,6 +1077,7 @@ export async function renderSong(root, id, nav = null) {
       <div id="sRecCmp" class="rc-box"></div>
       <div id="sAsk"></div>
       <div id="sSuggest"></div>
+      <div id="sLyrCard"></div>
       <div id="sControls"></div>
       <details class="song-details" id="sDet"><summary><span>${t('song.details')}</span><span class="small muted" id="sDetSub"></span></summary><div id="sDetBody"></div></details>
       ${zoomPillHTML()}
@@ -1406,7 +1412,21 @@ export async function renderSong(root, id, nav = null) {
     l.innerHTML = renderSectionsHTML(shapesSong().sections, unc(), { edit: !stored.recording, songStrum: stored.strum || null, odavde: !stored.recording && stored.type !== 'tab' }); // v2.4.30: ▶ odavde
     addLoopButtons();
     fitAndTabs(pre);
+    drawLyrCard();
   };
+  // v2.4.37: pesma bez teksta (npr. sa lista akorada) — „Pronađi tekst“ / „Nalepi“ / „Tekst pesme ↗“
+  const drawLyrCard = () => {
+    const box = $('sLyrCard'); if (!box) return;
+    if (stored.recording || stored.type === 'tab' || !(stored.sections || []).some((x) => (x.lines || []).some((l) => (l.chords || []).length))) { box.innerHTML = ''; return; }
+    import('./lyricsFit.js').then((F) => { if (F.hasLyrics(stored)) { box.innerHTML = ''; return null; } return import('./lyricsUI.js').then((U) => { box.innerHTML = U.lyricsCardHTML(); }); }).catch(() => {});
+  };
+  $('sLyrCard').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-lyr]'); if (!b) return;
+    const U = await import('./lyricsUI.js');
+    if (b.dataset.lyr === 'web') { window.open(U.lyricsSearchUrl(stored), '_blank', 'noopener'); return; }
+    const ok = b.dataset.lyr === 'find' ? await U.findLyrics(stored, save) : await U.pasteLyrics(stored, save);
+    if (ok) { drawLyrics(); drawPracticeMark(); }
+  });
   // Sve odjednom (otvaranje pesme, odgovor na pitanje, izmena ritma…)
   const draw = () => { drawHead(); drawAsk(); drawSuggest(); drawControls(); drawDetails(); drawLyrics(); };
   // Tonalitet/kapodaster: samo kontrole, predlozi, detalji i akordi u tekstu

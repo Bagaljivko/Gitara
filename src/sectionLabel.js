@@ -3,8 +3,8 @@
 import { getLang } from './i18n.js';
 
 const NAMES = {
-  sr: { intro: 'Uvod', verse: 'Strofa', pre: 'Pre-refren', chorus: 'Refren', bridge: 'Most', solo: 'Solo', instr: 'Instrumental', outro: 'Kraj' },
-  en: { intro: 'Intro', verse: 'Verse', pre: 'Pre-chorus', chorus: 'Chorus', bridge: 'Bridge', solo: 'Solo', instr: 'Instrumental', outro: 'Outro' },
+  sr: { intro: 'Uvod', verse: 'Strofa', pre: 'Pre-refren', chorus: 'Refren', bridge: 'Most', solo: 'Solo', instr: 'Instrumental', outro: 'Kraj', song: 'Pesma' },
+  en: { intro: 'Intro', verse: 'Verse', pre: 'Pre-chorus', chorus: 'Chorus', bridge: 'Bridge', solo: 'Solo', instr: 'Instrumental', outro: 'Outro', song: 'Song' },
 };
 // redosled je bitan: „pre-refren“ pre „refren“
 const KINDS = [
@@ -16,6 +16,7 @@ const KINDS = [
   ['solo', /^(solo|gitarski solo|guitar solo)$/],
   ['instr', /^(instrumental|instrumentalni deo|instr|interlude|međuigra|medjuigra)$/],
   ['outro', /^(outro|kraj|coda|koda|završetak|zavrsetak|end|ending)$/],
+  ['song', /^(song|pesma|cela pesma|loop|petlja)$/], // v2.4.37: cela pesma u jednoj petlji (list akorada)
 ];
 const ROMAN = { i: 1, ii: 2, iii: 3, iv: 4, v: 5, vi: 6, vii: 7, viii: 8, ix: 9, x: 10 };
 

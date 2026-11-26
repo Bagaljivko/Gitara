@@ -77,6 +77,8 @@ export async function createGame(api) {
   // Ništa nije zaključano: aplikacija predlaže korak, a svaki korak se otvara dodirom.
   const SP = await import('./songPath.js');
   let pathSt = null;
+  let courseNav = null; // v2.4.37
+  import('./coursesView.js').then((m) => m.courseNav(songId)).then((c) => { courseNav = c; if (c) ui?.draw(); }).catch(() => {});
   const refreshPath = async () => { try { pathSt = await SP.pathState(song, stats()); } catch (e) { console.warn(e); } ui?.draw(); };
   try { pathSt = await SP.pathState(song, stats()); } catch {}
   const enc = encodeURIComponent;
@@ -95,6 +97,7 @@ export async function createGame(api) {
   ui = songPracticeUI({
     api,
     path: () => pathSt,
+    course: () => courseNav,
     direct: true,
     onPlan: (id) => {
       if (id === 'again') { const L = pathSt && pathSt.last; if (!L) return; if (L.part) { listening?.stop(); listening = null; listenId = null; choose(L.part); api.restart(); } else openStep(L.step); return; }

@@ -7,6 +7,7 @@ import { cleanPractice, cleanSkale, mergeSkale, mergePractice } from './syncMerg
 import { normalizeSong, SongFormatError, safeFileName, songExtras, songMeta, cleanRecording } from './songformat.js';
 import { cleanPattern } from './rhythm.js';
 import { cleanFolders, cleanSetlists, cleanSongFolders, mergeById } from './collections.js';
+import { cleanCourses } from './courses.js';
 import { toast, dialog } from './ui.js';
 import { t, songsCount, setLang } from './i18n.js';
 import { TOKEN_HELPER } from './shareConfig.js';
@@ -496,6 +497,8 @@ export function parseBackupData(data, modified = 0) {
     if (fo) st.folders = fo;
     const sl = cleanSetlists(data.settings.setlists);
     if (sl) st.setlists = sl;
+    const co = cleanCourses(data.settings.courses); // v2.4.37
+    if (co) st.courses = co;
     const ms = data.settings.geminiModelSel;
     if (ms === 'auto' || (typeof ms === 'string' && /^[a-z0-9][a-z0-9.\-]{1,80}$/i.test(ms))) st.geminiModelSel = ms;
     if (typeof data.settings.geminiModel === 'string' && /^[a-z0-9][a-z0-9.\-]{1,80}$/i.test(data.settings.geminiModel)) st.geminiModel = data.settings.geminiModel;

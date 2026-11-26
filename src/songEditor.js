@@ -67,10 +67,11 @@ export async function importPdf(file) {
       }
     }
     const chart = await m.pdfChordChart(read.pages, isChordLine); // v2.4.33: lista akorada bez teksta (delovi, ×N, redosled, kapo)
-    const ch = chart ? { title: chart.title, artist: chart.artist, text: chart.text, capo: chart.capo, strum: chart.strum, shapes: chart.shapes } : m.pdfChordText(read.pages, isChordLine);
+    const ch = chart ? { title: chart.title, artist: chart.artist, text: chart.text, capo: chart.capo, strum: chart.strum, shapes: chart.shapes, series: chart.series } : m.pdfChordText(read.pages, isChordLine);
     if (ch) {
       let song = normalizeSong({ title: fixCaps(ch.title), artist: fixCaps(ch.artist), key: '', sections: textToSections(ch.text), ...(ch.capo ? { capo: ch.capo } : {}), ...(ch.strum ? { strum: ch.strum } : {}) });
       if (ch.shapes) song.shapes = ch.shapes; // v2.4.35: hvatovi i ritam sa lista
+      if (ch.series) song.__series = ch.series; // v2.4.37: kurs serije
       const vids = await m.pdfVideos(read.pages).catch(() => null); if (vids) song.yt = vids; // v2.4.36: video sa lista (lekcija / Uz video)
       if (ch.capo) song = { ...song, sections: transposeSong(song, ch.capo).sections }; // hvatovi uz kapodaster → zvučni akordi
       song.importedFrom = 'pdf';
@@ -720,6 +721,7 @@ export async function renderEditor(root, id) {
     }
     if (base) await versions.save('song:' + base.id, base, 'rescan'); // stari sadržaj ostaje kao „Prethodna verzija“
     const rec = await db.save(rec0);
+    if (isNew && song.__series) await (await import('./courses.js')).placeInSeries(rec.id, song.__series).catch(() => {}); // v2.4.37: pesma na svoje mesto u kursu
     // v2.4.36: uvezen PDF — video sa lista je povezan; ako ga nema, odmah ponudi da se doda (lekcija / Uz video)
     if (isNew && !base && song.importedFrom === 'pdf') {
       const hasV = rec.yt && (rec.yt.tutorial || rec.yt.listen);

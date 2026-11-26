@@ -26,7 +26,7 @@ function readInto(st, key, out) {
   const setting = SYNC_SETTING_OF(key);
   if (!setting) return get(syncState, 'x:' + key, (v) => (out.value = v ?? null)); // nepoznata vrsta (novija aplikacija) — čuva se netaknuto
   get(settings, setting, (v) => {
-    if (key.startsWith('set:') || key.startsWith('folder:') || key.startsWith('dev:')) {
+    if (key.startsWith('set:') || key.startsWith('folder:') || key.startsWith('dev:') || key.startsWith('course:')) {
       const id = key.slice(key.indexOf(':') + 1);
       out.value = (Array.isArray(v) ? v : []).find((x) => x && x.id === id) ?? null;
     } else out.value = v ?? null;
@@ -44,7 +44,7 @@ function writeInto(st, key, data) {
   }
   const setting = SYNC_SETTING_OF(key);
   if (!setting) { if (data == null) syncState.delete('x:' + key); else syncState.put(data, 'x:' + key); return; }
-  if (key.startsWith('set:') || key.startsWith('folder:') || key.startsWith('dev:')) {
+  if (key.startsWith('set:') || key.startsWith('folder:') || key.startsWith('dev:') || key.startsWith('course:')) {
     const id = key.slice(key.indexOf(':') + 1);
     get(settings, setting, (v) => {
       const list = Array.isArray(v) ? v.slice() : [];
@@ -107,6 +107,7 @@ export function seed(node) {
             if (k === 'setlists' && Array.isArray(v)) v.forEach((x) => x && x.id && add('set:' + x.id, x.updatedAt));
             else if (k === 'folders' && Array.isArray(v)) v.forEach((x) => x && x.id && add('folder:' + x.id, 1));
             else if (k === 'devices' && Array.isArray(v)) v.forEach((x) => x && x.id && add('dev:' + x.id, x.at)); // v2.4.4
+            else if (k === 'courses' && Array.isArray(v)) v.forEach((x) => x && x.id && add('course:' + x.id, x.updatedAt || 1)); // v2.4.37
             else if (k === 'practice' || k === 'skale' || k === 'activity' || k === 'teacher' || k === 'students' || k === 'myTeacher' || k === 'requests' || k === 'myRequests' || k === 'myEx' || k === 'rpList') add(k, 1);
             else if (k === 'geminiKey') add('secret', 1);
             else if (PREFS.has(k)) add('pref:' + k, 1);
@@ -133,6 +134,6 @@ export function resetForAccount() {
 export function wipeForAccount() {
   return run(['songs', 'lib', 'deleted', 'settings', 'sync', 'syncState', 'versions'], 'readwrite', (songs, lib, deleted, settings, y, s, v) => {
     songs.clear(); lib.clear(); deleted.clear(); y.clear(); s.clear(); v.clear();
-    for (const k of ['setlists', 'folders', 'practice', 'skale', 'activity', 'teacher', 'students', 'myTeacher', 'requests', 'myRequests', 'myEx', 'rpList', 'geminiKey']) settings.delete(k);
+    for (const k of ['setlists', 'courses', 'folders', 'practice', 'skale', 'activity', 'teacher', 'students', 'myTeacher', 'requests', 'myRequests', 'myEx', 'rpList', 'geminiKey']) settings.delete(k);
   });
 }

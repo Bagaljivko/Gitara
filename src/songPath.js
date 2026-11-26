@@ -53,7 +53,8 @@ export async function analyze(song) {
   for (const p of sp.reverse()) { const k = hard.findIndex((h) => h.a === p.a && h.b === p.b); if (k >= 0) hard.splice(k, 1); hard.unshift({ ...p, sheet: true }); }
   if (hard.length > 2) hard.length = 2;
   sheet.practice = sheet.practice.filter((x) => x.ch.every((c) => chords.includes(c) || C.getVoicings(c).length));
-  return { parts, seq, chords, known, fresh, hard, akSeq, barre, sheet };
+  const lyrics = (await import('./lyricsFit.js')).hasLyrics(song); // v2.4.37
+  return { parts, seq, chords, known, fresh, hard, akSeq, barre, sheet, lyrics };
 }
 
 // v2.4.35: saveti sa lista nastavnika (deo „Beleške“ pri uvozu PDF-a): „Practise this: … Fmaj7, C, G, D, A7“ → vežba sa
@@ -104,7 +105,7 @@ export async function pathState(song, rec = null, a = null) {
     ...((a.sheet && a.sheet.practice) || []).slice(0, 1).map((x) => ({ id: 'pt', game: t('lp.g.pt'), title: x.label ? t('lp.pt', { l: x.label }) : t('lp.pt0'), sub: x.ch.map((c) => dn(c)).join(' → '), done: best('pt') >= DONE_AT, score: best('pt') })), // v2.4.35
     { id: 'rp', game: t('lp.g.rp'), title: t('lp.rp'), sub: t('lp.rpSub', { a: Math.max(45, Math.round((bpm * 0.6) / 5) * 5), b: bpm }), arrows: strumArrows(song), done: best('rp') >= DONE_AT, score: best('rp') },
     { id: 'deo', game: t('lp.g.deo'), title: t('lp.deo'), sub: t('lp.deoSub', { n: partsDone, total: partIds.length }), done: partIds.length > 0 && partsDone >= partIds.length },
-    { id: 'sing', game: t('lp.g.sing'), title: t('lp.sing'), sub: t('lp.singSub'), done: best('sing') >= DONE_AT, score: best('sing') },
+    ...(a.lyrics ? [{ id: 'sing', game: t('lp.g.sing'), title: t('lp.sing'), sub: t('lp.singSub'), done: best('sing') >= DONE_AT, score: best('sing') }] : []), // v2.4.37: samo uz tekst
     { id: 'all', game: t('lp.g.all'), title: t('lp.all', { bpm }), sub: t('lp.allSub'), done: best('all') >= DONE_AT, score: best('all'), star: true },
     { id: 'tut', game: t('lp.g.tut'), title: t('lp.tut'), sub: t('lp.tutSub'), optional: true, done: (() => { try { return !!localStorage.getItem('gitara-tut-' + song.id); } catch { return false; } })() }, // otvoren tutorijal = ✓
   ];
