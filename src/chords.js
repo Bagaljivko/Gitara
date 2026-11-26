@@ -138,6 +138,15 @@ const ALT_SHAPES = {
   '7|': [['320033', '210034']], '5|maj7': [['x33210', '034210']], '0|': [['x32013', '032014']],
   '2|7': [['xx0212', '000213']], '9|m7': [['x02010', '002010']],
 };
+// v2.5.2: hvatovi po punom imenu akorda (i akordi sa basom: G/F# nije isto što i G). Akord sa basom → ovaj hvat je prvi
+// (do sada je G/F# pokazivao običan G); ostali → dodaju se na kraj kao drugi hvatovi. Sa listova MARLI puta i nastavnika.
+const NAMED_SHAPES = {
+  'G/F#': [['2x0033', '100034'], ['2x0233', '100234']], 'D/F#': [['2x0232', '100132'], ['20023x', '100230']],
+  'C/B': [['x20010', '020010']], 'G/B': [['x20033', '010034']], 'Am7/G': [['302210', '402310']], 'Am/G': [['302210', '402310']],
+  'C/G': [['332010', '342010']], 'D/A': [['x00232', '000132']], 'C/E': [['032010', '032010']], 'F/C': [['x33211', '034211']],
+  'Cadd9': [['x32033', '021034']], 'Em7': [['022033', '012034']], 'Asus4': [['x02233', '001234']], 'Gsus2': [['300233', '200134']],
+  'A7sus4': [['x02033', '001034']], 'D#dim': [['xx1212', '001324']], 'C6': [['x32200', '032100']], 'Am7': [['x02213', '002314']],
+};
 const cache = new Map();
 
 /**
@@ -147,7 +156,9 @@ const cache = new Map();
 export function getVoicings(chordName) {
   const p = parseChord(chordName);
   if (!p) return [];
-  const key = p.root + '|' + p.quality;
+  const full = formatChord(p, { flat: false });
+  const named = NAMED_SHAPES[full] || [];
+  const key = p.bass != null && named.length ? full : p.root + '|' + p.quality;
   if (cache.has(key)) return cache.get(key);
 
   const build = (quality) => {
@@ -179,6 +190,10 @@ export function getVoicings(chordName) {
   if (ez && list.some((v) => v.barre)) { const v = fromString(ez[0], ez[1]); list.push({ ...v, baseFret: baseFret(v), approx, easy: true }); }
   // v2.4.35: česti drugi hvatovi (npr. sa lista nastavnika) — dodaju se na kraj, postojeći redosled se ne menja
   for (const al of ALT_SHAPES[p.root + '|' + p.quality] || []) { const v = fromString(al[0], al[1]); if (!list.some((x) => x.frets.join() === v.frets.join())) list.push({ ...v, baseFret: baseFret(v), approx: false, alt: true }); }
+  if (p.bass != null && named.length) { // akord sa basom: njegovi hvatovi prvi, pa hvatovi osnovnog akorda
+    const own = named.map((al) => { const v = fromString(al[0], al[1]); return { ...v, baseFret: baseFret(v), approx: false }; });
+    list = [...own, ...list.filter((x) => !own.some((o) => o.frets.join() === x.frets.join()))];
+  } else if (p.bass == null) for (const al of named) { const v = fromString(al[0], al[1]); if (!list.some((x) => x.frets.join() === v.frets.join())) list.push({ ...v, baseFret: baseFret(v), approx: false, alt: true }); }
   cache.set(key, list);
   return list;
 }

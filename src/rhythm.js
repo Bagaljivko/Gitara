@@ -35,6 +35,11 @@ export const PATTERNS = [
   { id: 'pop16', sig: '4/4', steps: 'D-DUx-DU-UDUx-DU', lv: 3, g: 'pop' },
   { id: 'funk16', sig: '4/4', steps: 'DUxUDUDUDUxUDUDU', lv: 3, g: 'funk' },
   { id: 'bossa', sig: '4/4', steps: 'B--DB-D-B--DB-D-', lv: 3, g: 'latin' },
+  // v2.5.2: sa listova MARLI puta (I'm Yours, Wicked Game, Zombie, Hotel California)
+  { id: 'island', sig: '4/4', steps: 'D-D--UDU', swing: true, lv: 2, g: 'reggae' },
+  { id: 'steady', sig: '4/4', steps: 'D-D-DUDU', lv: 1, g: 'pop' },
+  { id: 'drive16', sig: '4/4', steps: 'D-D-D-DU-UD-D-DU', lv: 3, g: 'rock' },
+  { id: 'sync16', sig: '4/4', steps: 'D-DU-UDUD---D-DU', lv: 3, g: 'pop' },
   // 3/4
   { id: 'waltz', sig: '3/4', steps: 'D-DUDU', lv: 2, g: 'waltz' },
   { id: 'slowwaltz', sig: '3/4', steps: 'D-D-D-', lv: 1, g: 'waltz' },
