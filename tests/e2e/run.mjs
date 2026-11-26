@@ -30,7 +30,7 @@ function serve(dir) {
 }
 function buildCopy() {
   const out = mkdtempSync(join(tmpdir(), 'marli-built-'));
-  for (const f of ['index.html', 'privacy.html', 'manifest.webmanifest', 'sw.js', 'src', 'icons', 'screenshots', 'assets', 'vendor', 'fonts']) cpSync(join(ROOT, f), join(out, f), { recursive: true });
+  for (const f of ['index.html', 'privacy.html', 'manifest.webmanifest', 'sw.js', 'src', 'icons', 'screenshots', 'assets', 'vendor', 'fonts', 'courses']) cpSync(join(ROOT, f), join(out, f), { recursive: true });
   mkdirSync(join(out, 'docs'), { recursive: true }); cpSync(join(ROOT, 'docs/novosti'), join(out, 'docs/novosti'), { recursive: true });
   execSync(`node scripts/version-urls.mjs ${out}`, { cwd: ROOT, stdio: 'inherit' });
   execSync(`npx --yes esbuild@0.24.2 ${out}/src/*.js --minify --target=es2022 --format=esm --outdir=${out}/src --allow-overwrite --log-level=warning`, { cwd: ROOT, stdio: 'inherit', shell: '/bin/bash' });
