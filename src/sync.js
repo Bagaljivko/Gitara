@@ -100,12 +100,17 @@ async function updateApp() {
 
 // ---------------- Raspored (prilagodljivo osvežavanje) ----------------
 let timer = 0, failures = 0, lastInput = Date.now(), lastRun = (() => { try { return Number(localStorage.getItem('marli-last-sync')) || 0; } catch { return 0; } })(); // v2.4.11: i posle ponovnog otvaranja (brzo osvežavanje ne pokreće nov krug odmah)
-const ACTIVE = 60000, IDLE = 180000; // v2.2: ređe provere (Google Drive ograničava broj zahteva)
+// v2.5.63: zajednički limit Google Drive-a (svi korisnici aplikacije) — provera na 2 min dok se koristi; kad nekoliko
+// provera zaredom ne donese ništa, razmak raste do 10 min (svaka izmena ovde ili tamo ga vraća na 2 min). Izmene na ovom
+// uređaju i dalje idu odmah (8–30 s, scheduleSoon); otvaranje aplikacije i „Proveri sada“ proveravaju odmah.
+const ACTIVE = 120000, IDLE = 300000, MAXQ = 600000;
 const GAP = 30000, SOON = 8000; // posle izmene: najranije 8 s, a između dva kruga najmanje 30 s (više izmena = jedno slanje)
-let rateHit = false;
+const fresh = () => (globalThis.__marliTest || {}).syncFresh ?? 60000; // v2.5.63 (testovi mogu da skrate): brzo ponovno otvaranje / povratak — krug od pre manje od 1 min je i dalje svež
+let rateHit = false, quiet = 0;
 function delay() {
   const idle = Date.now() - lastInput > 120000;
   let d = idle ? IDLE : ACTIVE;
+  if (quiet >= 3) d = Math.min(MAXQ, d * 2 ** Math.min(3, quiet - 2)); // 3 prazne provere zaredom → ređe
   if (navigator.connection && navigator.connection.saveData) d *= 3; // štednja podataka
   if (failures) d = Math.min(15 * 60000, 15000 * 2 ** (failures - 1)) * (0.5 + Math.random()); // greške: sve ređe, sa slučajnim pomakom
   return d;
@@ -138,6 +143,7 @@ function done(m) {
   if (m.ok) {
     st.rate = false; import('./driveGate.js').then((G) => G.noteOk()).catch(() => {}); import('./devices.js').then((D) => D.beat()).catch(() => {}); // v2.4.4: ovaj uređaj u spisku „Uređaji“
     failures = 0;
+    quiet = m.sent || m.pulled ? 0 : quiet + 1;
     setStatus(m.newer ? 'newer' : 'synced');
     if (firstRun) {
       // v1.74: posle prve sinhronizacije — ima li (novija) rezervna kopija na Drive-u. Ako sinhronizacija nije donela ništa,
@@ -170,6 +176,9 @@ let pendT = 0;
 function localChange(e) {
   if (e.remote || !st.on) return;
   if (e.type === 'settings-changed' && !SYNCED_SETTING(e.detail)) return; // podešavanja samo ovog uređaja (token, keš…)
+  // v2.5.63: vreme sviranja (upisuje se svakog minuta dok je pesma otvorena) ide sa redovnom proverom, ne posebno slanje
+  if (e.type === 'settings-changed' && e.detail === 'activity') { clearTimeout(pendT); pendT = setTimeout(() => syncMeta.pending().then((n) => { st.pending = n; emit(); }).catch(() => {}), 300); return; }
+  quiet = 0;
   clearTimeout(pendT);
   pendT = setTimeout(() => syncMeta.pending().then((n) => { st.pending = n; emit(); }).catch(() => {}), 300);
   if (st.leader) { if (st.status !== 'connect') scheduleSoon(); }
@@ -219,7 +228,7 @@ function becomeLeader() {
   if (st.leader) return;
   st.leader = true;
   startWorker();
-  runNow();
+  if (Date.now() - lastRun < fresh()) schedule(lastRun + fresh() - Date.now()); else runNow(); // v2.5.63: brzo ponovno otvaranje — krug je svež
 }
 function electLeader() {
   if (navigator.locks && navigator.locks.request) {
@@ -285,7 +294,8 @@ function begin() {
   const wake = () => {
     if (document.hidden) return;
     if (!st.leader) { if (Date.now() - lastWake > 5000) { lastWake = Date.now(); bc && bc.postMessage({ t: 'syncNow' }); } return; }
-    if (Date.now() - lastRun > GAP) runNow(); else scheduleSoon();
+    lastInput = Date.now(); quiet = 0; // povratak u aplikaciju = opet „aktivno“
+    if (Date.now() - lastRun > fresh()) runNow(); else schedule(lastRun + fresh() - Date.now()); // v2.5.63: krug od pre < 1 min je svež
   };
   document.addEventListener('visibilitychange', () => { if (document.hidden) clearTimeout(timer); else wake(); });
   addEventListener('focus', wake);

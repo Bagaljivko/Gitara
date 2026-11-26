@@ -300,9 +300,12 @@ export async function itemFromKey(key) {
 }
 /** Izmenjena pesma ili set lista koja je već podeljena: isti link dobija novi sadržaj u pozadini (tiho, bez prozora).
  *  Sledeće „Podeli“ je zato trenutno, a ko već ima link vidi najnoviju verziju. */
+let sharedRetry = 0;
 export async function refreshShared() {
   const list = await getShares();
   if (!list.length || navigator.onLine === false) return 0;
+  const G = await import('./driveGate.js'); // v2.5.63: dok Google traži pauzu — sačekaj je, pa tek onda osveži linkove
+  if (G.cooling()) { clearTimeout(sharedRetry); sharedRetry = setTimeout(() => refreshShared().catch(() => {}), G.coolLeft() + 5000); return 0; }
   const drive = await import('./drive.js');
   if (!(await drive.shareTokenQuiet())) return 0;
   let n = 0;
@@ -362,6 +365,9 @@ export const copyShareLinkText = (link) => copyLink(link, t('share.r.copied'));
 export async function cleanupOrphans() {
   const folder = await settings.get('shareFolder', '');
   if (!folder || navigator.onLine === false) return 0;
+  const G = await import('./driveGate.js'); // v2.5.63: jednom dnevno (ranije pri svakom otvaranju) i ne dok Google traži pauzu
+  if (G.cooling() || G.ranRecently('orphans', 24 * 3600e3)) return 0;
+  G.markRan('orphans');
   const drive = await import('./drive.js');
   if (!(await drive.shareTokenQuiet())) return 0;
   const shares = await getShares();

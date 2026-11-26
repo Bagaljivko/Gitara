@@ -14,6 +14,8 @@ const EXCL_SETTINGS = new Set(['driveToken', 'driveRT', 'drive', 'syncCfg', 'syn
 const LOCAL_RE = /^(gitara-|marli-)/;
 const EXCL_LOCAL = new Set(['gitara-diag', 'gitara-boots', 'gitara-lastscan', 'gitara-sync', 'gitara-echo-clean', 'marli-keycheck', 'marli-pdf-queue', 'marli-bk', 'marli-rp', 'marli-songbar',
   'marli-autobk', 'marli-bk-pending', 'marli-seed', 'marli-drive-cool', 'marli-def1701', 'marli-def-test', 'marli-dev', 'marli-intro', 'marli-intro-gate', 'marli-invite-test', 'marli-fb-q', 'marli-fb-url-test', 'marli-last-tab']); // v2.0: poslednja kartica je samo navigacija na ovom uređaju — ne u kopiju
+// v2.5.63: „marli-last-…“ = kada je pozadinski posao poslednji put rađen na ovom uređaju — samo ovde, ne u kopiju
+const keepLocal = (k) => LOCAL_RE.test(k) && !EXCL_LOCAL.has(k) && !k.startsWith('marli-last-');
 const KEY_RE = /^[\w.\-]{10,300}$/; // stari (AIza…, 39) i novi Google oblik (AQ.…, sa tačkom)
 const LAST = 'marli-bk'; // kada je poslednja kopija napravljena (na ovom uređaju)
 
@@ -57,7 +59,7 @@ export async function buildFull() {
     if (v !== undefined) st[k] = v;
   }
   const local = {};
-  try { const ks = []; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (LOCAL_RE.test(k) && !EXCL_LOCAL.has(k)) ks.push(k); } for (const k of ks.sort()) local[k] = localStorage.getItem(k); } catch {} // v2.0: stalni redosled (pregledač menja redosled ključeva) — ista kopija = isti otisak
+  try { const ks = []; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (keepLocal(k)) ks.push(k); } for (const k of ks.sort()) local[k] = localStorage.getItem(k); } catch {} // v2.0: stalni redosled (pregledač menja redosled ključeva) — ista kopija = isti otisak
   return { app: 'marli', type: 'full', version: 2, appVersion: APP_VERSION, exportedAt: new Date().toISOString(),
     songs: await drive.backupSongs(), deleted: await drive.backupDeleted(), settings: st, local };
 }
@@ -180,7 +182,7 @@ export async function autoBackup({ force = false } = {}) {
     // v2.5.1: uz sinhronizaciju su podaci isti na svim uređajima — ako je drugi uređaj danas već sačuvao kopiju, ne šalje se još jedna
     if (!force && files && files.some((f) => dailyDate(f.name) === today) && (await syncIsOn())) { store({ day: today }); return 'same'; }
     const gz = canGz(), name = dailyName(today, gz), json = JSON.stringify(data);
-    const at = await drive.saveNamedQuiet(name, gz ? await (await import('./syncEngine.js')).gzip(data) : json, gz ? 'application/gzip' : 'application/json');
+    const at = await drive.saveNamedQuiet(name, gz ? await (await import('./syncEngine.js')).gzip(data) : json, gz ? 'application/gzip' : 'application/json', files);
     if (!at) return 'later';
     store({ day: today, hash, at, n: (data.songs || []).length });
     // čišćenje starih (i današnje stare „.json“ kad je nova sažeta)
@@ -205,7 +207,11 @@ export function initAutoBackup() {
   if (autoInited) return; autoInited = true;
   // v2.4.11: dok Google traži pauzu — ne pokušavaj (svaki povratak u aplikaciju je ranije opet pokušavao i trošio limit)
   const cool = () => { try { return ((JSON.parse(localStorage.getItem('marli-drive-cool') || 'null') || {}).until || 0) > Date.now(); } catch { return false; } };
-  const run = () => { if (autoInfo().day !== day() && !cool()) whenCalm(() => { if (!cool()) autoBackup().catch(() => {}); }); };
+  // v2.5.63: neuspeo pokušaj se ponavlja najviše jednom na sat (ranije pri svakom povratku u aplikaciju); važi za sve prozore
+  const run = () => import('./driveGate.js').then((G) => {
+    if (autoInfo().day === day() || cool() || G.ranRecently('autobk', 3600e3)) return;
+    whenCalm(() => { if (cool() || G.ranRecently('autobk', 3600e3)) return; G.markRan('autobk'); autoBackup().catch(() => {}); });
+  }).catch(() => {});
   setTimeout(run, 25000); schedulePending(-60000); // ručna kopija koja čeka (v2.5.62)
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { setTimeout(run, 4000); schedulePending(-60000); } });
 }
@@ -291,7 +297,7 @@ export async function applyFull(data, parsed = null) {
       if (k === 'keySync') { await (await import('./db.js')).setKeySync(v !== false); continue; }
       await settings.set(k, v);
     }
-    try { for (const [k, v] of Object.entries(data.local || {})) if (LOCAL_RE.test(k) && !EXCL_LOCAL.has(k) && typeof v === 'string') localStorage.setItem(k, v); } catch {}
+    try { for (const [k, v] of Object.entries(data.local || {})) if (keepLocal(k) && typeof v === 'string') localStorage.setItem(k, v); } catch {}
   }
 }
 
@@ -347,11 +353,10 @@ export async function restoreSongs({ from = 'drive', name = '' } = {}) {
       ? [{ label: t('common.cancel'), value: null }, { label: t('bk.replaceSongs'), value: 'replace', kind: 'danger' }, { label: t('bk.addMissing'), value: 'merge', kind: 'primary' }]
       : [{ label: t('common.cancel'), value: null }, { label: t('bk.restoreSongsBtn'), value: 'merge', kind: 'primary' }] });
   if (!mode) return false;
-  if (mode === 'replace') await db.clear();
   if (folders) { const { mergeById } = await import('./collections.js'); await settings.set('folders', mergeById((await settings.get('folders', [])) || [], folders)); }
-  const { mergeSongs } = await import('./songSync.js');
-  const r = await mergeSongs(songs, { revive: true });
-  const n = r.added + r.updated;
+  let n;
+  if (mode === 'replace') n = await (await import('./drive.js')).replaceSongs(songs); // v2.5.63: samo razlike
+  else { const { mergeSongs } = await import('./songSync.js'); const r = await mergeSongs(songs, { revive: true }); n = r.added + r.updated; }
   toast(n ? t('bk.restoredSongs', { n: songsN(n) }) : t('drive.mergedNone'));
   return true;
 }

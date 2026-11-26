@@ -313,8 +313,10 @@ async function api(url, opts = {}, retry = true, attempt = 0) {
     const why = { reason: `${res.status} ${reason} ${msg}`.trim().slice(0, 160) };
     if (res.status === 401) { state.needsReconnect = true; emit(); showReconnectBanner(); throw Object.assign(new DriveError(t('drive.e.expired'), 'reconnect'), why); }
     const rate = res.status === 429 || (res.status === 403 && RATE_RE.test(reason));
-    if ((rate || res.status >= 500) && attempt < 3 && !(opts.body instanceof ReadableStream)) {
-      await sleepMs(1000 * 2 ** attempt * (0.5 + Math.random()));
+    // v2.5.63: „uspori“ — samo jedan kratak novi pokušaj (ranije tri, a svaki je dodatno trošio zajednički limit);
+    // greška servera (5xx) — do tri, kao ranije
+    if ((rate ? attempt < 1 : res.status >= 500 && attempt < 3) && !(opts.body instanceof ReadableStream)) {
+      await sleepMs(1000 * 2 ** attempt * (0.5 + Math.random()) * (rate ? 2 : 1));
       return api(url, opts, retry, attempt + 1);
     }
     if (rate) { import('./driveGate.js').then((G) => G.noteRate()).catch(() => {}); throw Object.assign(new DriveError(t('drive.e.rate'), 'rate'), why); } // v2.4.11: zajednička pauza
@@ -334,11 +336,14 @@ async function findFiles(query, fields = 'files(id,name,modifiedTime)') {
   return (await (await api(url)).json()).files || [];
 }
 
+// v2.5.63: folder se proverava jednom po pokretanju (ranije pri svakom čuvanju — po jedan zahtev više za svaku kopiju)
+let folderOk = '';
 async function ensureFolder() {
+  if (state.folderId && folderOk === state.folderId) return state.folderId;
   if (state.folderId) {
     try {
       const f = await (await api(`${API}/files/${state.folderId}?fields=id,trashed`)).json();
-      if (!f.trashed) return state.folderId;
+      if (!f.trashed) { folderOk = state.folderId; return state.folderId; }
     } catch (e) { if (e.code !== 'notfound') throw e; }
   }
   const found = await findFiles(`name='${FOLDER_NAME}' and mimeType='${FOLDER_MIME}' and trashed=false`);
@@ -351,6 +356,7 @@ async function ensureFolder() {
     state.folderId = (await res.json()).id;
   }
   state.backupId = '';
+  folderOk = state.folderId;
   await persist();
   return state.folderId;
 }
@@ -432,8 +438,9 @@ export function cleanTips(t) {
 const cleanGripsLocal = (g) => { const out = {}; if (g && typeof g === 'object') for (const [k, v] of Object.entries(g).slice(0, 40)) if (k.length <= 24 && typeof v === 'string' && /^[0-9a-ex]{6}\/[0-5]{6}$/.test(v)) out[k] = v; return Object.keys(out).length ? out : null; };
 export async function backupSongs() {
   const all = await db.all();
-  return all.map((sg) => ({ id: sg.id, title: sg.title, artist: sg.artist, key: sg.key, sections: sg.sections, transpose: sg.transpose || 0, createdAt: sg.createdAt, updatedAt: sg.updatedAt, ...songExtras(sg), ...songMeta(sg), ...teachTags(sg), ...songKeep(sg), folders: sg.folders || [] }));
+  return all.map(backupForm);
 }
+const backupForm = (sg) => ({ id: sg.id, title: sg.title, artist: sg.artist, key: sg.key, sections: sg.sections, transpose: sg.transpose || 0, createdAt: sg.createdAt, updatedAt: sg.updatedAt, ...songExtras(sg), ...songMeta(sg), ...teachTags(sg), ...songKeep(sg), folders: sg.folders || [] });
 export const backupDeleted = () => db.deleted();
 
 async function buildBackup() {
@@ -563,10 +570,11 @@ async function quietFileToken() {
   return '';
 }
 /** Sačuvaj kopiju bez ikakvog prozora. 0 = nije moglo tiho (nema ključa / mreže). */
-export async function saveNamedQuiet(name, json, mime = 'application/json') { // v2.5.1: json može biti i sažet (gzip) sadržaj
+export async function saveNamedQuiet(name, json, mime = 'application/json', known = null) { // v2.5.1: json može biti i sažet (gzip) sadržaj
   if (navigator.onLine === false || !(await quietFileToken())) return 0;
   const folder = await ensureFolder();
-  const files = await findFiles(`name='${q(name)}' and '${folder}' in parents and trashed=false`);
+  // v2.5.63: spisak fajlova je već pročitan (dnevna kopija) — bez još jedne pretrage po imenu
+  const files = Array.isArray(known) ? known.filter((f) => f.name === name) : await findFiles(`name='${q(name)}' and '${folder}' in parents and trashed=false`);
   const r = await uploadFile({ id: files[0] && files[0].id, name, mime, blob: new Blob([json], { type: mime }), parents: [folder] });
   return Date.parse(r.modifiedTime) || Date.now();
 }
@@ -608,10 +616,29 @@ export async function readOldNamed() { return readNamed(BACKUP_NAME); }
 
 /** Vraća pesme. mode: 'replace' (zameni sve) | 'merge' (spoji po ID-u). Vraća broj dodatih (ili ažuriranih) pesama.
  *  Nikad ne pravi drugu kopiju iste pesme i ne vraća obrisane (oznake brisanja i ovde i u kopiji). */
+// v2.5.63: „zameni sve“ menja samo ono što se razlikuje (ranije: sve obrisano pa sve ponovo upisano — svaka pesma ponovo
+// poslata na Drive, a sinhronizacija između ta dva koraka je mogla drugim uređajima da javi „obrisano“)
+const canon = (v) => (Array.isArray(v) ? v.map(canon) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, canon(v[k])])) : v);
+// pesma ovde (u obliku kopije, provučena kroz isto čitanje kopije) = pesma iz kopije → ne upisuje se ponovo
+const sameSong = (cur, s) => { const k = (x) => JSON.stringify(canon({ ...x, updatedAt: 0, createdAt: 0 })); try { return k((parseBackupData({ app: 'marli', songs: [backupForm(cur)] }).songs || [])[0] || {}) === k(s); } catch { return false; } };
+export async function replaceSongs(list) {
+  const keep = new Map((list || []).filter((s) => s && s.id).map((s) => [s.id, s]));
+  const local = await db.all(); let added = 0;
+  for (const s of local) if (!keep.has(s.id)) await db.remove(s.id);
+  const byId = new Map(local.map((s) => [s.id, s]));
+  for (const s of keep.values()) {
+    const cur = byId.get(s.id);
+    if (cur && sameSong(cur, s)) continue;
+    if (await db.put({ ...s, updatedAt: Math.max(Date.now(), s.updatedAt || 0) }, { force: true })) added++;
+  }
+  const noId = (list || []).filter((s) => s && !s.id); // stare kopije bez id-ja
+  if (noId.length) added += (await mergeSongs(noId, { revive: true })).added;
+  return added;
+}
 export async function applyRestore(backup, mode, { revive = false } = {}) {
-  if (mode === 'replace') await db.clear();
-  const r = await mergeSongs(backup.songs, revive ? { revive: true } : { deleted: backup.deleted || {} });
-  const added = r.added + (mode === 'merge' ? r.updated : 0);
+  let added;
+  if (mode === 'replace') added = await replaceSongs(backup.songs);
+  else { const r = await mergeSongs(backup.songs, revive ? { revive: true } : { deleted: backup.deleted || {} }); added = r.added + (mode === 'merge' ? r.updated : 0); }
   for (const [k, v] of Object.entries(backup.settings || {})) {
     if (k === 'lang') await setLang(v); // jezik se primenjuje odmah
     else if (mode === 'merge' && (k === 'folders' || k === 'setlists')) await settings.set(k, mergeById((await settings.get(k, [])) || [], v));

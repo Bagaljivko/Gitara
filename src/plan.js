@@ -178,13 +178,15 @@ export async function receivePlanLink(hash) {
   toast(ok ? t('plan.gotLink', { t: m.name || t('tch.teacher') }) : t('plan.readLater'));
   return true;
 }
-let lastRead = 0;
-/** Pročitaj nastavnikov fajl (najviše jednom u 5 min, osim force). Vraća true ako je nešto stiglo. */
+/** Pročitaj nastavnikov fajl (najviše jednom u 15 min, osim force). Vraća true ako je nešto stiglo.
+ *  v2.5.63: razmak se pamti i posle ponovnog otvaranja (ranije: čitanje pri svakom otvaranju); nov plan od nastavnika
+ *  stiže kroz sanduče (force) — odmah, kao i ranije. */
 export async function refreshPlan({ force = false } = {}) {
   const tm = await TM(); const m = await tm.getMyTeacher();
   if (!m || !m.planFile) return false;
-  if (!force && Date.now() - lastRead < 5 * 60000) return false;
-  lastRead = Date.now();
+  const G = await import('./driveGate.js');
+  if (!force && (G.ranRecently('plan', 15 * 60000) || G.cooling())) return false;
+  G.markRan('plan');
   const S = await import('./shareService.js');
   const d = await S.readData(m.planFile);
   if (!d) return false;

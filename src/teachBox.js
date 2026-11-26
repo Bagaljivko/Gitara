@@ -298,6 +298,7 @@ export async function ingestDone(st, d) {
   }
   if (any) await tm.setTeacher({ doneSeen: Object.fromEntries(Object.entries(seen).sort((a, b) => b[1] - a[1]).slice(0, 800)) });
 }
+const retryAt = new Map();
 export async function ingestOut(st, out) {
   if (!st || !Array.isArray(out) || !out.length) return 0;
   const tm = await TM(); const tc = await tm.getTeacher();
@@ -310,8 +311,9 @@ export async function ingestOut(st, out) {
       else if (o.type === 'check' && (o.f || o.d)) await tm.addCheckRequest({ id: clip(o.id, 40), sid: st.id, title: clip(o.title, 80), artist: clip(o.artist, 60), note: clip(o.note, 300), fileId: o.f || '', d: typeof o.d === 'string' && o.d.length <= INLINE_OUT_MAX ? o.d : '', ps: clip(o.ps, 60) });
       else if (o.type === 'file' && (o.f || o.d)) {
         const I = await import('./shareImport.js');
+        const rk = st.id + ':' + o.id; if ((retryAt.get(rk) || 0) > Date.now()) continue; // v2.5.63: neuspelo preuzimanje — ponovo tek za 30 min
         let pkg = null; try { pkg = o.d ? await readInline(o.d) : await I.fetchPackage(o.f); } catch { pkg = null; } // v2.4.25: pesma u samom fajlu
-        if (!pkg || !pkg.songs || !pkg.songs.length) continue;
+        if (!pkg || !pkg.songs || !pkg.songs.length) { retryAt.set(rk, Date.now() + 30 * 60000); continue; }
         o.f = o.f || 'inl' + clip(o.id, 30);
         const { REC_FOLDER, ensureRecFolder } = await import('./collections.js');
         await ensureRecFolder();
@@ -348,16 +350,29 @@ export function initTeacherPoll() {
   const run = async () => {
     const tm = await TM(); const tc = await tm.getTeacher(); if (!tc.on) return;
     await flushOutbox().catch(() => 0); // v2.4.11: prvo ono što čeka slanje
-    const P = await import('./progress.js');
-    for (const st of await tm.getStudents()) if (st.prog && st.prog.fileId) await P.studentProgress(st, { fresh: true }).catch(() => null);
+    const P = await import('./progress.js'); const G = await import('./driveGate.js');
+    // v2.5.63: jedan po jedan, sa malim razmakom; kad Google traži pauzu — stani (ostali sledeći put)
+    let i = 0;
+    for (const st of await tm.getStudents()) {
+      if (!(st.prog && st.prog.fileId)) continue;
+      if (G.cooling()) break;
+      if (i++) await new Promise((r) => setTimeout(r, 1200));
+      await P.studentProgress(st, { fresh: true }).catch(() => null);
+    }
     await (await import('./lessons.js')).teacherReminders().catch(() => {}); // v2.4.2: sutrašnji časovi u zvonce
     await (await import('./studentProfile.js')).dateReminders().catch(() => {}); // v2.4.23: rođendani i godišnjice
     await (await import('./schedule.js')).refreshNext().catch(() => {}); // v2.4.24: sledeći čas iz redovnog termina
   };
-  let last = 0; const maybe = () => { if (Date.now() - last > 2 * 60000) { last = Date.now(); run().catch(() => {}); } };
-  setTimeout(maybe, 8000);
+  // v2.5.63: pri otvaranju i povratku — osim ako je čitano pre manje od 10 min (pamti se i posle ponovnog otvaranja i važi
+  // za sve prozore: samo jedan prozor čita); dok je otvoreno — na 15 min kao ranije. „Ne mogu da dođem“ stiže isto brzo.
+  const maybe = async (gap = 10 * 60000) => {
+    const G = await import('./driveGate.js');
+    if (G.ranRecently('tpoll', gap) || G.cooling()) return;
+    G.markRan('tpoll'); run().catch(() => {});
+  };
+  setTimeout(() => maybe(), 8000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) maybe(); });
-  setInterval(() => { if (!document.hidden) { last = 0; maybe(); } }, 15 * 60000);
+  setInterval(() => { if (!document.hidden) maybe(14 * 60000); }, 15 * 60000);
   setInterval(() => { if (!document.hidden) pendingCount().then((n) => n && flushOutbox()).catch(() => {}); }, 3 * 60000); // v2.4.11
   addEventListener('online', () => setTimeout(() => flushOutbox().catch(() => {}), 5000));
 }

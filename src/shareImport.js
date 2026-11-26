@@ -247,9 +247,10 @@ export async function renderDriveShare(root, fileId) {
 /** v1.80: paket iz deljenog fajla (npr. „Proveri pesmu“ otvoren kasnije iz Zahteva). null = nema ga / greška. */
 export async function fetchPackage(fileId) {
   const { SHARE_API_KEY } = await import('./shareConfig.js');
+  const G = await import('./driveGate.js'); if (G.cooling()) return null; // v2.5.63: i ovde se poštuje zajednička pauza
   try {
     const res = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&key=${encodeURIComponent(SHARE_API_KEY)}`);
-    if (!res.ok) return null;
+    if (!res.ok) { if (res.status === 429 || res.status === 403) { const r = await res.clone().json().catch(() => ({})); if (G.isRate(res.status, JSON.stringify(r))) G.noteRate(); } return null; }
     const { parseShareFile } = await import('./shareCode.js');
     return await parseShareFile(await res.text());
   } catch { return null; }
