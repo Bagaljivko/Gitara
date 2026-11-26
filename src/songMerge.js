@@ -10,40 +10,13 @@ import { songs as db, settings, versions } from './db.js';
 import { sectionLabel } from './sectionLabel.js';
 import { dn } from './naming.js';
 
-const IGN = 'dupIgnore';
 // lično (ostaje sa pesmom koja nosi istoriju; prazno se popuni iz druge)
 const PERSONAL = ['id', 'createdAt', 'updatedAt', 'folders', 'seen', 'zoom', 'easyCapo', 'skipped', 'strum', 'suggestStrum', 'bpm', 'yt', 'ytSync', 'scrollSpeed', 'tuning',
   'fromT', 'src', 'student', 'fromStudent', 'chk', 'deleted', 'demo', 'keepMine', 'recording'];
 const FILL = ['strum', 'suggestStrum', 'bpm', 'yt', 'ytSync', 'scrollSpeed', 'tuning', 'recording'];
 
-/** Ključ za poređenje: mala slova, bez kvačica, bez „(live)“ i sličnog u zagradi, bez interpunkcije. */
-export function normKey(s) {
-  return String(s || '').toLowerCase().replace(/[đð]/g, 'dj').normalize('NFD').replace(/[̀-ͯ]/g, '')
-    .replace(/\([^)]*\)|\[[^\]]*\]/g, ' ').replace(/[^a-z0-9]+/g, ' ').trim();
-}
-const dupKey = (s) => normKey(s.title) + '|' + normKey(s.artist);
-const pairKey = (a, b) => [a, b].sort().join('|');
-
-/** Parovi istih pesama: [{ a, b }] — a je od nastavnika (ako jeste), b tvoja. Bez učeničkih pesama (nastavnik), primera i TAB-a sa akordima. */
-export async function findDups(list = null) {
-  const all = (list || (await db.list())).filter((s) => !s.demo && !s.student && normKey(s.title));
-  const ign = new Set((await settings.get(IGN, [])) || []);
-  const groups = new Map();
-  for (const s of all) { const k = dupKey(s) + '|' + (s.type === 'tab' ? 't' : 'c'); (groups.get(k) || groups.set(k, []).get(k)).push(s); }
-  const out = [];
-  for (const g of groups.values()) {
-    if (g.length < 2) continue;
-    g.sort((x, y) => (y.fromT ? 1 : 0) - (x.fromT ? 1 : 0) || (y.updatedAt || 0) - (x.updatedAt || 0));
-    for (let i = 0; i < g.length; i++) for (let j = i + 1; j < g.length; j++) {
-      if (ign.has(pairKey(g[i].id, g[j].id))) continue;
-      out.push({ a: g[i], b: g[j] });
-      i = j = g.length; // jedan par po pesmi
-    }
-  }
-  return out;
-}
-/** Par za ovu pesmu (ekran pesme). */
-export async function dupOf(id) { return (await findDups()).find((p) => p.a.id === id || p.b.id === id) || null; }
+import { IGN, normKey, findDups, dupOf, pairKey } from './songDup.js';
+export { normKey, findDups, dupOf };
 
 // ---------- istorija (vežbanje, vreme sa pesmom) ----------
 async function practiceOf(id) { const st = (await settings.get('practice', {})) || {}; return (st.songs || {})[id] || null; }
@@ -96,8 +69,9 @@ function repoint(sets, from, to) {
   return ch;
 }
 
+const clone = (x) => (x == null ? x : JSON.parse(JSON.stringify(x))); // v2.4.34: radi i na starijim telefonima (bez structuredClone)
 async function snapshot(a, b) {
-  return { a, b, practice: structuredClone((await settings.get('practice', {})) || {}), activity: structuredClone((await settings.get('activity', null)) || null), setlists: structuredClone((await settings.get('setlists', [])) || []) };
+  return { a, b, practice: clone((await settings.get('practice', {})) || {}), activity: clone((await settings.get('activity', null)) || null), setlists: clone((await settings.get('setlists', [])) || []) };
 }
 async function restore(snap) {
   await db.put(snap.a, { force: true }); await db.put(snap.b, { force: true });

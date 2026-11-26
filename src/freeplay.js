@@ -721,7 +721,7 @@ function startReplay(rec, { onExit }) {
         else if (notes.length) stage.showName(notes.map((n) => noteName(n.m)).join(' + '), notes.length === 1 ? t('fp.where', { s: sName(notes[0].s), f: notes[0].f }) : '');
         if (notes[0]) { placer.place(notes[0].m); stage.level(0.05, 440 * Math.pow(2, (notes[0].m - 69) / 12)); }
       }
-      if (i >= rec.events.length && tt > (rec.events.at(-1)?.t || 0) + 1500) { stage.message(t('fp.replayDone')); stage.level(0); }
+      if (i >= rec.events.length && tt > (rec.events[rec.events.length - 1]?.t || 0) + 1500) { stage.message(t('fp.replayDone')); stage.level(0); }
     },
   });
   const onHide = () => { if (document.hidden) finish(); };

@@ -25,7 +25,7 @@ export async function addKnown(chords) {
 
 /** Analiza pesme: delovi, akordi (kako se sviraju), novi akordi, najteža promena, ritam. */
 export async function analyze(song) {
-  const P = await import('./pSong.js');
+  const P = await import('./songParts.js');
   const parts = P.songParts(song);
   const seq = parts.flatMap((p) => p.chords.map((c) => c.chord)).filter((c, k, a) => !k || c !== a[k - 1]);
   const chords = [...new Set(seq)];

@@ -37,7 +37,7 @@ export async function createGame(api) {
   const sid = api.params && api.params.get && api.params.get('song');
   if (sid) {
     try {
-      const { songs } = await import('./db.js'); const P = await import('./pSong.js');
+      const { songs } = await import('./db.js'); const P = await import('./songParts.js');
       const song = await songs.get(sid);
       const ch = song ? [...new Set(P.songParts(song).flatMap((p) => p.chords.map((c) => c.chord)))] : [];
       fromSong = ch.filter((c) => { const v = getVoicings(c)[0]; return v && v.barre; }).slice(0, 4);

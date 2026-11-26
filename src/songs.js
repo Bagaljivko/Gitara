@@ -131,10 +131,10 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
   // v2.4.27: dve verzije iste pesme — kratka najava „Uporedi“ (jedna po jedna)
   const drawDup = async () => {
     const box = $('lDup'); if (!box) return;
-    const M = await import('./songMerge.js'); const d = (await M.findDups(all))[0];
+    const D = await import('./songDup.js'); const d = (await D.findDups(all))[0];
     box.hidden = !d; if (!d) return;
     box.innerHTML = `<span class="sr-ic" aria-hidden="true">⧉</span><span class="mg-nt"><b>${esc(d.a.title)}</b><small>${esc(t(d.a.fromT || d.b.fromT ? 'mg.noteT' : 'mg.note'))}</small></span><button type="button" class="btn small primary mg-go">${esc(t('mg.compare'))}</button>`;
-    box.querySelector('.mg-go').onclick = () => M.openMerge(d.a.id, d.b.id, { onDone: async () => { all = await db.list(); draw(); drawChips(); drawDup(); } });
+    box.querySelector('.mg-go').onclick = async () => (await import('./songMerge.js')).openMerge(d.a.id, d.b.id, { onDone: async () => { all = await db.list(); draw(); drawChips(); drawDup(); } });
   };
   setTimeout(() => drawDup().catch(() => {}), 0);
   let folders = await getFolders();
@@ -1417,7 +1417,9 @@ export async function renderSong(root, id, nav = null) {
   $('sDet').open = false;
   $('sDet').addEventListener('toggle', () => { if ($('sDet').open && detDirty) drawDetails(); });
   if (!stored.seen) { stored.seen = true; db.put(stored).catch(() => {}); }
-  import('./recComments.js').then((m) => m.attach(root.querySelector('#sRecCmt'), stored)).catch(() => {}); // v2.4.3: komentar nastavnika na snimak
+  // v2.4.3: komentar nastavnika na snimak — v2.4.34: modul se učitava samo ako ima šta da prikaže
+  (stored.fromStudent ? Promise.resolve(true) : settings.get('myTeacher', null).then((m) => !!(m && m.cmts && m.cmts[stored.id])).catch(() => false))
+    .then((has) => { if (has) import('./recComments.js').then((m) => m.attach(root.querySelector('#sRecCmt'), stored)).catch(() => {}); });
   if (stored.recording) import('./recCompare.js').then((m) => m.attach(root.querySelector('#sRecCmp'), stored)).catch(() => {}); // v2.4.10: uporedi snimke
   // Prilagodi veličinu slova širini ekrana (pa tek onda rasporedi tablature)
   function fitAndTabs(pre = null) {
@@ -2058,11 +2060,11 @@ export async function renderSong(root, id, nav = null) {
   deskMq.addEventListener?.('change', setCalm);
   window.addEventListener('hashchange', function offMq() { deskMq.removeEventListener?.('change', setCalm); window.removeEventListener('hashchange', offMq); });
   // v2.4.27: ista pesma postoji dvaput — „Uporedi“ i na ekranu pesme
-  if (!stored.demo && !stored.student) import('./songMerge.js').then(async (M) => {
-    const d = await M.dupOf(id); const box = $('sDup'); if (!d || !box) return;
+  if (!stored.demo && !stored.student) import('./songDup.js').then(async (D) => { // v2.4.34: lagana provera; prozor tek na „Uporedi“
+    const d = await D.dupOf(id); const box = $('sDup'); if (!d || !box) return;
     box.hidden = false;
     box.innerHTML = `<span class="sr-ic" aria-hidden="true">⧉</span><span class="mg-nt"><b>${esc(t('mg.title'))}</b><small>${esc(t(d.a.fromT || d.b.fromT ? 'mg.noteT' : 'mg.note'))}</small></span><button type="button" class="btn small primary mg-go">${esc(t('mg.compare'))}</button>`;
-    box.querySelector('.mg-go').onclick = () => M.openMerge(d.a.id, d.b.id, { onDone: (nid) => { if (nid && nid !== id) location.hash = '#/pesma/' + encodeURIComponent(nid); else if (nid) dispatchEvent(new HashChangeEvent('hashchange')); else box.hidden = true; } });
+    box.querySelector('.mg-go').onclick = async () => (await import('./songMerge.js')).openMerge(d.a.id, d.b.id, { onDone: (nid) => { if (nid && nid !== id) location.hash = '#/pesma/' + encodeURIComponent(nid); else if (nid) dispatchEvent(new HashChangeEvent('hashchange')); else box.hidden = true; } });
   }).catch(() => {});
   $('sChips').addEventListener('click', async (e) => {
     if (e.target.closest('[data-pa]')) { videoChoice(); return; }

@@ -40,7 +40,7 @@ export function chordHalves(line) {
   const ch = [...(line.chords || [])].sort((a, b) => a.position - b.position);
   if (!ch.length) return [];
   if (!String(line.text || '').trim() || ch.length === 1) return ch.map(() => 2);
-  const L = Math.max(String(line.text).length, ch.at(-1).position + String(ch.at(-1).chord).length + 1);
+  const L = Math.max(String(line.text).length, ch[ch.length - 1].position + String(ch[ch.length - 1].chord).length + 1);
   if (L < 20) return ch.map(() => 2); // kratak red: takt po akordu
   const spans = ch.map((c, i) => Math.max(1, (i + 1 < ch.length ? ch[i + 1].position : L) - c.position));
   const med = spans.slice().sort((a, b) => a - b)[Math.floor((spans.length - 1) / 2)];

@@ -60,7 +60,9 @@ export async function createTabGame(api, song, songId) {
     listening = pl.playOnce(tl, { bpm: api.bpm || songBpm, from, to, onEnd: () => { listening = null; listenId = null; ui.draw(); } });
     ui.draw();
   }
-  window.addEventListener('gitara-mic', () => { if (listening) { listening = null; listenId = null; ui.draw(); } });
+  const onMic = () => { if (listening) { listening = null; listenId = null; ui.draw(); } }; // v2.4.34: skida se pri izlasku (ranije se gomilalo)
+  window.addEventListener('gitara-mic', onMic);
+  api.onCleanup?.(() => window.removeEventListener('gitara-mic', onMic));
   api.onCleanup?.(() => { listening?.stop(); listening = null; });
   function choose(p) {
     part = p;

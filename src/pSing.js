@@ -7,7 +7,7 @@ import { Metronome } from './rhythm.js';
 import { dn } from './naming.js';
 import { checkChord } from './pChords.js';
 import { keepAwake, allowSleep } from './wakelock.js';
-import { songParts } from './pSong.js';
+import { songParts } from './songParts.js';
 import { sectionLabel } from './sectionLabel.js';
 import { getReady } from './getReady.js';
 
