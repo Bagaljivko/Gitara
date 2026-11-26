@@ -412,12 +412,22 @@ export const songKeep = (s) => {
     if (Object.keys(sh).length) out.shapes = sh;
   }
   if (typeof s.marli === 'string' && s.marli) out.marli = s.marli.slice(0, 40);
+  if (s.tips && typeof s.tips === 'object') { const tp = cleanTips(s.tips); if (tp) out.tips = tp; } // v2.5.2: saveti sa lista
   if (Array.isArray(s.cmts)) {
     const c = s.cmts.filter((x) => x && typeof x === 'object' && x.id).slice(0, 20).map((x) => ({ id: clip(x.id, 40), at: Number(x.at) || 0, text: clip(x.text, 1000), ...(x.voice ? { voice: clip(x.voice, 120) } : {}), ...(x.key ? { key: clip(x.key, 80) } : {}) }));
     if (c.length) out.cmts = c;
   }
   return out;
 };
+const tipList = (x, n = 12) => (Array.isArray(x) ? x.filter((v) => typeof v === 'string').slice(0, n).map((v) => v.slice(0, 600)) : []);
+const tipLang = (o) => (o && typeof o === 'object' ? { new: clip(o.new, 120), sub: clip(o.sub, 300), watch: tipList(o.watch), practise: tipList(o.practise), other: tipList(o.other) } : null);
+export function cleanTips(t) {
+  const out = {};
+  for (const l of ['en', 'sr']) { const v = tipLang(t[l]); if (v && (v.new || v.watch.length || v.practise.length || v.other.length)) out[l] = v; }
+  if (Array.isArray(t.pair) && t.pair.length === 2) out.pair = t.pair.map((c) => clip(c, 20));
+  if (Array.isArray(t.seq)) { const q = t.seq.filter((c) => typeof c === 'string').slice(0, 8).map((c) => c.slice(0, 20)); if (q.length >= 2) out.seq = q; }
+  return out.en || out.sr ? out : null;
+}
 export async function backupSongs() {
   const all = await db.all();
   return all.map((sg) => ({ id: sg.id, title: sg.title, artist: sg.artist, key: sg.key, sections: sg.sections, transpose: sg.transpose || 0, createdAt: sg.createdAt, updatedAt: sg.updatedAt, ...songExtras(sg), ...songMeta(sg), ...teachTags(sg), ...songKeep(sg), folders: sg.folders || [] }));

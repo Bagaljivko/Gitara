@@ -3650,3 +3650,12 @@ img.tch-av.tch-ph { object-fit: cover; background: #222; padding: 0; }
 .marli-mark { width: 18px; height: 18px; border-radius: 5px; vertical-align: -4px; margin: 0 2px 0 6px; }
 .lib-chip .marli-mark { width: 16px; height: 16px; margin: 0 5px 0 0; vertical-align: -3px; }
 .tch-row .sr-ic .marli-mark { width: 24px; height: 24px; margin: 0; }
+
+/* v2.5.2: Saveti sa lista, MARLI znak na kartici kursa */
+.tips-box { margin: 18px 0 8px; }
+.tips-box:empty { display: none; }
+.tips-grp .tch-row { width: 100%; text-align: left; }
+.tips-all { display: block; }
+.tips-all ul { margin: 0; padding: 2px 0 2px 18px; color: var(--muted); line-height: 1.5; }
+.tips-all li + li { margin-top: 6px; }
+.crs-logo { width: 30px; height: 30px; border-radius: 7px; display: block; }

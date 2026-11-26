@@ -1,12 +1,13 @@
 // v2.4.37: Pesme → „Kursevi“ (treća kartica): MARLI put (ugrađeni kursevi), Moji kursevi, „+ Napravi kurs“;
 // stranica kursa (#/kurs/ID): pesme po redu sa napretkom, prazna mesta („još nije uvezena“), predlog za sledeću pesmu.
 // Ništa nije zaključano — svaka pesma se otvara dodirom; aplikacija samo predlaže sledeću.
-import { t } from './i18n.js';
+import { t, getLang } from './i18n.js';
 import { esc, dialog, toast } from './ui.js';
-import { songs as db } from './db.js';
+import { songs as db, settings } from './db.js';
 import * as K from './courses.js';
 
 const CHEV = '<span class="chev" aria-hidden="true">›</span>';
+const LOGO = '<img class="crs-logo" src="./icons/marli-192.png" alt="">';
 /** Stanje pesama kursa: { map: id → 'ready'|'work'|'new', next: index prve nespremne stavke } */
 async function stateOf(course) {
   const S = await import('./statsView.js');
@@ -22,7 +23,7 @@ async function courseCard(c, href, titles) {
   const n = (c.items || []).length, nx = (c.items || [])[st.next];
   const nextT = nx ? (nx.s ? titles.get(nx.s) || '' : t('crs.songN', { n: st.next + 1 })) : '';
   const sub = [c.fromT ? t('crs.fromT', { name: c.fromT.name || '' }) : '', t('crs.progress', { n: st.ready, total: n }), nextT ? t('crs.nextIs', { s: nextT }) : t('crs.allDone')].filter(Boolean).join(' · ');
-  return `<a class="sp-line lp-entry card crs-card" href="${href}"><span class="sr-ic" aria-hidden="true">${esc(c.ic || '🎓')}</span><span class="lp-et"><b>${esc(c.name)}</b><small class="lp-es">${esc(sub)}</small>${n ? barHTML(c, st) : ''}</span>${CHEV}</a>`;
+  return `<a class="sp-line lp-entry card crs-card" href="${href}"><span class="sr-ic" aria-hidden="true">${c.marli ? LOGO : esc(c.ic || '🎓')}</span><span class="lp-et"><b>${esc(c.name)}</b><small class="lp-es">${esc(sub)}</small>${n ? barHTML(c, st) : ''}</span>${CHEV}</a>`;
 }
 
 /** MARLI put — ugrađeni kursevi (fajl uz aplikaciju; učitava se tek na ovoj kartici). [] ako ih još nema. */
@@ -31,15 +32,15 @@ export async function marliCourses() {
 }
 
 export async function renderCoursesPane(el) {
+  await ensureMarli().catch((e) => console.warn(e));
   const [list, marli, sums] = await Promise.all([K.getCourses(), marliCourses(), db.list()]);
   const titles = new Map(sums.map((s) => [s.id, s.title]));
   const mine = list.filter((c) => !c.marli);
   const cards = await Promise.all(mine.map((c) => courseCard(c, '#/kurs/' + encodeURIComponent(c.id), titles)));
+  const marliCards = await Promise.all(list.filter((c) => c.marli).sort((a, b) => String(a.marli).localeCompare(String(b.marli))).map((c) => courseCard(c, '#/kurs/' + encodeURIComponent(c.id), titles)));
+  void marli;
   el.innerHTML = `
-    ${marli.length ? `<div class="tch-sec"><span>${esc(t('crs.marli'))}</span></div><div class="set-grp">${marli.map((m, i) => {
-      const have = list.find((c) => c.marli === m.id);
-      return `<a class="tch-row" href="${have ? '#/kurs/' + encodeURIComponent(have.id) : '#/kurs/marli:' + encodeURIComponent(m.id)}"><span class="sr-ic crs-n">${i + 1}</span><span><b>${esc(m.name)}</b><small>${esc(have ? t('crs.added') : m.sub || t('crs.songsN', { n: (m.songs || []).length }))}</small></span>${CHEV}</a>`;
-    }).join('')}</div>` : ''}
+    ${marliCards.length ? `<div class="tch-sec"><span>${esc(t('crs.marli'))}</span></div>${marliCards.join('')}` : ''}
     <div class="tch-sec"><span>${esc(t('crs.mine'))}</span></div>
     ${cards.length ? cards.join('') : `<div class="set-grp"><div class="tch-row crs-empty"><span class="sr-ic">🎓</span><span><b>${esc(t('crs.emptyT'))}</b><small>${esc(t('crs.empty'))}</small></span></div></div>`}
     <p class="muted small crs-open">${esc(t('crs.openNote'))}</p>
@@ -53,30 +54,55 @@ export async function renderCoursesPane(el) {
   });
 }
 
-/** MARLI put: kurs se doda (pesme u biblioteku, kurs u „Moji kursevi“). */
+/**
+ * v2.5.2: MARLI put se dodaje sam (bez „Dodaj kurs“): pesme u Pesme (sa malim MARLI znakom), nivoi u Kursevi.
+ * Stalni ID-jevi (pesma „marli-L1-07“, kurs „marli-1“) — dva uređaja prave iste stavke, sinhronizacija ih spaja
+ * (nema duplikata). Obrisana pesma se ne vraća; nivo koji je jednom dodat (i možda obrisan) se ne dodaje ponovo.
+ */
+const ADDED = 'marliAdded';
+let ensuring = null;
+export function ensureMarli() { return ensuring || (ensuring = doEnsure().finally(() => { ensuring = null; })); }
+async function doEnsure() {
+  const marli = await marliCourses(); if (!marli.length) return false;
+  const done = new Set((await settings.get(ADDED, [])) || []);
+  const have = await K.getCourses();
+  let any = false;
+  for (const m of marli) {
+    if (done.has(m.id) || have.some((c) => c.marli === m.id || c.id === m.id)) { done.add(m.id); continue; }
+    await addMarli(m); done.add(m.id); any = true;
+  }
+  await settings.set(ADDED, [...done]);
+  return any;
+}
 async function addMarli(m) {
   const { normalizeSong } = await import('./songformat.js');
+  const en = getLang() === 'en';
   const items = [];
   const all = await db.list();
+  const deleted = new Set(Object.keys((await db.deleted().catch(() => ({}))) || {}));
   for (const s of m.songs || []) {
-    const ex = all.find((x) => x.title === s.title && (x.artist || '') === (s.artist || ''));
+    if (all.some((x) => x.id === s.id)) { items.push({ s: s.id }); continue; }
+    if (deleted.has(s.id)) { items.push({ n: 0, miss: true, t: s.title }); continue; } // korisnik je obrisao — ne vraća se
+    const ex = all.find((x) => x.title === s.title && (x.artist || '') === (s.artist || '')); // već ima svoju — koristi nju
     if (ex) { items.push({ s: ex.id }); continue; }
-    const rec = await db.save({ ...normalizeSong(s), ...(s.shapes ? { shapes: s.shapes } : {}), ...(s.yt ? { yt: s.yt } : {}), marli: m.id });
+    const song = normalizeSong({ title: s.title, artist: s.artist, key: s.key, sections: s.sections, ...(s.capo ? { capo: s.capo } : {}), ...(s.strum ? { strum: s.strum } : {}), ...(s.tuning ? { tuning: s.tuning } : {}) });
+    const rec = await db.save({ ...song, id: s.id, ...(s.shapes ? { shapes: s.shapes } : {}), ...(s.tips ? { tips: s.tips } : {}), ...(s.yt ? { yt: s.yt } : {}), marli: m.id });
     items.push({ s: rec.id });
   }
-  return K.addCourse(m.name, items, { ic: m.ic || '🎓', marli: m.id });
+  return K.addCourse(en && m.en ? m.en.name : m.name, items, { id: m.id, ic: m.ic || '🎸', marli: m.id });
 }
 
 export async function renderCourse(root, id) {
   if (id.startsWith('marli:')) {
     const m = (await marliCourses()).find((x) => x.id === id.slice(6));
     if (!m) { location.hash = '#/vezbe?t=k'; return; }
+    await ensureMarli().catch(() => {});
     const have = (await K.getCourses()).find((c) => c.marli === m.id);
     if (have) { location.replace('#/kurs/' + encodeURIComponent(have.id)); return; }
     root.innerHTML = `<section class="view crs-view"><header class="topbar"><a href="#/vezbe?t=k" class="back">‹ ${esc(t('crs.back'))}</a></header>
       <h1>${esc(m.name)}</h1><p class="muted">${esc(m.about || '')}</p>
       <div class="tch-sec"><span>${esc(t('crs.order'))}</span></div>
-      <div class="set-grp">${(m.songs || []).map((s, i) => `<div class="tch-row crs-ro"><span class="sr-ic crs-n">${i + 1}</span><span><b>${esc(s.title)}</b><small>${esc([s.artist, s.what].filter(Boolean).join(' · '))}</small></span></div>`).join('')}</div>
+      <div class="set-grp">${(m.songs || []).map((s, i) => `<div class="tch-row crs-ro"><span class="sr-ic crs-n">${i + 1}</span><span><b>${esc(s.title)}</b><small>${esc([s.artist, s.what && typeof s.what === 'object' ? s.what[getLang()] || s.what.en : s.what].filter(Boolean).join(' · '))}</small></span></div>`).join('')}</div>
       <button class="btn primary wide crs-add" id="cAddM">${esc(t('crs.addCourse'))}</button></section>`;
     root.querySelector('#cAddM').addEventListener('click', async (e) => { e.target.disabled = true; const c = await addMarli(m); toast(t('crs.addedT')); if (c) location.replace('#/kurs/' + encodeURIComponent(c.id)); });
     return;
@@ -100,7 +126,7 @@ export async function renderCourse(root, id) {
       if (!x.s) return `<div class="tch-row crs-miss"><span class="sr-ic crs-n">${i + 1}</span><span><b>${esc(x.t || t('crs.songN', { n: i + 1 }))}</b><small>${esc(t('crs.missing'))}</small></span>${!edit && i === firstMiss ? `<button class="btn small" data-imp="${i}">${esc(t('crs.importPdf'))}</button>` : ''}${edit ? editBtns(i, items.length) : ''}</div>`;
       const s = byId.get(x.s), r = st.map[x.s];
       const tag = r === 'ready' ? '✓' : String(i + 1);
-      return `<a class="tch-row${i === st.next ? ' crs-on' : ''}" ${edit ? '' : `href="#/vezbe/pesma/${encodeURIComponent(x.s)}"`} data-sid="${esc(x.s)}"><span class="sr-ic crs-n${r === 'ready' ? ' ok' : ''}">${tag}</span><span><b>${esc(s.title)}</b><small data-st="${esc(x.s)}">${esc([s.artist, r === 'ready' ? '✓ ' + t('rdy.ready') : r === 'work' ? t('crs.inWork') : t('crs.notStarted')].filter(Boolean).join(' · '))}</small></span>${edit ? editBtns(i, items.length) : CHEV}</a>`;
+      return `<a class="tch-row${i === st.next ? ' crs-on' : ''}" ${edit ? '' : `href="#/vezbe/pesma/${encodeURIComponent(x.s)}"`} data-sid="${esc(x.s)}"><span class="sr-ic crs-n${r === 'ready' ? ' ok' : ''}">${tag}</span><span><b>${esc(s.title)}</b><small data-st="${esc(x.s)}">${esc([s.artist, r === 'ready' ? '✓ ' + t('rdy.ready') : r === 'work' ? t('crs.inWork') : ''].filter(Boolean).join(' · '))}</small></span>${edit ? editBtns(i, items.length) : CHEV}</a>`;
     };
     const editBtns = (i, n) => `<span class="crs-ed"><button class="icon-btn" data-up="${i}" ${i ? '' : 'disabled'} aria-label="${esc(t('crs.up'))}">▲</button><button class="icon-btn" data-dn="${i}" ${i + 1 < n ? '' : 'disabled'} aria-label="${esc(t('crs.down'))}">▼</button><button class="icon-btn" data-rm="${i}" aria-label="${esc(t('common.delete'))}">✕</button></span>`;
     const nx = items[st.next];
@@ -175,7 +201,7 @@ export async function courseNav(songId) {
   const title = async (x) => (x && x.s ? ((await db.get(x.s).catch(() => null)) || {}).title || '' : '');
   const [pt, nt] = await Promise.all([title(prev), title(next)]);
   const n = (course.items || []).length;
-  const top = `<div class="set-grp crs-top"><a class="tch-row" href="#/kurs/${encodeURIComponent(course.id)}"><span class="sr-ic">${esc(course.ic || '🎓')}</span><span><b>${esc(course.name)}</b><small>${esc([t('crs.songOf', { n: index + 1, total: n }), pt ? t('crs.prevIs', { s: pt }) : ''].filter(Boolean).join(' · '))}</small></span>${CHEV}</a></div>`;
+  const top = `<div class="set-grp crs-top"><a class="tch-row" href="#/kurs/${encodeURIComponent(course.id)}"><span class="sr-ic">${course.marli ? LOGO : esc(course.ic || '🎓')}</span><span><b>${esc(course.name)}</b><small>${esc([t('crs.songOf', { n: index + 1, total: n }), pt ? t('crs.prevIs', { s: pt }) : ''].filter(Boolean).join(' · '))}</small></span>${CHEV}</a></div>`;
   const rowOf = (x, ic, label, title2) => (x ? (x.s ? `<a class="tch-row" href="#/vezbe/pesma/${encodeURIComponent(x.s)}"><span class="sr-ic">${ic}</span><span><b>${esc(label)}: ${esc(title2)}</b><small>${esc(t('crs.songOf', { n: x.index + 1, total: n }))}</small></span>${CHEV}</a>`
     : `<a class="tch-row" href="#/kurs/${encodeURIComponent(course.id)}"><span class="sr-ic">${ic}</span><span><b>${esc(label)}: ${esc(t('crs.songN', { n: x.index + 1 }))}</b><small>${esc(t('crs.missingImp'))}</small></span>${CHEV}</a>`) : '');
   const end = next || prev ? `<div class="tch-sec"><span>${esc(t('crs.secName', { name: course.name }))}</span></div><div class="set-grp">${rowOf(next, '⏭', t('crs.nextInCourse'), nt)}${rowOf(prev, '⏮', t('crs.prev'), pt)}</div>` : '';

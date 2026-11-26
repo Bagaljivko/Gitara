@@ -52,6 +52,7 @@ const MERGE = {
   activity: (a, b) => mergeActivity(a, b), // v1.73: po uređaju, noviji zapis istog uređaja pobeđuje
   knownChords: (a, b) => unionList(a, b, 300), // v2.5.1: akordi koje znam — unija sa svih uređaja
   dupIgnore: (a, b) => unionList(a, b, 500), // v2.5.1: „nisu duplikati“
+  marliAdded: (a, b) => unionList(a, b, 50), // v2.5.2: MARLI put nivoi koji su već dodati (ne dodaju se ponovo)
 };
 const unionList = (a, b, max) => [...new Set([...(Array.isArray(a) ? a : []), ...(Array.isArray(b) ? b : [])].filter((x) => typeof x === 'string'))].slice(-max);
 const mergeFor = (key) => MERGE[key] || null;

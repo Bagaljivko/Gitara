@@ -62,8 +62,13 @@ export async function analyze(song) {
 const CH = /^[A-H][#b]?(m|maj7|maj9|m7|m9|m6|mmaj7|7|9|6|sus2|sus4|7sus4|add9|dim|dim7|aug|m7b5)?(\/[A-H][#b]?)?$/;
 const NOTES_SEC = /^(beleške|beleske|notes|napomene|saveti|tips)$/i;
 export function sheetTips(song) {
-  const sec = (song.sections || []).find((x) => NOTES_SEC.test(String(x.name || '').trim()));
   const out = { practice: [], pairs: [] };
+  if (song.tips && typeof song.tips === 'object') { // v2.5.2: saveti kao podaci (MARLI put): promena i niz sa lista
+    const p = song.tips.pair; if (Array.isArray(p) && p.length === 2 && CH.test(p[0]) && CH.test(p[1])) out.pairs.push({ a: p[0], b: p[1] });
+    const q = (song.tips.seq || []).filter((c) => CH.test(c)); if (new Set(q).size >= 2) out.practice.push({ ch: q.slice(0, 8), label: '' });
+    if (out.pairs.length || out.practice.length) return out;
+  }
+  const sec = (song.sections || []).find((x) => NOTES_SEC.test(String(x.name || '').trim()));
   if (!sec) return out;
   for (const l of sec.lines || []) {
     const text = String(l.text || l.lyrics || '').trim();

@@ -4,6 +4,7 @@ import { parseChord, formatChord } from './music.js';
 // frets: žice od E (6.) do e (1.); -1 = prigušena, 0 = otvorena.
 // fingers: 0 = bez prsta. barre: { fret, from, to } (indeksi žica 0..5).
 const OPEN = {
+  E5: ['022xxx', '011000'], A5: ['x022xx', '001100'], D5: ['xx023x', '000130'], // v2.5.2: power akordi (prazna žica)
   C: ['x32010', '032010'],
   A: ['x02220', '001230'],
   G: ['320003', '210003'],
@@ -47,6 +48,7 @@ const OPEN = {
 
 // Pokretni oblici: offset u odnosu na prag korena; null = prigušena.
 const E_SHAPES = {
+  '5': [0, 2, 2, null, null, null], // v2.5.2: power akord
   '': [0, 2, 2, 1, 0, 0],
   m: [0, 2, 2, 0, 0, 0],
   '7': [0, 2, 0, 1, 0, 0],
@@ -60,6 +62,7 @@ const E_SHAPES = {
   aug: [0, null, 2, 1, 1, 0],
 };
 const A_SHAPES = {
+  '5': [null, 0, 2, 2, null, null],
   '': [null, 0, 2, 2, 2, 0],
   m: [null, 0, 2, 2, 1, 0],
   '7': [null, 0, 2, 0, 2, 0],
@@ -145,7 +148,7 @@ const NAMED_SHAPES = {
   'C/B': [['x20010', '020010']], 'G/B': [['x20033', '010034']], 'Am7/G': [['302210', '402310']], 'Am/G': [['302210', '402310']],
   'C/G': [['332010', '342010']], 'D/A': [['x00232', '000132']], 'C/E': [['032010', '032010']], 'F/C': [['x33211', '034211']],
   'Cadd9': [['x32033', '021034']], 'Em7': [['022033', '012034']], 'Asus4': [['x02233', '001234']], 'Gsus2': [['300233', '200134']],
-  'A7sus4': [['x02033', '001034']], 'D#dim': [['xx1212', '001324']], 'C6': [['x32200', '032100']], 'Am7': [['x02213', '002314']],
+  'A7sus4': [['x02033', '001034']], 'D#dim': [['xx1212', '001324']], 'C6': [['x32200', '032100']], 'Am7': [['x02213', '002314']], 'Em11': [['000000', '000000']], // „sve prazne žice“ (Let It Be)
 };
 const cache = new Map();
 
@@ -156,9 +159,9 @@ const cache = new Map();
 export function getVoicings(chordName) {
   const p = parseChord(chordName);
   if (!p) return [];
-  const full = formatChord(p, { flat: false });
-  const named = NAMED_SHAPES[full] || [];
-  const key = p.bass != null && named.length ? full : p.root + '|' + p.quality;
+  const full = formatChord(p, { flat: false }), raw = String(chordName).trim();
+  const named = NAMED_SHAPES[full] || NAMED_SHAPES[raw] || [];
+  const key = named.length && (p.bass != null || !NAMED_SHAPES[full]) ? 'n:' + (NAMED_SHAPES[full] ? full : raw) : p.root + '|' + p.quality;
   if (cache.has(key)) return cache.get(key);
 
   const build = (quality) => {

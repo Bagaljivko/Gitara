@@ -29,6 +29,8 @@ export async function open(ctx, dev = 'phone', opts = {}) {
     if (!o.hints) window.__marliTest = { ...(window.__marliTest || {}), noHints: true };
   }, { fresh: !!opts.fresh, hints: !!opts.hints, lang: opts.lang || '', ver: ctx.ver });
   if (opts.init) await c.addInitScript(opts.init, opts.arg);
+  // v2.5.2: MARLI put (30 pesama) stiže sam — u testovima samo kad ga test traži ({ marli: true }), da brojevi pesama ostanu isti
+  if (!opts.marli) await c.route('**/courses/index.json', (r) => r.fulfill({ status: 404, body: '' }));
   const p = await c.newPage();
   p.errs = [];
   p.on('pageerror', (e) => p.errs.push(e.message));

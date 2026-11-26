@@ -91,7 +91,7 @@ function libBadges(s) {
   const co = COURSE_OF.get(s.id);
   if (co && co.marli) b.push(MARLI_LOGO);
   if (s.type === 'tab') b.push('<span class="badge-sm tab-badge">TAB</span>');
-  if (s.capo) b.push(`<span class="badge-sm" title="${esc(t('capo.title'))}">${esc(t('lib.badgeCapo', { n: s.capo }))}</span>`);
+  // v2.5.2: bez kapodastera i tonaliteta u spisku (vide se na stranici pesme)
   if (s.tuning && s.tuning !== 'standard') b.push(`<span class="badge-sm">${esc(t('tuning.' + s.tuning))}</span>`);
   if (s.type !== 'tab' && (s.hasTabs ?? (s.sections || []).some((x) => (x.tabs || []).length))) b.push('<span class="badge-sm tab-badge">TAB</span>'); // isti izgled svuda
   // v1.78: nastava — čiji je snimak / od nastavnika
@@ -194,12 +194,14 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
   };
   const courseLabel = (g) => { if (g === 'course:marli') return 'MARLI put'; const c = COURSES.find((x) => 'course:' + x.id === g); return c ? (c.fromT ? '🎓 ' : c.marli ? '' : '📚 ') + c.name : ''; };
   const chipLabel = (g) => { if (g.startsWith('course:')) return courseLabel(g); const a = autoLists().find((x) => x.g === g); if (a) return (a.ic === 'TAB' ? '' : a.ic + ' ') + a.label; const f = folders.find((x) => x.id === g); return f ? (isSystemFolder(f.id) ? '' : '📁 ') + folderLabel(f) : ''; };
-  const defaultPins = () => ['auto:top', ...((myT && myT.tid) || all.some((x) => x.fromT) ? ['auto:teacher'] : [])];
+  const defaultPins = () => [...([...COURSE_OF.values()].some((c) => c.marli) ? ['course:marli'] : []), 'auto:top', ...((myT && myT.tid) || all.some((x) => x.fromT) ? ['auto:teacher'] : [])];
   let LL = null; const libLists = async () => (LL = LL || (await import('./libLists.js')));
   const drawChips = () => {
     const box = $('lChips'); if (!box) return;
     const n = (g) => all.filter((x) => inGroup(x, g)).length;
     let pins = defaultPins(); try { const v = JSON.parse(localStorage.getItem('marli-chips') || 'null'); if (Array.isArray(v)) pins = v; } catch {}
+    // v2.5.2: kad stignu MARLI put pesme, čip „MARLI put“ se jednom doda i ako su čipovi već birani (ako ima mesta)
+    try { if ([...COURSE_OF.values()].some((c) => c.marli) && !localStorage.getItem('marli-chip-mp')) { localStorage.setItem('marli-chip-mp', '1'); if (!pins.includes('course:marli') && pins.length < 3 && localStorage.getItem('marli-chips')) { pins = ['course:marli', ...pins]; localStorage.setItem('marli-chips', JSON.stringify(pins)); } } } catch {}
     const show = [...pins.filter((g) => chipLabel(g)), ...(folderFilter && !pins.includes(folderFilter) && chipLabel(folderFilter) ? [folderFilter] : [])];
     const chips = [['', t('lib.chipAll'), n('')], ...show.map((g) => [g, chipLabel(g), n(g), g === 'auto:teacher' ? 't' : ''])];
     box.innerHTML = chips.map(([g, label, c, cls]) => `<button type="button" class="lib-chip${g === folderFilter ? ' on' : ''}${cls ? ' ' + cls : ''}" data-chip="${esc(g)}">${g === 'course:marli' ? MARLI_LOGO : ''}${esc(label)}${c != null ? `<i>${c}</i>` : ''}</button>`).join('');
@@ -314,7 +316,7 @@ export async function renderLibrary(root, params = new URLSearchParams()) {
       <li class="song-item${s.id === selectedId ? ' selected' : ''}" data-id="${esc(s.id)}">
         <a href="#/pesma/${encodeURIComponent(s.id)}" class="song-link">
           <span class="song-title">${esc(s.title)}</span>
-          <span class="song-sub">${[s.artist ? esc(s.artist) : '', ((k) => (k ? `<span class="key">${esc(dn(k))}</span>` : ''))(libKey(s))].filter(Boolean).join(' · ')}${folderFilter === 'auto:top' && TOP.get(s.id) ? `<span class="lib-top">· ⏱ ${esc(topTime(TOP.get(s.id)))}</span>` : ''}${libBadges(s)}</span>
+          <span class="song-sub">${[s.artist ? esc(s.artist) : ''].filter(Boolean).join(' · ')}${folderFilter === 'auto:top' && TOP.get(s.id) ? `<span class="lib-top">· ⏱ ${esc(topTime(TOP.get(s.id)))}</span>` : ''}${libBadges(s)}</span>
         </a>
         <button class="icon-btn more-btn" data-more="${esc(s.id)}" aria-label="${esc(t('lib.songMenu', { title: s.title }))}">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm0 6a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm0 6a2 2 0 1 1 0-4 2 2 0 0 1 0 4z"/></svg>
@@ -1055,7 +1057,7 @@ function showChord(name, opts = {}) {
 // v2.2: koja dugmad su na vrhu pesme i kojim redom (Podešavanja pesme → prevuci ≡); važi za sve pesme, sinhronizuje se
 const BAR_ALL = ['video', 'key', 'capo', 'easy', 'tempo', 'rhythm', 'size', 'chords', 'practice', 'metro']; // v2.4.4: metronom (v2.4.16: bez štoperice — vreme se beleži samo)
 export const METRO_ICON = '<svg class="met-ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M9 3h6l4 18H5z"/><path d="M5.9 17h12.2"/><g class="met-arm"><path d="M12 17 16.2 6.5"/><circle cx="14.9" cy="9.8" r="1.5" fill="currentColor"/></g></svg>'; // v2.4.8: metronom (klatno se njiše u tempu dok svira)
-const BAR_DEF = ['video', 'key', 'capo', 'tempo', 'metro', 'rhythm']; // v2.4.8: metronom odmah posle tempa
+const BAR_DEF = ['video', 'capo', 'metro', 'rhythm']; // v2.5.2: Ton i BPM su u ⚙ (manje na prvi pogled) // v2.4.8: metronom odmah posle tempa
 function barOrder() { try { const v = JSON.parse(localStorage.getItem('marli-songbar') || 'null'); if (Array.isArray(v)) return v.filter((k) => BAR_ALL.includes(k)); } catch {} return BAR_DEF; }
 async function setBarOrder(v) { try { localStorage.setItem('marli-songbar', JSON.stringify(v)); } catch {} await settings.set('songBar', v).catch(() => {}); }
 const syncBar = () => settings.get('songBar', null).then((v) => { if (Array.isArray(v)) try { localStorage.setItem('marli-songbar', JSON.stringify(v.filter((k) => BAR_ALL.includes(k)))); } catch {} }).catch(() => {});
@@ -1140,6 +1142,7 @@ export async function renderSong(root, id, nav = null) {
       <div id="sRecCmp" class="rc-box"></div>
       <div id="sAsk"></div>
       <div id="sSuggest"></div>
+      <div id="sCourseRow"></div>
       <div id="sLyrCard"></div>
       <div id="sControls"></div>
       <details class="song-details" id="sDet"><summary><span>${t('song.details')}</span><span class="small muted" id="sDetSub"></span></summary><div id="sDetBody"></div></details>
@@ -1147,6 +1150,7 @@ export async function renderSong(root, id, nav = null) {
       ${paButtonHTML(stored)}
       <button class="icon-btn cols-btn" id="sCols" hidden aria-pressed="false" aria-label="${t('song.cols2')}" title="${t('song.cols2')}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h8v16H3zm2 2v12h4V6zm8-2h8v16h-8zm2 2v12h4V6z"/></svg></button>
       <div class="lyrics" id="sLyrics" style="--zoom:${zoom}"></div>
+      <div id="sTips" class="tips-box"></div>
       <div class="diagram-row diag-col" id="sDiagCol" aria-label="${t('song.diagrams')}"></div>
     </div>
     <div class="scroll-bar" id="sScrollBar">
@@ -1476,7 +1480,30 @@ export async function renderSong(root, id, nav = null) {
     addLoopButtons();
     fitAndTabs(pre);
     drawLyrCard();
+    drawTips();
   };
+  // v2.5.2: red kursa na stranici pesme (MARLI znak · „MARLI put · Nivo 1“ · pesma 7 od 10)
+  if (stored.id) import('./coursesView.js').then((C) => C.courseNav(stored.id)).then((n) => { const b = $('sCourseRow'); if (b) b.innerHTML = n ? n.top : ''; }).catch(() => {});
+  // v2.5.2: „Saveti sa lista“ (umesto dela „Beleške“)
+  let tipsOpen = false;
+  const drawTips = () => import('./songTips.js').then(async (T) => {
+    const box = $('sTips'); if (!box) return;
+    const tp = stored.type === 'tab' ? null : T.tipsOf(stored);
+    const ni = T.notesIndex(stored);
+    if (tp && ni >= 0) { const sec = secEls()[ni]; if (sec) sec.hidden = true; }
+    if (!tp) { box.innerHTML = ''; return; }
+    let can = {};
+    try { const a = await (await import('./songPath.js')).analyze(stored); can = { chg: a.hard.some((h) => h.sheet), pt: !!(a.sheet.practice[0]) }; } catch {}
+    box.innerHTML = T.tipsCardHTML(tp, can, tipsOpen);
+  }).catch(() => {});
+  $('sTips').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-tip]'); if (!b) return;
+    const k = b.dataset.tip, enc = encodeURIComponent;
+    if (k === 'more') { tipsOpen = true; drawTips(); return; }
+    const a = await (await import('./songPath.js')).analyze(stored).catch(() => null); if (!a) return;
+    if (k === 'chg') { const h = a.hard.find((x) => x.sheet); if (h) location.hash = '#/vezbe/promena?song=' + enc(stored.id) + '&ch=' + enc(h.a + '-' + h.b) + '&k=chg'; }
+    if (k === 'pt') { const x = a.sheet.practice[0]; if (x) location.hash = '#/vezbe/promena?song=' + enc(stored.id) + '&ch=' + enc(x.ch.join('-')) + '&k=pt'; }
+  });
   // v2.4.37: pesma bez teksta (npr. sa lista akorada) — „Pronađi tekst“ / „Nalepi“ / „Tekst pesme ↗“
   const drawLyrCard = () => {
     const box = $('sLyrCard'); if (!box) return;

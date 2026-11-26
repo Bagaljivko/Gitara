@@ -405,6 +405,16 @@ idle(() => import('./songSync.js').then((m) => m.cleanupDuplicates({ settings })
 }).catch(() => {}));
 // Google Drive (~25 KB) se učitava samo ako je rezervna kopija uključena; inače tek kad se otvore Podešavanja
 idle(() => settings.get('drive', null).then((d) => { if (d && d.connected) return import('./drive.js').then((m) => m.initDrive()); }).catch(() => {}));
+// v2.5.2: MARLI put se doda sam (jednom po nivou); uz sinhronizaciju tek posle prvog usklađivanja (da drugi uređaj ne napravi isto dvaput)
+idle(() => import('./db.js').then(async ({ settings }) => {
+  if (((await settings.get('marliAdded', [])) || []).length >= 3) return;
+  const go = () => import('./coursesView.js').then((m) => m.ensureMarli()).then((added) => { if (added && /^#\/(pesme|vezbe)?(\?|$)/.test(location.hash || '#/')) dispatchEvent(new HashChangeEvent('hashchange')); }).catch(() => {}); // pesme stigle — osveži spisak
+  const cfg = (await settings.get('syncCfg', null)) || {};
+  if (!cfg.on) { setTimeout(go, 3000); return; }
+  const S = await import('./sync.js'); let done = false;
+  const off = S.onSyncChange((st) => { if (!done && st.status === 'synced') { done = true; off && off(); go(); } });
+  if (S.syncState().status === 'synced') { done = true; off && off(); go(); }
+}).catch(() => {}));
 idle(() => import('./backups.js').then(async (B) => { if (await B.isConnected()) B.initAutoBackup(); }).catch(() => {})); // v1.85: dnevna rezervna kopija
 idle(() => import('./installNudge.js').then((m) => m.initInstallNudge()).catch(() => {})); // v1.87: poziv „Instaliraj“ (samo telefon/tablet)
 // Već podeljene pesme / set liste: posle izmene isti link tiho dobija novi sadržaj (sledeće „Podeli“ je trenutno)
