@@ -67,9 +67,10 @@ export async function importPdf(file) {
       }
     }
     const chart = await m.pdfChordChart(read.pages, isChordLine); // v2.4.33: lista akorada bez teksta (delovi, ×N, redosled, kapo)
-    const ch = chart ? { title: chart.title, artist: chart.artist, text: chart.text, capo: chart.capo } : m.pdfChordText(read.pages, isChordLine);
+    const ch = chart ? { title: chart.title, artist: chart.artist, text: chart.text, capo: chart.capo, strum: chart.strum, shapes: chart.shapes } : m.pdfChordText(read.pages, isChordLine);
     if (ch) {
-      let song = normalizeSong({ title: fixCaps(ch.title), artist: fixCaps(ch.artist), key: '', sections: textToSections(ch.text), ...(ch.capo ? { capo: ch.capo } : {}) });
+      let song = normalizeSong({ title: fixCaps(ch.title), artist: fixCaps(ch.artist), key: '', sections: textToSections(ch.text), ...(ch.capo ? { capo: ch.capo } : {}), ...(ch.strum ? { strum: ch.strum } : {}) });
+      if (ch.shapes) song.shapes = ch.shapes; // v2.4.35: hvatovi i ritam sa lista
       if (ch.capo) song = { ...song, sections: transposeSong(song, ch.capo).sections }; // hvatovi uz kapodaster → zvučni akordi
       song.importedFrom = 'pdf';
       song.__original = snapshotOriginal(song);
@@ -673,7 +674,7 @@ export async function renderEditor(root, id) {
     const keyText = $('eKey').value.trim();
     let rec0 = {
       // ponovo skenirana pesma zadržava sve svoje (kapodaster, ritam, YouTube, folderi, setliste — isti id)
-      ...(base ? base : isNew ? songExtras(song) : song),
+      ...(base ? base : isNew ? { ...songExtras(song), ...(song.shapes ? { shapes: song.shapes } : {}) } : song),
       title,
       artist: $('eArtist').value.trim(),
       tuning: $('eTuning').value === 'standard' ? undefined : $('eTuning').value,

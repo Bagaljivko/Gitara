@@ -55,7 +55,7 @@ export async function createGame(api) {
       const parts = song ? P.songParts(song) : [];
       // v2.4.30: „Upoznaj akorde“ iz puta kroz pesmu (&ch=Em-B7): tačno ti akordi, rezultat [pesma, 'ak']
       const want = (api.params.get('ch') || '').split('-').filter((c) => c && CS.known(c));
-      if (song && new Set(want).size >= 2) { seq = CS.cleanSeq(want.slice(0, CS.MAX_SEQ), 4); rhythm0 = 'one'; fromSong0 = { id: song.id, title: song.title, k: 'ak', shapes: song.shapes || {} }; }
+      if (song && new Set(want).size >= 2) { seq = CS.cleanSeq(want.slice(0, CS.MAX_SEQ), 4); rhythm0 = 'one'; fromSong0 = { id: song.id, title: song.title, k: ['pt', 'chg'].includes(api.params.get('k')) ? api.params.get('k') : 'ak', shapes: song.shapes || {} }; } // v2.4.35: &k=pt (vežba sa lista), &k=chg (promena sa lista)
       else if (parts.length) {
         const d = parts.map(P.partDifficulty), p = parts[d.indexOf(Math.max(...d))];
         const ch = p.chords.map((c) => c.chord).filter((c, k, a) => (!k || c !== a[k - 1]) && CS.known(c)).slice(0, CS.MAX_SEQ);

@@ -133,6 +133,11 @@ const EASY_SHAPES = {
   '5|': ['xx3211', '003211'], '5|m': ['xx3111', '003111'], '11|m': ['xx4432', '003421'], '10|': ['xx3331', '002341'],
   '6|m': ['xx4222', '003111'], '0|m': ['xx5543', '003421'], '7|m': ['xx5333', '003111'], '1|m': ['xx6654', '003421'],
 };
+// v2.4.35: drugi otvoreni hvatovi koje nastavnici često uče (G sa 3. pragom na h žici, Fmaj7 sa basom C, …)
+const ALT_SHAPES = {
+  '7|': [['320033', '210034']], '5|maj7': [['x33210', '034210']], '0|': [['x32013', '032014']],
+  '2|7': [['xx0212', '000213']], '9|m7': [['x02010', '002010']],
+};
 const cache = new Map();
 
 /**
@@ -172,8 +177,15 @@ export function getVoicings(chordName) {
   // v2.4.33: lakši hvat za barré akorde (mali oblik na 4 žice) — uvek dostupan kao poslednji hvat
   const ez = EASY_SHAPES[p.root + '|' + p.quality];
   if (ez && list.some((v) => v.barre)) { const v = fromString(ez[0], ez[1]); list.push({ ...v, baseFret: baseFret(v), approx, easy: true }); }
+  // v2.4.35: česti drugi hvatovi (npr. sa lista nastavnika) — dodaju se na kraj, postojeći redosled se ne menja
+  for (const al of ALT_SHAPES[p.root + '|' + p.quality] || []) { const v = fromString(al[0], al[1]); if (!list.some((x) => x.frets.join() === v.frets.join())) list.push({ ...v, baseFret: baseFret(v), approx: false, alt: true }); }
   cache.set(key, list);
   return list;
+}
+/** v2.4.35: indeks hvata sa istim pragovima (prsti mogu da se razlikuju) ili -1. */
+export function matchVoicing(name, frets) {
+  const want = (frets || []).join();
+  return getVoicings(name).findIndex((v) => v.frets.join() === want);
 }
 /** v2.4.33: indeks lakšeg hvata (ili -1). */
 export function easyIndex(name) { return getVoicings(name).findIndex((v) => v.easy); }

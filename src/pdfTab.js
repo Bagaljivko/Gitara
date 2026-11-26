@@ -414,5 +414,16 @@ export async function pdfChordChart(pages, isChordLine) {
     const c = lines[j].trim().split(/\s{3,}/)[0] || '';
     if (c && !/capo|kapo|tuning|štim|song \d|pesma \d|level/i.test(c) && c.length <= 60) artist = c;
   }
-  return { title, artist, capo: r.capo, text: r.text };
+  // v2.4.35: i ono što je nacrtano — hvatovi iz dijagrama (indeks hvata po akordu) i ritam iz strelica
+  const X = (await import('./sheetExtras.js')).sheetExtras(pages);
+  const { matchVoicing } = await import('./chords.js');
+  const shapes = {};
+  for (const [name, v] of Object.entries(X.shapes)) { const i = matchVoicing(name, v.frets); if (i > 0) shapes[name] = i; }
+  let strum = null;
+  if (X.strum) {
+    const { PATTERNS } = await import('./rhythm.js');
+    const same = PATTERNS.find((p) => p.sig === X.strum.sig && p.steps === X.strum.steps && !p.swing);
+    strum = same ? { id: same.id, sig: same.sig, steps: same.steps } : { sig: X.strum.sig, steps: X.strum.steps, ...(X.strum.name ? { name: X.strum.name } : {}) };
+  }
+  return { title, artist, capo: r.capo, text: r.text, ...(Object.keys(shapes).length ? { shapes } : {}), ...(strum ? { strum } : {}) };
 }

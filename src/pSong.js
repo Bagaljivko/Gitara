@@ -84,7 +84,8 @@ export async function createGame(api) {
     if (id === 'tut') { try { localStorage.setItem('gitara-tut-' + songId, String(Date.now())); } catch {} import('./ytPick.js').then((Y) => Y.ytAction('tutorial', song, () => db.save(song))).catch(() => {}); refreshPath(); return; }
     if (id === 'ak') location.hash = '#/vezbe/promena?song=' + enc(songId) + '&ch=' + enc(((pathSt && pathSt.analysis.akSeq) || []).join('-'));
     else if (id === 'bare') location.hash = '#/vezbe/bare?song=' + enc(songId); // v2.4.33
-    else if (id === 'chg') location.hash = '#/vezbe/promena?song=' + enc(songId);
+    else if (id === 'chg') { const sh = ((pathSt && pathSt.analysis.hard) || []).find((h) => h.sheet); location.hash = '#/vezbe/promena?song=' + enc(songId) + (sh ? '&ch=' + enc(sh.a + '-' + sh.b) + '&k=chg' : ''); } // v2.4.35: promena sa lista
+    else if (id === 'pt') { const x = pathSt && pathSt.analysis.sheet && pathSt.analysis.sheet.practice[0]; if (x) location.hash = '#/vezbe/promena?song=' + enc(songId) + '&ch=' + enc(x.ch.join('-')) + '&k=pt'; }
     else if (id === 'rp') location.hash = '#/vezbe/rp?song=' + enc(songId);
     else if (id === 'sing') location.hash = '#/vezbe/pesma/' + enc(songId) + '?m=sing';
     else if (id === 'deo') { const nx = parts.find((p) => ((stats()[String(p.i)] || {}).best || 0) < SP.DONE_AT) || parts[0]; listening?.stop(); listening = null; listenId = null; choose(nx); api.restart(); }

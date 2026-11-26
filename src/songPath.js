@@ -47,7 +47,41 @@ export async function analyze(song) {
   })();
   const C = await import('./chords.js');
   const barre = chords.filter((c) => C.isBarre(c)); // v2.4.33: barré akordi pesme (lakši hvat + igra Barré)
-  return { parts, seq, chords, known, fresh, hard, akSeq, barre };
+  // v2.4.35: saveti sa lista — promene sa lista prve
+  const sheet = sheetTips(song);
+  const sp = sheet.pairs.filter((p) => chords.includes(p.a) && chords.includes(p.b));
+  for (const p of sp.reverse()) { const k = hard.findIndex((h) => h.a === p.a && h.b === p.b); if (k >= 0) hard.splice(k, 1); hard.unshift({ ...p, sheet: true }); }
+  if (hard.length > 2) hard.length = 2;
+  sheet.practice = sheet.practice.filter((x) => x.ch.every((c) => chords.includes(c) || C.getVoicings(c).length));
+  return { parts, seq, chords, known, fresh, hard, akSeq, barre, sheet };
+}
+
+// v2.4.35: saveti sa lista nastavnika (deo „Beleške“ pri uvozu PDF-a): „Practise this: … Fmaj7, C, G, D, A7“ → vežba sa
+// tim nizom; „Watch out for: … E7 … after the G“ → promena G → E7. Akordi u beleškama su oblici (kao na listu).
+const CH = /^[A-H][#b]?(m|maj7|maj9|m7|m9|m6|mmaj7|7|9|6|sus2|sus4|7sus4|add9|dim|dim7|aug|m7b5)?(\/[A-H][#b]?)?$/;
+const NOTES_SEC = /^(beleške|beleske|notes|napomene|saveti|tips)$/i;
+export function sheetTips(song) {
+  const sec = (song.sections || []).find((x) => NOTES_SEC.test(String(x.name || '').trim()));
+  const out = { practice: [], pairs: [] };
+  if (!sec) return out;
+  for (const l of sec.lines || []) {
+    const text = String(l.text || l.lyrics || '').trim();
+    if (/^(practi[sc]e this|vežbaj ovo|vezbaj ovo)\s*:/i.test(text)) {
+      const w = text.replace(/^[^:]*:\s*/, '').split(/\s+/);
+      let run = [], best = null, start = 0;
+      const flush = (k) => { if (new Set(run).size >= 2 && (!best || run.length > best.run.length)) best = { run, at: start }; run = []; start = k + 1; };
+      w.forEach((x, k) => { const c = x.replace(/[,.;:)]+$/, ''); if (CH.test(c) && (run.length === 0 || /[,–→-]$/.test(w[k - 1]) || /^(→|-|–)$/.test(w[k - 1]))) { if (!run.length) start = k; run.push(c); if (!/,$/.test(x)) flush(k); } else if (/^(→|-|–)$/.test(x) && run.length) { /* strelica između akorada */ } else flush(k); });
+      flush(w.length);
+      if (best) out.practice.push({ ch: best.run.slice(0, 8), label: w.slice(0, best.at).join(' ').replace(/[:,\s]+$/, '').slice(0, 60) });
+    } else if (/^(watch out for|pazi na)\s*:/i.test(text)) {
+      for (const tip of text.replace(/^[^:]*:\s*/, '').split(/(?:^|\s)\d\.\s+/)) {
+        const w = tip.split(/\s+/), cs = [];
+        w.forEach((x, k) => { const c = x.replace(/[,.;:)]+$/, ''); if (CH.test(c) && (c.length > 1 || /^(the|a|an|to|i|u|na)$/i.test(w[k - 1] || '')) && !cs.includes(c)) cs.push(c); });
+        if (cs.length === 2) out.pairs.push(/\b(after|posle)\b/i.test(tip) ? { a: cs[1], b: cs[0] } : { a: cs[0], b: cs[1] });
+      }
+    }
+  }
+  return out;
 }
 
 const ARW = { D: '↓', U: '↑', x: '×', B: '↓', '-': '·' };
@@ -66,7 +100,8 @@ export async function pathState(song, rec = null, a = null) {
     { id: 'ak', game: t('lp.g.ak'), title: t('lp.ak'), sub: a.fresh.length ? t('lp.akSub', { n: a.fresh.map((c) => dn(c)).join(', ') }) : t('lp.akKnown'),
       chips: a.chords.slice(0, 8).map((c) => chip(c, !a.known.has(c))), done: best('ak') >= DONE_AT || (!a.fresh.length && a.chords.length > 0) },
     ...(a.barre && a.barre.length ? [{ id: 'bare', game: t('lp.g.bare'), title: t('lp.bare', { c: a.barre.map((c) => dn(c)).join(', ') }), sub: t('lp.bareSub'), done: best('bare') >= DONE_AT }] : []),
-    { id: 'chg', game: t('lp.g.chg'), title: t('lp.chg'), sub: a.hard.length ? a.hard.map((h) => `${dn(h.a)} → ${dn(h.b)}`).join(' · ') : t('lp.chgNone'), done: best('chg') >= DONE_AT, score: best('chg') },
+    { id: 'chg', game: t('lp.g.chg'), title: t('lp.chg'), sub: a.hard.length ? a.hard.map((h) => `${dn(h.a)} → ${dn(h.b)}${h.sheet ? ' ' + t('lp.fromSheet') : ''}`).join(' · ') : t('lp.chgNone'), done: best('chg') >= DONE_AT, score: best('chg') },
+    ...((a.sheet && a.sheet.practice) || []).slice(0, 1).map((x) => ({ id: 'pt', game: t('lp.g.pt'), title: x.label ? t('lp.pt', { l: x.label }) : t('lp.pt0'), sub: x.ch.map((c) => dn(c)).join(' → '), done: best('pt') >= DONE_AT, score: best('pt') })), // v2.4.35
     { id: 'rp', game: t('lp.g.rp'), title: t('lp.rp'), sub: t('lp.rpSub', { a: Math.max(45, Math.round((bpm * 0.6) / 5) * 5), b: bpm }), arrows: strumArrows(song), done: best('rp') >= DONE_AT, score: best('rp') },
     { id: 'deo', game: t('lp.g.deo'), title: t('lp.deo'), sub: t('lp.deoSub', { n: partsDone, total: partIds.length }), done: partIds.length > 0 && partsDone >= partIds.length },
     { id: 'sing', game: t('lp.g.sing'), title: t('lp.sing'), sub: t('lp.singSub'), done: best('sing') >= DONE_AT, score: best('sing') },

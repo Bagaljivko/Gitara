@@ -37,9 +37,10 @@ async function textSong(bytes) {
     const chart = await m.pdfChordChart(read.pages, isChordLine); // v2.4.33: lista akorada bez teksta
     if (chart) {
       const { snapshotOriginal } = await import('./songmodel.js');
-      let song = normalizeSong({ title: fixCaps(chart.title), artist: fixCaps(chart.artist), key: '', sections: textToSections(chart.text), ...(chart.capo ? { capo: chart.capo } : {}) });
+      let song = normalizeSong({ title: fixCaps(chart.title), artist: fixCaps(chart.artist), key: '', sections: textToSections(chart.text), ...(chart.capo ? { capo: chart.capo } : {}), ...(chart.strum ? { strum: chart.strum } : {}) });
       // akordi na listu su hvatovi uz kapodaster („broji pragove od kapodastera“) — pesma čuva zvučne akorde
       if (chart.capo) { const { transposeSong } = await import('./songformat.js'); song = { ...song, sections: transposeSong(song, chart.capo).sections }; }
+      if (chart.shapes) song.shapes = chart.shapes; // v2.4.35: hvatovi sa lista
       song.original = snapshotOriginal(song);
       return { song, doc: read.doc };
     }
