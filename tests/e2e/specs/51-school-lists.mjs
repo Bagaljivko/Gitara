@@ -42,10 +42,10 @@ export async function run(ctx) {
   const checks = await p.evaluate(() => [...document.querySelectorAll('.modal-backdrop .pick-row')].map((r) => r.querySelector('span').textContent.trim().split(' ')[0] + ':' + r.querySelector('input').checked).sort());
   eq(checks, ['Alfa:true', 'Beta:false'], 'pesma iz druge liste nije označena');
   await clk('.modal-backdrop .btn.danger'); await p.waitForTimeout(1200);
-  const after = await p.evaluate(async () => { const { songs, settings } = await import('./src/db.js'); return { n: (await songs.list()).filter((s) => !s.demo).map((s) => s.title).sort(), f: ((await settings.get('folders', [])) || []).map((x) => x.id) }; });
+  const after = await p.evaluate(async () => { const { songs, settings } = await import('./src/db.js'); return { n: (await songs.all()).filter((s) => !s.demo).map((s) => s.title).sort(), f: ((await settings.get('folders', [])) || []).map((x) => x.id) }; });
   expect(!after.f.includes('fT') && after.n.includes('Beta') && !after.n.includes('Alfa'), 'brisanje: pogrešno', after);
   await clk('#toast .toast-action'); await p.waitForTimeout(1500);
-  const back = await p.evaluate(async () => { const { songs, settings } = await import('./src/db.js'); return { n: (await songs.list()).map((s) => s.title), f: ((await settings.get('folders', [])) || []).map((x) => x.id) }; });
+  const back = await p.evaluate(async () => { const { songs, settings } = await import('./src/db.js'); return { n: (await songs.all()).map((s) => s.title), f: ((await settings.get('folders', [])) || []).map((x) => x.id) }; });
   expect(back.f.includes('fT') && back.n.includes('Alfa'), 'Poništi nije vratio listu i pesmu', back);
   await p.close();
 }
