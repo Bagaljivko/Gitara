@@ -11,7 +11,7 @@ const LOGO = '<img class="crs-logo" src="./icons/marli-192.png" alt="">';
 /** Stanje pesama kursa: { map: id → 'ready'|'work'|'new', next: index prve nespremne stavke } */
 // v2.5.64: obrisana pesma („gone“: pesme više nema, ili je MARLI pesma obrisana pre dodavanja nivoa) se preskače —
 // nije „sledeća“, ne broji se u ukupno, a kartica više ne kaže „sve pesme su spremne“ kad sledeća fali
-const isGone = (x, has) => !!(x && (x.miss || (x.s && has && !has.has(x.s))));
+const isGone = (x, has) => !!(x && ((x.miss && !x.n) || (x.s && has && !has.has(x.s)))); // n ≥ 1 = mesto iz serije koje čeka uvoz (nije obrisano)
 async function stateOf(course, has = null) {
   const S = await import('./statsView.js');
   const items = course.items || [];

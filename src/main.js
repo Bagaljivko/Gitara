@@ -265,11 +265,18 @@ window.addEventListener('hashchange', route);
 // v2.5.64: „‹ Nazad“ (npr. „‹ Pesme“) vraća korak unazad kad je to baš prethodni ekran — ranije je dodavao nov korak,
 // pa je sistemsko „nazad“ na Androidu vraćalo na pesmu koju si upravo napustio (krug).
 {
-  const trail = []; const push = () => { const h = location.hash || '#/'; if (trail[trail.length - 1] !== h) { if (trail[trail.length - 2] === h) trail.pop(); else trail.push(h); if (trail.length > 30) trail.shift(); } };
-  push(); window.addEventListener('hashchange', push);
+  // svaki korak istorije dobija svoj broj (history.state.mi) — nazad/napred se prepoznaju po broju, ne po adresi
+  const stack = []; let cur = -1;
+  const mark = () => {
+    const st = history.state && typeof history.state === 'object' ? history.state : {};
+    if (Number.isInteger(st.mi) && stack[st.mi] === (location.hash || '#/')) { cur = st.mi; return; } // nazad / napred
+    cur += 1; stack.length = cur; stack.push(location.hash || '#/'); // nov korak
+    try { history.replaceState({ ...st, mi: cur }, ''); } catch {}
+  };
+  mark(); window.addEventListener('hashchange', mark);
   document.addEventListener('click', (e) => {
     const a = e.target.closest && e.target.closest('a.back[href^="#"]'); if (!a || e.defaultPrevented || e.metaKey || e.ctrlKey) return;
-    if (trail.length >= 2 && trail[trail.length - 2] === a.getAttribute('href')) { e.preventDefault(); history.back(); }
+    if (cur > 0 && stack[cur - 1] === a.getAttribute('href')) { e.preventDefault(); history.back(); }
   });
 }
 // Otvaranje aplikacije dok već radi (ikonica, deljeni link): pregledač samo vrati otvorenu aplikaciju (launch_handler
