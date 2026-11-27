@@ -22,8 +22,8 @@ export function deviceName(ua = navigator.userAgent || '') {
 export async function beat({ force = false } = {}) {
   const id = myId(), list = (await settings.get('devices', [])) || [];
   const me = list.find((x) => x && x.id === id);
-  if (!force && me && Date.now() - (me.at || 0) < BEAT) return false;
   const { APP_VERSION } = await import('./version.js');
+  if (!force && me && me.ver === APP_VERSION && Date.now() - (me.at || 0) < BEAT) return false; // v2.5.67: nova verzija se javlja odmah
   const row = { id, name: deviceName(), at: Date.now(), ver: APP_VERSION, inst: !!(matchMedia('(display-mode: standalone)').matches || navigator.standalone) };
   await settings.set('devices', [...list.filter((x) => x && x.id !== id), row].slice(-20));
   return true;
