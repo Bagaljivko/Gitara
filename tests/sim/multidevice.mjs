@@ -170,7 +170,9 @@ function dupKeys() {
   const by = {};
   // ISTA verzija stavke dvaput = duplikat (svaki uređaj piše svoj fajl za stavku koju je menjao — to je namerno; starije verzije čisti vlasnik)
   for (const f of sim.listFiles({ owner: MILE, project: 'NEW', appData: true })) { const k = f.appProperties && f.appProperties.k; if (!k || k === 'snapshot') continue; const h = String(f.appProperties.h || ''); by[k + '|' + h] = (by[k + '|' + h] || 0) + 1; } // ista verzija dvaput = pravi duplikat
-  return Object.entries(by).filter(([, n]) => n > 1).map(([k]) => k);
+  const out = Object.entries(by).filter(([, n]) => n > 1).map(([k]) => k);
+  if (out.length && process.env.DUPDBG) for (const k of out) log('    DUP', k, JSON.stringify(sim.listFiles({ owner: MILE, project: 'NEW', appData: true }).filter((f) => f.appProperties && (f.appProperties.k + '|' + f.appProperties.h) === k).map((f) => [f.id.slice(0, 8), f.createdTime.slice(11, 23), f.modifiedTime.slice(11, 23)])), 'stage:', globalThis.__stage);
+  return out;
 }
 const newNamed = (name) => sim.listFiles({ owner: MILE, project: 'NEW', appData: false }).filter((f) => f.name === name).length;
 async function checkAll(sc, names, { links = true } = {}) {
@@ -212,11 +214,12 @@ async function eventsCheck(sc, names) {
 
 // ======================= 1+2) svi redosledi (svaki uređaj može biti prvi) =======================
 if (want('orders')) {
-  const ALL = perms(['desk', 'phone', 'tab', 'ios']).slice(0, MAX_ORDERS);
+  const ALL = arg('order', '') ? [arg('order', '').split(',')] : perms(['desk', 'phone', 'tab', 'ios']).slice(0, MAX_ORDERS);
   for (const order of ALL) {
     reset(); const sc = 'redosled ' + order.join('→');
     const rs = [];
-    for (const n of order) { const r = await switchDev(n); r.name = n; if (rs.length === 0) await waitBg(r.d); await closeDev(r.d); rs.push(r); }
+    for (const n of order) { globalThis.__stage = 'switch ' + n; const r = await switchDev(n); r.name = n; if (rs.length === 0) await waitBg(r.d); await closeDev(r.d); rs.push(r); if (process.env.DUPDBG) { log('  posle', n, 'dup:', dupKeys().length); } }
+    globalThis.__stage = 'checkAll';
     expectOneTap(sc, rs); summarize(sc, rs);
     if (order === ALL[0] || order[0] === 'tab') { await checkAll(sc, order); await eventsCheck(sc, order); }
     else { const dk = dupKeys(); if (dk.length) problem(sc, `duplikati: ${dk.length}`); const nb = newNamed('MARLI – za učenika.json'); if (nb !== T.ids.length) problem(sc, `nova sandučad: ${nb}`); }

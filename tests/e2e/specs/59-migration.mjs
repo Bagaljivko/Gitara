@@ -102,7 +102,7 @@ export async function run(ctx) {
 
   // 2) slanje na novu vezu ne uspe → ekran greške sa „Pokušaj ponovo“ → uspeh; ništa izgubljeno, bez duplikata
   {
-    const { p } = await oldUser('b@x.test');
+    const { p, dev: devB } = await oldUser('b@x.test');
     const f = sim.fail({ status: 500, reason: 'backendError', times: 40, match: (q) => q.project === 'NEW' && q.user === 'b@x.test' && q.method !== 'GET' });
     expect(await gate(p), 'ekran (greška)');
     await p.click('#migGate [data-mg="go"]');
@@ -113,6 +113,8 @@ export async function run(ctx) {
     f.cancel();
     const m = await finish(p);
     expect(m.done, 'posle ponovnog pokušaja nije završeno', m);
+    const pops = devB.log.filter((x) => x.client_id === NEW.client && x.prompt !== 'none' && x.kind !== 'revoke').length;
+    eq(pops, 1, 'Google prozor posle „Pokušaj ponovo“ (treba samo jedna prijava)');
     const keys = newFiles('b@x.test').map((x) => x.appProperties && x.appProperties.k).filter((k) => k && k !== 'snapshot');
     const dupK = keys.filter((k, i) => keys.indexOf(k) !== i);
     if (dupK.length && process.env.MIGDBG) (await import('node:fs')).writeFileSync(process.env.MIGDBG, JSON.stringify({ dupK, files: newFiles('b@x.test').map((x) => [x.appProperties && x.appProperties.k, x.createdTime]), log: sim.log.filter((l) => l.project === 'NEW').map((l) => [l.t, l.ep, l.user, l.status, l.reason]) }, null, 0));

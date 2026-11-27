@@ -136,9 +136,12 @@ async function run() {
     // čeka roditelja (dečji nalog): prvo tiho — možda je u međuvremenu odobreno (tada bez ijednog dodira); inače dečji
     // ekran (ne opšti), a dugme na njemu odmah otvara Google prijavu
     let tk = null, direct = false;
+    // v2.5.68: ovaj uređaj je već bio prijavljen u ovom prelasku (npr. slanje nije uspelo pa „Pokušaj ponovo“) — bez nove
+    // Google prijave: isti, sačuvan ključ / dugotrajna dozvola (svaki novi Google prozor je nova prilika da zaglavi)
+    if (m.acct && m.acct.id && !m.pick) { const st = await D.syncTokenStored().catch(() => null); if (st && st.token) tk = st; }
     // v2.5.68: drugi uređaj — prvi je već prešao i ostavio predaju: bez prijave i bez ekrana (ako ne uspe: „Prijavi se“)
-    if (!m.kidWait && !m.pick && !gate) { const h = await takeHandoff(cfg).catch(() => null); if (h) { tk = h.tk; quiet = true; m = await put({ via: 'auto', viaDev: h.dev || '', viaAt: h.at || Date.now() }); } }
-    if (m.kidWait) {
+    if (!tk && !m.kidWait && !m.pick && !gate) { const h = await takeHandoff(cfg).catch(() => null); if (h) { tk = h.tk; quiet = true; m = await put({ via: 'auto', viaDev: h.dev || '', viaAt: h.at || Date.now() }); } }
+    if (!tk && m.kidWait) {
       tk = await D.syncToken({ interactive: false, hint: email }).catch(() => null);
       if (!(tk && tk.token)) {
         tk = null;
