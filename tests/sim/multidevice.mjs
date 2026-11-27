@@ -76,6 +76,7 @@ async function openDev(name, email, { tabs = 1, offline = false, noOldAuth = fal
   d.events = d.events || [];
   await ctx.route('https://feedback.test/**', (r) => { try { const j = JSON.parse(r.request().postData() || '{}'); if (j.kind === 'event') d.events.push(j); } catch {} return r.fulfill({ status: 200, body: 'ok' }); });
   if (offline) sim.offline(true);
+  if (process.env.DUPDBG) ctx.on('request', (rq) => { try { if (rq.method() === 'POST' && /upload\/drive\/v3\/files/.test(rq.url())) { const b = rq.postData() || ''; const m = /"k":"([^"]+)","h":"([^"]+)"/.exec(b); if (m && m[1] === 'students') log('    UPLOAD', name, m[1], m[2].slice(10, 20), globalThis.__stage); } } catch {} });
   const pages = [];
   for (let i = 0; i < tabs; i++) {
     const p = await ctx.newPage(); p.errs = []; p.on('pageerror', (e) => p.errs.push(String(e).slice(0, 200)));
