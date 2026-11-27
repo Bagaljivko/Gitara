@@ -983,6 +983,8 @@ const sr = {
   'mig.fromOldOk': 'Gotovo — preuzeto iz stare veze: {n}.',
   'mig.fromOldNone': 'Stara veza nema ništa novo.',
   'mig.fromOldErr': 'Stara veza trenutno ne odgovara. Pokušaj ponovo malo kasnije.',
+  'mig.autoBusy': 'Prebacujem MARLI na novu Google vezu… Možeš normalno da koristiš aplikaciju.',
+  'mig.autoDone': 'MARLI je prebačen na novu Google vezu ✓',
   'mig.title': 'MARLI je ažuriran',
   'mig.p': 'Prijavi se ponovo da nastaviš. Tvoje pesme, podešavanja i Gemini ključ ostaju — sve se prebacuje samo.',
   'mig.safeT': 'Tvoje pesme su sačuvane',

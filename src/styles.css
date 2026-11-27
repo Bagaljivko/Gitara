@@ -3693,3 +3693,5 @@ body.mig-open { overflow: hidden; }
 .mig-bar { height: 8px; border-radius: 4px; background: var(--surface-2); overflow: hidden; margin: 0 0 10px; }
 .mig-bar i { display: block; height: 100%; background: var(--accent); transition: width .4s; }
 .mig-pt { margin: 0; }
+/* v2.5.68: traka „Nova verzija — Osveži“ mora da se vidi i preko ekrana prelaska (inače se zaglavljen ne može ažurirati) */
+body.mig-open .update-bar { z-index: 10001; bottom: calc(env(safe-area-inset-bottom) + 12px); }

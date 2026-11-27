@@ -80,15 +80,41 @@ async function safetyCopy() {
 
 let running = null;
 /** Pokreni prelazak (pri otvaranju aplikacije). Ne vraća se dok se ne završi (ili dok korisnik ne nastavi bez interneta). */
-export function startMigration() { return running || (running = run().finally(() => { running = null; })); }
+export function startMigration() {
+  if (running) return running;
+  running = (async () => {
+    // v2.5.68: više kartica na istom uređaju — prelazak radi samo jedna; ostale čekaju i posle se ponovo učitaju
+    if ((await migrationDone()) || !(navigator.locks && navigator.locks.request)) return run();
+    return navigator.locks.request('marli-migrate', async () => {
+      doneCache = null;
+      if ((await get()).done) { location.reload(); return true; } // druga kartica je u međuvremenu završila
+      return run();
+    });
+  })().finally(() => { running = null; });
+  return running;
+}
+const POLL = () => globalThis.__marliTest?.handoffPollMs ?? 20000;
+/** Dok je ekran „Prijavi se“ otvoren: ako drugi uređaj u međuvremenu završi i ostavi predaju — nastavi sam. */
+function pollHandoff(cfg, stop) {
+  return new Promise((res) => {
+    const tick = async () => {
+      if (stop.v) return;
+      if (!document.hidden && navigator.onLine !== false) { const h = await takeHandoff(cfg).catch(() => null); if (h && !stop.v) { res(h); return; } }
+      if (!stop.v) setTimeout(tick, POLL());
+    };
+    setTimeout(tick, POLL());
+  });
+}
+const acctTag = async (id) => { try { const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('marli:' + id)); return 'nalog ' + [...new Uint8Array(b)].slice(0, 4).map((x) => x.toString(16).padStart(2, '0')).join(''); } catch { return ''; } };
 
 async function run() {
-  if (await migrationDone()) { const m = await get(); if (m.done && !m.fresh && !(m.linksDone && m.copyUp && m.oldFiles)) background().catch(() => {}); return true; }
+  if (await migrationDone()) { const m = await get(); if (m.done && !m.fresh && !(m.linksDone && m.copyUp && m.oldFiles && m.cleaned)) background().catch(() => {}); if (m.done && !m.fresh && !m.handoff) leaveHandoff().catch(() => {}); return true; }
   const S = await import('./sync.js'); const D = await import('./drive.js'); const O = await import('./oldAuth.js');
   const cfg = (await settings.get('syncCfg', null)) || {}; const drv = (await settings.get('drive', null)) || {};
   const email = cfg.email || drv.email || '';
   let m = await get();
-  if (!m.started) { m = await put({ started: Date.now() }); ev('počeo', true); }
+  let quiet = false;
+  if (!m.started) { m = await put({ started: Date.now() }); ev('počeo', true, { note: cfg.id ? await acctTag(cfg.id) : '' }); }
   // 0) druga kartica sa starom verzijom drži sinhronizaciju — mora da se zatvori (inače bi slala na staru vezu)
   for (;;) { if (await S.holdOldLock(2500)) break; if ((await screen({ h: t('mig.tabsT'), p: esc(t('mig.tabsP')), btn: t('mig.retry') })) !== 'go') continue; }
   // 1) kopija na uređaju
@@ -98,8 +124,7 @@ async function run() {
   }
   for (;;) {
     // bez interneta: radi na uređaju, ekran se vraća čim ima mreže
-    if (navigator.onLine === false) {
-      await screen({ h: t('mig.title'), p: esc(t('mig.offP')), rows: [['📶', t('mig.offT'), t('mig.offS')]], btn: t('mig.offBtn') });
+    if (navigator.onLine === false) { // v2.5.68: bez ekrana — aplikacija radi, prelazak kreće sam čim se veza vrati
       closeGate();
       await new Promise((r) => addEventListener('online', r, { once: true }));
       continue;
@@ -111,6 +136,8 @@ async function run() {
     // čeka roditelja (dečji nalog): prvo tiho — možda je u međuvremenu odobreno (tada bez ijednog dodira); inače dečji
     // ekran (ne opšti), a dugme na njemu odmah otvara Google prijavu
     let tk = null, direct = false;
+    // v2.5.68: drugi uređaj — prvi je već prešao i ostavio predaju: bez prijave i bez ekrana (ako ne uspe: „Prijavi se“)
+    if (!m.kidWait && !m.pick && !gate) { const h = await takeHandoff(cfg).catch(() => null); if (h) { tk = h.tk; quiet = true; m = await put({ via: 'auto', viaDev: h.dev || '', viaAt: h.at || Date.now() }); } }
     if (m.kidWait) {
       tk = await D.syncToken({ interactive: false, hint: email }).catch(() => null);
       if (!(tk && tk.token)) {
@@ -121,10 +148,13 @@ async function run() {
       }
     }
     if (!tk && !direct) {
-      const tap = await screen({ h: t('mig.title'), p: esc(t('mig.p')), rows: [safeRow()], btn: t('mig.signIn'), g: true, sub: email ? t('mig.sameAcct', { e: masked(email) }) : '', alt: fails >= 3 ? t('mig.skipNow') : '' });
-      if (tap === 'alt') { closeGate(); ev('preskočeno', false, { note: 'posle 3 neuspeha' }); return false; } // aplikacija radi na uređaju; ekran opet pri sledećem otvaranju
+      const stop = { v: false };
+      const tap = await Promise.race([screen({ h: t('mig.title'), p: esc(t('mig.p')), rows: [safeRow()], btn: t('mig.signIn'), g: true, sub: email ? t('mig.sameAcct', { e: masked(email) }) : '', alt: fails >= 3 ? t('mig.skipNow') : '' }), pollHandoff(cfg, stop)]);
+      stop.v = true;
+      if (tap && tap.tk) { tk = tap.tk; quiet = true; closeGate(); m = await put({ via: 'auto', viaDev: tap.dev || '', viaAt: tap.at || Date.now() }); } // drugi uređaj je u međuvremenu završio
+      else if (tap === 'alt') { closeGate(); ev('preskočeno', false, { note: 'posle 3 neuspeha' }); return false; } // aplikacija radi na uređaju; ekran opet pri sledećem otvaranju
     }
-    if (!tk) try { tk = await D.syncToken({ interactive: true, hint: email, pick: !!m.pick }); }
+    if (!tk) try { tk = await D.syncToken({ interactive: true, hint: email, pick: !!m.pick }); m = await put({ via: 'prijava' }); }
     catch (e) {
       if (e && e.code === 'cancelled') continue; // zatvorio Google prozor — isti ekran
       // dečji (nadzirani) nalog: Google traži da roditelj odobri novu aplikaciju — „odbijeno“ ili prozor koji se nikad ne javi
@@ -144,7 +174,8 @@ async function run() {
     const acct = await S.migAbout(tk);
     if (!acct || !acct.id) { m = await put({ fails: fails + 1 }); await screen({ h: t('mig.failT'), p: esc(t('mig.failP')), rows: [['⚠', t('mig.googleT'), t('mig.googleS')]], btn: t('mig.retry') }); continue; }
     if ((cfg.id && acct.id !== cfg.id) || (!cfg.id && email && acct.email && acct.email.toLowerCase() !== email.toLowerCase())) {
-      ev('drugi nalog', false);
+      ev('drugi nalog', false, { note: quiet ? 'predaja' : '' });
+      if (quiet) { quiet = false; await settings.remove('driveRT2'); await (await import('./drive.js')).syncSignOut().catch(() => {}); m = await put({ via: '' }); continue; } // nikad tuđi nalog
       await (await import('./drive.js')).syncSignOut().catch(() => {});
       await screen({ h: t('mig.acctT'), p: t('mig.acctP', { e: `<b>${esc(masked(email))}</b>` }), btn: t('mig.acctBtn', { e: masked(email) }), g: true });
       m = await put({ pick: true });
@@ -160,7 +191,9 @@ async function run() {
     }
     // 4) slanje na novu vezu + provera
     if (cfg.on) {
-      const ok = await uploadAll(S, tk);
+      if (quiet) toast(t('mig.autoBusy'));
+      const ok = await uploadAll(S, tk, quiet);
+      if (!ok && quiet) { ev('slanje', false, { note: 'auto' }); setTimeout(() => startMigration(), 120000); return false; } // tiho: ponovo za 2 min / pri sledećem otvaranju
       if (!ok) { m = await put({ fails: (m.fails || 0) + 1 }); ev('slanje', false); if ((await screen({ h: t('mig.failT'), p: esc(t('mig.failP')), rows: [['⚠', t('mig.upT'), t('mig.upS')]], btn: t('mig.retry') })) === 'go') continue; }
     }
     // 5) veze sa drugima: treba li stari ključ (jedan dodir)?
@@ -174,8 +207,9 @@ async function run() {
     await put({ done: true, doneAt: Date.now() }); doneCache = true;
     if (cfg.on) await S.migFinish(acct);
     closeGate();
-    toast(t('mig.done'));
-    ev('gotovo', true, { n: String((m.copy && m.copy.n) || 0) });
+    toast(t(quiet ? 'mig.autoDone' : 'mig.done'));
+    ev('gotovo', true, { n: String((m.copy && m.copy.n) || 0), note: `${quiet ? 'auto' : 'prijava'} · ${await acctTag(acct.id)}` });
+    if (!quiet) leaveHandoff().catch(() => {});
     background().catch(() => {});
     return true;
   }
@@ -194,13 +228,13 @@ function waitForParent() {
 }
 
 /** 4. sve stavke → nova veza (ista verzija), pa provera; najviše 3 kruga. */
-async function uploadAll(S, tk) {
+async function uploadAll(S, tk, quiet = false) {
   let m = await get();
   if (!m.rebased) { await S.migRebase(); m = await put({ rebased: Date.now() }); }
   const total = Math.max(1, (await syncMeta.pending()) || 1);
   const draw = async () => { const left = await syncMeta.pending().catch(() => 0); const done = Math.max(0, total - left); screen({ h: t('mig.upH'), p: esc(t('mig.upP')), rows: [safeRow()], prog: { pct: Math.min(100, Math.round((done / total) * 100)), t: t('mig.upN', { a: done, b: total }) } }); };
-  await draw();
-  const iv = setInterval(() => draw().catch(() => {}), 700);
+  if (!quiet) await draw();
+  const iv = quiet ? 0 : setInterval(() => draw().catch(() => {}), 700);
   try {
     for (let round = 0; round < 3; round++) {
       const r = await S.migUpload(tk, 8);
@@ -214,6 +248,40 @@ async function uploadAll(S, tk) {
 }
 
 /** U pozadini, posle prelaska: veze sa drugima, kopija pre prelaska i kopije/PDF-ovi sa stare veze u folder „MARLI“. */
+// ---------------- v2.5.68: predaja drugim uređajima istog naloga ----------------
+// Nova veza traži prijavu na svakom uređaju. Prvi uređaj koji pređe zato ostavi u skrivenoj fascikli STARE veze (vidi je
+// samo MARLI tog naloga — isto mesto gde se sinhronizuje Gemini ključ) dugotrajnu dozvolu nove veze. Drugi uređaj je
+// pročita (on još ima staru vezu), dobije svoj ključ preko pomoćnika i proveri da je isti nalog — bez Google prozora.
+const HANDOFF = 'marli-predaja.json';
+async function leaveHandoff() {
+  const m = await get(); if (m.handoff) return;
+  const rt = await settings.get('driveRT2', null); const cfg = (await settings.get('syncCfg', null)) || {};
+  if (!rt || !rt.rt || !cfg.on || !(m.acct || cfg.id)) return;
+  const O = await import('./oldAuth.js');
+  if (!(await O.oldTokenSilent('sync'))) return;
+  const ex = await O.oldList(`name='${HANDOFF}'`, 'files(id,name,modifiedTime)', 'appDataFolder');
+  if (ex[0] && Date.now() - (Date.parse(ex[0].modifiedTime) || 0) < 30 * 864e5) { await put({ handoff: Date.now() }); return; } // već postoji (drugi uređaj je bio prvi)
+  const D = await import('./devices.js');
+  const body = JSON.stringify({ app: 'marli', type: 'handoff', v: 1, rt: rt.rt, scope: rt.scope || '', id: (m.acct && m.acct.id) || cfg.id, dev: D.myId(), at: Date.now() });
+  await O.oldPutAppData(HANDOFF, body, ex[0] && ex[0].id);
+  await put({ handoff: Date.now() }); ev('predaja ostavljena', true);
+}
+async function takeHandoff(cfg) {
+  if (!cfg.on) return null;
+  const O = await import('./oldAuth.js');
+  if (!(await O.oldTokenSilent('sync'))) return null;
+  const ex = await O.oldList(`name='${HANDOFF}'`, 'files(id,name,modifiedTime)', 'appDataFolder');
+  if (!ex.length) return null;
+  const j = JSON.parse(new TextDecoder().decode(await O.oldRead(ex[0].id, 'sync')));
+  if (!j || j.type !== 'handoff' || !j.rt || !j.id || (cfg.id && j.id !== cfg.id) || Date.now() - (Number(j.at) || 0) > 90 * 864e5) return null; // tuđ, nepotpun ili zastareo → obična prijava
+  const prev = await settings.get('driveRT2', null);
+  await settings.set('driveRT2', { rt: j.rt, scope: j.scope || '' });
+  const D = await import('./drive.js');
+  const tk = await D.syncTokenStored().catch(() => null);
+  if (!tk || !tk.token) { if (prev) await settings.set('driveRT2', prev); else await settings.remove('driveRT2'); return null; }
+  return { tk, dev: j.dev || '', at: Number(j.at) || 0 };
+}
+
 let bgRun = null;
 /** v2.5.67: posao posle prelaska (veze sa drugima, kopija na Drive, PDF-ovi) — jedan po jedan, tek kad se aplikacija
  *  smiri (prva sinhronizacija i dnevna kopija prvo), i nastavlja se pri svakom sledećem otvaranju dok se ne završi. */
@@ -226,21 +294,27 @@ async function bgWork() {
   if (navigator.onLine === false) return;
   const m = await get();
   const L = await import('./migLinks.js');
+  // v2.5.68: drugi uređaj istog naloga (predaja): veze nastavnik ↔ učenik i PDF-ove seli prvi uređaj; ovaj samo svoje
+  // deljene linkove. Ako prvi uređaj ni posle 2 dana nije završio, ovaj preuzima.
+  const helper = m.via === 'auto' && Date.now() - (m.viaAt || 0) < 2 * 864e5;
   if (!m.linksDone && !(await L.linksNeeded())) await put({ linksDone: Date.now() }); // nema veza sa drugima
   else if (!m.linksDone) {
-    const r = await L.moveLinks().catch(() => ({ ok: false }));
-    if (r.ok) { await put({ linksDone: Date.now() }); ev('veze', true, { n: String(r.total) }); }
+    const r = await L.moveLinks(() => {}, { sharesOnly: helper }).catch(() => ({ ok: false }));
+    if (r.ok && helper) { if (!(await L.linksNeeded())) await put({ linksDone: Date.now() }); } // ostalo seli prvi uređaj
+    else if (r.ok) { await put({ linksDone: Date.now() }); ev('veze', true, { n: String(r.total) }); }
     else { ev('veze', false, { note: r.needOld ? 'stari ključ' : `neuspelo ${r.failed || 0}` }); setTimeout(() => background(0).catch(() => {}), 10 * 60000); return; }
   }
   if (!m.copyUp) {
     try {
       const c = await settings.get('migCopy', null);
       const D = await import('./drive.js');
-      if (c && c.gz) await D.saveToFolder('MARLI – kopija pre prelaska.json.gz', new Blob([c.gz], { type: 'application/gzip' }), 'application/gzip');
+      const DV = await import('./devices.js');
+      if (c && c.gz) await D.saveToFolder(`MARLI – kopija pre prelaska (${DV.deviceName()} ${DV.myId().slice(-4)}).json.gz`, new Blob([c.gz], { type: 'application/gzip' }), 'application/gzip'); // po uređaju — ne zamenjuje tuđu
       await put({ copyUp: Date.now() });
     } catch {}
   }
-  if (!m.oldFiles) { const r = await copyOldFiles().catch(() => null); if (r != null) await put({ oldFiles: Date.now(), oldN: r }); }
+  if (!m.oldFiles && helper) await put({ oldFiles: Date.now(), oldN: 0 }); // PDF-ove kopira prvi uređaj
+  else if (!m.oldFiles) { const r = await copyOldFiles().catch(() => null); if (r != null) await put({ oldFiles: Date.now(), oldN: r }); }
   if (!m.cleaned) await cleanCopiedBackups().catch(() => {});
 }
 /** v2.5.67: 2.5.66 je pored PDF-ova kopirao i STARE rezervne kopije (cela aplikacija, pesme, dnevna) u „MARLI“. Tamo

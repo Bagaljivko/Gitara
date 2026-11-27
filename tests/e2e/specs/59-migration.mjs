@@ -159,6 +159,24 @@ export async function run(ctx) {
     expect(!p.errs.length, 'greške', p.errs);
   }
 
+  // 4b) dva uređaja istog naloga: prvi pređe (prijava), drugi pređe SAM — bez dugmeta i bez Google prozora
+  {
+    const { p: p1 } = await oldUser('dva@x.test');
+    expect(await gate(p1), 'ekran (prvi uređaj)');
+    const m1 = await finish(p1);
+    expect(m1.done, 'prvi uređaj nije prešao', m1);
+    for (let i = 0; i < 20 && !(await mig(p1)).handoff; i++) await p1.waitForTimeout(500);
+    expect((await mig(p1)).handoff, 'prvi uređaj nije ostavio predaju', await mig(p1));
+    const { p: p2, dev: d2 } = await oldUser('dva@x.test');
+    const popupsBefore = d2.log.filter((x) => x.client_id === NEW.client && x.prompt !== 'none').length;
+    let m2 = {};
+    for (let i = 0; i < 40 && !m2.done; i++) { m2 = await mig(p2); await p2.waitForTimeout(500); } // bez ijednog dodira
+    expect(m2.done, 'drugi uređaj nije prešao sam', { m2, h: await h1(p2) });
+    eq(d2.log.filter((x) => x.client_id === NEW.client && x.prompt !== 'none').length, popupsBefore, 'drugi uređaj je otvorio Google prozor');
+    eq(await p2.evaluate(async () => (await (await import('./src/db.js')).songs.list()).filter((x) => /^Stara /.test(x.title)).length), 24, 'pesme na drugom uređaju (svoje 12 + 12 sa prvog uređaja)');
+    expect(!p1.errs.length && !p2.errs.length, 'greške', [...p1.errs, ...p2.errs]);
+  }
+
   // 5) potpuno nov korisnik (nikad Google): bez ekrana, nikad stara prijava
   {
     const p = await open(ctx, 'phone', { mig: true });

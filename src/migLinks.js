@@ -28,17 +28,19 @@ export async function linksNeeded() {
  * Preseli sve veze. onProgress(done, total). Vraća { ok, needOld, failed, total }.
  * needOld = stari ključ nije dostupan bez prozora (ekran „Još jedan korak“).
  */
-export async function moveLinks(onProgress = () => {}) {
+export async function moveLinks(onProgress = () => {}, { sharesOnly = false } = {}) {
   const O = await import('./oldAuth.js');
   if (!(await O.oldTokenSilent('file'))) return { ok: false, needOld: true, failed: 0, total: 0 };
   const S = await import('./shareService.js'); const tm = await import('./teach.js'); const B = await import('./teachBox.js');
   const st0 = await state(); const L = st0.links;
   const tc = await tm.getTeacher().catch(() => ({}));
-  const students = tc && tc.on ? await tm.getStudents() : [];
-  const me = await tm.getMyTeacher().catch(() => null);
+  // v2.5.68: sharesOnly — drugi uređaj istog naloga: samo svoji deljeni linkovi (oni su po uređaju); veze nastavnik ↔ učenik
+  // su zajedničke za sve uređaje i seli ih jedan (prvi) uređaj — inače bi dva uređaja pravila dva nova sandučeta
+  const students = tc && tc.on && !sharesOnly ? await tm.getStudents() : [];
+  const me = sharesOnly ? null : await tm.getMyTeacher().catch(() => null);
   const shares = (await S.getShares()).filter((r) => r && r.fileId && !r.v2);
   const voices = [];
-  if (tc && tc.on) for (const s of await db.all()) for (const c of s.cmts || []) if (c && c.voice && ID.test(c.voice) && !L.voice[c.voice]) voices.push({ song: s, c });
+  if (tc && tc.on && !sharesOnly) for (const s of await db.all()) for (const c of s.cmts || []) if (c && c.voice && ID.test(c.voice) && !L.voice[c.voice]) voices.push({ song: s, c });
   const total = students.length * 2 + voices.length + shares.length + (me && me.prog && me.prog.fileId ? 1 : 0);
   let done = 0, failed = 0;
   const tick = () => onProgress(++done, total);

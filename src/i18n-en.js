@@ -970,6 +970,8 @@ export default {
   'mig.fromOldOk': 'Done — brought over from the old connection: {n}.',
   'mig.fromOldNone': 'The old connection has nothing new.',
   'mig.fromOldErr': 'The old connection isn’t answering right now. Try again a bit later.',
+  'mig.autoBusy': 'Moving MARLI to the new Google connection… You can keep using the app.',
+  'mig.autoDone': 'MARLI has moved to the new Google connection ✓',
   'mig.title': 'MARLI has been updated',
   'mig.p': 'Sign in again to continue. Your songs, settings and Gemini key stay — everything moves over by itself.',
   'mig.safeT': 'Your songs are safe',

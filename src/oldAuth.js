@@ -92,4 +92,12 @@ export async function oldList(q, fields = 'files(id,name,modifiedTime,mimeType,a
   }
   return out;
 }
-export const oldRead = async (fileId) => new Uint8Array(await (await oldApi(`${API}/files/${encodeURIComponent(fileId)}?alt=media`)).arrayBuffer());
+/** v2.5.68: nov ili izmenjen mali fajl u skrivenoj fascikli STARE veze (beleška za predaju drugim uređajima). */
+export async function oldPutAppData(name, text, fileId = '') {
+  const boundary = 'mo' + Math.random().toString(36).slice(2);
+  const meta = fileId ? {} : { name, parents: ['appDataFolder'] };
+  const body = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${text}\r\n--${boundary}--`;
+  const url = fileId ? `https://www.googleapis.com/upload/drive/v3/files/${encodeURIComponent(fileId)}?uploadType=multipart&fields=id` : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id';
+  return (await (await oldApi(url, { method: fileId ? 'PATCH' : 'POST', headers: { 'Content-Type': `multipart/related; boundary=${boundary}` }, body }, 'sync')).json()).id;
+}
+export const oldRead = async (fileId, need = 'file') => new Uint8Array(await (await oldApi(`${API}/files/${encodeURIComponent(fileId)}?alt=media`, {}, need)).arrayBuffer());
