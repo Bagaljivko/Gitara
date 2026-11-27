@@ -227,6 +227,14 @@ async function chaos(d, k, what) {
   if (what === 'pomoćnik 500 ×2') sim.fail({ status: 500, reason: 'backendError', times: 2, match: (q) => q.ep === 'helper' });
   if (what === 'mreža pukla usred slanja') { sim.dropAfter(6); setTimeout(() => sim.offline(false), 4000); }
 }
+// nastavnikovo „čeka slanje“ (Google traži pauzu → sanduče se šalje kasnije): sačekaj da ode, kao pri sledećem otvaranju
+async function drainOutbox(d, label) {
+  const t1 = Date.now();
+  const r = await ev(d, async () => { const B = await import('./src/teachBox.js'); const q0 = await B.pendingCount(); for (let i = 0; i < 120 && (await B.pendingCount()); i++) { await B.flushOutbox().catch(() => 0); await new Promise((r) => setTimeout(r, 2000)); } return { q0, left: await B.pendingCount() }; });
+  log(`  ${label}: na čekanju ${r.q0} · posle ${((Date.now() - t1) / 1000) | 0} s ostalo ${r.left}`);
+  (report.outbox = report.outbox || []).push({ label, ...r, ms: Date.now() - t1 });
+  if (r.left) problem(`${label}: ${r.left} stavki i dalje čeka slanje`);
+}
 const order = [];
 // 1) učenici „pre“ (pre nastavnika)
 for (const k of kids.filter((x) => grp(x.i) === 'pre')) order.push(['kid', k]);
@@ -249,6 +257,7 @@ for (const [kind, k] of order) {
     report.timings.teacherLinks = { ms: Date.now() - t1, ...lk };
     log(`  veze sa učenicima: ${JSON.stringify(lk)} · ${Date.now() - t1} ms`);
     if (!lk.linksDone) problem('nastavnik: veze sa učenicima nisu završene');
+    await drainOutbox(d, 'nastavnik posle seljenja veza');
     T.errsB = d.p.errs.slice(); await closeDev(d);
   } else if (kind === 'dete') {
     const r = await supervised(k); r.ok = !!(r.kidScreen && r.gateGone && r.reopenKid); results.push(r); log(`dete ${k.name} (${r.mode}): dečji ekran ${r.kidScreen ? 'da' : 'NE'} · radi dok čeka ${r.gateGone && r.wait && r.wait.mine === 8 ? 'da' : 'NE'} · ponovo dečji ${r.reopenKid ? 'da' : 'NE'}${r.mode === 'later' ? ` · samo nastavljeno ${r.autoResumed ? 'da (' + r.autoMs + ' ms)' : 'NE'}` : ''}`);
@@ -271,6 +280,7 @@ log('ograničenja brzine:', JSON.stringify(report.rate));
 {
   const d = await openDev(T.name, T.email, { phone: false });
   await ev(d, async (list) => { const B = await import('./src/teachBox.js'); const db = await import('./src/db.js'); for (const k of list) { const s = await db.songs.save({ title: 'Posle prelaska ' + k.i, artist: 'Mile', sections: [{ name: 'S', lines: [{ text: 'nova', chords: [{ chord: 'E', position: 0 }] }] }] }); const it = await B.inlineItem({ kind: 'song', name: s.title, share: { songs: [s] } }); await B.boxPut(k.sid, [it]); } }, kids.map((k) => ({ sid: k.sid, i: k.i })));
+  await drainOutbox(d, 'nastavnik posle slanja nove pesme svima');
   await closeDev(d);
 }
 for (const k of kids) {
