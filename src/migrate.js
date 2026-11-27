@@ -234,6 +234,9 @@ function waitForParent() {
 
 /** 4. sve stavke → nova veza (ista verzija), pa provera; najviše 3 kruga. */
 async function uploadAll(S, tk, quiet = false) {
+  globalThis.__marliMigBusy = true; try { return await uploadAllInner(S, tk, quiet); } finally { globalThis.__marliMigBusy = false; }
+}
+async function uploadAllInner(S, tk, quiet = false) {
   let m = await get();
   if (!m.rebased) { await S.migRebase(); m = await put({ rebased: Date.now() }); }
   const total = Math.max(1, (await syncMeta.pending()) || 1);

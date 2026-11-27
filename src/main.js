@@ -326,6 +326,10 @@ if ('serviceWorker' in navigator) {
     // ne usred uređivanja i ne dok je otvoren Google prozor za prijavu (inače bi se aplikacija osvežila usred prijave)
     const bg = () => { if (document.hidden && !updating && !/^#\/(uredi|uvoz)/.test(location.hash) && !(Date.now() - (globalThis.__marliSigningIn || 0) < 180000)) { updating = true; w.postMessage('SKIP_WAITING'); } };
     document.addEventListener('visibilitychange', bg);
+    // v2.5.68: na ekranu prelaska nema šta da se izgubi (prelazak nastavlja gde je stao) — nova verzija odmah, i dok je na
+    // ekranu; ali ne usred Google prijave i ne usred slanja
+    const onGate = () => { if (!updating && document.body.classList.contains('mig-open') && !(Date.now() - (globalThis.__marliSigningIn || 0) < 180000) && !globalThis.__marliMigBusy) { updating = true; w.postMessage('SKIP_WAITING'); } };
+    onGate(); const gt = setInterval(() => { if (updating) clearInterval(gt); else onGate(); }, 5000);
   };
   // v2.5.68: „load“ je možda već prošao (engleski: čeka se prevod pre ovog koda) — inače se sw.js nikad ne registruje
   const onLoad = (fn) => (document.readyState === 'complete' ? fn() : window.addEventListener('load', fn));
@@ -338,6 +342,7 @@ if ('serviceWorker' in navigator) {
     // Instalirana aplikacija se često samo vrati iz pozadine — tada proveri ima li nove verzije.
     document.addEventListener('visibilitychange', () => { if (!document.hidden) reg.update().catch(() => {}); });
     setInterval(() => { if (!document.hidden) reg.update().catch(() => {}); }, 30 * 60000); // v2.5.66: i dok je otvorena duže
+    setInterval(() => { if (!document.hidden && document.body.classList.contains('mig-open')) reg.update().catch(() => {}); }, 2 * 60000); // v2.5.68: na ekranu prelaska češće
   }).catch(() => {}));
 }
 
