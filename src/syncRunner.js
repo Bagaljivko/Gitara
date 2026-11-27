@@ -16,6 +16,9 @@ export function createRunner(post) {
     token = r.token; tokenExp = r.exp || Date.now() + 50 * 60000;
     return token;
   }
+  // v2.5.66: svi poslovi sa Drive-om jedan za drugim — i preko zamene motora (nova prijava, prelazak): nikad dva kruga odjednom
+  let q = Promise.resolve();
+  const ser = (fn) => { const p = q.then(fn, fn); q = p.catch(() => {}); return p; };
   function make() {
     drive = createDrive(getToken);
     engine = createEngine(createLocal(), drive, {
@@ -28,7 +31,7 @@ export function createRunner(post) {
   async function syncLoop() {
     do {
       again = false;
-      try { const r = await engine.sync(); post({ t: 'done', ok: true, sent: r.sent, pulled: r.pulled.length, newer: r.newer }); }
+      try { const r = await ser(() => engine.sync()); post({ t: 'done', ok: true, sent: r.sent, pulled: r.pulled.length, newer: r.newer }); }
       catch (e) { post({ t: 'done', ok: false, code: (e && e.code) || 'ERR', msg: String((e && e.message) || e).slice(0, 200) }); again = false; }
     } while (again);
   }
@@ -37,12 +40,12 @@ export function createRunner(post) {
     if (m.t === 'setToken') { token = m.token; tokenExp = m.exp || Date.now() + 50 * 60000; return; } // nov nalog / nova prijava
     if (m.t === 'token' || m.t === 'answer') { const w = waiting.get(m.id); if (w) { waiting.delete(m.id); w.resolve(m.value); } return; }
     if (m.t === 'seed') { await seed(node); post({ t: 'seeded', id: m.id }); return; }
-    if (m.t === 'reset') { await resetForAccount(); make(); post({ t: 'wasReset', id: m.id }); return; }
+    if (m.t === 'reset') { await ser(async () => { await resetForAccount(); make(); }); post({ t: 'wasReset', id: m.id }); return; }
     // v2.5.66: prelazak na novu Google vezu — ista verzija stavki, nova (prazna) fascikla; provera posle slanja
-    if (m.t === 'rebase') { await rebaseForNewSpace(); await seed(node); token = ''; tokenExp = 0; make(); post({ t: 'rebased', id: m.id }); return; }
-    if (m.t === 'importAll') { try { const n = await engine.importAll(); post({ t: 'imported', id: m.id, value: { ok: true, n } }); } catch (e) { post({ t: 'imported', id: m.id, value: { ok: false, code: (e && e.code) || 'ERR' } }); } return; }
-    if (m.t === 'syncOnce') { try { const r = await engine.sync(); post({ t: 'once', id: m.id, value: { ok: true, sent: r.sent, pulled: r.pulled.length } }); } catch (e) { post({ t: 'once', id: m.id, value: { ok: false, code: (e && e.code) || 'ERR', msg: String((e && e.message) || e).slice(0, 200) } }); } return; }
-    if (m.t === 'verify') { try { post({ t: 'verified', id: m.id, value: await engine.verify() }); } catch (e) { post({ t: 'verified', id: m.id, value: { error: (e && e.code) || 'ERR' } }); } return; }
+    if (m.t === 'rebase') { await ser(async () => { await rebaseForNewSpace(); await seed(node); token = ''; tokenExp = 0; make(); }); post({ t: 'rebased', id: m.id }); return; }
+    if (m.t === 'importAll') { try { const n = await ser(() => engine.importAll()); post({ t: 'imported', id: m.id, value: { ok: true, n } }); } catch (e) { post({ t: 'imported', id: m.id, value: { ok: false, code: (e && e.code) || 'ERR' } }); } return; }
+    if (m.t === 'syncOnce') { try { const r = await ser(() => engine.sync()); post({ t: 'once', id: m.id, value: { ok: true, sent: r.sent, pulled: r.pulled.length } }); } catch (e) { post({ t: 'once', id: m.id, value: { ok: false, code: (e && e.code) || 'ERR', msg: String((e && e.message) || e).slice(0, 200) } }); } return; }
+    if (m.t === 'verify') { try { post({ t: 'verified', id: m.id, value: await ser(() => engine.verify()) }); } catch (e) { post({ t: 'verified', id: m.id, value: { error: (e && e.code) || 'ERR' } }); } return; }
     if (m.t === 'source') { src = m.src === 'old' ? 'old' : 'new'; token = m.token || ''; tokenExp = m.exp || 0; post({ t: 'sourceSet', id: m.id }); return; }
     if (m.t === 'about') { try { post({ t: 'about', id: m.id, value: await drive.about() }); } catch (e) { post({ t: 'about', id: m.id, error: (e && e.code) || 'ERR' }); } return; }
     // promena naloga: sačekaj tekući krug i ne počinji novi dok se nalog ne promeni (nikad pola na jednom, pola na drugom)

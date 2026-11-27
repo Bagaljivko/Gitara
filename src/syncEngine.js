@@ -62,8 +62,15 @@ const mergeFor = (key) => MERGE[key] || null;
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 let wLast = 0;
 /** Upisi na Drive: najviše PAR_W odjednom, sa razmakom između početaka. */
-async function wpool(list, fn) { let i = 0; await Promise.all(Array.from({ length: Math.min(PAR_W, list.length) }, async () => { while (i < list.length) { const x = list[i++]; const w = wLast + W_GAP - Date.now(); wLast = Math.max(Date.now(), wLast + W_GAP); if (w > 0) await new Promise((r) => setTimeout(r, w)); await fn(x); } })); }
-async function pool(list, fn) { const out = []; let i = 0; await Promise.all(Array.from({ length: Math.min(PAR, list.length) }, async () => { while (i < list.length) { const k = i++; out[k] = await fn(list[k], k); } })); return out; }
+// v2.5.66: posle prve greške niko ne uzima sledeću stavku i krug se završava tek kad stanu svi — inače bi „zaostali“
+// radnici slali i dok sledeći krug (ponovni pokušaj) šalje iste stavke → isti fajl dvaput na Drive-u
+async function runAll(n, list, step) {
+  let i = 0, err = null;
+  await Promise.all(Array.from({ length: Math.min(n, list.length) }, async () => { while (!err && i < list.length) { const k = i++; try { await step(list[k], k); } catch (e) { if (!err) err = e; } } }));
+  if (err) throw err;
+}
+async function wpool(list, fn) { await runAll(PAR_W, list, async (x) => { const w = wLast + W_GAP - Date.now(); wLast = Math.max(Date.now(), wLast + W_GAP); if (w > 0) await new Promise((r) => setTimeout(r, w)); await fn(x); }); }
+async function pool(list, fn) { const out = []; await runAll(PAR, list, async (x, k) => { out[k] = await fn(x, k); }); return out; }
 
 export class SyncError extends Error { constructor(msg, code) { super(msg); this.code = code; } }
 

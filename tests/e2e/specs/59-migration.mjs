@@ -92,6 +92,7 @@ export async function run(ctx) {
     expect(m.done, 'posle ponovnog pokušaja nije završeno', m);
     const keys = newFiles('b@x.test').map((x) => x.appProperties && x.appProperties.k).filter((k) => k && k !== 'snapshot');
     const dupK = keys.filter((k, i) => keys.indexOf(k) !== i);
+    if (dupK.length && process.env.MIGDBG) (await import('node:fs')).writeFileSync(process.env.MIGDBG, JSON.stringify({ dupK, files: newFiles('b@x.test').map((x) => [x.appProperties && x.appProperties.k, x.createdTime]), log: sim.log.filter((l) => l.project === 'NEW').map((l) => [l.t, l.ep, l.user, l.status, l.reason]) }, null, 0));
     expect(!dupK.length, 'duplikati na novoj vezi', { dupK, files: newFiles('b@x.test').filter((x) => dupK.includes(x.appProperties && x.appProperties.k)).map((x) => [x.appProperties.k.slice(0, 12), x.appProperties.h.slice(10, 16), x.createdTime.slice(14, 23), x.id.slice(0, 6)]), log: sim.log ? sim.log.filter((l) => l.user === 'b@x.test' && l.project === 'NEW').slice(0, 80).map((l) => l.ep + ':' + l.status + (l.reason ? ':' + l.reason : '')) : null });
     expect(!p.errs.length, 'greške', p.errs);
   }
