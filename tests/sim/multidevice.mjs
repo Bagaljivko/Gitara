@@ -246,7 +246,20 @@ if (want('tabs')) {
   reset(); const sc = '3 kartice na računaru';
   ROOT = NEW_ROOT;
   const d = await openDev('desk', MILE, { tabs: 3 });
-  const r = await switchDev('desk', { d });
+  // korisnik dodirne „Prijavi se“ u kartici u kojoj se pojavi ekran (ostale kartice čekaju)
+  const t1 = Date.now(), r0 = sim.stats.total; let taps = 0, gates = 0, done = false;
+  for (let i = 0; i < 240 && !done; i++) {
+    for (const p of d.pages) {
+      const g = await p.evaluate(() => { const b = document.querySelector('#migGate [data-mg="go"]'); return { gate: !!document.getElementById('migGate'), btn: b ? b.textContent : '' }; }).catch(() => ({}));
+      if (g.gate) gates = Math.max(gates, 1);
+      if (g.btn && /Prijavi/.test(g.btn)) { taps++; await p.click('#migGate [data-mg="go"]').catch(() => {}); await p.waitForTimeout(800); }
+    }
+    done = !!(await mig(d.p).catch(() => ({}))).done; await d.p.waitForTimeout(500);
+  }
+  const shown = await Promise.all(d.pages.map((p) => p.evaluate(() => !!document.getElementById('migGate')).catch(() => false)));
+  if (shown.filter(Boolean).length > 1) problem(sc, 'ekran „Prijavi se“ u više kartica odjednom');
+  const r = { ok: done, via: (await mig(d.p)).via, gateSeen: !!gates, taps, ms: Date.now() - t1, req: sim.stats.total - r0 };
+  if (taps !== 1) problem(sc, `dodira: ${taps} (treba 1)`);
   await d.p.waitForTimeout(4000);
   const st = await Promise.all(d.pages.map((p) => p.evaluate(async () => ({ gate: !!document.getElementById('migGate'), done: !!(((await (await import('./src/db.js')).settings.get('mig', null)) || {}).done) })).catch(() => ({ gate: null }))));
   if (st.some((x) => x.gate || !x.done)) problem(sc, `kartice posle prelaska: ${JSON.stringify(st)}`);
