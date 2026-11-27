@@ -168,8 +168,8 @@ async function stateOf(d) {
 }
 function dupKeys() {
   const by = {};
-  // isti ključ sa ISTOG uređaja dvaput = duplikat (svaki uređaj piše svoj fajl za stavku koju je menjao — to je namerno)
-  for (const f of sim.listFiles({ owner: MILE, project: 'NEW', appData: true })) { const k = f.appProperties && f.appProperties.k; if (!k || k === 'snapshot') continue; const node = String(f.appProperties.h || '').split(':').slice(2).join(':'); by[k + '|' + node] = (by[k + '|' + node] || 0) + 1; }
+  // ISTA verzija stavke dvaput = duplikat (svaki uređaj piše svoj fajl za stavku koju je menjao — to je namerno; starije verzije čisti vlasnik)
+  for (const f of sim.listFiles({ owner: MILE, project: 'NEW', appData: true })) { const k = f.appProperties && f.appProperties.k; if (!k || k === 'snapshot') continue; const h = String(f.appProperties.h || ''); by[k + '|' + h] = (by[k + '|' + h] || 0) + 1; } // ista verzija dvaput = pravi duplikat
   return Object.entries(by).filter(([, n]) => n > 1).map(([k]) => k);
 }
 const newNamed = (name) => sim.listFiles({ owner: MILE, project: 'NEW', appData: false }).filter((f) => f.name === name).length;
