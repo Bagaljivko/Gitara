@@ -312,3 +312,24 @@ test('v2.5.69: app closed right after an upload (before noting it as sent): reop
   assert.equal(drive.fileOf('students').length, 1, 'next edit made a new file');
   await B.sync(); assert.deepEqual(B.data.get('students').list, ['Ana', 'Marko', 'Iva']);
 });
+
+test('v2.5.69: moving to the new connection re-sends many old deletions without asking (the question hid under the move screen)', async () => {
+  const drive = memDrive();
+  const A = dev('A', drive);
+  for (let i = 0; i < 30; i++) A.edit('song:s' + i, song(i));
+  await A.sync();
+  for (let i = 0; i < 15; i++) A.remove('song:s' + i); // obrisano ranije (npr. spojeni duplikati)
+  await A.sync(); A.asked.length = 0; // (obično brisanje: pita — kao i do sada)
+  // prelazak: nova prazna fascikla, sve ponovo „čeka slanje“ sa istom verzijom (i oznake brisanja)
+  const fresh = memDrive();
+  const B = dev('A', fresh); B.local = A.local; B.engine = (await import('../src/syncEngine.js')).createEngine(A.local, fresh.remote, { node: 'A', ask: async (kind, info) => { B.asked.push({ kind, ...info }); return false; } });
+  for (const [k, m] of await A.local.all()) await A.local.setMeta(k, { dirty: true, own: undefined, fileId: undefined });
+  for (const k of ['pageToken', 'snapAt', 'snapFiles', 'snapFile', 'sinceSnap']) await A.local.setState(k, '');
+  await B.engine.sync({ move: true });
+  assert.equal(B.asked.length, 0, 'asked during the move: ' + JSON.stringify(B.asked));
+  assert.equal(A.pending(), 0, 'not everything sent');
+  // a obično brisanje posle prelaska i dalje pita
+  for (let i = 15; i < 28; i++) A.remove('song:s' + i);
+  await B.engine.sync();
+  assert.equal(B.asked.length, 1, 'normal mass delete must still ask');
+});

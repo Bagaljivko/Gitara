@@ -510,7 +510,7 @@ export async function migUpload(tk, n = 6) {
   startWorker().send({ t: 'setToken', token: tk.token, exp: tk.exp });
   let r = null;
   for (let i = 0; i < n; i++) {
-    r = (await call({ t: 'syncOnce' }, 'once')).value;
+    r = (await call({ t: 'syncOnce', move: true }, 'once')).value; // prelazak: stare oznake brisanja bez pitanja
     if (!r || !r.ok) return r;
     if (!(await syncMeta.pending())) return r;
   }

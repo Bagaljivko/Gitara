@@ -273,12 +273,14 @@ export function createEngine(local, remote, { node, ask = async () => true, onSt
   }
   const propsOf = (p, x) => ({ k: p.k, h: p.h, s: String(SCHEMA), d: p.d ? '1' : '0', x });
 
-  async function push() {
+  async function push({ move = false } = {}) {
     const all = await local.all();
     let dirty = [...all.entries()].filter(([k, m]) => m.dirty && !blocked.has(k));
     const dels = dirty.filter(([, m]) => m.deleted);
     const live = [...all.values()].filter((m) => !m.deleted).length + dels.length;
-    if (dels.length && !(await guardDeletes(dels.length, live, 'out'))) {
+    // v2.5.69: prelazak na novu vezu ponovo šalje STARE oznake brisanja (pesme obrisane ranije, spojeni duplikati) — to nije
+    // novo brisanje i ne pita se (pitanje je ostajalo ispod ekrana prelaska i slanje je stajalo na „0 od N“ zauvek)
+    if (dels.length && !move && !(await guardDeletes(dels.length, live, 'out'))) {
       // „Ne“: brisanje ostaje samo ovde — stavke se vraćaju sa Drive-a pri punom pregledu
       for (const [k] of dels) await local.setMeta(k, { dirty: false, hlc: '', deleted: false });
       await local.setState('pageToken', '');
@@ -376,7 +378,7 @@ export function createEngine(local, remote, { node, ask = async () => true, onSt
   // v2.5.66: jedan krug u isto vreme — prelazak i obična sinhronizacija se ne preklapaju (inače isti fajl dvaput na Drive-u)
   let chain = Promise.resolve();
   const one = (fn) => (...a) => { const p = chain.then(() => fn(...a)); chain = p.catch(() => {}); return p; };
-  async function syncRound() {
+  async function syncRound(opts = {}) {
     await initClock();
     onStatus('syncing');
     newer = false;
@@ -385,7 +387,7 @@ export function createEngine(local, remote, { node, ask = async () => true, onSt
     if (re.length) { await local.setState('refetch', []); await fetchApplyList(re.map((fileId) => ({ fileId, props: null }))).catch(() => {}); }
     const pulled = await pull();
     if (stale.length) { const ids = stale.splice(0); await wpool(ids, (id) => remote.del(id).catch(() => {})); }
-    const sent = await push();
+    const sent = await push(opts);
     if (Math.random() < 0.05) await cleanTombs();
     await saveClock();
     onStatus(newer ? 'newer' : 'synced');

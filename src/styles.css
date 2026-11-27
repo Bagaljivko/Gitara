@@ -3694,4 +3694,5 @@ body.mig-open { overflow: hidden; }
 .mig-bar i { display: block; height: 100%; background: var(--accent); transition: width .4s; }
 .mig-pt { margin: 0; }
 /* v2.5.68: traka „Nova verzija — Osveži“ mora da se vidi i preko ekrana prelaska (inače se zaglavljen ne može ažurirati) */
+body.mig-open .modal-backdrop { z-index: 10002; } /* v2.5.69: pitanje nikad ispod ekrana prelaska */
 body.mig-open .update-bar { z-index: 10001; bottom: calc(env(safe-area-inset-bottom) + 12px); }
