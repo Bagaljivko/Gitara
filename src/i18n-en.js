@@ -959,7 +959,7 @@ export default {
   'mig.kidT': 'Ask a parent to approve the sign-in',
   'mig.kidP': 'Your Google account is supervised, so a parent needs to approve MARLI. They get a notice in the Family Link app. Once they approve, everything continues by itself.',
   'mig.kidRowT': 'Nothing is lost',
-  'mig.kidRowS': 'Your songs and teacher stay — you can play while you wait',
+  'mig.kidRowS': 'Your songs and teacher stay',
   'mig.kidRetry': 'My parent approved — sign in',
   'mig.kidWait': 'Keep playing while I wait',
   'mig.kidSub': 'Not a child account? Tap the button and choose “Allow” in the Google window.',

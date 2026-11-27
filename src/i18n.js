@@ -972,7 +972,7 @@ const sr = {
   'mig.kidT': 'Zamoli roditelja da odobri prijavu',
   'mig.kidP': 'Tvoj Google nalog je pod roditeljskim nadzorom, pa roditelj treba da odobri MARLI. Obaveštenje mu stiže u aplikaciji Family Link. Kad odobri, sve se nastavlja samo.',
   'mig.kidRowT': 'Ništa se ne gubi',
-  'mig.kidRowS': 'Pesme i nastavnik ostaju — možeš da sviraš dok čekaš',
+  'mig.kidRowS': 'Pesme i nastavnik ostaju, sviraj dok čekaš',
   'mig.kidRetry': 'Roditelj je odobrio — prijavi se',
   'mig.kidWait': 'Nastavi dok čekaš',
   'mig.kidSub': 'Nije dečji nalog? Dodirni dugme i u Google prozoru izaberi „Dozvoli“.',
