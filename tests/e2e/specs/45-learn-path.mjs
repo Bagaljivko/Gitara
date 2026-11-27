@@ -23,7 +23,7 @@ export async function run(ctx) {
     await p.click('.lp-nd[data-plan="ak"]'); await p.waitForTimeout(1500);
     const ak = await p.evaluate(() => ({ h: decodeURIComponent(location.hash), seq: [...document.querySelectorAll('.cs-seq [data-i] b')].map((b) => b.textContent).join(',') }));
     expect(/promena\?song=.*&ch=/.test(ak.h) && /Am/.test(ak.seq) && /H7/.test(ak.seq), dev + ': „Upoznaj akorde“ ne otvara Promene sa novim akordima', ak);
-    await p.evaluate(async (id) => { const P = await import('./src/practice.js'); await P.saveResult('promena', { score: 88, tempo: 60, chords: ['Am', 'B7', 'Em'] }, [id, 'ak']); await P.saveResult('promena', { score: 62, tempo: 55 }, [id, 'chg']); }, id);
+    await p.evaluate(async (id) => { const P = await import('./src/practice.js'); await P.saveResult('promena', { score: 88, tempo: 60, chords: ['Am', 'B7', 'Em'] }, [id, 'ak']); await new Promise((r) => setTimeout(r, 30)); /* „Prošli put“ = najnoviji — ne dva u istoj milisekundi (povremeno je bio „Akordi“) */ await P.saveResult('promena', { score: 62, tempo: 55 }, [id, 'chg']); }, id);
     await p.go('#/vezbe/pesma/' + id, 1500);
     const st2 = await p.evaluate(() => ({ ids: [...document.querySelectorAll('.lp-nd')].map((x) => x.dataset.plan + (x.classList.contains('on') ? '*' : x.classList.contains('done') ? '✓' : '')).join(','), last: document.querySelector('.lp-last')?.innerText.replace(/\s+/g, ' ') || '', cnt: document.querySelector('.lp-cnt')?.textContent }));
     eq(st2.ids, 'ak✓,chg*,rp,deo,sing,all,tut', dev + ': urađen korak ✓, predlog sledeći');
