@@ -56,7 +56,16 @@ const queues = new Map(); // jedno pisanje po sanduču u isto vreme
 async function writeBox(sid, items, interactive) {
   const tm = await TM(); const st = await tm.getStudent(sid); if (!st || !st.box || !st.box.f) return 'no';
   const S = await S_(); const tc = await tm.setTeacher({});
-  const cur = await S.readData(st.box.f);
+  let cur = await S.readData(st.box.f);
+  // v2.5.68: drugi uređaj istog nastavnika je već preselio sanduče (beleška „preseljeno“ u starom), a ovaj uređaj to još
+  // nije dobio sinhronizacijom — piši u NOVO sanduče, ne pravi još jedno
+  if (cur && !cur.gone && cur.moved && cur.moved !== st.box.f) {
+    const nxt = await S.readData(cur.moved);
+    if (nxt === null) { diag('box', 'čitanje preseljenog sanduča nije uspelo — čeka'); return 'retry'; }
+    st.box = { ...st.box, f: cur.moved, prev: st.box.f, v2: 1, needPtr: 0, at: Date.now() };
+    await tm.updateStudent(sid, { box: st.box });
+    cur = nxt;
+  }
   // v2.4.11: sanduče nije moglo da se pročita (Google usporio, mreža) → NE prepisuj ga samo novim stavkama
   // (ranije je tako nestajalo sve što učenik još nije preuzeo — pesme, beleške, čas); sačekaj i pošalji kasnije.
   if (cur === null) { diag('box', 'čitanje sanduča nije uspelo — čeka'); return 'retry'; }
@@ -67,7 +76,7 @@ async function writeBox(sid, items, interactive) {
   const id = await S.putData(st.box.f, JSON.stringify({ app: 'marli', type: 'box', v: 1, tid: tc.id, sid, at: Date.now(), items: list }), { interactive, name: 'MARLI – za učenika.json' }).catch(() => '');
   diag('box', `${id ? 'upisano' : 'upis nije uspeo'} · ${items.map((i) => i.kind + (i.n ? '×' + i.n : '')).join(',')} · ${Math.round(JSON.stringify(list).length / 1024)} KB`);
   if (!id) return 'retry';
-  if (id !== st.box.f) { await tm.updateStudent(sid, { box: { ...(st.box || {}), f: id, prev: st.box.prev || st.box.f, needPtr: 1, at: Date.now() } }); diag('box', 'novo sanduče (stari fajl nedostupan) — čeka obaveštenje učeniku'); } // v2.5.66: ranije se nov id nije pamtio; „needPtr“ = u staro sanduče još treba upisati „preseljeno“ (migLinks)
+  if (id !== st.box.f) { await tm.updateStudent(sid, { box: { ...(st.box || {}), f: id, prev: st.box.prev || st.box.f, needPtr: cur && cur.moved === id ? 0 : 1, at: Date.now() } }); diag('box', 'novo sanduče (stari fajl nedostupan) — čeka obaveštenje učeniku'); } // v2.5.66: ranije se nov id nije pamtio; „needPtr“ = u staro sanduče još treba upisati „preseljeno“ (migLinks)
   // v2.4.2: šta je poslato ovom učeniku (za „viđeno“ i odgovor) — novije zamenjuje starije sa istim ključem
   { const cur2 = (await tm.getStudent(sid)) || st; const keys = new Set(items.map((i) => i.key)); await tm.updateStudent(sid, { sent: [...(cur2.sent || []).filter((x) => !keys.has(x.key)), ...items.filter((i) => i.kind !== 'ans' && i.kind !== 'rcv') /* v2.4.25: potvrda „primio“ nije „poslato“ */.map((i) => ({ key: i.key, kind: i.kind, name: clipN(i.name, 80), at: i.at || Date.now(), ...(i._ids ? { ids: i._ids.slice(0, 300) } : {}) }))].slice(-40) }); }
   return 'ok';

@@ -286,14 +286,46 @@ if (want('late')) {
   ROOT = OLD_ROOT;
   { const d = await openDev('safari', MILE); await ev(d.p, async () => { const db = await import('./src/db.js'); await db.songs.save({ title: 'Safari ponovo', artist: 'S', sections: [{ name: 'S', lines: [{ text: 's2', chords: [] }] }] }); }); await closeDev(d); }
   sim.advance(21 * 864e5);
-  const r2 = await switchDev('safari'); r2.name = 'safari'; await closeDev(r2.d);
-  expectOneTap(sc, [r1, r2]); summarize(sc, [r1, r2]);
+  const r2 = await switchDev('safari'); r2.name = 'safari';
+  // Safari nema dugotrajnu staru dozvolu (Google je daje samo prvom uređaju), a stari ključ je istekao → jedan dodir je
+  // neizbežan; posle njega mora da ima dugotrajnu NOVU dozvolu (iz beleške), da ga Google više nikad ne pita
+  const rt2 = await ev(r2.d.p, async () => !!(await (await import('./src/db.js')).settings.get('driveRT2', null)));
+  if (!r2.ok || r2.taps !== 1) problem(sc, `Safari: očekivan tačno 1 dodir (via ${r2.via}, dodira ${r2.taps})`);
+  if (!rt2) problem(sc, 'Safari posle prijave nema dugotrajnu dozvolu (pitaće ponovo za sat vremena)');
+  await closeDev(r2.d); summarize(sc, [r1, r2]);
   const sts = await checkAll(sc, ['desk', 'safari'], { links: false });
   for (const [n, s] of sts) { for (const t of ['Samo sa Safarija', 'Safari ponovo']) if (!s.songs.includes(t)) problem(sc, `${n}: nema „${t}“ (izmena sa kasnog uređaja izgubljena)`); }
   const d = await openDev('desk', MILE);
   const a = await ev(d.p, async () => { const db = await import('./src/db.js'); return (await db.songs.list()).find((x) => x.title === 'Pesma 3').artist; });
   if (a !== 'Računar novije') problem(sc, `novija izmena pregažena starijom: „${a}“`);
   await closeDev(d);
+}
+
+// ======================= 2b) stvaran dan: stare kratke prijave istekle (samo računar ima dugotrajnu staru) =======================
+if (want('stale')) {
+  for (const order of [['phone', 'desk', 'tab', 'ios'], ['tab', 'phone', 'desk', 'ios'], ['desk', 'tab', 'phone', 'ios']]) {
+    reset(); const sc = 'istekle prijave ' + order.join('→');
+    sim.expireTokens((t) => t.client === OLD.client);
+    const rs = [];
+    for (const n of order) { const r = await switchDev(n); r.name = n; r.rt2 = await ev(r.d.p, async () => !!(await (await import('./src/db.js')).settings.get('driveRT2', null))); if (!rs.length) await waitBg(r.d); await closeDev(r.d); rs.push(r); }
+    summarize(sc, rs);
+    rs.forEach((r, i) => {
+      if (!r.ok) problem(sc, `${r.name}: nije prešao`);
+      if (r.taps > 1) problem(sc, `${r.name}: ${r.taps} dodira (najviše 1)`);
+      if (i > 0 && r.name === 'desk' && r.via !== 'auto') problem(sc, 'računar (ima dugotrajnu staru dozvolu) nije prešao sam');
+      if (!r.rt2) problem(sc, `${r.name}: nema dugotrajnu novu dozvolu`);
+    });
+    // sat kasnije: novi ključevi istekli — svi uređaji rade bez ijednog prozora
+    sim.expireTokens((t) => t.client === NEW.client);
+    for (const n of order) {
+      const d = await openDev(n, MILE); const before = d.sim.log.length;
+      const st = await stateOf(d);
+      const pop = d.sim.log.slice(before).filter((x) => x.prompt !== 'none').length;
+      if (st.status !== 'synced' || pop) problem(sc, `${n} sat kasnije: ${st.status}, prozora ${pop}`);
+      await closeDev(d);
+    }
+    await checkAll(sc, order, { links: true });
+  }
 }
 
 // ======================= 6) bez interneta pri otvaranju =======================

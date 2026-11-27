@@ -183,6 +183,7 @@ async function run() {
       continue;
     }
     m = await put({ acct: { id: acct.id, email: acct.email }, pick: false });
+    if (!quiet) { const got = await adoptNewNote(tk, acct).catch(() => false); if (got) ev('dugotrajna dozvola', true); }
     // prazan uređaj, a stari tragovi postoje: podaci su možda samo na staroj vezi
     if (!(await db.count()) && cfg.on && !m.oldPulled2 && (await O.hasOldSignIn())) {
       const has = await O.oldTokenSilent('sync');
@@ -254,10 +255,37 @@ async function uploadAll(S, tk, quiet = false) {
 // samo MARLI tog naloga — isto mesto gde se sinhronizuje Gemini ključ) dugotrajnu dozvolu nove veze. Drugi uređaj je
 // pročita (on još ima staru vezu), dobije svoj ključ preko pomoćnika i proveri da je isti nalog — bez Google prozora.
 const HANDOFF = 'marli-predaja.json';
+// ista beleška i u skrivenoj fascikli NOVE veze: uređaj koji je morao da se prijavi (stara prijava mu je istekla) odatle
+// uzme dugotrajnu dozvolu — posle toga ga Google više nikad ne pita (bez nje bi ključ trajao samo sat vremena)
+const NAPI = 'https://www.googleapis.com/drive/v3', NUP = 'https://www.googleapis.com/upload/drive/v3';
+async function newNotes(tok) { const r = await fetch(`${NAPI}/files?spaces=appDataFolder&fields=${encodeURIComponent('files(id,modifiedTime)')}&q=${encodeURIComponent(`name='${HANDOFF}'`)}`, { headers: { Authorization: 'Bearer ' + tok } }); if (!r.ok) throw new Error('list ' + r.status); return (await r.json()).files || []; }
+async function newNoteWrite(tok, text) {
+  const b = 'mn' + Math.random().toString(36).slice(2);
+  const body = `--${b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify({ name: HANDOFF, parents: ['appDataFolder'] })}\r\n--${b}\r\nContent-Type: application/json\r\n\r\n${text}\r\n--${b}--`;
+  const r = await fetch(`${NUP}/files?uploadType=multipart&fields=id`, { method: 'POST', headers: { Authorization: 'Bearer ' + tok, 'Content-Type': `multipart/related; boundary=${b}` }, body });
+  if (!r.ok) throw new Error('write ' + r.status);
+}
+/** Posle prijave na ovom uređaju: nema dugotrajne dozvole (Google je daje samo prvom uređaju) → uzmi je iz beleške. */
+async function adoptNewNote(tk, acct) {
+  if (await settings.get('driveRT2', null)) return false;
+  const ex = await newNotes(tk.token); if (!ex.length) return false;
+  const r = await fetch(`${NAPI}/files/${encodeURIComponent(ex[0].id)}?alt=media`, { headers: { Authorization: 'Bearer ' + tk.token } });
+  if (!r.ok) return false;
+  const j = await r.json().catch(() => null);
+  if (!j || j.type !== 'handoff' || !j.rt || j.id !== acct.id) return false;
+  await settings.set('driveRT2', { rt: j.rt, scope: j.scope || '' });
+  return true;
+}
 async function leaveHandoff() {
   const m = await get(); if (m.handoff) return;
   const rt = await settings.get('driveRT2', null); const cfg = (await settings.get('syncCfg', null)) || {};
   if (!rt || !rt.rt || !cfg.on || !(m.acct || cfg.id)) return;
+  if (!m.handoffNew) {
+    try {
+      const tk = await (await import('./drive.js')).syncTokenStored();
+      if (tk && tk.token) { if (!(await newNotes(tk.token)).length) await newNoteWrite(tk.token, JSON.stringify({ app: 'marli', type: 'handoff', v: 1, rt: rt.rt, scope: rt.scope || '', id: (m.acct && m.acct.id) || cfg.id, at: Date.now() })); await put({ handoffNew: Date.now() }); }
+    } catch {}
+  }
   const O = await import('./oldAuth.js');
   if (!(await O.oldTokenSilent('sync'))) return;
   const ex = await O.oldList(`name='${HANDOFF}'`, 'files(id,name,modifiedTime)', 'appDataFolder');
@@ -301,6 +329,7 @@ async function bgWork() {
   if (!m.linksDone && !(await L.linksNeeded())) await put({ linksDone: Date.now() }); // nema veza sa drugima
   else if (!m.linksDone) {
     const r = await L.moveLinks(() => {}, { sharesOnly: helper }).catch(() => ({ ok: false }));
+    try { (await import('./sync.js')).syncNow(); } catch {} // nove adrese odmah ka ostalim uređajima (da ne naprave svoje)
     if (r.ok && helper) { if (!(await L.linksNeeded())) await put({ linksDone: Date.now() }); } // ostalo seli prvi uređaj
     else if (r.ok) { await put({ linksDone: Date.now() }); ev('veze', true, { n: String(r.total) }); }
     else { ev('veze', false, { note: r.needOld ? 'stari ključ' : `neuspelo ${r.failed || 0}` }); setTimeout(() => background(0).catch(() => {}), 10 * 60000); return; }

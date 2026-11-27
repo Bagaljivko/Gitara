@@ -404,6 +404,14 @@ export async function putData(fileId, text, { interactive = false, name = 'MARLI
   if (fileId) {
     try { await drive.driveApi(`${UPLOAD}/files/${encodeURIComponent(fileId)}?uploadType=media&fields=id`, { method: 'PATCH', headers: { 'Content-Type': DATA_MIME }, body: text }); return fileId; }
     catch (e) { if (!e || e.code !== 'notfound') { if (interactive) throw e; return ''; } }
+    // v2.5.68: stari fajl (stara veza) — ako ga je drugi uređaj istog naloga već preselio („preseljeno na …“), piši tamo,
+    // ne pravi još jedan nov fajl (učenik prati belešku i čita samo taj jedan)
+    const cur = await readData(fileId).catch(() => null);
+    const mv = cur && !cur.gone && typeof cur.moved === 'string' && /^[\w-]{6,}$/.test(cur.moved) && cur.moved !== fileId ? cur.moved : '';
+    if (mv) {
+      try { await drive.driveApi(`${UPLOAD}/files/${encodeURIComponent(mv)}?uploadType=media&fields=id`, { method: 'PATCH', headers: { 'Content-Type': DATA_MIME }, body: text }); return mv; }
+      catch (e) { if (!e || e.code !== 'notfound') { if (interactive) throw e; return ''; } }
+    }
   }
   const make = async () => {
     const { boundary, body } = (() => { const b = 'gsh' + Math.random().toString(36).slice(2); return { boundary: b, body: new Blob([`--${b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify({ name, mimeType: DATA_MIME, parents: [folder], appProperties: { marliData: '1' } })}\r\n--${b}\r\nContent-Type: ${DATA_MIME}\r\n\r\n`, text, `\r\n--${b}--`]) }; })();
