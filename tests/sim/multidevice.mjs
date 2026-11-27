@@ -54,8 +54,10 @@ const UA = {
   phone: 'Mozilla/5.0 (Linux; Android 13; Pixel 6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36',
   ios: 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.3 Mobile/15E148 Safari/604.1',
   tab: 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+  student: 'Mozilla/5.0 (Linux; Android 13; Pixel 6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36',
+  fam: undefined,
 };
-const VIEW = { desk: [1440, 900], edge: [1366, 768], safari: [1440, 900], phone: [412, 892], ios: [390, 844], tab: [800, 1280] };
+const VIEW = { desk: [1440, 900], edge: [1366, 768], safari: [1440, 900], phone: [412, 892], ios: [390, 844], tab: [800, 1280], student: [412, 892], fam: [1440, 900] };
 const kindOf = (name) => name.replace(/\d+$/, '');
 const devices = new Map();
 const MILE = 'mile@x.test';
@@ -140,8 +142,8 @@ function reset() { sim.load(base); rmSync(STATE, { recursive: true, force: true 
 /** Uređaj otvori novu verziju i (ako treba) dodirne „Prijavi se“. Beleži: da li se video ekran, dodire, vreme, zahteve. */
 async function switchDev(name, { tap = true, d = null, maxS = 120 } = {}) {
   ROOT = NEW_ROOT;
-  d = d || (await openDev(name, MILE));
   const t1 = Date.now(), r0 = sim.stats.total;
+  d = d || (await openDev(name, MILE));
   let gateSeen = false, taps = 0, heap = 0, m = {};
   for (let i = 0; i < maxS * 4; i++) {
     m = await mig(d.p).catch(() => ({}));
@@ -159,7 +161,7 @@ async function stateOf(d) {
   return ev(d.p, async () => {
     const db = await import('./src/db.js'); const tm = await import('./src/teach.js'); const S = await import('./src/sync.js');
     for (let i = 0; i < 15; i++) { S.syncNow(); await new Promise((r) => setTimeout(r, 1000)); if (!(await db.syncMeta.pending())) break; }
-    const songs = (await db.songs.list()).map((s) => s.title).sort();
+    const songs = (await db.songs.list()).filter((s) => !s.demo).map((s) => s.title).sort(); // primer pesme (po uređaju) se ne broji
     return { songs, key: await db.settings.get('geminiKey', ''), students: (await tm.getStudents()).length, pend: await db.syncMeta.pending(), status: S.syncState ? S.syncState().status : '' };
   });
 }
@@ -174,7 +176,7 @@ async function checkAll(sc, names, { links = true } = {}) {
   for (const n of names) { const d = await openDev(n, MILE); sts.push([n, await stateOf(d)]); await closeDev(d); }
   const ref = sts[0][1].songs;
   for (const [n, s] of sts) {
-    if (JSON.stringify(s.songs) !== JSON.stringify(ref)) problem(sc, `${n}: pesme se razlikuju (${s.songs.length} vs ${ref.length})`);
+    if (JSON.stringify(s.songs) !== JSON.stringify(ref)) problem(sc, `${n}: pesme se razlikuju (${s.songs.length} vs ${ref.length}: +${s.songs.filter((x) => !ref.includes(x)).slice(0, 3)} −${ref.filter((x) => !s.songs.includes(x)).slice(0, 3)})`);
     if (s.songs.length < T.songs) problem(sc, `${n}: izgubljene pesme ${s.songs.length}/${T.songs}`);
     if (s.key !== 'AIzaMileKey_0123456789abcdefghijklmnop') problem(sc, `${n}: Gemini ključ`);
     if (s.students !== T.ids.length) problem(sc, `${n}: učenika ${s.students}/${T.ids.length}`);
