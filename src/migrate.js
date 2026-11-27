@@ -186,7 +186,8 @@ async function run() {
       continue;
     }
     m = await put({ acct: { id: acct.id, email: acct.email }, pick: false });
-    if (!quiet) { const got = await adoptNewNote(tk, acct).catch(() => false); if (got) ev('dugotrajna dozvola', true); }
+    if (!quiet) { const got = await adoptNewNote(tk, acct).catch(() => false); if (got) { ev('dugotrajna dozvola', true); m = await put({ via: 'auto', viaAt: Date.now() }); } } // drugi uređaj je bio prvi: veze i PDF-ove seli on
+    if (quiet) m = await put({ via: 'auto' });
     // prazan uređaj, a stari tragovi postoje: podaci su možda samo na staroj vezi
     if (!(await db.count()) && cfg.on && !m.oldPulled2 && (await O.hasOldSignIn())) {
       const has = await O.oldTokenSilent('sync');
@@ -203,7 +204,9 @@ async function run() {
     }
     // 5) veze sa drugima: treba li stari ključ (jedan dodir)?
     const L = await import('./migLinks.js');
-    if (await L.linksNeeded() && !(await O.oldTokenSilent('file'))) {
+    // v2.5.68: samo ako nijedan drugi uređaj ovog naloga još nije završio (njegova beleška u novoj vezi) — inače veze seli on
+    const otherDone = await newNotes(tk.token).then((x) => x.length > 0).catch(() => false);
+    if (!otherDone && await L.linksNeeded() && !(await O.oldTokenSilent('file'))) {
       const teacher = (await ROLE()) === 'nastavnik';
       const a = await screen({ h: t(teacher ? 'mig.linkT' : 'mig.linkTs'), p: esc(t(teacher ? 'mig.linkP' : 'mig.linkPs')), btn: t('mig.confirm'), g: true });
       if (a === 'go') { try { await O.oldTokenInteractive('file', acct.email); } catch (e) { if (e && e.code !== 'cancelled') ev('stara prijava', false, { note: String(e.code || '') }); continue; } }

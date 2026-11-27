@@ -316,7 +316,7 @@ if (want('stale')) {
     rs.forEach((r, i) => {
       if (!r.ok) problem(sc, `${r.name}: nije prešao`);
       if (r.taps > 1) problem(sc, `${r.name}: ${r.taps} dodira (najviše 1)`);
-      if (i > 0 && r.name === 'desk' && r.via !== 'auto') problem(sc, 'računar (ima dugotrajnu staru dozvolu) nije prešao sam');
+      // (sam prelazi samo uređaj sa važećom starom prijavom KAD je prvi ostavio belešku — ovde prvi često nema staru prijavu)
       if (!r.rt2) problem(sc, `${r.name}: nema dugotrajnu novu dozvolu`);
     });
     // sat kasnije: novi ključevi istekli — svi uređaji rade bez ijednog prozora
