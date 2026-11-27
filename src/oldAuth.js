@@ -21,10 +21,10 @@ export async function hasOldSignIn() {
 }
 
 /** Stari ključ BEZ ikakvog prozora, ili '' . need: 'file' (fajlovi) ili 'sync' (skrivena fascikla). */
-export async function oldTokenSilent(need = 'file') {
+export async function oldTokenSilent(need = 'file', { fresh = false } = {}) {
   if (globalThis.__marliTest?.noOldAuth) return ''; // proba: očišćen pregledač (stara prijava obrisana)
-  if (valid(mem, need)) return mem.t;
-  const tok = await settings.get('driveToken', null);
+  if (!fresh && valid(mem, need)) return mem.t;
+  const tok = fresh ? null : await settings.get('driveToken', null); // fresh: sačuvani ključ je odbijen — samo dugotrajna dozvola
   if (tok && tok.t && tok.exp > Date.now() + 60000) {
     const x = { t: tok.t, exp: tok.exp, app: tok.s === 2, file: tok.f === 1 || (tok.f === undefined && tok.s !== 2) };
     if (valid(x, need)) { mem = x; return x.t; }
@@ -65,13 +65,15 @@ export async function oldTokenInteractive(need = 'file', hint = '') {
 
 /** Drive REST sa starim ključem. Greške: { code: 'notfound' | 'rate' | 'auth' | 'offline' | 'http', status }. */
 export async function oldApi(url, opts = {}, need = 'file') {
-  const token = await oldTokenSilent(need);
+  let token = await oldTokenSilent(need);
   if (!token) throw Object.assign(new Error('no old token'), { code: 'auth' });
-  let res;
+  let res, renewed = false;
   for (let attempt = 0; ; attempt++) {
     try { res = await fetch(url, { ...opts, headers: { ...(opts.headers || {}), Authorization: `Bearer ${token}` } }); }
     catch { throw Object.assign(new Error('offline'), { code: 'offline' }); }
     if (res.ok) return res;
+    // v2.5.68: sačuvani ključ je odbijen (istekao ranije, opozvan) — jednom obnovi preko dugotrajne dozvole, pa ponovo
+    if (res.status === 401 && !renewed) { renewed = true; mem = null; const t2 = await oldTokenSilent(need, { fresh: true }); if (t2) { token = t2; continue; } }
     const rate = res.status === 429 || (res.status === 403 && /rate/i.test(await res.clone().text().catch(() => '')));
     if (rate && attempt < 1) { await new Promise((r) => setTimeout(r, 1500 + Math.random() * 1500)); continue; }
     if (rate) { try { (await import('./driveGate.js')).noteRate(); } catch {} }
