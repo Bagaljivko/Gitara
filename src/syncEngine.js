@@ -355,7 +355,10 @@ export function createEngine(local, remote, { node, ask = async () => true, onSt
   }
 
   /** Jedan krug: preuzmi → (sukobi, zaštite) → pošalji → snapshot → čišćenje. */
-  async function sync() {
+  // v2.5.66: jedan krug u isto vreme — prelazak i obična sinhronizacija se ne preklapaju (inače isti fajl dvaput na Drive-u)
+  let chain = Promise.resolve();
+  const one = (fn) => (...a) => { const p = chain.then(() => fn(...a)); chain = p.catch(() => {}); return p; };
+  async function syncRound() {
     await initClock();
     onStatus('syncing');
     newer = false;
@@ -371,5 +374,30 @@ export function createEngine(local, remote, { node, ask = async () => true, onSt
     return { pulled, sent, newer };
   }
 
-  return { sync, verify, get newerSchema() { return newer; }, get blocked() { return blocked; } };
+  /** v2.5.66: posle prelaska — samo PREUZMI iz stare veze (remote = stara skrivena fascikla). Ništa se ne šalje tamo, stanje
+   *  nove veze (token, snimci) se ne dira; ono što je tamo novije postaje izmena ovde koja čeka slanje na NOVU vezu.
+   *  Stavka koja ovde već čeka slanje ostaje (ne gazi se). Vraća broj preuzetih stavki. */
+  async function importAll() {
+    await initClock();
+    const files = (await remote.list()).filter((f) => f.props && !f.removed);
+    const take = async (p) => {
+      if (!p || !p.k || p.k === SNAPSHOT || (Number(p.s) || 0) > SCHEMA) return false;
+      const m = await local.meta(p.k);
+      if (m && (m.dirty || (m.hlc && p.h <= m.hlc))) return false;
+      clock.recv(p.h);
+      await local.write(p.k, p.d ? null : p.v, { hlc: p.h, base: '', dirty: true, deleted: !!p.d });
+      return true;
+    };
+    const changed = [];
+    for (const f of files.filter((x) => x.props.k === SNAPSHOT).sort((a, b) => ((a.props.h || '') > (b.props.h || '') ? 1 : -1))) {
+      const snap = await fetchPayload(f).catch(() => null);
+      for (const p of Object.values((snap && snap.v && snap.v.items) || {})) if (await take(p)) changed.push(p.k);
+    }
+    await pool(files.filter((x) => x.props.k !== SNAPSHOT), async (f) => { const p = await fetchPayload(f).catch(() => null); if (p && p.k === f.props.k && (await take(p))) changed.push(p.k); });
+    await saveClock();
+    if (changed.length) onApplied([...new Set(changed)]);
+    return new Set(changed).size;
+  }
+
+  return { sync: one(syncRound), verify: one(verify), importAll: one(importAll), get newerSchema() { return newer; }, get blocked() { return blocked; } };
 }

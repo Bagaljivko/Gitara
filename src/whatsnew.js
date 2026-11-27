@@ -5,6 +5,11 @@ import { esc, dialog } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 export const NOTES = [
+  { v: '2.5.66', date: '2026-11-27', items: [
+    { i: '☁', sr: ['MARLI ima svoju Google vezu', 'Posle ažuriranja jednom se ponovo prijaviš na Google (isti nalog) i sve se samo prebaci: pesme, set liste, podešavanja, Gemini ključ, Vežbe i veza sa nastavnikom. Pre toga se na uređaju napravi kopija svega. Stari linkovi i QR kodovi i dalje rade, a učenici ne moraju ponovo da se povezuju.'], en: ['MARLI has its own Google connection', 'After the update you sign in to Google once more (same account) and everything moves over by itself: songs, setlists, settings, the Gemini key, Practice and the teacher connection. A copy of everything is made on the device first. Old links and QR codes still work, and students don’t need to pair again.'] },
+    { i: '👪', sr: ['Dečji nalozi', 'Ako je nalog pod roditeljskim nadzorom (Family Link), aplikacija kaže „Zamoli roditelja da odobri prijavu“. Dok se čeka, sviraš normalno; kad roditelj odobri, nastavlja se samo.'], en: ['Child accounts', 'If the account is supervised (Family Link), the app says “Ask a parent to approve the sign-in”. You can keep playing while you wait; once the parent approves, it continues by itself.'] },
+    { i: '⤓', sr: ['Ako nešto nedostaje', 'Podešavanja → Sinhronizacija → „Preuzmi pesme iz stare veze“ ponovo preuzme sve sa stare veze (ništa ne briše i ništa ne šalje tamo).'], en: ['If anything is missing', 'Settings → Sync → “Get songs from the old connection” fetches everything from the old connection again (it deletes nothing and sends nothing there).'] },
+  ] },
   { v: '2.5.65', date: '2026-11-26', items: [
     { i: '⚡', sr: ['Brže i lakše prstom', 'Spisak pesama se otvara brže, tačka „novo“ više ne učitava celu listu novosti, a brisanje učenika ne čita sve pesme. Akordi iznad teksta, „Ne, hvala“ i „Pregled vežbanja“ imaju veću površinu za dodir, a − / + za tempo u igrama su veći.'], en: ['Faster and easier to tap', 'The song list opens faster, the “new” dot no longer loads the whole news list, and removing a student no longer reads every song. Chords above the lyrics, “No, thanks” and “Practice overview” have a bigger tap area, and − / + for tempo in the games are bigger.'] },
   ] },

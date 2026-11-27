@@ -106,3 +106,29 @@ test('interrupted upload resumes without duplicates; verify reports what is miss
   assert.equal(keys.length, new Set(keys).size, 'bez duplikata');
   assert.ok(before.total === 40);
 });
+
+test('after the move, "get songs from the old connection" only imports: no writes to the old space, pending edits kept, imports go to the new space', async () => {
+  const oldD = memDrive(), newD = memDrive();
+  let t = 1000; const now = () => t;
+  const A = dev('A', oldD, { now }), B = dev('B', oldD, { now });
+  for (let i = 0; i < 20; i++) A.edit('song:s' + i, song(i));
+  await A.sync(); await B.sync();
+  A.rebase(newD); await A.sync();                                        // A je prešao
+  t = 2000; B.edit('song:s5', song(5, { title: 'B na staroj vezi' })); B.edit('song:s99', song(99)); await B.sync(); // B još na staroj
+  t = 3000; A.edit('song:s7', song(7, { title: 'A čeka slanje' }));      // A: izmena koja još nije poslata
+  B.edit('song:s7', song(7, { title: 'B starije' })); t = 2500; await B.sync(); t = 3000;
+  const oldReq = oldD.stats.req, oldFiles = oldD.files ? oldD.files.size : null;
+  const imp = createEngine(A.local, oldD.remote, { node: 'A', now, ask: async () => true });
+  const n = await imp.importAll();
+  assert.ok(n >= 2, 'preuzeto ' + n);
+  if (oldFiles != null) assert.equal(oldD.files.size, oldFiles, 'ništa novo na staroj vezi');
+  assert.ok(oldD.stats.req > oldReq);
+  assert.equal(A.data.get('song:s5').title, 'B na staroj vezi');
+  assert.ok(A.data.has('song:s99'));
+  assert.equal(A.data.get('song:s7').title, 'A čeka slanje', 'izmena koja čeka slanje se ne gazi');
+  await A.sync();                                                        // preuzeto ide na novu vezu
+  const C = dev('C', newD, { now }); await C.sync();
+  assert.equal(C.data.get('song:s5').title, 'B na staroj vezi');
+  assert.ok(C.data.has('song:s99'));
+  assert.equal(C.data.get('song:s7').title, 'A čeka slanje');
+});

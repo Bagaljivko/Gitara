@@ -1,6 +1,6 @@
 // Rad bez interneta: cela aplikacija se čuva u kešu i služi iz njega (uvek ista, usklađena verzija).
 // Nova verzija = novi broj u CACHE (scripts/update-sw.mjs). Aplikacija tada prikaže „Osveži“.
-const CACHE = "gitara-v230";
+const CACHE = "gitara-v231";
 const SHELL = [
   "./",
   "index.html",
@@ -65,12 +65,15 @@ const SHELL = [
   "src/lyricsUI.js",
   "src/lzstring.js",
   "src/main.js",
+  "src/migLinks.js",
+  "src/migrate.js",
   "src/music.js",
   "src/myEx.js",
   "src/naming.js",
   "src/nastava.js",
   "src/navAcct.js",
   "src/notify.js",
+  "src/oldAuth.js",
   "src/overview.js",
   "src/pBarre.js",
   "src/pChords.js",
@@ -197,6 +200,7 @@ const SHELL = [
 const LAZY = ["courses/index.json", "vendor/jspdf.umd.min.js", "vendor/pdfjs/pdf.min.mjs", "vendor/pdfjs/pdf.worker.min.mjs", "fonts/DejaVuSansMono.ttf", "fonts/DejaVuSansMono-Bold.ttf", "assets/guitar/40.mp3", "assets/guitar/41.mp3", "assets/guitar/42.mp3", "assets/guitar/43.mp3", "assets/guitar/44.mp3", "assets/guitar/45.mp3", "assets/guitar/46.mp3", "assets/guitar/47.mp3", "assets/guitar/48.mp3", "assets/guitar/49.mp3", "assets/guitar/50.mp3", "assets/guitar/51.mp3", "assets/guitar/52.mp3", "assets/guitar/53.mp3", "assets/guitar/54.mp3", "assets/guitar/55.mp3", "assets/guitar/56.mp3", "assets/guitar/57.mp3", "assets/guitar/58.mp3", "assets/guitar/59.mp3", "assets/guitar/60.mp3", "assets/guitar/61.mp3", "assets/guitar/62.mp3", "assets/guitar/63.mp3", "assets/guitar/64.mp3", "assets/guitar/65.mp3", "assets/guitar/66.mp3", "assets/guitar/67.mp3", "assets/guitar/68.mp3", "assets/guitar/69.mp3", "assets/guitar/70.mp3", "assets/guitar/71.mp3", "assets/guitar/72.mp3", "assets/guitar/73.mp3", "assets/guitar/74.mp3", "assets/guitar/75.mp3", "assets/guitar/76.mp3", "assets/guitar/77.mp3", "assets/guitar/78.mp3", "assets/guitar/79.mp3", "assets/guitar/80.mp3", "assets/guitar/81.mp3", "assets/guitar/82.mp3", "assets/guitar/83.mp3", "assets/guitar/84.mp3", "assets/guitar/85.mp3", "assets/guitar/86.mp3"];
 const fresh = (u) => new Request(u, { cache: "reload" }); // zaobiđi HTTP keš da se verzije ne pomešaju
 
+let bgSwap = false; // v2.5.66: nova verzija preuzeta dok je aplikacija bila u pozadini
 self.addEventListener("install", e => {
   // Početna strana direktno iz keša, bez buđenja service worker-a (Chrome 123+): posle dužeg nekorišćenja telefon
   // ugasi service worker, a njegovo ponovno pokretanje je bio beli ekran sa kružićem pre prvog prikaza.
@@ -212,7 +216,11 @@ self.addEventListener("install", e => {
     await c.addAll(SHELL.map(fresh));
     // Prvo instaliranje, ili prelaz sa starih verzija (≤ v24, bez dugmeta „Osveži“): aktiviraj odmah.
     const legacy = (await caches.keys()).some(k => { const m = /^gitara-v(\d+)$/.exec(k); return m && +m[1] <= 24; });
-    if (!self.registration.active || legacy) self.skipWaiting();
+    if (!self.registration.active || legacy) { self.skipWaiting(); return; }
+    // v2.5.66: aplikacija je u pozadini (nijedan prozor nije na ekranu) — nova verzija preuzima odmah, a skriveni prozori
+    // se tiho ponovo učitaju (aktivacija ispod), pa se korisnik vraća u novu verziju. Prozor na ekranu: traka „Osveži“.
+    const wins = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    if (wins.length && !wins.some(c => c.visibilityState === "visible" || /#\/(uredi|uvoz)/.test(c.url))) { bgSwap = true; self.skipWaiting(); } // usred uređivanja pesme: čeka „Osveži“
   })());
 });
 self.addEventListener("message", e => { if (e.data === "SKIP_WAITING") self.skipWaiting(); });
@@ -233,7 +241,10 @@ const cleanup = () => cleaning || (cleaning = (async () => {
 self.addEventListener("activate", e => {
   // Aktivacija mora biti trenutna: dok traje, pregledač drži sve zahteve (i ponovno učitavanje posle „Osveži“) —
   // to je bio beli ekran sa kružićem posle ažuriranja. Zato ovde SAMO preuzimanje stranice; ostalo posle (fetch).
-  e.waitUntil(self.clients.claim());
+  const claimed = self.clients.claim();
+  e.waitUntil(claimed);
+  // posle aktivacije (ne unutar nje — ponovno učitavanje bi čekalo samo sebe): skriveni prozori → nova verzija
+  if (bgSwap) { bgSwap = false; claimed.then(async () => { for (const c of await self.clients.matchAll({ type: "window" })) if (c.visibilityState === "hidden") c.navigate(c.url).catch(() => {}); }); }
 });
 // v1.95: dodir na obaveštenje → otvori MARLI (ili već otvoren prozor) na tom mestu
 self.addEventListener("notificationclick", e => {

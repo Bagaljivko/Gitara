@@ -486,6 +486,15 @@ export async function migOldPull() {
   try { return (await call({ t: 'syncOnce' }, 'once')).value; }
   finally { await call({ t: 'source', src: 'new' }, 'sourceSet'); }
 }
+/** Posle prelaska (Podešavanja): samo preuzmi iz stare veze — ništa ne šalje tamo; preuzeto ide na novu vezu. */
+export async function migImportOld() {
+  const O = await import('./oldAuth.js');
+  const tk = await O.oldTokenSilent('sync');
+  if (!tk) return { ok: false, code: 'NOTOKEN' };
+  await call({ t: 'source', src: 'old', token: tk, exp: Date.now() + 30 * 60000 }, 'sourceSet');
+  try { return (await call({ t: 'importAll' }, 'imported')).value; }
+  finally { await call({ t: 'source', src: 'new' }, 'sourceSet'); }
+}
 /** Sve stavke ovog uređaja → nova (prazna) fascikla, ista verzija. Jednom po uređaju (posle toga samo nastavak). */
 export async function migRebase() { await call({ t: 'rebase' }, 'rebased'); }
 /** Krugovi sa NOVOM vezom dok ništa ne čeka (najviše n). Vraća poslednji rezultat. */

@@ -690,6 +690,9 @@ export async function renderSettings(root) {
   // ---- Google Drive ----
   const driveCard = $('driveCard');
   let driveMsg = '', driveMsgCls = '';
+  // v2.5.66: posle prelaska na novu Google vezu — ručno „preuzmi iz stare veze“ (samo ko je koristio staru vezu)
+  let oldLink = false;
+  settings.get('mig', null).then((m) => { if (m && m.done && !m.fresh) { oldLink = true; if (driveCard.isConnected) drawDrive(); } }).catch(() => {});
   const drawDrive = () => {
     const d = driveState(), y = syncState();
     // Sinhronizacija između uređaja (skrivena fascikla aplikacije) — glavni način; stara kopija (fajl) ispod
@@ -711,6 +714,7 @@ export async function renderSettings(root) {
           <button class="btn" data-d="syncSwitch">${t('sync.switch')}</button>
         </div>
         <div id="devBox"></div>
+        ${oldLink ? `<div class="set-grp"><button type="button" class="tch-row" data-d="fromOld"><span class="sr-ic" aria-hidden="true">⤓</span><span><b>${esc(t('mig.fromOldT'))}</b><small>${esc(t('mig.fromOldS'))}</small></span><span class="chev" aria-hidden="true">›</span></button></div>` : ''}
         <button class="btn danger-text" data-d="syncOff">${t('sync.off')}</button>`;
     const syncMsg = `<p class="status ${driveMsgCls}" role="status">${esc(driveMsg)}</p>`;
     driveCard.innerHTML = `${syncHtml}${syncMsg}<p class="muted small sync-bk-note">${t('bk.syncNote')}</p>`; // v1.71: kopije su u „Rezervne kopije“
@@ -736,6 +740,11 @@ export async function renderSettings(root) {
       try { await syncReconnect(); setDriveMsg(''); } catch (err) { setDriveMsg(driveErr(err), 'err'); }
     } else if (a === 'syncNow') { syncNow(); setDriveMsg(''); }
     else if (a === 'versions') { (await import('./versionsView.js')).openVersions(); }
+    else if (a === 'fromOld') {
+      setDriveMsg(t('mig.fromOldBusy'));
+      try { const n = await (await import('./migrate.js')).pullFromOld(); if (n) syncNow(); setDriveMsg(n ? t('mig.fromOldOk', { n }) : t('mig.fromOldNone'), n ? 'ok' : ''); }
+      catch (err) { setDriveMsg(err && err.code === 'cancelled' ? '' : t('mig.fromOldErr'), err && err.code === 'cancelled' ? '' : 'err'); }
+    }
     else if (a === 'syncOff') {
       if (!(await confirmDialog(t('sync.offTitle'), t('sync.offBody'), t('sync.off'), 'danger'))) return;
       await disconnectSync();

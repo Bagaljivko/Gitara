@@ -322,6 +322,9 @@ if ('serviceWorker' in navigator) {
     if (!bar || !navigator.serviceWorker.controller) return;
     bar.hidden = false;
     bar.querySelector('button').onclick = () => { updating = true; bar.querySelector('button').disabled = true; w.postMessage('SKIP_WAITING'); };
+    // v2.5.66: kad korisnik ode iz aplikacije (pozadina), nova verzija se primeni sama — vraća se u nju (osim usred uređivanja)
+    const bg = () => { if (document.hidden && !updating && !/^#\/(uredi|uvoz)/.test(location.hash)) { updating = true; w.postMessage('SKIP_WAITING'); } };
+    document.addEventListener('visibilitychange', bg);
   };
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').then((reg) => {
     if (reg.waiting) offerUpdate(reg.waiting);
@@ -331,6 +334,7 @@ if ('serviceWorker' in navigator) {
     });
     // Instalirana aplikacija se često samo vrati iz pozadine — tada proveri ima li nove verzije.
     document.addEventListener('visibilitychange', () => { if (!document.hidden) reg.update().catch(() => {}); });
+    setInterval(() => { if (!document.hidden) reg.update().catch(() => {}); }, 30 * 60000); // v2.5.66: i dok je otvorena duže
   }).catch(() => {}));
 }
 

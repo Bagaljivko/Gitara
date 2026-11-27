@@ -40,6 +40,7 @@ export function createRunner(post) {
     if (m.t === 'reset') { await resetForAccount(); make(); post({ t: 'wasReset', id: m.id }); return; }
     // v2.5.66: prelazak na novu Google vezu — ista verzija stavki, nova (prazna) fascikla; provera posle slanja
     if (m.t === 'rebase') { await rebaseForNewSpace(); await seed(node); token = ''; tokenExp = 0; make(); post({ t: 'rebased', id: m.id }); return; }
+    if (m.t === 'importAll') { try { const n = await engine.importAll(); post({ t: 'imported', id: m.id, value: { ok: true, n } }); } catch (e) { post({ t: 'imported', id: m.id, value: { ok: false, code: (e && e.code) || 'ERR' } }); } return; }
     if (m.t === 'syncOnce') { try { const r = await engine.sync(); post({ t: 'once', id: m.id, value: { ok: true, sent: r.sent, pulled: r.pulled.length } }); } catch (e) { post({ t: 'once', id: m.id, value: { ok: false, code: (e && e.code) || 'ERR', msg: String((e && e.message) || e).slice(0, 200) } }); } return; }
     if (m.t === 'verify') { try { post({ t: 'verified', id: m.id, value: await engine.verify() }); } catch (e) { post({ t: 'verified', id: m.id, value: { error: (e && e.code) || 'ERR' } }); } return; }
     if (m.t === 'source') { src = m.src === 'old' ? 'old' : 'new'; token = m.token || ''; tokenExp = m.exp || 0; post({ t: 'sourceSet', id: m.id }); return; }

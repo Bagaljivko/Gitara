@@ -256,6 +256,7 @@ export async function pullFromOld() {
   const O = await import('./oldAuth.js'); const S = await import('./sync.js');
   const cfg = (await settings.get('syncCfg', null)) || {};
   await O.oldTokenInteractive('sync', cfg.email || '');
-  const r = await S.migOldPull();
-  return r && r.ok;
+  const r = await S.migImportOld(); // samo preuzimanje — nikad slanje na staru vezu posle prelaska
+  if (!r || !r.ok) throw Object.assign(new Error('old'), { code: (r && r.code) || 'ERR' });
+  return r.n;
 }
