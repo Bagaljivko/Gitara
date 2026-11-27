@@ -310,13 +310,25 @@ async function callOnce(apiKey, body, signal, model, { diag, onStatus, thinking,
   let stuck = false;
   const onParent = () => own.abort();
   if (signal) { if (signal.aborted) own.abort(); else signal.addEventListener('abort', onParent, { once: true }); }
-  const stuckT = setTimeout(() => { stuck = true; own.abort(); }, ATTEMPT_MS());
+  // stream.firstMs: toliko bez ijednog slova odgovora = model je zaglavljen → odmah drugi model (samo u automatskom
+  // režimu; v2.5.69 — u špicu je Gemini ponekad ćutao po minut, a drugi model odgovori za nekoliko sekundi)
+  let limit = (stream && stream.firstMs) || ATTEMPT_MS();
+  let stuckT = setTimeout(() => { stuck = true; own.abort(); }, limit);
+  if (stream && stream.firstMs) {
+    const inner = stream.onText;
+    let got = false;
+    stream = { ...stream, onText: (sofar) => {
+      if (!got && sofar) { got = true; clearTimeout(stuckT); limit = ATTEMPT_MS(); stuckT = setTimeout(() => { stuck = true; own.abort(); }, limit); }
+      return inner ? inner(sofar) : false;
+    } };
+  }
   try { return await callOnceInner(apiKey, body, own.signal, model, { diag, onStatus, thinking, stream }); }
   catch (e) {
-    if (stuck && e && e.name === 'AbortError') { const last = diag && diag.attempts[diag.attempts.length - 1]; if (last) last.status = 'zaglavljen (75 s)'; throw Object.assign(new GeminiError(t('gem.busy'), { code: 'BUSY', model }), { retryMs: 60000, stuck: true }); }
+    if (stuck && e && e.name === 'AbortError') { const last = diag && diag.attempts[diag.attempts.length - 1]; if (last) last.status = `zaglavljen (${Math.round(limit / 1000)} s)`; throw Object.assign(new GeminiError(t('gem.busy'), { code: 'BUSY', model }), { retryMs: 60000, stuck: true }); }
     throw e;
   } finally { clearTimeout(stuckT); if (signal) signal.removeEventListener('abort', onParent); }
 }
+const FIRST_MS = () => globalThis.__gitaraFirstMs || 25000; // pesma: toliko bez ijednog slova odgovora = zaglavljen
 const IDLE_MS = () => globalThis.__gitaraIdleMs || 30000; // odgovor „u delovima“: toliko bez novog dela = stao
 async function callOnceInner(apiKey, body, signal, model, { diag, onStatus, thinking, stream } = {}) {
   const payload = JSON.stringify(body);
@@ -353,6 +365,13 @@ async function callOnceInner(apiKey, body, signal, model, { diag, onStatus, thin
     const why = r.stopped ? 'LOOP' : r.idle ? 'IDLE' : r.aborted ? 'CUT' : r.finishReason || (r.error ? 'ERROR' : '?');
     att.message = `OK u delovima (${r.chunks}, finishReason ${why})` + (r.error ? ' ' + String(r.error.message || '').slice(0, 200) : '');
     if (!r.text.trim() && !r.chunks && !r.idle && !r.aborted && !r.error) return {}; // prazan odgovor (kao bez kandidata)
+    if (stream.whole && (['LOOP', 'IDLE', 'CUT', 'ERROR', '?'].includes(why))) {
+      // pesma (JSON) mora da stigne cela: presečen odgovor ne vredi → isto kao zaglavljen model (pita se drugi)
+      if (r.aborted) { att.status = 'prekinuto'; throw new DOMException('Aborted', 'AbortError'); }
+      if (r.error && !r.text.trim()) throw httpError({ status: Number(r.error.code) || 500, statusText: '' }, { error: r.error }, model);
+      att.status = 'zaglavljen (stao na pola)';
+      throw Object.assign(new GeminiError(t('gem.busy'), { code: 'BUSY', model }), { retryMs: 60000, stuck: true });
+    }
     if (!r.text.trim()) {
       if (r.aborted) { att.status = 'prekinuto'; throw new DOMException('Aborted', 'AbortError'); }
       if (r.idle) { att.status = 'zaglavljen (bez odgovora)'; throw Object.assign(new GeminiError(t('gem.busy'), { code: 'BUSY', model }), { retryMs: 60000, stuck: true }); }
@@ -449,7 +468,7 @@ async function generate(apiKey, body, { signal, onStatus, selection, models, dia
         if (prev && model !== prev && onStatus) onStatus('switch', model);
         prev = model;
         try {
-          const data = await callWithRetry(apiKey, body, ctrl.signal, model, onStatus, auto ? FALLBACK_RETRY : RETRY_DELAYS, diag, { auto, until, stream });
+          const data = await callWithRetry(apiKey, body, ctrl.signal, model, onStatus, auto ? FALLBACK_RETRY : RETRY_DELAYS, diag, { auto, until, stream: stream && stream.firstMs && !auto ? { ...stream, firstMs: 0 } : stream });
           if (auto) await settings.set('geminiLastModel', model);
           return { data, model };
         } catch (e) {
@@ -665,16 +684,21 @@ export async function scanSong(images, signal, onStatus, diag) {
     parts.push({ inline_data: { mime_type: img.mime, data: img.base64 } });
   });
   const contents = [{ parts }];
+  // v2.5.69: odgovor stiže u delovima — „Gemini piše…“ čim krene, a model koji ćuti FIRST_MS se zamenjuje drugim
+  let writing = false;
+  const stream = { whole: true, firstMs: FIRST_MS(), onText: (sofar) => { if (!writing && sofar) { writing = true; onStatus?.('writing'); } return false; } };
+  const user = onStatus;
+  onStatus = (kind, ...a) => { if (kind === 'send') writing = false; if (kind === 'reading' && writing) return; user?.(kind, ...a); };
   let res;
   try {
     res = await generate(apiKey, {
       contents,
       generationConfig: { temperature: 0.1, responseMimeType: 'application/json', responseSchema: RESPONSE_SCHEMA },
-    }, { signal, onStatus, diag });
+    }, { signal, onStatus, diag, stream });
   } catch (e) {
     // Ako neki model ne prihvata šemu odgovora, pokušaj isti model samo sa JSON izlazom (prompt opisuje oblik).
     if (!(e instanceof GeminiError) || e.code !== 'HTTP_400' || !e.model || !/schema|response_?schema|responseMimeType|field/i.test(e.message)) throw e;
-    res = await generate(apiKey, { contents, generationConfig: { temperature: 0.1, responseMimeType: 'application/json' } }, { signal, onStatus, models: [e.model], diag });
+    res = await generate(apiKey, { contents, generationConfig: { temperature: 0.1, responseMimeType: 'application/json' } }, { signal, onStatus, models: [e.model], diag, stream });
   }
   const text = textOf(res.data).trim().replace(/^```(?:json)?\s*|\s*```$/g, '');
   let json;

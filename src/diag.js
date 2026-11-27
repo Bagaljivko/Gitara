@@ -62,7 +62,7 @@ async function geminiLines(share = false) {
   L.push(`  model: ${(await settings.get('geminiModelSel', '')) || 'auto'} · poslednji koji je radio: ${(await settings.get('geminiLastModel', '')) || '—'}`);
   try { const { quotaResetAt } = await import('./gemini.js'); const r = quotaResetAt(); if (r) L.push(`  nov dnevni besplatni limit: ${iso(r)} (UTC)`); } catch {}
   try { const c = JSON.parse(localStorage.getItem('marli-keycheck') || 'null'); if (c) { L.push(`  poslednja provera ključa: ${iso(c.t)} → ${c.kind}${c.model ? ' (' + c.model + ')' : ''}`); for (const a of c.att || []) L.push('    ' + a); } } catch {}
-  try { const sc = JSON.parse(localStorage.getItem('gitara-lastscan') || 'null'); if (sc && sc.text) L.push(`  poslednje neuspelo skeniranje ${iso(sc.at)}${share ? ' (tekst nije poslat)' : ':'}`, ...(share ? [] : String(sc.text).split('\n').slice(0, 40).map((x) => '    ' + x))); } catch {}
+  try { const sc = JSON.parse(localStorage.getItem('gitara-lastscan') || 'null'); if (sc && sc.text) L.push(`  poslednje skeniranje ${iso(sc.at)}${share ? ' (tekst nije poslat)' : ':'}`, ...(share ? [] : String(sc.text).split('\n').slice(0, 40).map((x) => '    ' + x))); } catch {}
   try { const q = JSON.parse(localStorage.getItem('marli-pdf-queue') || '[]'); if (q.length) L.push(`  PDF red: ${q.map((x) => x.st).join(', ')}`); } catch {}
   try {
     const y = (await import('./sync.js')).syncState();

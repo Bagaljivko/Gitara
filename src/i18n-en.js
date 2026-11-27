@@ -956,6 +956,7 @@ export default {
   'tuner.resetBtn': 'Start over',
   'common.undo': 'Undo',
   'room.title': 'Room',
+  'scan.stepWriting': 'Gemini is writing…',
   'mig.kidT': 'Ask a parent to approve the sign-in',
   'mig.kidP': 'Your Google account is supervised, so a parent needs to approve MARLI. They get a notice in the Family Link app. Once they approve, everything continues by itself.',
   'mig.kidRowT': 'Nothing is lost',

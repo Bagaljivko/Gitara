@@ -249,6 +249,7 @@ async function runScan(files, prepared = null, opts = {}) {
     const song = await scanSong(imgs, ctrl.signal, (kind, model) => {
       if (kind === 'send') setText(t('scan.stepSend'));
       else if (kind === 'reading') setText(t('scan.stepReading'));
+      else if (kind === 'writing') setText(t('scan.stepWriting'));
       else if (kind === 'switch') setText(t('scan.switchModel', { model }));
       else if (kind === 'wait') setText(t('scan.wait', { s: model }));
       else setText(t('scan.busy'));
@@ -262,6 +263,7 @@ async function runScan(files, prepared = null, opts = {}) {
     }
     diag.totalMs = performance.now() - t0;
     saveScanReport(formatScanDiag(diag, null));
+    if (diag.totalMs > 20000) noteSlowScan(diag);
     close();
     if (opts.onSong) { opts.onSong(song, imgs); return; }
     await placeUnplacedTabs(song);
@@ -307,6 +309,13 @@ async function runScan(files, prepared = null, opts = {}) {
 }
 
 /** Poslednje skeniranje (i uspešno) — za Podešavanja → Dijagnostika: model, trajanje i ishod svakog zahteva. */
+// v2.5.69: sporo (ali uspelo) skeniranje u „Zabeleženo“ — koliko je trajalo i koji modeli su pitani
+function noteSlowScan(d) {
+  try {
+    const m = `sporo ${secs(d.totalMs)} · ` + (d.attempts || []).map((a) => `${a.model} ${secs(a.ms || 0)} ${a.status}`).join(' → ');
+    const L = JSON.parse(localStorage.getItem('gitara-diag') || '[]'); L.push({ t: Date.now(), k: 'scan', m: m.slice(0, 300) }); localStorage.setItem('gitara-diag', JSON.stringify(L.slice(-80)));
+  } catch {}
+}
 function saveScanReport(text) { try { localStorage.setItem('gitara-lastscan', JSON.stringify({ at: Date.now(), text })); } catch {} }
 
 const kb = (b) => (b >= 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)} MB` : `${Math.round(b / 1024)} KB`);
