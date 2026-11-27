@@ -132,3 +132,30 @@ test('after the move, "get songs from the old connection" only imports: no write
   assert.ok(C.data.has('song:s99'));
   assert.equal(C.data.get('song:s7').title, 'A čeka slanje');
 });
+
+test('large library on a slow/unstable connection: each snapshot part counts as soon as it arrives; retry sends only the rest', async () => {
+  const oldD = memDrive(), newD = memDrive();
+  const A = dev('A', oldD);
+  const photo = 'data:image/jpeg;base64,' + Buffer.from(Array.from({ length: 90000 }, () => Math.random() * 256 | 0)).toString('base64');
+  for (let i = 0; i < 120; i++) A.edit('song:s' + i, song(i));
+  for (let i = 0; i < 30; i++) A.edit('sph:st' + i, { id: 'st' + i, u: photo, at: 1 });
+  A.rebase(newD);
+  const total = A.pending();
+  // veza pukne posle 2. dela snapshot-a
+  const put = newD.remote.put; let n = 0;
+  newD.remote.put = async (...a) => { if (a[0] === 'snapshot' && ++n > 2) throw Object.assign(new Error('net'), { code: 'OFFLINE' }); return put(...a); };
+  await A.sync().catch(() => {});
+  const left = A.pending();
+  assert.ok(left > 0 && left < total, `posle prekida: ${left} od ${total} čeka (traka je napredovala)`);
+  newD.remote.put = put;
+  n = 0; let sentSnap = 0;
+  newD.remote.put = async (...a) => { if (a[0] === 'snapshot') sentSnap++; return put(...a); };
+  await A.sync(); newD.remote.put = put;
+  assert.equal(A.pending(), 0);
+  const v = await A.engine.verify();
+  assert.equal(v.missing.length, 0, 'sve je na novoj vezi');
+  const C = dev('C', newD); await C.sync();
+  assert.equal(C.data.size, A.data.size, 'nov uređaj dobija sve');
+  const snaps = [...newD.files.values()].filter((f) => f.props.k === 'snapshot' && !f.removed);
+  for (const f of snaps) assert.ok(f.bytes.length < 1.2e6, `deo ${f.bytes.length} B (sporoj vezi stiže na vreme)`);
+});

@@ -11,13 +11,14 @@ const fileName = (key) => 'g-' + key.replace(/[^\w.:-]/g, '_').slice(0, 120) + '
 
 /** getToken(force) → Promise<string>; fetchFn za testove. */
 export function createDrive(getToken, { fetchFn = (...a) => fetch(...a), tries = 5, baseDelay = 800, timeoutMs = 60000 } = {}) {
-  async function call(url, opts = {}, { okStatus = [] } = {}) {
+  async function call(url, opts = {}, { okStatus = [], bytes = 0 } = {}) {
+    const limit = timeoutMs + Math.round(bytes / 16); // v2.5.68: veće slanje = više vremena (~16 KB/s najsporije)
     let forced = false;
     for (let attempt = 0; ; attempt++) {
       const token = await getToken(forced);
       let res;
       const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
-      const tm = ctrl && setTimeout(() => ctrl.abort(), timeoutMs);
+      const tm = ctrl && setTimeout(() => ctrl.abort(), limit);
       try { res = await fetchFn(url, { ...opts, ...(ctrl ? { signal: ctrl.signal } : {}), headers: { ...(opts.headers || {}), Authorization: `Bearer ${token}` } }); }
       catch { throw ctrl && ctrl.signal.aborted ? new SyncError('timeout', 'RETRY') : new SyncError('network', 'OFFLINE'); }
       finally { clearTimeout(tm); }
@@ -44,13 +45,13 @@ export function createDrive(getToken, { fetchFn = (...a) => fetch(...a), tries =
     const boundary = 'gs' + Math.random().toString(36).slice(2);
     const meta = { name, mimeType: MIME, appProperties: props, parents: ['appDataFolder'] };
     const body = new Blob([`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n--${boundary}\r\nContent-Type: ${MIME}\r\n\r\n`, bytes, `\r\n--${boundary}--`]);
-    const res = await call(`${UPLOAD}/files?uploadType=multipart&fields=id`, { method: 'POST', headers: { 'Content-Type': `multipart/related; boundary=${boundary}` }, body });
+    const res = await call(`${UPLOAD}/files?uploadType=multipart&fields=id`, { method: 'POST', headers: { 'Content-Type': `multipart/related; boundary=${boundary}` }, body }, { bytes: bytes.length || bytes.byteLength || 0 });
     return { fileId: (await res.json()).id };
   }
   async function update(fileId, bytes, props) {
     const boundary = 'gs' + Math.random().toString(36).slice(2);
     const body = new Blob([`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify({ appProperties: props })}\r\n--${boundary}\r\nContent-Type: ${MIME}\r\n\r\n`, bytes, `\r\n--${boundary}--`]);
-    const res = await call(`${UPLOAD}/files/${encodeURIComponent(fileId)}?uploadType=multipart&fields=id`, { method: 'PATCH', headers: { 'Content-Type': `multipart/related; boundary=${boundary}` }, body });
+    const res = await call(`${UPLOAD}/files/${encodeURIComponent(fileId)}?uploadType=multipart&fields=id`, { method: 'PATCH', headers: { 'Content-Type': `multipart/related; boundary=${boundary}` }, body }, { bytes: bytes.length || bytes.byteLength || 0 });
     return { fileId: (await res.json()).id };
   }
 

@@ -21,7 +21,7 @@ const PAR = 4;                 // istovremeni zahtevi (čitanje)
 const PAR_W = 2, W_GAP = 450;  // v2.2: slanje — najviše 2 odjednom; v2.5.62: bar 0,45 s razmaka (Google: oko 3 upisa u sekundi po nalogu — ostaje rezerva za kopiju i sanduče)
 const SNAP_EVERY = 120;        // posle toliko pojedinačnih fajlova — nov snapshot (novi uređaj brže kreće)
 const SNAP_BULK = 60;          // v2.5.66: više od toliko stavki za slanje odjednom → snapshot (u delovima)
-export const SNAP_PART = 2500000; // v2.5.66: najviše ~2,5 MB po delu (Google prima najviše 5 MB jednim zahtevom; slike se slabo sažimaju)
+export const SNAP_PART = 600000; // v2.5.68: ~600 KB po delu (bilo 2,5 MB) — i na sporoj vezi svaki deo stigne na vreme, a traka napreduje posle svakog dela
 
 // ---------------- Hibridni logički sat ----------------
 // „0001715000000000:0003:node“ — poredi se kao tekst; ne zavisi od tačnog sata uređaja (napreduje i kad je sat iza).
@@ -318,6 +318,9 @@ export function createEngine(local, remote, { node, ask = async () => true, onSt
       const x = await sha(bytes);
       const r = await remote.put(SNAPSHOT, bytes, { k: SNAPSHOT, h, s: String(SCHEMA), d: '0', x, part: String(i), parts: String(parts.length) }, old[i] || undefined);
       ids.push(r.fileId);
+      // v2.5.68: posle svakog dela — te stavke su na Drive-u (traka napreduje; posle prekida se ne šalju ponovo)
+      await local.setState('snapFiles', [...ids, ...old.slice(ids.length)]);
+      for (const it of parts[i]) { const cur = await local.meta(it.k); if (cur && cur.dirty && cur.hlc === it.h) await local.setMeta(it.k, { dirty: false, inSnap: true }); }
     }
     for (const id of old.slice(parts.length)) await remote.del(id).catch(() => {}); // višak starih delova
     await local.setState('snapFile', ids[0]);
