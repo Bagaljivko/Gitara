@@ -40,7 +40,7 @@ export async function moveLinks(onProgress = () => {}, { sharesOnly = false } = 
   const me = sharesOnly ? null : await tm.getMyTeacher().catch(() => null);
   const shares = (await S.getShares()).filter((r) => r && r.fileId && !r.v2);
   const voices = [];
-  if (tc && tc.on && !sharesOnly) for (const s of await db.all()) for (const c of s.cmts || []) if (c && c.voice && ID.test(c.voice) && !L.voice[c.voice]) voices.push({ song: s, c });
+  if (tc && tc.on && !sharesOnly) for (const s of await db.all()) for (const c of s.cmts || []) if (c && c.voice && ID.test(c.voice) && !c.voiceOld && !L.voice[c.voice]) voices.push({ song: s, c }); // voiceOld = drugi uređaj ga je već preselio
   const total = students.length * 2 + voices.length + shares.length + (me && me.prog && me.prog.fileId ? 1 : 0);
   let done = 0, failed = 0;
   const tick = () => onProgress(++done, total);
@@ -62,6 +62,10 @@ export async function moveLinks(onProgress = () => {}, { sharesOnly = false } = 
         const oldId = st.box.f;
         const cur = await S.readData(oldId);
         if (cur === null) throw Object.assign(new Error('read'), { code: 'retry' });
+        if (cur && !cur.gone && typeof cur.moved === 'string' && ID.test(cur.moved)) { // v2.5.68: drugi uređaj ga je već preselio — isto sanduče, ne novo
+          await tm.updateStudent(st.id, { box: { ...st.box, f: cur.moved, prev: oldId, v2: 1, needPtr: 0, at: Date.now() } });
+          L.box[st.id] = cur.moved; await save(L);
+        } else {
         const body = cur && !cur.gone && cur.type === 'box' ? cur : { app: 'marli', type: 'box', v: 1, tid: tc.id, sid: st.id, at: Date.now(), items: [] };
         const newId = L.boxNew?.[st.id] || (await S.putData('', JSON.stringify({ ...body, at: Date.now() }), { name: 'MARLI – za učenika.json' }));
         if (!newId) throw Object.assign(new Error('put'), { code: 'retry' });
@@ -70,6 +74,7 @@ export async function moveLinks(onProgress = () => {}, { sharesOnly = false } = 
         if (!cur.gone) await oldNote(oldId, { ...body, moved: newId, at: Date.now(), items: [...(body.items || []), { key: 'moved', kind: 'moved', f: newId, at: Date.now() }] });
         await tm.updateStudent(st.id, { box: { ...st.box, f: newId, prev: oldId, v2: 1, at: Date.now() } });
         L.box[st.id] = newId; await save(L);
+        }
       }
       tick();
       const s2 = await tm.getStudent(st.id);
@@ -78,7 +83,8 @@ export async function moveLinks(onProgress = () => {}, { sharesOnly = false } = 
         const oldId = s2.planFile;
         const cur = await S.readData(oldId);
         if (cur === null) throw Object.assign(new Error('read'), { code: 'retry' });
-        if (cur.gone || cur.type !== 'plan') { L.plan[st.id] = '-'; await save(L); }
+        if (!cur.gone && typeof cur.moved === 'string' && ID.test(cur.moved)) { await tm.updateStudent(st.id, { planFile: cur.moved, planPrev: oldId, planV2: 1 }); L.plan[st.id] = cur.moved; await save(L); } // već preseljen (drugi uređaj)
+        else if (cur.gone || cur.type !== 'plan') { L.plan[st.id] = '-'; await save(L); }
         else {
           const newId = L.planNew?.[st.id] || (await S.putData('', JSON.stringify({ ...cur, at: Date.now() }), { name: 'MARLI – plan.json' }));
           if (!newId) throw Object.assign(new Error('put'), { code: 'retry' });
@@ -101,13 +107,15 @@ export async function moveLinks(onProgress = () => {}, { sharesOnly = false } = 
       const d = await S.readData(c.voice);
       if (d === null) throw Object.assign(new Error('read'), { code: 'retry' });
       if (d.gone || d.type !== 'voice') { L.voice[c.voice] = '-'; await save(L); tick(); continue; }
-      const newId = await S.putData('', JSON.stringify(d), { name: 'MARLI – glasovni komentar.json' });
+      const already = typeof d.moved === 'string' && ID.test(d.moved) ? d.moved : ''; // v2.5.68: drugi uređaj ga je već preselio
+      const newId = already || (await S.putData('', JSON.stringify(d), { name: 'MARLI – glasovni komentar.json' }));
       if (!newId) throw Object.assign(new Error('put'), { code: 'retry' });
+      if (!already) { await pace(); await oldNote(c.voice, { ...d, moved: newId }).catch(() => {}); } // stari fajl ostaje ispravan (isti zvuk) + „preseljeno“
       L.voice[c.voice] = newId; await save(L);
       const cur = await db.get(song.id);
       if (cur) await db.put({ ...cur, cmts: (cur.cmts || []).map((x) => (x && x.voice === c.voice ? { ...x, voice: newId, voiceOld: c.voice } : x)) });
       const sid = song.student || (cur && cur.student);
-      if (sid && c.key) await B.boxPut(sid, [{ key: c.key, kind: 'cmt', id: c.id, f: String(song.src || '').split(':')[0], text: c.text || '', voice: newId, name: song.title || '', re: 1 }], { interactive: false }).catch(() => false);
+      if (sid && c.key && !already) await B.boxPut(sid, [{ key: c.key, kind: 'cmt', id: c.id, f: String(song.src || '').split(':')[0], text: c.text || '', voice: newId, name: song.title || '', re: 1 }], { interactive: false }).catch(() => false);
       tick();
     } catch (e) { if (e && e.code === 'auth') return { ok: false, needOld: true, failed, total }; failed++; tick(); }
   }
@@ -117,6 +125,8 @@ export async function moveLinks(onProgress = () => {}, { sharesOnly = false } = 
       await pace();
       const oldId = me.prog.fileId;
       const cur = await S.readData(oldId);
+      if (cur && !cur.gone && typeof cur.moved === 'string' && ID.test(cur.moved)) { await tm.setMyTeacher({ ...me, prog: { ...me.prog, fileId: cur.moved, prev: oldId } }); L.prog = cur.moved; await save(L); tick(); } // drugi uređaj učenika ga je već preselio
+      else {
       const P = await import('./progress.js');
       // nov fajl: syncProgress sa praznim id-jem napravi nov (na novoj vezi)
       await tm.setMyTeacher({ ...me, prog: { ...me.prog, fileId: '', prev: oldId } });
@@ -126,6 +136,7 @@ export async function moveLinks(onProgress = () => {}, { sharesOnly = false } = 
       if (cur && !cur.gone && cur.type === 'progress') await oldNote(oldId, { ...cur, moved: newId, at: Date.now() });
       L.prog = newId; await save(L);
       tick();
+      }
     } catch (e) { if (e && e.code === 'auth') return { ok: false, needOld: true, failed, total }; failed++; tick(); }
   }
   // 4) deljeni linkovi (i „proveri sa nastavnikom“, snimci za nastavnika — sve su deljeni fajlovi)
