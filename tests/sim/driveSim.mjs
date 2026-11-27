@@ -646,6 +646,9 @@ export function createSim(opts = {}) {
     return view(f);
   };
   sim.seedFolder = (email, project, name, o = {}) => sim.seed(email, project, { ...o, name, folder: true });
+  /** Zameni sadržaj postojećeg fajla (proba: napola upisana / izmenjena beleška). */
+  sim.setContent = (fid, content) => { const f = files.get(fid); f.bytes = toBytes(content); touch(f); };
+  sim.content = (fid) => { const f = files.get(fid); return f ? new TextDecoder().decode(f.bytes) : null; };
   sim.setPublic = (fid, on = true) => { const f = files.get(fid); f.perms = f.perms.filter((p) => p.type !== 'anyone'); if (on) f.perms.push({ id: 'anyoneWithLink', type: 'anyone', role: 'reader' }); touch(f); };
   sim.snapshot = ({ bytes = false } = {}) => JSON.parse(JSON.stringify({
     now: now(), users: [...users.values()].map(({ email, permissionId, displayName }) => ({ email, permissionId, displayName })),

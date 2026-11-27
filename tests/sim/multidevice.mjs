@@ -344,15 +344,12 @@ if (want('note')) {
     const r1 = await switchDev('desk'); r1.name = 'desk'; await waitBg(r1.d);
     const f = sim.listFiles({ owner: MILE, project: 'OLD', appData: true, name: 'marli-predaja.json' })[0];
     if (!f) { problem(sc, 'nema predaje posle prvog uređaja'); await closeDev(r1.d); continue; }
-    const j = JSON.parse(new TextDecoder().decode(sim.file(f.id) ? (await import('node:buffer')).Buffer.from(sim.publicRead ? '' : '') : new Uint8Array()) || '{}');
-    void j;
     await closeDev(r1.d);
-    // prepiši belešku (kao da je napola upisana / izmenjena)
-    const cur = (() => { try { return JSON.parse(new TextDecoder().decode(sim.snapshot({ bytes: true }).files.find((x) => x.id === f.id).bytes)); } catch { return {}; } })();
-    sim.seed(MILE, 'OLD', { name: 'marli-predaja.json', appData: true, content: mk(cur) });
-    for (const x of sim.listFiles({ owner: MILE, project: 'OLD', appData: true, name: 'marli-predaja.json' })) if (x.id === f.id) sim.snapshot; // stara ostaje — nova (novija) je prva po imenu
+    let cur = {}; try { cur = JSON.parse(sim.content(f.id)); } catch {}
+    sim.setContent(f.id, mk(cur)); // ista beleška, pokvarena / izmenjena
     const r2 = await switchDev('phone'); r2.name = 'phone'; await closeDev(r2.d);
     if (!r2.ok) problem(sc, 'telefon nije prešao');
+    if (r2.via !== 'prijava' || !r2.taps) problem(sc, `loša beleška je prihvaćena (via ${r2.via}) — treba obična prijava`);
     summarize(sc, [r1, r2]);
   }
 }
