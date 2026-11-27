@@ -66,7 +66,7 @@ export async function run(ctx) {
     const q = await open(ctx, 'phone', { mig: true });
     const d2 = await installSim(sim, q.context(), sim.device({ accounts: ['a@x.test'] }), { initScript: true });
     await q.goto(ctx.base + '#/pesme'); await q.waitForTimeout(500);
-    const got = await q.evaluate(async () => { const S = await import('./src/sync.js'); await S.connectSync(); const db = await import('./src/db.js'); const st = async () => (await db.songs.list()).filter((x) => /^Stara /.test(x.title)).length; for (let i = 0; i < 30 && (await st()) < 12; i++) await new Promise((r) => setTimeout(r, 500)); return { songs: await st(), key: await db.settings.get('geminiKey', ''), best: (((await db.settings.get('practice', null)) || {}).games || {}).pauk?.best }; });
+    const got = await q.evaluate(async () => { const M = (n) => import(performance.getEntriesByType('resource').map((r) => r.name).find((x) => x.includes('/src/' + n)) || './src/' + n); const S = await M('sync.js'); await S.connectSync(); const db = await M('db.js'); const st = async () => (await db.songs.list()).filter((x) => /^Stara /.test(x.title)).length; for (let i = 0; i < 30 && (await st()) < 12; i++) await new Promise((r) => setTimeout(r, 500)); return { songs: await st(), key: await db.settings.get('geminiKey', ''), best: (((await db.settings.get('practice', null)) || {}).games || {}).pauk?.best }; });
     eq(got, { songs: 12, key: 'AIzaMigTestKey_0123456789abcdefghijk', best: 77 }, 'nov uređaj na novoj vezi');
     expect(d2 && !p.errs.length && !q.errs.length, 'greške', [...p.errs, ...q.errs]);
     // posle prelaska: „Preuzmi pesme iz stare veze“ samo preuzima — ništa ne upisuje na staru vezu
