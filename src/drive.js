@@ -602,6 +602,13 @@ export async function listNamed(prefix, { quiet = false } = {}) {
   const url = `${API}/files?spaces=drive&pageSize=50&orderBy=name desc&fields=${encodeURIComponent('files(id,name,modifiedTime)')}&q=${encodeURIComponent(`name contains '${q(prefix)}' and '${folder}' in parents and trashed=false`)}`;
   return ((await (await api(url)).json()).files || []).filter((f) => f.name.startsWith(prefix));
 }
+/** v2.5.67: fajlovi u fascikli „MARLI“ (do 200) — za jednokratno čišćenje posle prelaska. */
+export async function folderFiles() {
+  await shareToken({ interactive: false });
+  const folder = await ensureFolder();
+  const url = `${API}/files?spaces=drive&pageSize=200&fields=${encodeURIComponent('files(id,name,createdTime,modifiedTime,mimeType)')}&q=${encodeURIComponent(`'${folder}' in parents and trashed=false`)}`;
+  return (await (await api(url)).json()).files || [];
+}
 export async function deleteFileId(id) { await api(`${API}/files/${encodeURIComponent(id)}`, { method: 'DELETE' }); }
 
 /** Najnovija kopija pod tim imenom: { data, modified } ili null. */

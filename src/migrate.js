@@ -83,7 +83,7 @@ let running = null;
 export function startMigration() { return running || (running = run().finally(() => { running = null; })); }
 
 async function run() {
-  if (await migrationDone()) return true;
+  if (await migrationDone()) { const m = await get(); if (m.done && !m.fresh && !(m.linksDone && m.copyUp && m.oldFiles)) background().catch(() => {}); return true; }
   const S = await import('./sync.js'); const D = await import('./drive.js'); const O = await import('./oldAuth.js');
   const cfg = (await settings.get('syncCfg', null)) || {}; const drv = (await settings.get('drive', null)) || {};
   const email = cfg.email || drv.email || '';
@@ -214,39 +214,71 @@ async function uploadAll(S, tk) {
 }
 
 /** U pozadini, posle prelaska: veze sa drugima, kopija pre prelaska i kopije/PDF-ovi sa stare veze u folder „MARLI“. */
-async function background() {
+let bgRun = null;
+/** v2.5.67: posao posle prelaska (veze sa drugima, kopija na Drive, PDF-ovi) — jedan po jedan, tek kad se aplikacija
+ *  smiri (prva sinhronizacija i dnevna kopija prvo), i nastavlja se pri svakom sledećem otvaranju dok se ne završi. */
+function background(delay = globalThis.__marliTest?.bgDelay ?? 90000) {
+  if (bgRun) return bgRun;
+  bgRun = new Promise((r) => setTimeout(r, delay)).then(bgWork).finally(() => { bgRun = null; });
+  return bgRun;
+}
+async function bgWork() {
+  if (navigator.onLine === false) return;
   const m = await get();
   const L = await import('./migLinks.js');
-  if (!m.linksDone && (await L.linksNeeded())) {
+  if (!m.linksDone && !(await L.linksNeeded())) await put({ linksDone: Date.now() }); // nema veza sa drugima
+  else if (!m.linksDone) {
     const r = await L.moveLinks().catch(() => ({ ok: false }));
     if (r.ok) { await put({ linksDone: Date.now() }); ev('veze', true, { n: String(r.total) }); }
-    else { ev('veze', false, { note: r.needOld ? 'stari ključ' : `neuspelo ${r.failed || 0}` }); setTimeout(() => background().catch(() => {}), 10 * 60000); return; }
+    else { ev('veze', false, { note: r.needOld ? 'stari ključ' : `neuspelo ${r.failed || 0}` }); setTimeout(() => background(0).catch(() => {}), 10 * 60000); return; }
   }
   if (!m.copyUp) {
     try {
       const c = await settings.get('migCopy', null);
       const D = await import('./drive.js');
-      if (c && c.gz) { await D.saveToFolder('MARLI – kopija pre prelaska.json.gz', new Blob([c.gz], { type: 'application/gzip' }), 'application/gzip'); await put({ copyUp: Date.now() }); }
+      if (c && c.gz) await D.saveToFolder('MARLI – kopija pre prelaska.json.gz', new Blob([c.gz], { type: 'application/gzip' }), 'application/gzip');
+      await put({ copyUp: Date.now() });
     } catch {}
   }
-  if (!m.oldFiles) { const r = await copyOldFiles().catch(() => null); if (r) await put({ oldFiles: Date.now(), oldN: r }); }
+  if (!m.oldFiles) { const r = await copyOldFiles().catch(() => null); if (r != null) await put({ oldFiles: Date.now(), oldN: r }); }
+  if (!m.cleaned) await cleanCopiedBackups().catch(() => {});
+}
+/** v2.5.67: 2.5.66 je pored PDF-ova kopirao i STARE rezervne kopije (cela aplikacija, pesme, dnevna) u „MARLI“. Tamo
+ *  izgledaju kao današnje (datum kopiranja), a stara dnevna kopija od danas je mogla da zameni pravu današnju. Briše se
+ *  samo takva kopija: isto ime kao rezervna kopija, napravljena u prvih 30 min posle prelaska i od tada nepromenjena.
+ *  Original ostaje u staroj fascikli „Gitara“, a sve je i dalje na uređaju i u sinhronizaciji. Jednom. */
+export async function cleanCopiedBackups() {
+  const m = await get();
+  if (m.cleaned || !m.doneAt) return;
+  const D = await import('./drive.js');
+  const from = m.doneAt - 60000, to = m.doneAt + 30 * 60000;
+  const isBk = (n) => /^MARLI – (cela aplikacija|pesme|dnevna kopija )/.test(n || '');
+  let n = 0;
+  for (const f of await D.folderFiles()) {
+    const c = Date.parse(f.createdTime) || 0, md = Date.parse(f.modifiedTime) || 0;
+    if (!isBk(f.name) || c < from || c > to || md - c > 120000) continue;
+    await D.deleteFileId(f.id).catch(() => {}); n++;
+  }
+  await put({ cleaned: Date.now(), cleanedN: n });
+  if (n) { try { localStorage.removeItem('marli-autobk'); } catch {} (await import('./backups.js')).autoBackup().catch(() => {}); } // prava dnevna kopija za danas, iz nove verzije
 }
 /** Najnovija ručna kopija, najnovija dnevna i svi PDF-ovi iz starog foldera „Gitara“ → folder „MARLI“ (stari ostaju do čišćenja). */
 async function copyOldFiles() {
   const O = await import('./oldAuth.js');
-  if (!(await O.oldTokenSilent('file'))) return 0;
+  if (!(await O.oldTokenSilent('file'))) return null; // stari ključ trenutno nije dostupan — pokušaće se ponovo
   const folders = await O.oldList("name='Gitara' and mimeType='application/vnd.google-apps.folder' and trashed=false", 'files(id,name)');
   if (!folders.length) return 0;
   const files = await O.oldList(`'${folders[0].id}' in parents and trashed=false`);
-  const latest = (pre) => files.filter((f) => f.name.startsWith(pre)).sort((a, b) => (a.modifiedTime < b.modifiedTime ? 1 : -1))[0];
-  const pick = [latest('MARLI – cela aplikacija'), latest('MARLI – dnevna kopija'), latest('MARLI – pesme'), ...files.filter((f) => f.mimeType === 'application/pdf' || /\.pdf$/i.test(f.name))].filter(Boolean);
+  // v2.5.67: samo PDF-ovi. Stare rezervne kopije ostaju u staroj fascikli „Gitara“ (ništa se ne briše); u „MARLI“ od sada
+  // idu nove dnevne kopije. Kopiranje starih kopija je duplo slalo celu aplikaciju odmah posle prelaska.
+  const pick = files.filter((f) => f.mimeType === 'application/pdf' || /\.pdf$/i.test(f.name));
   const D = await import('./drive.js'); const m = await get(); const done = { ...(m.copied || {}) }; let n = 0;
   for (const f of pick) {
     if (done[f.id]) continue;
     const bytes = await O.oldRead(f.id);
     await D.saveToFolder(f.name, new Blob([bytes], { type: f.mimeType || 'application/octet-stream' }), f.mimeType || 'application/octet-stream');
     done[f.id] = 1; n++; await put({ copied: done });
-    await new Promise((r) => setTimeout(r, 400));
+    await new Promise((r) => setTimeout(r, 3000)); // jedan po jedan, sa pauzom — ne zauzima vezu
   }
   return n;
 }

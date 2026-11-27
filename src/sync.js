@@ -143,7 +143,9 @@ function runNow() {
 }
 // v1.74.1: zašto sinhronizacija ne uspeva — u dijagnostiku (kratko, bez ključeva i sadržaja)
 function logSync(what, e) { try { const L = JSON.parse(localStorage.getItem('gitara-diag') || '[]'); L.push({ t: Date.now(), k: 'sync', m: `${what}: ${(e && (e.code || e.name)) || ''} ${(e && (e.msg || e.message)) || ''}`.slice(0, 200) }); localStorage.setItem('gitara-diag', JSON.stringify(L.slice(-60))); } catch {} }
+let netFails = 0; // v2.5.67: neuspeli zahtevi dok je telefon na mreži (zaredom)
 function done(m) {
+  if (m.ok) netFails = 0;
   if (m.code === 'PAUSED') return;
   if (!m.ok) logSync('sync', m);
   syncMeta.pending().then((n) => { st.pending = n; emit(); }).catch(() => {});
@@ -166,7 +168,13 @@ function done(m) {
     }
     else if (!migrated && !st.migrating) migrateOnce();
   } else {
-    if (m.code === 'OFFLINE') setStatus('offline');
+    // v2.5.67: zahtev nije prošao, a telefon JE na mreži → nije „Nema interneta“: kratko „Sinhronizacija…“ i brz nov pokušaj
+    // (15 s, 30 s, 45 s); tek posle toga greška. Zabeleži u dijagnostiku (ranije se ovo nije videlo).
+    if (m.code === 'OFFLINE' && navigator.onLine !== false) {
+      netFails++; logSync('mreža', { code: 'OFFLINE', msg: `${m.msg || ''} (pokušaj ${netFails})` });
+      if (netFails <= 3) { setStatus('syncing'); schedule(15000 * netFails); return; }
+    }
+    if (m.code === 'OFFLINE') setStatus(navigator.onLine === false ? 'offline' : 'error');
     else if (m.code === 'AUTH') setStatus('connect');
     else if (m.code === 'QUOTA') setStatus('quota'); // Drive pun: sve ostaje ovde, status se pokaže jednom
     else setStatus(navigator.onLine === false ? 'offline' : 'error');

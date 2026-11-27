@@ -60,7 +60,9 @@ export function flush() {
       const it = q[0];
       try {
         // „no-cors“: Google odgovara preusmeravanjem; dovoljno je da zahtev stigne (bez ponovnog slanja i duplikata)
-        await fetch(url(), { method: 'POST', mode: 'no-cors', body: JSON.stringify(it), keepalive: JSON.stringify(it).length < 60000 });
+        // v2.5.67: najduže 20 s — zaglavljen zahtev više ne blokira sve sledeće (utisci, dijagnostika, događaji prelaska)
+        const ctrl = new AbortController(), tm = setTimeout(() => ctrl.abort(), 20000);
+        try { await fetch(url(), { method: 'POST', mode: 'no-cors', body: JSON.stringify(it), keepalive: new Blob([JSON.stringify(it)]).size < 60000, signal: ctrl.signal }); } finally { clearTimeout(tm); }
       } catch { break; }
       wr(QKEY, rd(QKEY, []).filter((x) => x.at !== it.at));
       sent++;

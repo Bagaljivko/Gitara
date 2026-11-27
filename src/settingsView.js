@@ -543,7 +543,11 @@ export async function renderSettings(root) {
     else if (c) { cls = 'w'; ico = '…'; title = t('gdx.' + c.kind + '.title'); sub = t('set.kSt.waitSub', { last, when }); }
     $('kState').className = 'kst ' + cls; $('kStIco').className = 'kbig ' + cls; $('kStIco').textContent = ico;
     $('kStTitle').textContent = title; $('kStSub').textContent = sub;
+    // v2.5.67: poslednja provera nije prošla zbog mreže (sačuvan ishod se prikazuje i posle ponovnog otvaranja) — ako je
+    // telefon sada na mreži, proveri ponovo samo (jednom po otvaranju ekrana), da ne ostane „Nema interneta“ kad mreža radi
+    if (c && c.kind === 'net' && navigator.onLine !== false && Date.now() - (c.t || 0) > 60000 && !kAuto) { kAuto = true; setTimeout(() => { if ($('kTest') && $('kTest').isConnected) $('kTest').click(); }, 400); }
   };
+  let kAuto = false;
   $('kStCheck').addEventListener('click', () => $('kTest').click());
   $('kStEdit').addEventListener('click', () => { kEditing = true; drawKey(); $('kInput').focus(); });
   $('kCancel').addEventListener('click', async () => { kEditing = false; $('kInput').value = await settings.get('geminiKey', ''); status(''); drawKey(); });

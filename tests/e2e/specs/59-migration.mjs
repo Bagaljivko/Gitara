@@ -51,7 +51,12 @@ export async function run(ctx) {
 
   // 1) uspeh: ekran bez „Kasnije“ i bez ✕; kopija na uređaju; sve na novoj vezi (pesme, Gemini ključ, Vežbe)
   {
+    sim.addUser('a@x.test');
+    const oldF = sim.seedFolder('a@x.test', 'OLD', 'Gitara');
+    sim.seed('a@x.test', 'OLD', { name: 'Moja pesma.pdf', mimeType: 'application/pdf', parents: [oldF.id], content: '%PDF-1.4 test' });
+    sim.seed('a@x.test', 'OLD', { name: 'MARLI – cela aplikacija.json', mimeType: 'application/json', parents: [oldF.id], content: '{"app":"marli"}' });
     const { p } = await oldUser('a@x.test');
+    await p.evaluate(() => { window.__marliTest = { ...(window.__marliTest || {}), bgDelay: 0 }; });
     expect(await gate(p), 'ekran prelaska se ne pojavljuje', { errs: p.errs, mig: await mig(p), ls: await p.evaluate(() => ({ off: localStorage.getItem('marli-mig-off'), wd: navigator.webdriver })) });
     eq(await h1(p), 'MARLI je ažuriran', 'naslov');
     expect(!(await p.$('#migGate [data-mg="alt"]')) && !(await p.$('#migGate .close, #migGate [aria-label="Zatvori"]')), 'ekran ima „Kasnije“ ili ✕');
@@ -60,6 +65,24 @@ export async function run(ctx) {
     expect(!(await p.$('#migGate')), 'ekran ostaje posle uspeha');
     const copy = await p.evaluate(async () => { const db = await import('./src/db.js'); const E = await import('./src/syncEngine.js'); const c = await db.settings.get('migCopy', null); const d = c && (await E.gunzip(c.gz)); return { n: c && c.n, songs: d && d.songs && d.songs.length, local: (await db.songs.list()).length, stare: d && d.songs ? d.songs.filter((x) => /^Stara /.test(x.title)).length : 0, key: !!(d && JSON.stringify(d).includes('AIzaMigTestKey')) }; });
     expect(copy.n === copy.local && copy.songs === copy.local && copy.stare === 12 && copy.key, 'kopija na uređaju', copy);
+    // posle prelaska (v2.5.67): u „MARLI“ se kopiraju samo PDF-ovi — stare rezervne kopije ostaju u „Gitara“
+    for (let i = 0; i < 40 && !(await mig(p)).cleaned; i++) await p.waitForTimeout(500);
+    const mm = await mig(p);
+    expect(mm.oldFiles && mm.cleaned, 'posao posle prelaska nije završen', mm);
+    const inNew = sim.listFiles({ owner: 'a@x.test', project: 'NEW', appData: false }).map((f) => f.name);
+    expect(inNew.includes('Moja pesma.pdf'), 'PDF nije kopiran u „MARLI“', inNew);
+    expect(!inNew.includes('MARLI – cela aplikacija.json'), 'stara rezervna kopija kopirana u „MARLI“', inNew);
+    expect(sim.listFiles({ owner: 'a@x.test', project: 'OLD' }).some((f) => f.name === 'MARLI – cela aplikacija.json'), 'stara kopija obrisana iz „Gitara“');
+    // čišćenje onoga što je 2.5.66 kopirao: rezervna kopija napravljena odmah posle prelaska se briše; ručno sačuvana kasnije ostaje
+    const cl = await p.evaluate(async () => {
+      const D = await import('./src/drive.js'); const db = await import('./src/db.js'); const M = await import('./src/migrate.js');
+      await D.saveToFolder('MARLI – cela aplikacija.json', new Blob(['{"old":1}'], { type: 'application/json' }), 'application/json');
+      const m = await db.settings.get('mig', null); await db.settings.set('mig', { ...m, cleaned: 0 });
+      await M.cleanCopiedBackups();
+      const after = (await D.folderFiles()).map((f) => f.name);
+      return { after, n: (await db.settings.get('mig', null)).cleanedN };
+    });
+    expect(cl.n === 1 && !cl.after.includes('MARLI – cela aplikacija.json') && cl.after.includes('Moja pesma.pdf'), 'čišćenje kopija iz 2.5.66', cl);
     const files = newFiles('a@x.test');
     expect(files.length >= 1, 'nova skrivena fascikla je prazna', files.length);
     // nov uređaj, samo nova veza: dobija sve
