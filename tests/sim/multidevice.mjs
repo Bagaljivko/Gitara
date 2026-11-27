@@ -66,15 +66,16 @@ async function openDev(name, email, { tabs = 1, offline = false } = {}) {
   if (!d) { d = { name, email, sim: sim.device({ accounts: [email] }) }; devices.set(name, d); }
   const k = kindOf(name), st = STATE + name + '.json';
   const ctx = await browser.newContext({ viewport: { width: VIEW[k][0], height: VIEW[k][1] }, userAgent: UA[k], serviceWorkers: 'block', ...(existsSync(st) ? { storageState: st } : {}) });
-  await ctx.addInitScript(({ noLocks }) => {
+  await ctx.addInitScript(({ noLocks, off }) => {
     try { localStorage.setItem('gitara-tour', '1'); localStorage.setItem('gitara-upgraded', '9'); localStorage.setItem('marli-fs-off', 'test'); localStorage.setItem('marli-fb-url-test', 'https://feedback.test/exec'); } catch {}
     window.__marliTest = { ...(window.__marliTest || {}), noHints: true, authStuckMs: 3000, handoffPollMs: 1500, bgDelay: 500 };
     if (noLocks) { try { Object.defineProperty(navigator, 'locks', { value: undefined, configurable: true }); } catch {} }
-  }, { noLocks: k === 'ios' });
+    if (off) { window.__online = false; Object.defineProperty(Navigator.prototype, 'onLine', { get() { return !!window.__online; }, configurable: true }); } // telefon bez mreže (aplikacija se otvara iz keša)
+  }, { noLocks: k === 'ios', off: offline });
   await installSim(sim, ctx, d.sim, { initScript: true });
   d.events = d.events || [];
   await ctx.route('https://feedback.test/**', (r) => { try { const j = JSON.parse(r.request().postData() || '{}'); if (j.kind === 'event') d.events.push(j); } catch {} return r.fulfill({ status: 200, body: 'ok' }); });
-  if (offline) await ctx.setOffline(true);
+  if (offline) sim.offline(true);
   const pages = [];
   for (let i = 0; i < tabs; i++) {
     const p = await ctx.newPage(); p.errs = []; p.on('pageerror', (e) => p.errs.push(String(e).slice(0, 200)));
@@ -304,7 +305,7 @@ if (want('offline')) {
   await d.p.waitForTimeout(3000);
   const gateOff = await d.p.evaluate(() => !!document.getElementById('migGate'));
   if (gateOff) problem(sc, 'ekran prelaska prikazan bez interneta');
-  await d.ctx.setOffline(false); await d.p.evaluate(() => dispatchEvent(new Event('online')));
+  sim.offline(false); await d.p.evaluate(() => { window.__online = true; dispatchEvent(new Event('online')); });
   const r2 = await switchDev('phone', { d, tap: false }); r2.name = 'phone'; await closeDev(d);
   expectOneTap(sc, [r1, r2]); summarize(sc, [r1, r2]);
 }
