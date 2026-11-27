@@ -154,7 +154,7 @@ async function run() {
       if (tap && tap.tk) { tk = tap.tk; quiet = true; closeGate(); m = await put({ via: 'auto', viaDev: tap.dev || '', viaAt: tap.at || Date.now() }); } // drugi uređaj je u međuvremenu završio
       else if (tap === 'alt') { closeGate(); ev('preskočeno', false, { note: 'posle 3 neuspeha' }); return false; } // aplikacija radi na uređaju; ekran opet pri sledećem otvaranju
     }
-    if (!tk) try { tk = await D.syncToken({ interactive: true, hint: email, pick: !!m.pick }); m = await put({ via: 'prijava' }); }
+    if (!tk) try { globalThis.__marliSigningIn = Date.now(); tk = await D.syncToken({ interactive: true, hint: email, pick: !!m.pick }); m = await put({ via: 'prijava' }); }
     catch (e) {
       if (e && e.code === 'cancelled') continue; // zatvorio Google prozor — isti ekran
       // dečji (nadzirani) nalog: Google traži da roditelj odobri novu aplikaciju — „odbijeno“ ili prozor koji se nikad ne javi
@@ -169,6 +169,7 @@ async function run() {
       m = await put({ fails: fails + 1 }); ev('prijava', false, { note: String((e && e.code) || '') });
       if ((await screen({ h: t('mig.failT'), p: esc(t('mig.failP')), rows: [['⚠', t(e && e.code === 'denied' ? 'mig.scopeT' : 'mig.googleT'), t(e && e.code === 'denied' ? 'mig.scopeS' : 'mig.googleS')], ...(stuck ? [['👪', t('mig.kidT'), t('mig.kidHint')]] : [])], btn: t('mig.retry') })) === 'go') continue;
     }
+    globalThis.__marliSigningIn = 0;
     if (!tk) continue;
     // isti nalog?
     const acct = await S.migAbout(tk);

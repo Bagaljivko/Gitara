@@ -152,6 +152,13 @@ export function createSim(opts = {}) {
   let offline = false, dropLeft = null;
   const win = new Map(); // rate windows
 
+  /** Ceo sim (nalozi, fajlovi, dozvole, ključevi, promene) → kopija; load vraća tačno to stanje (za probu više redosleda). */
+  sim.save = () => structuredClone({ users, byPid, files, tokens, refresh, codes, grants, sessions, changes, n, offset });
+  sim.load = (st) => {
+    const c = structuredClone(st);
+    for (const [dst, src] of [[users, c.users], [byPid, c.byPid], [files, c.files], [tokens, c.tokens], [refresh, c.refresh], [codes, c.codes], [grants, c.grants], [sessions, c.sessions]]) { dst.clear(); for (const [k, v] of src) dst.set(k, v); }
+    changes.length = 0; changes.push(...c.changes); n = c.n; offset = c.offset; faults.length = 0; offline = false; dropLeft = null; win.clear();
+  };
   sim.now = now; sim.iso = iso;
   sim.advance = (ms) => { offset += ms; return now(); };
   sim.projects = projects; sim.clients = clients; sim.keys = keys; sim.helpers = helpers;

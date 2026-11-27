@@ -323,10 +323,13 @@ if ('serviceWorker' in navigator) {
     bar.hidden = false;
     bar.querySelector('button').onclick = () => { updating = true; bar.querySelector('button').disabled = true; w.postMessage('SKIP_WAITING'); };
     // v2.5.66: kad korisnik ode iz aplikacije (pozadina), nova verzija se primeni sama — vraća se u nju (osim usred uređivanja)
-    const bg = () => { if (document.hidden && !updating && !/^#\/(uredi|uvoz)/.test(location.hash)) { updating = true; w.postMessage('SKIP_WAITING'); } };
+    // ne usred uređivanja i ne dok je otvoren Google prozor za prijavu (inače bi se aplikacija osvežila usred prijave)
+    const bg = () => { if (document.hidden && !updating && !/^#\/(uredi|uvoz)/.test(location.hash) && !(Date.now() - (globalThis.__marliSigningIn || 0) < 180000)) { updating = true; w.postMessage('SKIP_WAITING'); } };
     document.addEventListener('visibilitychange', bg);
   };
-  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').then((reg) => {
+  // v2.5.68: „load“ je možda već prošao (engleski: čeka se prevod pre ovog koda) — inače se sw.js nikad ne registruje
+  const onLoad = (fn) => (document.readyState === 'complete' ? fn() : window.addEventListener('load', fn));
+  onLoad(() => navigator.serviceWorker.register('sw.js').then((reg) => {
     if (reg.waiting) offerUpdate(reg.waiting);
     reg.addEventListener('updatefound', () => {
       const w = reg.installing;
