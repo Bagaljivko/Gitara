@@ -24,23 +24,24 @@ export async function run(ctx) {
   });
 
   // korisnik koji je koristio sinhronizaciju na staroj vezi (stari ključ sačuvan kao u 2.5.65)
-  async function oldUser(email, { kid = false, extra = null } = {}) {
+  async function oldUser(email, { kid = false, extra = null, dels = 0 } = {}) {
     sim.addUser(email);
     const tok = sim.issueToken(email, 'OLD', 'drive.file drive.appdata').access_token;
     const p = await open(ctx, 'phone', { mig: true, init: () => { window.__marliTest = { ...(window.__marliTest || {}), authStuckMs: 1500 }; } });
     const dev = await installSim(sim, p.context(), sim.device({ accounts: [email] }), { initScript: true });
     if (kid) dev.default = 'deny';
     await p.goto(ctx.base + '#/pesme'); await p.waitForTimeout(400);
-    await p.evaluate(async ({ email, tok, extra }) => {
+    await p.evaluate(async ({ email, tok, extra, dels }) => {
       const db = await import('./src/db.js');
       for (let i = 0; i < 12; i++) await db.songs.save({ title: 'Stara ' + i, artist: 'Bend', sections: [{ name: 'S', lines: [{ text: 'tekst ' + i, chords: [{ chord: 'G', position: 0 }] }] }] });
+      for (let i = 0; i < dels; i++) { const s = await db.songs.save({ title: 'Obrisana ' + i, artist: 'Bend', sections: [{ name: 'S', lines: [{ text: 'x' + i, chords: [] }] }] }); await db.songs.remove(s.id); } // ranije obrisane / spojene
       await db.settings.set('geminiKey', 'AIzaMigTestKey_0123456789abcdefghijk');
       await db.settings.set('practice', { v: 1, games: { pauk: { best: 77, plays: 5 } }, songs: {} });
       await db.settings.set('syncCfg', { on: true, email });
       await db.settings.set('driveToken', { t: tok, exp: Date.now() + 3500e3, s: 2, f: 1 });
       if (extra) await db.settings.set(extra.k, extra.v);
       await db.settings.set('mig', {}); // prvo pokretanje (pre ovih podataka) je zapisalo „nov korisnik“ — kao da je 2.5.65 već imala ove podatke
-    }, { email, tok, extra });
+    }, { email, tok, extra, dels });
     await p.reload(); return { p, dev };
   }
   const gate = (p) => p.waitForSelector('#migGate', { timeout: 15000 }).then(() => true).catch(() => false);
@@ -98,6 +99,21 @@ export async function run(ctx) {
     const r = await p.evaluate(async () => { try { return await (await import('./src/migrate.js')).pullFromOld(); } catch (e) { return 'err:' + (e && e.code); } });
     expect(typeof r === 'number', 'preuzimanje iz stare veze', r);
     eq(sim.listFiles({ owner: 'a@x.test', project: 'OLD' }).length, oldBefore, 'upis na staru vezu posle prelaska');
+  }
+
+  // 1b) (Mile, v2.5.69) mnogo ranije obrisanih pesama: prelazak ne pita za stara brisanja (pitanje je bilo ispod ekrana
+  //     prelaska → „0 od 153“ zauvek) — završi se sam, bez dijaloga
+  {
+    const { p } = await oldUser('del@x.test', { dels: 15 });
+    const tombs = await p.evaluate(async () => { const S = await import('./src/syncLocal.js').catch(() => null); return S ? 'ok' : 'nema'; });
+    expect(await gate(p), 'ekran prelaska (brisanja)', { errs: p.errs, mig: await mig(p) });
+    const m = await finish(p, 50);
+    const asked = await p.evaluate(() => [...document.querySelectorAll('.modal-backdrop')].map((x) => x.innerText.slice(0, 80)));
+    expect(m.done, 'prelazak sa mnogo starih brisanja nije završen (stoji na „0 od …“)', { asked, h1: await h1(p), tombs, m });
+    expect(!asked.length, 'pitanje tokom prelaska', asked);
+    const keys = newFiles('del@x.test').map((x) => x.appProperties && x.appProperties.k).filter(Boolean);
+    expect(keys.length > 0, 'ništa na novoj vezi');
+    await p.close();
   }
 
   // 2) slanje na novu vezu ne uspe → ekran greške sa „Pokušaj ponovo“ → uspeh; ništa izgubljeno, bez duplikata

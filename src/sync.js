@@ -491,7 +491,7 @@ export async function migOldPull() {
   const tk = await O.oldTokenSilent('sync');
   if (!tk) return { ok: false, code: 'NOTOKEN' };
   await call({ t: 'source', src: 'old', token: tk, exp: Date.now() + 30 * 60000 }, 'sourceSet');
-  try { return (await call({ t: 'syncOnce' }, 'once')).value; }
+  try { return (await call({ t: 'syncOnce', move: true, pullOnly: true }, 'once')).value; } // v2.5.69: samo preuzmi, bez pitanja i bez slanja na staru vezu
   finally { await call({ t: 'source', src: 'new' }, 'sourceSet'); }
 }
 /** Posle prelaska (Podešavanja): samo preuzmi iz stare veze — ništa ne šalje tamo; preuzeto ide na novu vezu. */

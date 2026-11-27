@@ -180,7 +180,9 @@ export function createEngine(local, remote, { node, ask = async () => true, onSt
   }
 
   /** Zaštita: jedna sinhronizacija ne briše masovno bez pitanja (> 10 ili > 20 % stavki). */
+  let moving = false; // v2.5.69: prelazak na novu vezu — nikad pitanje (ekran prelaska je preko svega); „zadrži“ = bez gubitka
   async function guardDeletes(n, total, dir) {
+    if (moving) return dir === 'out'; // izlaz: stare oznake brisanja (nije novo brisanje); ulaz: zadrži ovde (ništa se ne gubi)
     if (n <= 10 && n <= Math.max(1, total) * 0.2) return true;
     if (n <= 2) return true; // mala biblioteka: dve-tri stavke nisu „masovno“
     return !!(await ask(dir === 'in' ? 'massDeleteIn' : 'massDeleteOut', { n, total }));
@@ -273,14 +275,14 @@ export function createEngine(local, remote, { node, ask = async () => true, onSt
   }
   const propsOf = (p, x) => ({ k: p.k, h: p.h, s: String(SCHEMA), d: p.d ? '1' : '0', x });
 
-  async function push({ move = false } = {}) {
+  async function push() {
     const all = await local.all();
     let dirty = [...all.entries()].filter(([k, m]) => m.dirty && !blocked.has(k));
     const dels = dirty.filter(([, m]) => m.deleted);
     const live = [...all.values()].filter((m) => !m.deleted).length + dels.length;
     // v2.5.69: prelazak na novu vezu ponovo šalje STARE oznake brisanja (pesme obrisane ranije, spojeni duplikati) — to nije
     // novo brisanje i ne pita se (pitanje je ostajalo ispod ekrana prelaska i slanje je stajalo na „0 od N“ zauvek)
-    if (dels.length && !move && !(await guardDeletes(dels.length, live, 'out'))) {
+    if (dels.length && !(await guardDeletes(dels.length, live, 'out'))) {
       // „Ne“: brisanje ostaje samo ovde — stavke se vraćaju sa Drive-a pri punom pregledu
       for (const [k] of dels) await local.setMeta(k, { dirty: false, hlc: '', deleted: false });
       await local.setState('pageToken', '');
@@ -385,13 +387,17 @@ export function createEngine(local, remote, { node, ask = async () => true, onSt
     // fajlovi koji su prošli put bili oštećeni: ponovo
     const re = (await local.state('refetch')) || [];
     if (re.length) { await local.setState('refetch', []); await fetchApplyList(re.map((fileId) => ({ fileId, props: null }))).catch(() => {}); }
+    moving = !!opts.move;
+    try {
     const pulled = await pull();
+    if (opts.pullOnly) { await saveClock(); onStatus('synced'); return { pulled, sent: 0, newer }; } // stara veza: samo preuzmi, ništa ne šalji tamo
     if (stale.length) { const ids = stale.splice(0); await wpool(ids, (id) => remote.del(id).catch(() => {})); }
-    const sent = await push(opts);
+    const sent = await push();
     if (Math.random() < 0.05) await cleanTombs();
     await saveClock();
     onStatus(newer ? 'newer' : 'synced');
     return { pulled, sent, newer };
+    } finally { moving = false; }
   }
 
   /** v2.5.66: posle prelaska — samo PREUZMI iz stare veze (remote = stara skrivena fascikla). Ništa se ne šalje tamo, stanje
