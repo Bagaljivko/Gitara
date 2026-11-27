@@ -164,7 +164,15 @@ export function createEngine(local, remote, { node, ask = async () => true, onSt
     for (const [k, f] of best) {
       if ((Number(f.props.s) || 0) > SCHEMA) { blocked.add(k); newer = true; continue; }
       const m = await local.meta(k);
-      if (m && m.hlc && byMe(f.props.h) && f.props.h <= m.hlc) { if (f.fileId && m.fileId !== f.fileId && f.props.h === m.hlc) await local.setMeta(k, { fileId: f.fileId }); continue; } // moje slanje
+      if (m && m.hlc && byMe(f.props.h) && f.props.h <= m.hlc) {
+        // moje slanje. v2.5.69: ista verzija je već gore, a ovde je i dalje „čeka slanje“ (aplikacija zatvorena odmah
+        // posle slanja, pre nego što je zapisala da je poslato) → to je moj fajl: zapamti ga i ne šalji istu verziju ponovo
+        if (f.props.h === m.hlc && f.fileId) {
+          const same = m.dirty && !m.deleted === (f.props.d !== '1');
+          if (m.fileId !== f.fileId || same) await local.setMeta(k, { fileId: f.fileId, ...(same ? { dirty: false, ...(m.own ? {} : { own: f.fileId, mine: true }) } : {}) });
+        }
+        continue;
+      }
       if (!m || !m.hlc || f.props.h > m.hlc || (m.dirty && f.props.h !== m.hlc)) out.push(f);
       else if (f.props.h === m.hlc && ((f.fileId && m.fileId !== f.fileId) || (m.dirty && !m.deleted === (f.props.d !== '1')))) await local.setMeta(k, { ...(f.fileId ? { fileId: f.fileId } : {}), ...(m.dirty && !m.deleted === (f.props.d !== '1') ? { dirty: false } : {}) }); // v2.5.66: ista verzija već postoji
     }

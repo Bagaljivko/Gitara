@@ -27,7 +27,7 @@ export async function run(ctx) {
     globalThis.__gitaraFirstMs = 2500; globalThis.__gitaraIdleMs = 2500;
     const { settings } = await import('./src/db.js');
     await settings.set('geminiKey', 'AIzaTEST0000000000000000000000000000000'); await settings.set('geminiModel', sel); await settings.set('geminiLastModel', 'gemini-3.6-flash');
-    const G = await import('./src/gemini.js');
+    const G = await import('./src/gemini.js'); G._coolForTests.clear(); // svaki slučaj od početka (bez „hlađenja“ iz prethodnog)
     const st = [], diag = { attempts: [] }, t0 = performance.now();
     try {
       const s = await G.scanSong([{ mime: 'image/jpeg', base64: 'AAAA' }], undefined, (k, m) => st.push(k + (m ? ':' + m : '')), diag);

@@ -47,6 +47,15 @@
   <p class="muted" data-sr style="color:var(--muted)">Šta je novo u aplikaciji — sa snimcima ekrana i kratkim uputstvom.</p>
   <p class="muted" data-en style="color:var(--muted)">What's new in the app — with screenshots and short how-tos.</p>
 
+  <section class="ver" id="v2.5.69">
+    <h2><span class="tag">2.5.69</span> <span data-sr>Skeniranje ne visi kad je Gemini spor</span><span data-en>Scanning no longer hangs when Gemini is slow</span> <small>27. 11. 2026.</small></h2>
+    <div class="card">
+      <p data-sr>U večernjem špicu Gemini ponekad ćuti i po minut, a ekran je samo pisao „Gemini čita…“. Sada odgovor stiže deo po deo: ako izabrani model ne napiše ni slovo za 25 sekundi, aplikacija sama pita drugi Gemini model (kad je u Podešavanjima izabrano „Automatski“). Čim odgovor krene, piše <b>„Gemini piše…“</b>. Ako odgovor stane na pola, pita se drugi model umesto da se javi greška. Sporo skeniranje se beleži u dijagnostici. Takođe: ako zatvoriš aplikaciju odmah posle slanja, sledeći put ne šalje istu verziju ponovo.</p>
+      <p data-en>At evening peak Gemini sometimes stays silent for a minute, and the screen only said “Gemini is reading…”. Now the answer arrives piece by piece: if the model does not write a single letter in 25 seconds, the app asks another Gemini model by itself (when Settings has “Automatic”). As soon as the answer starts, it says <b>“Gemini is writing…”</b>. If the answer stops halfway, another model is asked instead of showing an error. A slow scan is noted in the diagnostics. Also: if you close the app right after sending, next time it does not send the same version again.</p>
+      <img class="shot" src="img/skeniranje-pise.png" alt="" style="max-width:360px">
+    </div>
+  </section>
+
   <section class="ver" id="v2.5.68">
     <h2><span class="tag">2.5.68</span> <span data-sr>Prelazak i na sporijoj vezi</span><span data-en>The move works on slower connections too</span> <small>27. 11. 2026.</small></h2>
     <div class="card">

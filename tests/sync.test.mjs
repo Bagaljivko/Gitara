@@ -293,3 +293,22 @@ test('v1.80: practice per-day rounds (wk) survive cleaning and merge (more round
   const m = mergePractice(a, b);
   assert.deepEqual(m.games.promena.wk, { 20400: [0, 100], 20401: [3, 92], 20402: [1, 70] });
 });
+
+test('v2.5.69: app closed right after an upload (before noting it as sent): reopening never uploads the same version again', async () => {
+  const drive = memDrive();
+  const A = dev('A', drive), B = dev('B', drive);
+  A.edit('students', { list: ['Ana', 'Marko'] });
+  const before = { ...(await A.local.meta('students')) };
+  await A.sync();
+  assert.equal(drive.fileOf('students').length, 1);
+  // zapis „poslato“ izgubljen (zatvoreno usred posla): opet „čeka slanje“, bez svog fajla, i od početka spiska
+  await A.local.setMeta('students', { ...before, dirty: true, own: undefined, fileId: undefined, mine: undefined });
+  await A.local.setState('pageToken', '');
+  await A.sync(); await A.sync();
+  assert.equal(drive.fileOf('students').length, 1, 'same version uploaded twice');
+  assert.equal(A.pending(), 0);
+  // i dalje je moj fajl: sledeća izmena menja isti fajl (ne pravi novi)
+  A.edit('students', { list: ['Ana', 'Marko', 'Iva'] }); await A.sync();
+  assert.equal(drive.fileOf('students').length, 1, 'next edit made a new file');
+  await B.sync(); assert.deepEqual(B.data.get('students').list, ['Ana', 'Marko', 'Iva']);
+});
