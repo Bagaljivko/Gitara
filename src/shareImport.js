@@ -161,7 +161,7 @@ const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls)
 const btn = (label, cls, on) => { const b = el('button', 'btn ' + cls, label); b.addEventListener('click', on); return b; };
 const clearHash = (to = '#/pesme') => location.replace(location.pathname + to);
 
-export async function renderDriveShare(root, fileId) {
+export async function renderDriveShare(root, fileId, hop = 0) {
   const { SHARE_API_KEY, SHARE_BASE } = await import('./shareConfig.js');
   const { parseShareFile, SHARE_MAX_BYTES } = await import('./shareCode.js');
   const view = el('section', 'view shared-view');
@@ -204,6 +204,7 @@ export async function renderDriveShare(root, fileId) {
     if (!res.ok) throw Object.assign(new Error('net'), { code: 'OFFLINE' });
     if (Number(res.headers.get('content-length') || 0) > SHARE_MAX_BYTES) throw Object.assign(new Error('big'), { code: 'CORRUPT' });
     text = await res.text();
+    const mv = movedOf(text); if (mv && hop < 2) return renderDriveShare(root, mv, hop + 1); // v2.5.66: link je „preseljen“ (nova Google veza) — isti link i dalje radi
   } catch (e) {
     const code = (e && e.code) || 'OFFLINE';
     if (code === 'OFFLINE') { show(t('share.r.offline'), '', [btn(t('common.retry'), 'primary', () => renderDriveShare(root, fileId)), btn(t('common.cancel'), '', () => clearHash())]); return; }
@@ -245,13 +246,17 @@ export async function renderDriveShare(root, fileId) {
 }
 
 /** v1.80: paket iz deljenog fajla (npr. „Proveri pesmu“ otvoren kasnije iz Zahteva). null = nema ga / greška. */
-export async function fetchPackage(fileId) {
+export async function fetchPackage(fileId, hop = 0) {
   const { SHARE_API_KEY } = await import('./shareConfig.js');
   const G = await import('./driveGate.js'); if (G.cooling()) return null; // v2.5.63: i ovde se poštuje zajednička pauza
   try {
     const res = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&key=${encodeURIComponent(SHARE_API_KEY)}`);
     if (!res.ok) { if (res.status === 429 || res.status === 403) { const r = await res.clone().json().catch(() => ({})); if (G.isRate(res.status, JSON.stringify(r))) G.noteRate(); } return null; }
+    const text = await res.text();
+    const mv = movedOf(text); if (mv && hop < 2) return fetchPackage(mv, hop + 1); // v2.5.66: „preseljeno“ (nova Google veza)
     const { parseShareFile } = await import('./shareCode.js');
-    return await parseShareFile(await res.text());
+    return await parseShareFile(text);
   } catch { return null; }
 }
+/** v2.5.66: stari deljeni fajl posle prelaska na novu vezu sadrži samo { app: 'gitara', moved: '<novi id>' }. */
+export function movedOf(text) { try { const o = JSON.parse(text); return o && o.app === 'gitara' && typeof o.moved === 'string' && /^[\w-]{6,}$/.test(o.moved) ? o.moved : ''; } catch { return ''; } }

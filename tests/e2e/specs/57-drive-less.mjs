@@ -6,7 +6,7 @@ export const name = 'Drive: manje zahteva (uspori, kopija, vraćanje samo razlik
 export const timeout = 120;
 export async function run(ctx) {
   const p = await open(ctx, 'phone'); await boot(p, ctx, '#/podesavanja', 900);
-  await p.evaluate(async () => { const { settings } = await import('./src/db.js'); await settings.set('drive', { connected: true, folderId: 'FOLD' }); await settings.set('driveToken', { t: 'tok', exp: Date.now() + 3600e3, s: 1, f: 1 }); });
+  await p.evaluate(async () => { const { settings } = await import('./src/db.js'); await settings.set('drive', { connected: true, folderId2: 'FOLD' }); await settings.set('driveToken2', { t: 'tok', exp: Date.now() + 3600e3, s: 1, f: 1 }); });
   const hits = []; let rate = true;
   await p.route(/googleapis\.com\/upload\/drive\/v3\/files/, (r) => { hits.push('up'); return rate ? r.fulfill({ status: 429, contentType: 'application/json', body: '{"error":{"code":429,"errors":[{"reason":"rateLimitExceeded"}]}}' }) : r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ id: 'N1', modifiedTime: new Date().toISOString() }) }); });
   await p.route(/googleapis\.com\/drive\/v3\/files/, (r) => { const u = r.request().url(); hits.push(/files\/FOLD/.test(u) ? 'folder' : /alt=media/.test(u) ? 'read' : /\?.*q=/.test(u) ? 'search' : 'other'); return /files\/FOLD/.test(u) ? r.fulfill({ status: 200, contentType: 'application/json', body: '{"id":"FOLD"}' }) : /alt=media/.test(u) ? r.fulfill({ status: 200, contentType: 'application/json', body: '{}' }) : r.fulfill({ status: 200, contentType: 'application/json', body: '{"files":[]}' }); });

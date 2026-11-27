@@ -5,7 +5,7 @@ export const name = 'Sačuvaj sve: Drive usporio → kopija se sama sačuva kasn
 export const timeout = 120;
 export async function run(ctx) {
   const p = await open(ctx, 'phone'); await boot(p, ctx, '#/podesavanja', 900);
-  await p.evaluate(async () => { const { settings } = await import('./src/db.js'); await settings.set('drive', { connected: true, folderId: 'FOLD' }); await settings.set('driveToken', { t: 'tok', exp: Date.now() + 3600e3, s: 1, f: 1 }); });
+  await p.evaluate(async () => { const { settings } = await import('./src/db.js'); await settings.set('drive', { connected: true, folderId2: 'FOLD' }); await settings.set('driveToken2', { t: 'tok', exp: Date.now() + 3600e3, s: 1, f: 1 }); });
   let slow = true, ups = 0, body = '';
   await p.route(/googleapis\.com\/upload\/drive\/v3\/files/, async (r) => {
     ups++;

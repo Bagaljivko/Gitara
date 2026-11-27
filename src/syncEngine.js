@@ -20,6 +20,8 @@ export const SNAPSHOT = 'snapshot';
 const PAR = 4;                 // istovremeni zahtevi (čitanje)
 const PAR_W = 2, W_GAP = 450;  // v2.2: slanje — najviše 2 odjednom; v2.5.62: bar 0,45 s razmaka (Google: oko 3 upisa u sekundi po nalogu — ostaje rezerva za kopiju i sanduče)
 const SNAP_EVERY = 120;        // posle toliko pojedinačnih fajlova — nov snapshot (novi uređaj brže kreće)
+const SNAP_BULK = 60;          // v2.5.66: više od toliko stavki za slanje odjednom → snapshot (u delovima)
+export const SNAP_PART = 2500000; // v2.5.66: najviše ~2,5 MB po delu (Google prima najviše 5 MB jednim zahtevom; slike se slabo sažimaju)
 
 // ---------------- Hibridni logički sat ----------------
 // „0001715000000000:0003:node“ — poredi se kao tekst; ne zavisi od tačnog sata uređaja (napreduje i kad je sat iza).
@@ -92,7 +94,12 @@ export function createEngine(local, remote, { node, ask = async () => true, onSt
     if (!key || key === SNAPSHOT) return false;
     if ((Number(p.s) || 0) > SCHEMA) { blocked.add(key); newer = true; return false; }
     const m = (await local.meta(key)) || null;
-    if (m && m.hlc === p.h) { if (fileId && m.fileId !== fileId) await local.setMeta(key, { fileId }); return false; }
+    if (m && m.hlc === p.h) {
+      // ista verzija je već na Drive-u (v2.5.66: posle prelaska na novu vezu drugi uređaj ju je već poslao) — ne šalje se ponovo
+      const patch = { ...(fileId && m.fileId !== fileId ? { fileId } : {}), ...(m.dirty && !m.deleted === !p.d ? { dirty: false } : {}) };
+      if (Object.keys(patch).length) await local.setMeta(key, patch);
+      return false;
+    }
     if (m && m.hlc && byMe(p.h) && p.h < m.hlc) return false; // moje ranije slanje — već imam noviju izmenu
     clock.recv(p.h);
     const remoteData = p.d ? null : p.v;
@@ -152,7 +159,7 @@ export function createEngine(local, remote, { node, ask = async () => true, onSt
       const m = await local.meta(k);
       if (m && m.hlc && byMe(f.props.h) && f.props.h <= m.hlc) { if (f.fileId && m.fileId !== f.fileId && f.props.h === m.hlc) await local.setMeta(k, { fileId: f.fileId }); continue; } // moje slanje
       if (!m || !m.hlc || f.props.h > m.hlc || (m.dirty && f.props.h !== m.hlc)) out.push(f);
-      else if (f.fileId && m.fileId !== f.fileId && f.props.h === m.hlc) await local.setMeta(k, { fileId: f.fileId });
+      else if (f.props.h === m.hlc && ((f.fileId && m.fileId !== f.fileId) || (m.dirty && !m.deleted === (f.props.d !== '1')))) await local.setMeta(k, { ...(f.fileId ? { fileId: f.fileId } : {}), ...(m.dirty && !m.deleted === (f.props.d !== '1') ? { dirty: false } : {}) }); // v2.5.66: ista verzija već postoji
     }
     return { out, extra };
   }
@@ -188,9 +195,9 @@ export function createEngine(local, remote, { node, ask = async () => true, onSt
   async function fetchApply(files) {
     // snapshot fajlovi drugih uređaja (prvo slanje, periodični snimak): njihove stavke važe kao pojedinačni fajlovi;
     // svaki se preuzima samo kad je noviji od već viđenog (i nikad svoj)
-    const mySnap = await local.state('snapFile');
+    const mine = new Set([await local.state('snapFile'), ...((await local.state('snapFiles')) || [])].filter(Boolean)); // v2.5.66: snapshot u delovima
     const seen = (await local.state('snapsSeen')) || {};
-    const snaps = files.filter((f) => f.props && f.props.k === SNAPSHOT && !f.removed && f.fileId !== mySnap && (f.props.h || '') > (seen[f.fileId] || ''))
+    const snaps = files.filter((f) => f.props && f.props.k === SNAPSHOT && !f.removed && !mine.has(f.fileId) && (f.props.h || '') > (seen[f.fileId] || ''))
       .sort((a, b) => ((a.props.h || '') > (b.props.h || '') ? 1 : -1));
     const fromSnap = [];
     for (const f of snaps) {
@@ -263,7 +270,8 @@ export function createEngine(local, remote, { node, ask = async () => true, onSt
       dirty = dirty.filter(([, m]) => !m.deleted);
     }
     // prvo slanje (na Drive-u još nema ničega od ovog naloga): jedan snapshot umesto stotina fajlova
-    if (!(await local.state('snapAt')) && dirty.length > 20) {
+    // v2.5.66: i kad čeka mnogo stavki (npr. posle prelaska na novu vezu) — snapshot u delovima umesto stotina zahteva
+    if ((!(await local.state('snapAt')) && dirty.length > 20) || dirty.length > SNAP_BULK) {
       await writeSnapshot(all);
       for (const [k, m] of dirty) { const cur = await local.meta(k); if (cur && cur.hlc === m.hlc) await local.setMeta(k, { dirty: false, inSnap: true }); }
       return dirty.length;
@@ -284,20 +292,55 @@ export function createEngine(local, remote, { node, ask = async () => true, onSt
     return sent;
   }
 
+  /** v2.5.66: snapshot u delovima (svaki ispod ~2,5 MB) — svaki deo je običan snapshot fajl sa istom verzijom. */
   async function writeSnapshot(all) {
-    const items = {};
+    const parts = [[]]; let size = 0;
     for (const [k, m] of all) {
       if (!m.hlc || blocked.has(k)) continue;
-      items[k] = { s: SCHEMA, k, h: m.hlc, d: m.deleted ? 1 : 0, v: m.deleted ? null : await local.read(k) };
+      const it = { s: SCHEMA, k, h: m.hlc, d: m.deleted ? 1 : 0, v: m.deleted ? null : await local.read(k) };
+      const n = JSON.stringify(it).length;
+      if (size + n > SNAP_PART && parts[parts.length - 1].length) { parts.push([]); size = 0; }
+      parts[parts.length - 1].push(it); size += n;
     }
     const h = clock.tick();
-    const p = { s: SCHEMA, k: SNAPSHOT, h, v: { items } };
-    const bytes = await gzip(p);
-    const x = await sha(bytes);
-    const r = await remote.put(SNAPSHOT, bytes, { k: SNAPSHOT, h, s: String(SCHEMA), d: '0', x }, (await local.state('snapFile')) || undefined);
-    await local.setState('snapFile', r.fileId);
+    const old = [...new Set([await local.state('snapFile'), ...((await local.state('snapFiles')) || [])].filter(Boolean))];
+    const ids = [];
+    for (let i = 0; i < parts.length; i++) {
+      const p = { s: SCHEMA, k: SNAPSHOT, h, v: { items: Object.fromEntries(parts[i].map((x) => [x.k, x])) } };
+      const bytes = await gzip(p);
+      const x = await sha(bytes);
+      const r = await remote.put(SNAPSHOT, bytes, { k: SNAPSHOT, h, s: String(SCHEMA), d: '0', x, part: String(i), parts: String(parts.length) }, old[i] || undefined);
+      ids.push(r.fileId);
+    }
+    for (const id of old.slice(parts.length)) await remote.del(id).catch(() => {}); // višak starih delova
+    await local.setState('snapFile', ids[0]);
+    await local.setState('snapFiles', ids);
     await local.setState('snapAt', h);
     await local.setState('sinceSnap', 0);
+  }
+
+  /** v2.5.66: provera posle prelaska — da li Drive ima svaku stavku ovog uređaja u istoj ili novijoj verziji.
+   *  Vraća { total, ok, missing: [ključevi] }; ništa ne menja. */
+  async function verify() {
+    const files = await remote.list();
+    const have = new Map();
+    const bump = (k, h) => { if (k && (!have.has(k) || h > have.get(k))) have.set(k, h); };
+    for (const f of files) {
+      if (!f.props || f.removed) continue;
+      if (f.props.k === SNAPSHOT) {
+        const snap = await fetchPayload(f).catch(() => null);
+        if (!snap || !snap.v || !snap.v.items) continue;
+        for (const it of Object.values(snap.v.items)) bump(it.k, it.h || '');
+      } else bump(f.props.k, f.props.h || '');
+    }
+    const missing = [];
+    let total = 0;
+    for (const [k, m] of await local.all()) {
+      if (!m.hlc || blocked.has(k)) continue;
+      total++;
+      if (!(have.get(k) >= m.hlc)) missing.push(k);
+    }
+    return { total, ok: total - missing.length, missing };
   }
 
   /** Obrisane stavke starije od 90 dana: briše se i fajl na Drive-u (i oznaka ovde). */
@@ -328,5 +371,5 @@ export function createEngine(local, remote, { node, ask = async () => true, onSt
     return { pulled, sent, newer };
   }
 
-  return { sync, get newerSchema() { return newer; }, get blocked() { return blocked; } };
+  return { sync, verify, get newerSchema() { return newer; }, get blocked() { return blocked; } };
 }

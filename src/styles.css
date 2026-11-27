@@ -3678,3 +3678,18 @@ img.tch-av.tch-ph { object-fit: cover; background: #222; padding: 0; }
 .lyrics .ch::after { content: ''; position: absolute; inset: -9px -8px; }
 .nas-no, .st-ovlink { display: inline-flex; align-items: center; min-height: 44px; }
 .nf-view .btn.wide { margin-top: 14px; }
+/* v2.5.66: prelazak na novu Google vezu — ekran preko cele aplikacije (isti delovi kao ostatak: naslov, grupa redova, dugmad) */
+.mig-gate { position: fixed; inset: 0; z-index: 10000; background: var(--bg); overflow: auto; display: flex; align-items: center; justify-content: center; padding: 24px 16px calc(24px + env(safe-area-inset-bottom)); }
+body.mig-open { overflow: hidden; }
+.mig-box { max-width: 460px; width: 100%; }
+.mig-logo { border-radius: 16px; display: block; margin: 0 0 18px; }
+.mig-box h1 { margin: 0 0 10px; }
+.mig-p { margin: 0 0 18px; font-size: 1.05rem; line-height: 1.45; }
+.mig-rows { margin: 0 0 18px; }
+.mig-go { font-size: 1.1rem; padding: 16px; }
+.mig-go .mg-g { vertical-align: -4px; margin-right: 8px; }
+.mig-sub { margin: 14px 0 0; text-align: center; }
+.mig-alt { margin-top: 10px; }
+.mig-bar { height: 8px; border-radius: 4px; background: var(--surface-2); overflow: hidden; margin: 0 0 10px; }
+.mig-bar i { display: block; height: 100%; background: var(--accent); transition: width .4s; }
+.mig-pt { margin: 0; }

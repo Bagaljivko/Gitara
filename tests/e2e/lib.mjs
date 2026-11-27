@@ -24,10 +24,10 @@ export const eq = (a, b, msg) => expect(JSON.stringify(a) === JSON.stringify(b),
 export async function open(ctx, dev = 'phone', opts = {}) {
   const c = await ctx.browser.newContext({ ...DEVICES[dev], serviceWorkers: 'block' });
   await c.addInitScript((o) => {
-    if (!o.fresh) { localStorage.setItem('gitara-tour', '1'); localStorage.setItem('gitara-upgraded', '9'); localStorage.setItem('marli-seen-ver', o.ver); localStorage.setItem('marli-fs-off', 'test'); }
+    if (!o.fresh) { localStorage.setItem('gitara-tour', '1'); localStorage.setItem('gitara-upgraded', '9'); localStorage.setItem('marli-seen-ver', o.ver); localStorage.setItem('marli-fs-off', 'test'); if (!o.mig) localStorage.setItem('marli-mig-off', '1'); }
     if (o.lang) localStorage.setItem('gitara-lang', o.lang);
     if (!o.hints) window.__marliTest = { ...(window.__marliTest || {}), noHints: true };
-  }, { fresh: !!opts.fresh, hints: !!opts.hints, lang: opts.lang || '', ver: ctx.ver });
+  }, { fresh: !!opts.fresh, hints: !!opts.hints, lang: opts.lang || '', ver: ctx.ver, mig: !!opts.mig });
   if (opts.init) await c.addInitScript(opts.init, opts.arg);
   // v2.5.2: MARLI put (30 pesama) stiže sam — u testovima samo kad ga test traži ({ marli: true }), da brojevi pesama ostanu isti
   if (!opts.marli) await c.route('**/courses/index.json', (r) => r.fulfill({ status: 404, body: '' }));

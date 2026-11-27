@@ -18,7 +18,8 @@ export const syncState = () => ({ ...st });
 export function onSyncChange(fn) { listeners.add(fn); return () => listeners.delete(fn); }
 const emit = () => { listeners.forEach((fn) => { try { fn(syncState()); } catch {} }); drawPill(); };
 
-const bc = typeof BroadcastChannel === 'function' ? new BroadcastChannel('gitara-sync') : null;
+// v2.5.66: nov kanal i nova brava — stari kod (prozor otvoren pre ažuriranja) koristi „gitara-sync“ i ne meša se sa novim
+const bc = typeof BroadcastChannel === 'function' ? new BroadcastChannel('marli-sync-2') : null;
 const tabId = Math.random().toString(36).slice(2);
 
 // ---------------- Radnik (Worker ili glavna nit) ----------------
@@ -45,6 +46,12 @@ function startWorker() {
 const call = (msg, reply) => new Promise((resolve) => { const id = 'c' + ++seq; waits.set(id, { resolve, reply }); startWorker().send({ ...msg, id }); });
 
 async function handle(m) {
+  if (m.t === 'needToken' && m.src === 'old') { // v2.5.66: poslednje preuzimanje sa stare veze — samo tiho
+    let value = null;
+    try { const O = await import('./oldAuth.js'); const tk = await O.oldTokenSilent('sync'); value = tk ? { token: tk, exp: Date.now() + 30 * 60000 } : null; } catch { value = null; }
+    port && port.send({ t: 'token', id: m.id, value });
+    return;
+  }
   if (m.t === 'needToken') {
     let value = null;
     try {
@@ -230,13 +237,30 @@ function becomeLeader() {
   startWorker();
   if (Date.now() - lastRun < fresh()) schedule(lastRun + fresh() - Date.now()); else runNow(); // v2.5.63: brzo ponovno otvaranje — krug je svež
 }
+/** v2.5.66: stara brava „gitara-sync“ se uzme i nikad ne pusti — stari kod (prozor otvoren pre ažuriranja) tako više
+ *  ne može da sinhronizuje sa starom vezom dok je nova verzija otvorena. Vraća true kad je uzeta. */
+let oldLockHeld = false;
+export function holdOldLock(waitMs = 0) {
+  if (oldLockHeld) return Promise.resolve(true);
+  if (!(navigator.locks && navigator.locks.request)) {
+    const K = 'gitara-sync-lead'; // stari zakup: stalno „moj“, pa stari prozor nikad ne postaje glavni
+    const tick = () => { try { localStorage.setItem(K, JSON.stringify({ id: 'marli2-' + tabId, at: Date.now() + 60000 })); } catch {} };
+    tick(); setInterval(tick, 2000); oldLockHeld = true; return Promise.resolve(true);
+  }
+  return new Promise((resolve) => {
+    let done = false;
+    navigator.locks.request('gitara-sync', () => { oldLockHeld = true; if (!done) { done = true; resolve(true); } return new Promise(() => {}); }).catch(() => {});
+    if (waitMs >= 0) setTimeout(() => { if (!done) { done = true; resolve(oldLockHeld); } }, waitMs || 50);
+  });
+}
 function electLeader() {
+  holdOldLock(-1);
   if (navigator.locks && navigator.locks.request) {
-    navigator.locks.request('gitara-sync', () => new Promise((res) => { releaseLock = res; becomeLeader(); })).catch(() => {});
+    navigator.locks.request('marli-sync-2', () => new Promise((res) => { releaseLock = res; becomeLeader(); })).catch(() => {});
     return;
   }
   // bez Web Locks: zakup u localStorage (obnavlja se svake 3 s; ističe posle 8 s)
-  const K = 'gitara-sync-lead';
+  const K = 'marli-sync-lead';
   const tick = () => {
     let cur = null; try { cur = JSON.parse(localStorage.getItem(K) || 'null'); } catch {}
     if (!cur || cur.id === tabId || Date.now() - cur.at > 8000) {
@@ -315,6 +339,7 @@ async function doInit() {
   await cleanOwnEchoes();
   const c = await loadCfg();
   if (!c.on) { emit(); return; }
+  if (!(await (await import('./migrate.js')).migrationDone())) { st.status = 'connect'; emit(); return; } // v2.5.66: prvo prelazak na novu vezu (ekran prelaska)
   setStatus(navigator.onLine === false ? 'offline' : 'syncing');
   begin();
   // v2.5.1: nove vrste podataka (akordi koje znam, „nisu duplikati“, slike učenika) — jednom dodati u slanje (seed dodaje samo ono čega nema)
@@ -449,4 +474,37 @@ async function migrateOnce() {
     if (e && (e.code === 'denied' || e.code === 'notfound')) { await saveCfg({ migrated: true }).catch(() => {}); migrated = true; }
   }
   finally { st.migrating = false; }
+}
+
+// ---------------- v2.5.66: prelazak na novu Google vezu (poziva migrate.js) ----------------
+/** Poslednji krug sa STAROM vezom (tiho): pokupi izmene sa drugih uređaja koje još nisu stigle ovde. */
+export async function migOldPull() {
+  const O = await import('./oldAuth.js');
+  const tk = await O.oldTokenSilent('sync');
+  if (!tk) return { ok: false, code: 'NOTOKEN' };
+  await call({ t: 'source', src: 'old', token: tk, exp: Date.now() + 30 * 60000 }, 'sourceSet');
+  try { return (await call({ t: 'syncOnce' }, 'once')).value; }
+  finally { await call({ t: 'source', src: 'new' }, 'sourceSet'); }
+}
+/** Sve stavke ovog uređaja → nova (prazna) fascikla, ista verzija. Jednom po uređaju (posle toga samo nastavak). */
+export async function migRebase() { await call({ t: 'rebase' }, 'rebased'); }
+/** Krugovi sa NOVOM vezom dok ništa ne čeka (najviše n). Vraća poslednji rezultat. */
+export async function migUpload(tk, n = 6) {
+  startWorker().send({ t: 'setToken', token: tk.token, exp: tk.exp });
+  let r = null;
+  for (let i = 0; i < n; i++) {
+    r = (await call({ t: 'syncOnce' }, 'once')).value;
+    if (!r || !r.ok) return r;
+    if (!(await syncMeta.pending())) return r;
+  }
+  return r;
+}
+export async function migAbout(tk) { startWorker().send({ t: 'setToken', token: tk.token, exp: tk.exp }); const ab = await call({ t: 'about' }, 'about'); return ab.error ? null : ab.value; }
+export async function migVerify() { return (await call({ t: 'verify' }, 'verified')).value; }
+/** Posle uspešnog prelaska: sinhronizacija nastavlja normalno (nova veza). */
+export async function migFinish(acct) {
+  await saveCfg({ on: true, id: acct.id, email: acct.email });
+  await loadCfg();
+  st.status = 'synced'; st.last = Date.now(); emit();
+  if (!started) begin();
 }

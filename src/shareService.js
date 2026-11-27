@@ -225,7 +225,7 @@ async function publish(drive, item, file, fresh) {
   try { fileId = await createFile(drive, await ensureFolder(drive), `${safeFileName(item.name)}${FILE_EXT}`, file.text, key); }
   catch (e) {
     if (!e || e.code !== 'notfound') throw e;
-    await settings.remove('shareFolder'); // folder je obrisan u Drive-u — nov, pa još jednom
+    await settings.remove('shareFolder2'); // folder je obrisan u Drive-u — nov, pa još jednom
     fileId = await createFile(drive, await ensureFolder(drive), `${safeFileName(item.name)}${FILE_EXT}`, file.text, key);
   }
   try { await ensurePublic(drive, fileId, true); }
@@ -237,12 +237,12 @@ async function publish(drive, item, file, fresh) {
 }
 
 async function ensureFolder(drive) {
-  const saved = await settings.get('shareFolder', '');
+  const saved = await settings.get('shareFolder2', '');
   if (saved) return saved; // zapamćen; ako ga u međuvremenu nema, upload javi „notfound“ i pravi se nov
   const q = `name='${SHARE_FOLDER.replace(/'/g, "\\'")}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
   const found = (await (await drive.driveApi(`${API}/files?spaces=drive&fields=files(id)&q=${encodeURIComponent(q)}`)).json()).files || [];
   const id = found[0] ? found[0].id : (await (await drive.driveApi(`${API}/files?fields=id`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: SHARE_FOLDER, mimeType: 'application/vnd.google-apps.folder' }) })).json()).id;
-  await settings.set('shareFolder', id);
+  await settings.set('shareFolder2', id);
   return id;
 }
 function multipart(meta, text) {
@@ -363,7 +363,7 @@ export const copyShareLinkText = (link) => copyLink(link, t('share.r.copied'));
 
 /** Pri pokretanju (tiho, samo uz važeći token): fajlovi u „Gitara – deljeno“ bez zapisa (prekinuto deljenje) se brišu. */
 export async function cleanupOrphans() {
-  const folder = await settings.get('shareFolder', '');
+  const folder = await settings.get('shareFolder2', '');
   if (!folder || navigator.onLine === false) return 0;
   const G = await import('./driveGate.js'); // v2.5.63: jednom dnevno (ranije pri svakom otvaranju) i ne dok Google traži pauzu
   if (G.cooling() || G.ranRecently('orphans', 24 * 3600e3)) return 0;
@@ -413,7 +413,7 @@ export async function putData(fileId, text, { interactive = false, name = 'MARLI
   };
   let folder = await ensureFolder(drive), id;
   try { id = await make(); }
-  catch (e) { if (!e || e.code !== 'notfound') throw e; await settings.remove('shareFolder'); folder = await ensureFolder(drive); id = await make(); }
+  catch (e) { if (!e || e.code !== 'notfound') throw e; await settings.remove('shareFolder2'); folder = await ensureFolder(drive); id = await make(); }
   try { await ensurePublic(drive, id, true); }
   catch (e) { await drive.driveApi(`${API}/files/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {}); throw e; }
   return id;
@@ -438,7 +438,8 @@ export async function readData(fileId) {
       let reason = ''; try { const j = await r.clone().json(); reason = (j.error && ((j.error.errors && j.error.errors[0] && j.error.errors[0].reason) || j.error.status || j.error.message)) || ''; } catch {}
       if (G.isRate(r.status, reason)) { G.noteRate(); return null; }
     }
-    if (r.status === 404 || r.status === 403) return { gone: true };
+    if (r.status === 404) return { gone: true };
+    if (r.status === 403) return null; // v2.5.66: zabranjen pristup (npr. ključ bez Drive API-ja) NIJE obrisan fajl — ranije je to brisalo plan učeniku
     if (!r.ok) return null;
     G.noteOk();
     return JSON.parse(await r.text());
@@ -447,3 +448,23 @@ export async function readData(fileId) {
 
 /** v1.84: mali podaci u samom linku (napredak porukom, bez Google naloga) — jedino mesto koje pravi takav link. */
 export async function packLinkData(o) { const LZ = (await import('./lzstring.js')).default; return LZ.compressToEncodedURIComponent(JSON.stringify(o)); }
+
+// ---------------- v2.5.66: prelazak na novu Google vezu ----------------
+/** Deljena pesma / set lista sa stare veze → nov javni fajl na novoj vezi (isti sadržaj). Vraća { id, hash } ili null
+ *  (pesma više ne postoji). Stari fajl dobija „preseljeno“ (migLinks.js) — stari link i dalje radi. */
+export async function republishShare(r) {
+  const item = await itemFromKey(r.key);
+  if (!item) return null;
+  const drive = await import('./drive.js');
+  await drive.shareToken({ interactive: false });
+  const file = await buildShareFile(item);
+  const id = await createFile(drive, await ensureFolder(drive), `${safeFileName(item.name)}${FILE_EXT}`, file.text, r.key);
+  try { await ensurePublic(drive, id, true); } catch (e) { await drive.driveApi(`${API}/files/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {}); throw e; }
+  return { id, hash: file.hash };
+}
+/** Spisak deljenog posle prelaska (novi id-jevi; stari ostaju u oldId za kasnije čišćenje). */
+export async function replaceShares(map) {
+  const list = await getShares();
+  for (const r of list) { const n = map[r.fileId]; if (n && n.id) Object.assign(r, { oldId: r.fileId, fileId: n.id, hash: n.hash || r.hash, v2: 1 }); }
+  await saveShares(list);
+}

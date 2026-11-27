@@ -380,6 +380,8 @@ const nastavaNav = () => Promise.all([settings.get('teacher', null), settings.ge
 nastavaNav();
 dbEvents.addEventListener('settings-changed', (e) => { if (e.detail === 'teacher' || e.detail === 'myTeacher') nastavaNav(); });
 route();
+// v2.5.66: prelazak na novu Google vezu — obavezan ekran za one koji su bili prijavljeni (ostali ništa ne vide)
+import('./migrate.js').then((M) => M.startMigration()).catch((e) => console.warn('mig', e));
 if (ytShare) import('./ytShare.js').then((m) => m.linkShared(ytShare)).catch(() => {});
 // v1.74: prvi put na ovom uređaju → „Dobrodošao u MARLI“: Poveži Google (vraća sve) ili Prvi put sam ovde (obilazak)
 const WELCOME_TEST = (() => { try { return navigator.webdriver && !!localStorage.getItem('marli-welcome-test'); } catch { return false; } })();
@@ -448,7 +450,7 @@ idle(() => import('./installNudge.js').then((m) => m.initInstallNudge()).catch((
   dbEvents.addEventListener('settings-changed', onEdit);
 }
 // Deljenje: fajlovi u „Gitara – deljeno“ bez zapisa (prekinuto deljenje) se tiho brišu — samo ako je nešto deljeno
-idle(() => settings.get('shareFolder', '').then((f) => f && import('./shareService.js').then((m) => m.cleanupOrphans())).catch(() => {}));
+idle(() => settings.get('shareFolder2', '').then((f) => f && import('./shareService.js').then((m) => m.cleanupOrphans())).catch(() => {}));
 // Sinhronizacija između uređaja: tek posle prvog ekrana (nikad ne usporava pokretanje), samo ako je uključena
 idle(() => settings.get('syncCfg', null).then(async (c) => {
   let ls = null; try { ls = JSON.parse(localStorage.getItem('gitara-sync') || 'null'); } catch {}

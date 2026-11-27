@@ -1,6 +1,7 @@
 // MARLI — prijem utisaka i dijagnostike u ovu tabelu.
 // Kartice: „Utisci – srpski“, „Utisci – engleski“ (po jeziku aplikacije) i „Dijagnostika“.
 // Verzija 2: kolone „Imejl“ i „Korisnik (ID)“ — da se zna ko je šta poslao.
+// Verzija 3 (MARLI 2.5.66): kartica „Prelazak“ — tehnički događaji prelaska na novu Google vezu (bez sadržaja i imejla).
 
 // Da li da ti stigne imejl kad neko prijavi „Nešto ne radi“ (true = da, false = ne)
 const EMAIL_ON_BUG = true;
@@ -9,6 +10,7 @@ const TABS = {
   sr: { name: 'Utisci – srpski', head: ['Vreme', 'Vrsta', 'Tekst', 'Imejl', 'Korisnik (ID)', 'Ekran', 'Verzija', 'Uređaj', 'Tehnički podaci'] },
   en: { name: 'Utisci – engleski', head: ['Vreme', 'Vrsta', 'Tekst', 'Imejl', 'Korisnik (ID)', 'Ekran', 'Verzija', 'Uređaj', 'Tehnički podaci'] },
   diag: { name: 'Dijagnostika', head: ['Vreme', 'Imejl', 'Korisnik (ID)', 'Verzija', 'Jezik', 'Uređaj', 'Napomena', 'Izveštaj'] },
+  mig: { name: 'Prelazak', head: ['Vreme', 'Korisnik (ID)', 'Verzija', 'Korak', 'Ishod', 'Stavki', 'Uloga', 'Uređaj', 'Napomena'] },
 };
 const TYPE_NAMES = { bug: 'Nešto ne radi', idea: 'Ideja', like: 'Sviđa mi se', dislike: 'Ne sviđa mi se' };
 
@@ -39,7 +41,9 @@ function doPost(e) {
   try {
     const d = JSON.parse((e && e.postData && e.postData.contents) || '{}');
     const ss = SpreadsheetApp.getActiveSpreadsheet();
-    if (d.kind === 'diag') {
+    if (d.kind === 'event') {
+      sheetFor(ss, TABS.mig).appendRow([new Date(), safe(d.uid, 40), safe(d.version, 20), safe(d.step, 30), safe(d.ok, 10), safe(d.n, 12), safe(d.role, 20), safe(d.device, 300), safe(d.note, 500)]);
+    } else if (d.kind === 'diag') {
       sheetFor(ss, TABS.diag).appendRow([new Date(), safe(d.email, 200), safe(d.uid, 40), safe(d.version, 20), safe(d.lang, 5), safe(d.device, 300), safe(d.note, 1000), safe(d.report, 45000)]);
     } else {
       const tab = d.lang === 'en' ? TABS.en : TABS.sr;
@@ -56,9 +60,9 @@ function doPost(e) {
   }
 }
 
-// Otvori adresu u pregledaču: ako piše „MARLI utisci rade (v2)“, sve je u redu
+// Otvori adresu u pregledaču: ako piše „MARLI utisci rade (v3)“, sve je u redu
 function doGet() {
-  return ContentService.createTextOutput('MARLI utisci rade (v2)');
+  return ContentService.createTextOutput('MARLI utisci rade (v3)');
 }
 
 function out(o) {

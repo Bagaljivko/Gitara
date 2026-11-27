@@ -45,6 +45,8 @@ function enqueue(item) {
   wr(QKEY, q.slice(-MAXQ));
   return flush();
 }
+/** v2.5.66: tehnički događaj (prelazak na novu vezu) u tabelu — bez sadržaja; čeka u redu bez mreže kao i utisci. */
+export function sendEvent(item) { return enqueue({ kind: 'event', ...item, email: '' }); }
 let flushing = null;
 /** Pošalji sve što čeka. Vraća broj poslatih. Bez mreže / greška: ostaje u redu za sledeći put. */
 export function flush() {

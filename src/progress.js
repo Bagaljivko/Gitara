@@ -190,7 +190,16 @@ export async function studentProgress(st, { fresh = false } = {}) {
   const c = cache.get(st.id);
   if (!fresh && c && Date.now() - c.at < 5 * 60000) return c.data;
   const S = await import('./shareService.js');
-  const d = await S.readData(st.prog.fileId);
+  let d = await S.readData(st.prog.fileId);
+  // v2.5.66: učenik je prešao na novu Google vezu — fajl napretka je „preseljen“: prati ga (bez novog QR-a)
+  if (d && !d.gone && d.type === 'progress' && d.moved && d.moved !== st.prog.fileId && /^[\w-]{6,}$/.test(d.moved)) {
+    const tm = await import('./teach.js');
+    const prevOut = Array.isArray(d.out) ? d.out : [];
+    await tm.updateStudent(st.id, { prog: { ...st.prog, fileId: d.moved, prev: st.prog.fileId } });
+    st = { ...st, prog: { ...st.prog, fileId: d.moved } };
+    if (prevOut.length) await (await import('./teachBox.js')).ingestOut(st, prevOut).catch(() => 0);
+    d = await S.readData(d.moved);
+  }
   const data = !d ? { err: true } : d.gone ? { gone: true } : d.type === 'progress' ? d : { err: true };
   if (d && d.type === 'progress' && Array.isArray(d.out) && d.out.length) await (await import('./teachBox.js')).ingestOut(st, d.out).catch(() => 0); // v1.94
   if (d && d.type === 'progress' && d.tasks) await (await import('./teachBox.js')).ingestDone(st, d).catch(() => {}); // v1.95: 🔔 urađeni zadaci

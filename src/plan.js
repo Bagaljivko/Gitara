@@ -192,6 +192,7 @@ export async function refreshPlan({ force = false } = {}) {
   if (!d) return false;
   const cur = await tm.getMyTeacher(); if (!cur || cur.tid !== m.tid) return false;
   if (d.gone) { if (cur.plan) { await tm.setMyTeacher({ ...cur, plan: null, planFile: '' }); return true; } return false; }
+  if (d.type === 'plan' && d.moved && d.moved !== m.planFile && /^[\w-]{6,}$/.test(d.moved)) return acceptPlanFile(d.moved); // v2.5.66: plan je „preseljen“ (nova Google veza)
   if (d.type !== 'plan' || d.tid !== m.tid || d.sid !== m.sid) return false;
   const plan = { at: Number(d.at) || Date.now(), name: clip(d.name, 60), tasks: (Array.isArray(d.tasks) ? d.tasks : []).slice(0, 20).map(cleanTask).filter(Boolean), plan: cleanPlan(d.plan) };
   const changed = JSON.stringify(plan) !== JSON.stringify(cur.plan || null);

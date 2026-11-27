@@ -10,7 +10,7 @@ import { dialog, toast, pickFile, esc } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 // Ne ide u kopiju: prijava na Google, stanje sinhronizacije, keš spiska modela, privremeno i dijagnostika
-const EXCL_SETTINGS = new Set(['driveToken', 'driveRT', 'drive', 'syncCfg', 'syncMigrated', 'syncOffered', 'geminiModels', 'shareFolder', 'held:secret']);
+const EXCL_SETTINGS = new Set(['driveToken', 'driveRT', 'driveToken2', 'driveRT2', 'drive', 'syncCfg', 'syncMigrated', 'syncOffered', 'geminiModels', 'shareFolder', 'shareFolder2', 'held:secret', 'mig', 'migCopy']); // v2.5.66: nove prijave i prelazak — samo ovaj uređaj
 const LOCAL_RE = /^(gitara-|marli-)/;
 const EXCL_LOCAL = new Set(['gitara-diag', 'gitara-boots', 'gitara-lastscan', 'gitara-sync', 'gitara-echo-clean', 'marli-keycheck', 'marli-pdf-queue', 'marli-bk', 'marli-rp', 'marli-songbar',
   'marli-autobk', 'marli-bk-pending', 'marli-seed', 'marli-drive-cool', 'marli-def1701', 'marli-def-test', 'marli-dev', 'marli-intro', 'marli-intro-gate', 'marli-invite-test', 'marli-fb-q', 'marli-fb-url-test', 'marli-last-tab']); // v2.0: poslednja kartica je samo navigacija na ovom uređaju — ne u kopiju

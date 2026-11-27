@@ -67,6 +67,7 @@ async function writeBox(sid, items, interactive) {
   const id = await S.putData(st.box.f, JSON.stringify({ app: 'marli', type: 'box', v: 1, tid: tc.id, sid, at: Date.now(), items: list }), { interactive, name: 'MARLI – za učenika.json' }).catch(() => '');
   diag('box', `${id ? 'upisano' : 'upis nije uspeo'} · ${items.map((i) => i.kind + (i.n ? '×' + i.n : '')).join(',')} · ${Math.round(JSON.stringify(list).length / 1024)} KB`);
   if (!id) return 'retry';
+  if (id !== st.box.f) { await tm.updateStudent(sid, { box: { ...(st.box || {}), f: id, prev: st.box.prev || st.box.f, needPtr: 1, at: Date.now() } }); diag('box', 'novo sanduče (stari fajl nedostupan) — čeka obaveštenje učeniku'); } // v2.5.66: ranije se nov id nije pamtio; „needPtr“ = u staro sanduče još treba upisati „preseljeno“ (migLinks)
   // v2.4.2: šta je poslato ovom učeniku (za „viđeno“ i odgovor) — novije zamenjuje starije sa istim ključem
   { const cur2 = (await tm.getStudent(sid)) || st; const keys = new Set(items.map((i) => i.key)); await tm.updateStudent(sid, { sent: [...(cur2.sent || []).filter((x) => !keys.has(x.key)), ...items.filter((i) => i.kind !== 'ans' && i.kind !== 'rcv') /* v2.4.25: potvrda „primio“ nije „poslato“ */.map((i) => ({ key: i.key, kind: i.kind, name: clipN(i.name, 80), at: i.at || Date.now(), ...(i._ids ? { ids: i._ids.slice(0, 300) } : {}) }))].slice(-40) }); }
   return 'ok';
@@ -157,6 +158,7 @@ export function boxPut(sid, items, { interactive = true } = {}) {
 export const notConnected = (students) => students.filter((s) => !(s.box && s.box.f));
 
 // ---------------- učenik: proveri sanduče ----------------
+const mergeItems = (a, b) => { const mp = new Map(); for (const x of [...a, ...b]) if (x && x.key && x.kind !== 'moved' && (!mp.has(x.key) || (x.at || 0) > (mp.get(x.key).at || 0))) mp.set(x.key, x); return [...mp.values()].sort((u, v) => (u.at || 0) - (v.at || 0)); };
 let checking = null, lastCheck = 0;
 /** Pročitaj nastavnikovo sanduče i primi ono što je novo. Vraća broj novih stavki. */
 export function checkBox({ force = false } = {}) {
@@ -167,10 +169,23 @@ export function checkBox({ force = false } = {}) {
   lastCheck = Date.now();
   try { localStorage.setItem('marli-last-box', String(lastCheck)); } catch {}
   checking = (async () => {
-    const tm = await TM(); const m = await tm.getMyTeacher();
+    const tm = await TM(); let m = await tm.getMyTeacher();
     if (!m || !m.box) return 0;
     const S = await S_();
-    const d = await S.readData(m.box);
+    let d = await S.readData(m.box);
+    // v2.5.66: nastavnik je prešao na novu Google vezu — sanduče je „preseljeno“: prati ga (bez novog povezivanja)
+    if (d && !d.gone && d.type === 'box' && d.moved && d.moved !== m.box && /^[\w-]{6,}$/.test(d.moved)) {
+      await tm.setMyTeacher({ ...m, box: d.moved, boxPrev: m.box }); m = await tm.getMyTeacher();
+      diag('box', 'sanduče preseljeno (nova veza)');
+      const prevItems = d.items || [];
+      d = await S.readData(m.box);
+      if (d && !d.gone && d.type === 'box') d = { ...d, items: mergeItems(prevItems, d.items || []) };
+    } else if (d && !d.gone && d.type === 'box' && m.boxPrev && m.boxPrev !== m.box && Date.now() - (m.boxPrevAt || 0) > 864e5) {
+      // nastavnikov drugi uređaj (stara verzija) možda još piše u staro sanduče — jednom dnevno pogledaj i njega
+      const p0 = await S.readData(m.boxPrev).catch(() => null);
+      if (p0 && !p0.gone && p0.type === 'box') d = { ...d, items: mergeItems(p0.items || [], d.items || []) };
+      await tm.setMyTeacher({ ...m, boxPrevAt: Date.now() }); m = await tm.getMyTeacher();
+    }
     const note = (o) => { try { localStorage.setItem('marli-box-last', JSON.stringify({ at: Date.now(), ...o })); } catch {} }; // v2.4.14: za „Proveri sada“
     if (!d) { const G = await import('./driveGate.js'); note({ ok: false, why: G.cooling() ? 'rate' : 'net' }); diag('box', 'sanduče nastavnika nije moglo da se pročita'); return 0; }
     if (d.gone || d.type !== 'box' || d.tid !== m.tid) { note({ ok: false, why: 'gone' }); return 0; }
@@ -183,7 +198,7 @@ export function checkBox({ force = false } = {}) {
         if (it.kind === 'note' || it.kind === 'lesson' || it.kind === 'nudge' || it.kind === 'goal') { // v2.4.9: i cilj vežbanja // v2.4.2: beleška sa časa, sledeći čas, podsetnik
           const L = await import('./lessons.js'); const r = await L.receive(it, m); if (r) les.push({ it, r });
         } else if (it.kind === 'cmt') { // v2.4.3: komentar na moj snimak
-          const C = await import('./recComments.js'); const r = await C.receive(it, m); if (!r) continue; les.push({ it, r });
+          const C = await import('./recComments.js'); const r = await C.receive(it, m); if (!r) continue; if (!it.re) les.push({ it, r }); // v2.5.66: „re“ = isti komentar, nov glasovni fajl (nova veza) — bez novog obaveštenja
         } else if (it.kind === 'song' || it.kind === 'set') {
           const I = await import('./shareImport.js');
           // v2.4.14: pesme u samom sanduču (it.d) — bez drugog preuzimanja; inače deljeni fajl (it.f)

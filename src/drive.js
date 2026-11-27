@@ -12,7 +12,10 @@ import { toast, dialog } from './ui.js';
 import { t, songsCount, setLang } from './i18n.js';
 import { TOKEN_HELPER } from './shareConfig.js';
 
-const CLIENT_ID = '633765324865-ki9jk8hvnt9cfqbsemipfl8f796g3s1v.apps.googleusercontent.com';
+// v2.5.66: projekat „MARLI“. Stari klijent (prelazak) je samo u oldAuth.js. Ključevi na uređaju su novi (…2):
+// stari kod (otvoren stari prozor) i dalje piše „driveToken“/„driveRT“ — novi kod ih nikad ne meša sa svojim.
+const CLIENT_ID = '173144250680-avo1ds5dc2b2p6qamtc0ik6sof0ah3ot.apps.googleusercontent.com';
+const TOKEN_KEY = 'driveToken2';
 const SCOPE_FILE = 'https://www.googleapis.com/auth/drive.file';
 const SCOPE_APPDATA = 'https://www.googleapis.com/auth/drive.appdata'; // sinhronizacija: skrivena fascikla aplikacije
 const SCOPE = SCOPE_FILE + ' ' + SCOPE_APPDATA;
@@ -21,7 +24,7 @@ const syncOn = () => { try { return !!(JSON.parse(localStorage.getItem('gitara-s
 const GIS_URL = 'https://accounts.google.com/gsi/client';
 const API = 'https://www.googleapis.com/drive/v3';
 const UPLOAD = 'https://www.googleapis.com/upload/drive/v3';
-const FOLDER_NAME = 'Gitara';
+const FOLDER_NAME = 'MARLI'; // v2.5.66 (stari folder „Gitara“ pripada staroj vezi)
 const BACKUP_NAME = 'gitara-backup.json';
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
 const BACKUP_DELAY = 60000; // ms posle izmene (v2.5.1: minut mira — ne šalje celu biblioteku posle svakog dodira)
@@ -54,12 +57,12 @@ function emit() { listeners.forEach((fn) => { try { fn(driveState()); } catch {}
 
 async function persist() {
   await settings.set('drive', {
-    connected: state.connected, email: state.email, folderId: state.folderId, backupId: state.backupId,
+    connected: state.connected, email: state.email, folderId2: state.folderId, backupId2: state.backupId,
     lastBackup: state.lastBackup, pending: state.pending,
   });
   // Token je kratkotrajan (oko 1 h); čuvamo ga da bi preživeo ponovno otvaranje aplikacije.
-  if (state.token) await settings.set('driveToken', { t: state.token, exp: state.tokenExp, s: state.tokenSync ? 2 : 1, f: state.tokenFile ? 1 : 0 });
-  else await settings.remove('driveToken');
+  if (state.token) await settings.set(TOKEN_KEY, { t: state.token, exp: state.tokenExp, s: state.tokenSync ? 2 : 1, f: state.tokenFile ? 1 : 0 });
+  else await settings.remove(TOKEN_KEY);
 }
 
 // ---------------- Google Identity Services ----------------
@@ -111,7 +114,7 @@ function getTokenClient() {
         return p.reject(new DriveError(denied ? t('drive.e.denied') : t('drive.e.auth'), denied ? 'denied' : 'auth'));
       }
       const file = google.accounts.oauth2.hasGrantedAllScopes(resp, SCOPE_FILE), app = google.accounts.oauth2.hasGrantedAllScopes(resp, SCOPE_APPDATA);
-      if (!(p.need === 'sync' ? app : file)) return p.reject(new DriveError(t('drive.e.scope'), 'denied'));
+      if (!(p.need === 'sync' ? app : file)) return p.reject(new DriveError(t('drive.e.scope'), 'denied', 'scope'));
       p.resolve({ ...resp, file, app });
     },
     error_callback: (err) => {
@@ -129,7 +132,7 @@ function getTokenClient() {
 // Kratki ključ (1 h) se obnavlja kroz Google-ov prozor koji se na telefonu na tren pokaže (beli bljesak posle sat
 // vremena). Sa pomoćnikom (Apps Script sa tajnim delom prijave): jednom „Dozvoli“, posle toga se ključ obnavlja običnim
 // zahtevom, bez ikakvog prozora. Dozvola je SAMO na ovom telefonu (ne sinhronizuje se, nije u rezervnoj kopiji).
-const RT_KEY = 'driveRT';
+const RT_KEY = 'driveRT2'; // v2.5.66: dugotrajna dozvola novog klijenta (stara „driveRT“ služi samo prelasku)
 const helperUrl = () => (typeof globalThis.__gitaraTokenHelper === 'string' ? globalThis.__gitaraTokenHelper : TOKEN_HELPER);
 async function helper(body) {
   const ctrl = new AbortController(), tm = setTimeout(() => ctrl.abort(), 20000);
@@ -155,7 +158,7 @@ async function refreshQuiet(need) {
   if (!saved || !saved.rt) return false;
   let r;
   try { r = await helper({ a: 'refresh', rt: saved.rt }); } catch { return false; }
-  if (r && r.error === 'invalid_grant') { await settings.remove(RT_KEY); return false; } // dozvola opozvana / istekla
+  if (r && (r.error === 'invalid_grant' || r.error === 'unauthorized_client')) { await settings.remove(RT_KEY); return false; } // dozvola opozvana / istekla / izdata drugom klijentu (v2.5.66)
   if (!r || !r.access_token || !useAccess({ ...r, scope: r.scope || saved.scope }, need)) return false;
   await persist(); emit();
   return true;
@@ -184,7 +187,7 @@ async function codeFlow({ need, hint, pick }) {
   try { r = await helper({ a: 'exchange', code }); } catch { r = null; }
   logAuth(r && r.access_token ? 'povezano' : 'zamena koda nije uspela', r && r.error ? String(r.error) : '');
   if (!r || !r.access_token) throw new DriveError(t('drive.e.auth'), 'helper');
-  if (!useAccess(r, need)) throw new DriveError(t('drive.e.scope'), 'denied');
+  if (!useAccess(r, need)) throw new DriveError(t('drive.e.scope'), 'denied', 'scope');
   if (r.refresh_token) await settings.set(RT_KEY, { rt: r.refresh_token, scope: r.scope || '' });
   await persist(); emit();
   return state.token;
@@ -277,7 +280,7 @@ export async function syncSignOut() {
   if (state.connected) return;
   const tk = state.token;
   Object.assign(state, { token: '', tokenExp: 0, tokenSync: false });
-  await settings.remove('driveToken');
+  await settings.remove(TOKEN_KEY);
   await forgetLongAccess();
   if (tk && window.google && google.accounts && google.accounts.oauth2) { try { google.accounts.oauth2.revoke(tk, () => {}); } catch {} }
 }
@@ -369,10 +372,24 @@ async function findBackup() {
 }
 
 /** Kreira ili menja fajl (multipart upload). */
+// v2.5.66: Google prima najviše 5 MB jednim zahtevom — veće (cela kopija sa slikama učenika, PDF) ide „u nastavcima“
+const RESUMABLE_OVER = 4 * 1024 * 1024, CHUNK = 4 * 1024 * 1024; // CHUNK: deljivo sa 256 KB (Google)
+async function uploadResumable({ id, meta, mime, blob }) {
+  const start = await api(`${UPLOAD}/files${id ? '/' + id : ''}?uploadType=resumable&fields=id,modifiedTime`, { method: id ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json; charset=UTF-8', 'X-Upload-Content-Type': mime, 'X-Upload-Content-Length': String(blob.size) }, body: JSON.stringify(meta) });
+  const loc = start.headers.get('Location'); if (!loc) throw new DriveError(t('drive.e.http'), 'http');
+  for (let off = 0; ; off += CHUNK) {
+    const part = blob.slice(off, Math.min(blob.size, off + CHUNK)); const end = off + part.size - 1;
+    const res = await fetch(loc, { method: 'PUT', headers: { 'Content-Range': `bytes ${off}-${end}/${blob.size}` }, body: part });
+    if (res.status === 308) continue;
+    if (!res.ok) throw new DriveError(t('drive.e.http'), res.status === 404 ? 'notfound' : 'http');
+    return res.json();
+  }
+}
 async function uploadFile({ id, name, mime, blob, parents, appProperties }) {
   const meta = { name, mimeType: mime };
   if (!id && parents) meta.parents = parents;
   if (appProperties) meta.appProperties = appProperties;
+  if (blob.size > RESUMABLE_OVER) return uploadResumable({ id, meta: id ? { name } : meta, mime, blob });
   const boundary = 'gitara' + Math.random().toString(36).slice(2);
   const body = new Blob([
     `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n`,
@@ -725,7 +742,7 @@ export async function disconnect() {
   clearTimeout(timer);
   hideReconnectBanner();
   await settings.remove('drive');
-  if (!keep) { await settings.remove('driveToken'); await forgetLongAccess(); }
+  if (!keep) { await settings.remove(TOKEN_KEY); await forgetLongAccess(); }
   emit();
   if (t && !keep && window.google && google.accounts && google.accounts.oauth2) {
     try { google.accounts.oauth2.revoke(t, () => {}); } catch {}
@@ -840,9 +857,10 @@ export function initDrive() { return initP || (initP = doInit()); }
 async function doInit() {
   const saved = await settings.get('drive', null);
   if (saved && saved.connected) {
-    Object.assign(state, saved);
+    const { folderId, backupId, folderId2, backupId2, ...rest } = saved; // stari folder („Gitara“) pripada staroj vezi
+    Object.assign(state, rest, { folderId: folderId2 || '', backupId: backupId2 || '' });
   }
-  const tok = await settings.get('driveToken', null);
+  const tok = await settings.get(TOKEN_KEY, null);
   if (tok && tok.exp > Date.now()) { state.token = tok.t; state.tokenExp = tok.exp; state.tokenSync = tok.s === 2; state.tokenFile = tok.f === 1 || (tok.f === undefined && tok.s !== 2); }
   events.addEventListener('songs-changed', () => { if (!suppress) scheduleBackup(); });
   events.addEventListener('settings-changed', (e) => { if (!suppress && BACKUP_SETTINGS.includes(e.detail)) scheduleBackup(); });
@@ -874,3 +892,12 @@ async function moveToSync() {
 
 // Modul se učitava tek kad zatreba (povezan Drive pri pokretanju, ili Podešavanja / PDF) — tada se odmah i pripremi
 initDrive().catch(() => {});
+
+/** v2.5.66: fajl u folder „MARLI“ (nova veza) — kopija pre prelaska, preneti PDF-ovi i kopije sa stare veze. */
+export async function saveToFolder(name, blob, mime) {
+  await shareToken({ interactive: false });
+  const folder = await ensureFolder();
+  const files = await findFiles(`name='${q(name)}' and '${folder}' in parents and trashed=false`);
+  const r = await uploadFile({ id: files[0] && files[0].id, name, mime, blob, parents: [folder] });
+  return r && r.id;
+}

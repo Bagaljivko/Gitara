@@ -9,11 +9,11 @@ import { SYNCED_SETTING } from '../src/db.js';
 /** Samo na ovom uređaju (sa razlogom). Rezervna kopija „Cela aplikacija“ ih i dalje nosi, osim prijave na Google. */
 const DEVICE_ONLY = {
   syncCfg: 'stanje sinhronizacije ovog uređaja', drive: 'stanje stare Drive veze', driveToken: 'Google ključ', driveRT: 'Google dozvola',
-  driveRestoreAsked: 'već pitano na ovom uređaju', geminiLastModel: 'keš', geminiModels: 'keš spiska modela', shareFolder: 'Drive fascikla za deljenje (keš)',
+  driveRestoreAsked: 'već pitano na ovom uređaju', geminiLastModel: 'keš', geminiModels: 'keš spiska modela', shareFolder2: 'Drive fascikla za deljenje (keš, nova veza)', driveToken2: 'Google ključ (nova veza)', driveRT2: 'Google dozvola (nova veza)',
+  mig: 'stanje prelaska na novu Google vezu (ovaj uređaj)', migCopy: 'kopija pre prelaska (ovaj uređaj)',
   notes: 'zvonce — obaveštenja ovog uređaja', keySync: 'izbor „prenesi ključ“ za ovaj uređaj', backupNudge: 'podsetnik na ovom uređaju',
   syncOffered: 'već ponuđeno', shareLatestSeen: 'već viđeno deljenje', demoSeeded: 'primer pesme na ovom uređaju', autoBackup: 'dnevna kopija sa ovog uređaja',
   remindCfg: 'obaveštenja za vežbanje — po uređaju', shares: 'linkovi deljenja napravljeni ovde', boxOutbox: 'slanje koje čeka', dedupeV1: 'jednokratna provera',
-  freeplayRecs: 'stari zapis (pre v1.37) — prelazi u pesme',
 };
 
 function settingKeys() {

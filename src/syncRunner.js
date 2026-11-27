@@ -1,17 +1,17 @@
 // Jedan „radnik“ sinhronizacije: u Web Worker-u (syncWorker.js) ili, gde Worker ne može, na glavnoj niti.
 // Poruke: init / sync / seed / reset / token / answer  →  status / applied / needToken / ask / done
 import { createEngine, SyncError } from './syncEngine.js';
-import { createLocal, seed, resetForAccount } from './syncLocal.js';
+import { createLocal, seed, resetForAccount, rebaseForNewSpace } from './syncLocal.js';
 import { createDrive } from './syncDrive.js';
 
 export function createRunner(post) {
   const waiting = new Map();
-  let seq = 0, engine = null, drive = null, running = null, again = false, node = '', paused = false;
+  let seq = 0, engine = null, drive = null, running = null, again = false, node = '', paused = false, src = 'new'; // v2.5.66: 'old' = stara Google veza (samo za poslednje preuzimanje pre prelaska)
   const request = (msg) => new Promise((resolve, reject) => { const id = ++seq; waiting.set(id, { resolve, reject }); post({ ...msg, id }); });
   let token = '', tokenExp = 0;
   async function getToken(force) {
     if (!force && token && Date.now() < tokenExp) return token;
-    const r = await request({ t: 'needToken', force: !!force });
+    const r = await request({ t: 'needToken', force: !!force, src });
     if (!r || !r.token) throw new SyncError('auth', r && r.offline ? 'OFFLINE' : 'AUTH');
     token = r.token; tokenExp = r.exp || Date.now() + 50 * 60000;
     return token;
@@ -38,6 +38,11 @@ export function createRunner(post) {
     if (m.t === 'token' || m.t === 'answer') { const w = waiting.get(m.id); if (w) { waiting.delete(m.id); w.resolve(m.value); } return; }
     if (m.t === 'seed') { await seed(node); post({ t: 'seeded', id: m.id }); return; }
     if (m.t === 'reset') { await resetForAccount(); make(); post({ t: 'wasReset', id: m.id }); return; }
+    // v2.5.66: prelazak na novu Google vezu — ista verzija stavki, nova (prazna) fascikla; provera posle slanja
+    if (m.t === 'rebase') { await rebaseForNewSpace(); await seed(node); token = ''; tokenExp = 0; make(); post({ t: 'rebased', id: m.id }); return; }
+    if (m.t === 'syncOnce') { try { const r = await engine.sync(); post({ t: 'once', id: m.id, value: { ok: true, sent: r.sent, pulled: r.pulled.length } }); } catch (e) { post({ t: 'once', id: m.id, value: { ok: false, code: (e && e.code) || 'ERR', msg: String((e && e.message) || e).slice(0, 200) } }); } return; }
+    if (m.t === 'verify') { try { post({ t: 'verified', id: m.id, value: await engine.verify() }); } catch (e) { post({ t: 'verified', id: m.id, value: { error: (e && e.code) || 'ERR' } }); } return; }
+    if (m.t === 'source') { src = m.src === 'old' ? 'old' : 'new'; token = m.token || ''; tokenExp = m.exp || 0; post({ t: 'sourceSet', id: m.id }); return; }
     if (m.t === 'about') { try { post({ t: 'about', id: m.id, value: await drive.about() }); } catch (e) { post({ t: 'about', id: m.id, error: (e && e.code) || 'ERR' }); } return; }
     // promena naloga: sačekaj tekući krug i ne počinji novi dok se nalog ne promeni (nikad pola na jednom, pola na drugom)
     if (m.t === 'pause') { paused = true; again = false; if (running) await running; post({ t: 'paused', id: m.id }); return; }

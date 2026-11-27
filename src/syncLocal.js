@@ -134,3 +134,16 @@ export function wipeForAccount() {
     for (const k of [...Object.keys(LIST_KEYS).filter((x) => x !== 'devices'), ...WHOLE_KEYS, 'geminiKey']) settings.delete(k);
   });
 }
+
+/** v2.5.66: prelazak na novu Google vezu (nov projekat = prazna skrivena fascikla). Sve stavke ovog uređaja se šalju
+ *  ponovo SA ISTOM VERZIJOM (starije ne može da prepiše novije sa drugog uređaja), i oznake brisanja (obrisana pesma
+ *  se ne vraća sa drugog uređaja). Stanje Drive-a (token promena, snapshot, fileId) od nule; ključ koji čeka sa strane
+ *  („held:secret“) i stavke novijih verzija aplikacije („x:“) ostaju netaknuti. Ništa od podataka se ne menja. */
+export function rebaseForNewSpace() {
+  return run(['sync', 'syncState'], 'readwrite', (y, s) => {
+    const r = y.getAll();
+    r.onsuccess = () => r.result.forEach((m) => { if (m.hlc) y.put({ key: m.key, hlc: m.hlc, base: '', dirty: true, deleted: !!m.deleted }); });
+    const k = s.getAllKeys();
+    k.onsuccess = () => k.result.forEach((x) => { const id = String(x); if (['pageToken', 'snapAt', 'snapFile', 'snapFiles', 'snapsSeen', 'sinceSnap', 'refetch'].includes(id)) s.delete(x); });
+  });
+}
