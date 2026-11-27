@@ -22,6 +22,7 @@ export async function hasOldSignIn() {
 
 /** Stari ključ BEZ ikakvog prozora, ili '' . need: 'file' (fajlovi) ili 'sync' (skrivena fascikla). */
 export async function oldTokenSilent(need = 'file') {
+  if (globalThis.__marliTest?.noOldAuth) return ''; // proba: očišćen pregledač (stara prijava obrisana)
   if (valid(mem, need)) return mem.t;
   const tok = await settings.get('driveToken', null);
   if (tok && tok.t && tok.exp > Date.now() + 60000) {

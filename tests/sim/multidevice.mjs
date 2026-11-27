@@ -61,17 +61,17 @@ const VIEW = { desk: [1440, 900], edge: [1366, 768], safari: [1440, 900], phone:
 const kindOf = (name) => name.replace(/\d+$/, '');
 const devices = new Map();
 const MILE = 'mile@x.test';
-async function openDev(name, email, { tabs = 1, offline = false } = {}) {
+async function openDev(name, email, { tabs = 1, offline = false, noOldAuth = false } = {}) {
   let d = devices.get(name);
   if (!d) { d = { name, email, sim: sim.device({ accounts: [email] }) }; devices.set(name, d); }
   const k = kindOf(name), st = STATE + name + '.json';
   const ctx = await browser.newContext({ viewport: { width: VIEW[k][0], height: VIEW[k][1] }, userAgent: UA[k], serviceWorkers: 'block', ...(existsSync(st) ? { storageState: st } : {}) });
-  await ctx.addInitScript(({ noLocks, off }) => {
+  await ctx.addInitScript(({ noLocks, off, noOld }) => {
     try { localStorage.setItem('gitara-tour', '1'); localStorage.setItem('gitara-upgraded', '9'); localStorage.setItem('marli-fs-off', 'test'); localStorage.setItem('marli-fb-url-test', 'https://feedback.test/exec'); } catch {}
-    window.__marliTest = { ...(window.__marliTest || {}), noHints: true, authStuckMs: 3000, handoffPollMs: 1500, bgDelay: 500 };
+    window.__marliTest = { ...(window.__marliTest || {}), noHints: true, authStuckMs: 3000, handoffPollMs: 1500, bgDelay: 500, ...(noOld ? { noOldAuth: true } : {}) };
     if (noLocks) { try { Object.defineProperty(navigator, 'locks', { value: undefined, configurable: true }); } catch {} }
     if (off) { window.__online = false; Object.defineProperty(Navigator.prototype, 'onLine', { get() { return !!window.__online; }, configurable: true }); } // telefon bez mreže (aplikacija se otvara iz keša)
-  }, { noLocks: k === 'ios', off: offline });
+  }, { noLocks: k === 'ios', off: offline, noOld: noOldAuth });
   await installSim(sim, ctx, d.sim, { initScript: true });
   d.events = d.events || [];
   await ctx.route('https://feedback.test/**', (r) => { try { const j = JSON.parse(r.request().postData() || '{}'); if (j.kind === 'event') d.events.push(j); } catch {} return r.fulfill({ status: 200, body: 'ok' }); });
@@ -330,9 +330,7 @@ if (want('wiped')) {
   reset(); const sc = 'iPhone bez stare prijave';
   const r1 = await switchDev('desk'); r1.name = 'desk'; await waitBg(r1.d); await closeDev(r1.d);
   ROOT = NEW_ROOT;
-  const d = await openDev('ios', MILE);
-  await ev(d.p, async () => { const db = await import('./src/db.js'); await db.settings.remove('driveToken'); await db.settings.remove('driveRT'); });
-  await d.p.reload(); await d.p.waitForTimeout(1200);
+  const d = await openDev('ios', MILE, { noOldAuth: true });
   const r2 = await switchDev('ios', { d }); r2.name = 'ios'; await closeDev(d);
   if (!r2.ok || r2.via !== 'prijava' || !r2.taps) problem(sc, `očekivana obična prijava (via ${r2.via}, dodira ${r2.taps})`);
   summarize(sc, [r1, r2]);
