@@ -957,6 +957,7 @@ export default {
   'common.undo': 'Undo',
   'room.title': 'Room',
   'scan.stepWriting': 'Gemini is writing…',
+  'diag.method': 'Reading method',
   'scan.cancelLog': 'Cancelled after {s} s (the “Cancel” button).',
   'scan.cutLog': 'Interrupted — the app was closed or put away during the scan.',
   'mig.kidT': 'Ask a parent to approve the sign-in',

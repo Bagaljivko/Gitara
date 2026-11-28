@@ -970,6 +970,7 @@ const sr = {
   'common.undo': 'Poništi',
   'room.title': 'Soba',
   'scan.stepWriting': 'Gemini piše…',
+  'diag.method': 'Način čitanja',
   'scan.cancelLog': 'Otkazano posle {s} s (dugme „Otkaži“).',
   'scan.cutLog': 'Prekinuto — aplikacija je zatvorena ili isključena tokom skeniranja.',
   'mig.kidT': 'Zamoli roditelja da odobri prijavu',

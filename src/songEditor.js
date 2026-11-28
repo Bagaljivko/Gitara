@@ -337,6 +337,7 @@ function formatScanDiag(d, e) {
   const L = [];
   L.push(`${t('diag.time')}: ${d.at}  ·  ${t('diag.total')}: ${secs(d.totalMs)}  ·  ${t('diag.code')}: ${(e && e.code) || (e && e.name) || '?'}`);
   L.push(`${t('diag.model')}: ${d.selection === 'auto' ? t('set.modelAuto') : d.selection || '?'}`);
+  if (d.method) L.push(`${t('diag.method')}: ${d.method}`); // v2.5.70: tekst (pesmarica) / JSON
   L.push(`${t('diag.images')} (${d.images.length}):`);
   d.images.forEach((i, k) => L.push(`  ${k + 1}) ${t('diag.original')} ${i.ow}×${i.oh}, ${kb(i.origBytes)} → ${t('diag.sent')} ${i.w}×${i.h}, ${kb(i.bytes)} (JPEG ${i.quality}${i.crop ? ', papir ' + i.crop : ''}${i.clean ? ', sivo + kontrast' : ''})`));
   if (d.images.length) L.push(`  ${t('diag.sentTotal')}: ${kb(d.images.reduce((a, i) => a + i.bytes, 0))}`);

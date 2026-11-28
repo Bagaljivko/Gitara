@@ -6,11 +6,12 @@ export const name = 'Skeniranje: model koji ćuti → drugi model, presečen odg
 export const timeout = 90;
 
 const SONG = { title: 'Zakuni se', artist: 'S. Krila', key: 'G', sections: [{ name: 'Strofa', lines: [{ text: 'Zakuni se ljubavi na ranjenu noć', chords: [{ position: 0, chord: 'G' }, { position: 11, chord: 'D' }] }] }] };
+const TEXT_SONG = 'NASLOV: Zakuni se\nIZVOĐAČ: S. Krila\nTONALITET: G\nVRSTA: akordi\n# Strofa\n[G]Zakuni se ljubavi [D]na ranjenu noć\n';
 const sse = (parts) => parts.map((t, i) => `data: ${JSON.stringify({ candidates: [{ content: { parts: [{ text: t }] }, ...(i === parts.length - 1 ? { finishReason: 'STOP' } : {}) }] })}\r\n\r\n`).join('');
 
 export async function run(ctx) {
   const p = await open(ctx, 'phone'); await boot(p, ctx, '#/pesme', 900);
-  const asked = [];
+  const asked = [], asked2 = [];
   // ponašanje po modelu: 'silent' = ne odgovara nikad, 'cut' = pola JSON-a pa stane, 'ok' = cela pesma u 3 dela
   let plan = {};
   await p.route('https://generativelanguage.googleapis.com/**', async (route) => {
@@ -18,7 +19,8 @@ export async function run(ctx) {
     if (route.request().method() === 'GET') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-2.5-flash'].map((n) => ({ name: 'models/' + n, supportedGenerationMethods: ['generateContent'] })) }) });
     const m = /models\/([^:]+):(\w+)/.exec(u); asked.push(m[1] + ':' + m[2]);
     const how = plan[m[1]] || 'ok';
-    const json = JSON.stringify(SONG);
+    const isJson = /application\/json/.test(route.request().postData() || '');
+    const json = isJson ? JSON.stringify(SONG) : (plan.textBad ? 'Ne mogu da pročitam ovu sliku, molim vas pošaljite jasniju fotografiju.' : TEXT_SONG); asked2.push(isJson ? 'json' : 'tekst');
     if (how === 'slow') { await new Promise((r) => setTimeout(r, 6000)); return route.fulfill({ status: 200, contentType: 'text/event-stream', body: sse([json]) }).catch(() => {}); }
     if (how === 'silent') { await new Promise((r) => setTimeout(r, 20000)); return route.abort().catch(() => {}); }
     if (how === 'cut') return route.fulfill({ status: 200, contentType: 'text/event-stream', body: sse([json.slice(0, 40)]).replace(/,"finishReason":"STOP"/, '') }).catch(() => {});
@@ -63,6 +65,17 @@ export async function run(ctx) {
   r = await scan('auto');
   expect(r.ok && r.model === 'gemini-3.6-flash' && !r.st.some((s) => s.startsWith('switch')), 'normalno skeniranje promenilo model', r);
   eq(asked.length, 1, 'normalno skeniranje: broj zahteva');
+
+  // 3b) v2.5.70: čita se kao pesmarica (tekst, jedan zahtev); akord tačno iznad „na“; nečitljiv tekst → isti zahtev kao JSON
+  plan = {}; asked.length = 0; asked2.length = 0;
+  r = await scan('auto');
+  eq(asked2, ['tekst'], 'pesmarica: jedan zahtev, tekst');
+  r = await p.evaluate(async () => { const G = await import('./src/gemini.js'); G._coolForTests.clear(); const s = await G.scanSong([{ mime: 'image/jpeg', base64: 'AAAA' }], undefined, () => {}, { attempts: [] }); return s.sections[0].lines[0]; });
+  eq(r.chords, [{ chord: 'G', position: 0 }, { chord: 'D', position: 18 }], 'pesmarica: položaj akorda');
+  plan = { textBad: true }; asked2.length = 0;
+  r = await p.evaluate(async () => { const G = await import('./src/gemini.js'); G._coolForTests.clear(); const d = { attempts: [] }; const s = await G.scanSong([{ mime: 'image/jpeg', base64: 'AAAA' }], undefined, () => {}, d); return { title: s.title, method: d.method }; });
+  eq(asked2, ['tekst', 'json'], 'nečitljiv tekst: rezerva JSON');
+  expect(r.title === 'Zakuni se' && r.method === 'tekst → JSON', 'rezerva JSON nije uspela', r);
 
   // 4) izabran model (ne automatski): kratak rok se ne primenjuje — ne odustaje posle 2.5 s
   plan = {}; asked.length = 0;

@@ -6,6 +6,8 @@ import { readSSE, looksStuck } from './streamRead.js';
 import { fixCaps } from './textCase.js';
 import { TAB_TEXT_PROMPT, TAB_TEXT_PAGE, TAB_TEXT_RANGE, TAB_TEXT_BARS, parseTabText } from './tabScanText.js';
 import { normalizeSong, snapScannedChords } from './songformat.js';
+import { SCAN_TEXT_PROMPT, parseScanText } from './scanText.js';
+const TEXT_SCAN = () => globalThis.__gitaraJsonScan !== true; // v2.5.70: pesmarica-tekst (testovi mogu isključiti)
 import { parseAsciiTab } from './tabs.js';
 
 // Podrazumevani model; korisnik ga može promeniti u „Podešavanjima“ bez izmene koda.
@@ -731,20 +733,30 @@ export async function scanSong(images, signal, onStatus, diag) {
   const stream = { whole: true, firstMs: FIRST_MS(), onText: (sofar) => { if (!writing && sofar) { writing = true; onStatus?.('writing'); } return false; } };
   const user = onStatus;
   onStatus = (kind, ...a) => { if (kind === 'send') writing = false; if (kind === 'reading' && writing) return; user?.(kind, ...a); };
-  let res;
-  try {
-    res = await generate(apiKey, {
-      contents,
-      generationConfig: { temperature: 0.1, responseMimeType: 'application/json', responseSchema: RESPONSE_SCHEMA },
-    }, { signal, onStatus, diag, stream });
-  } catch (e) {
-    // Ako neki model ne prihvata šemu odgovora, pokušaj isti model samo sa JSON izlazom (prompt opisuje oblik).
-    if (!(e instanceof GeminiError) || e.code !== 'HTTP_400' || !e.model || !/schema|response_?schema|responseMimeType|field/i.test(e.message)) throw e;
-    res = await generate(apiKey, { contents, generationConfig: { temperature: 0.1, responseMimeType: 'application/json' } }, { signal, onStatus, models: [e.model], diag, stream });
+  let res, json = null;
+  // v2.5.70: prvo kao u pesmarici („[G]Zakuni se [D]ljubavi“) — položaj akorda računa aplikacija (tačno), a odgovor
+  // je 2–3 puta kraći. Ako taj odgovor ne može da se pročita: isti zahtev na stari način (JSON). diag.method beleži koji.
+  if (TEXT_SCAN()) {
+    const tparts = [{ text: SCAN_TEXT_PROMPT + (list.length > 1 ? MULTI_PROMPT(list.length) : '') }, ...parts.slice(1)];
+    res = await generate(apiKey, { contents: [{ parts: tparts }], generationConfig: { temperature: 0.1 } }, { signal, onStatus, diag, stream });
+    try { json = parseScanText(textOf(res.data)); } catch { json = null; }
+    if (diag) diag.method = json ? 'tekst' : 'tekst → JSON';
   }
-  const text = textOf(res.data).trim().replace(/^```(?:json)?\s*|\s*```$/g, '');
-  let json;
-  try { json = JSON.parse(text); } catch { throw new GeminiError(t('gem.badJson')); }
+  if (!json) {
+    if (diag && !diag.method) diag.method = 'JSON';
+    try {
+      res = await generate(apiKey, {
+        contents,
+        generationConfig: { temperature: 0.1, responseMimeType: 'application/json', responseSchema: RESPONSE_SCHEMA },
+      }, { signal, onStatus, diag, stream });
+    } catch (e) {
+      // Ako neki model ne prihvata šemu odgovora, pokušaj isti model samo sa JSON izlazom (prompt opisuje oblik).
+      if (!(e instanceof GeminiError) || e.code !== 'HTTP_400' || !e.model || !/schema|response_?schema|responseMimeType|field/i.test(e.message)) throw e;
+      res = await generate(apiKey, { contents, generationConfig: { temperature: 0.1, responseMimeType: 'application/json' } }, { signal, onStatus, models: [e.model], diag, stream });
+    }
+    const text = textOf(res.data).trim().replace(/^```(?:json)?\s*|\s*```$/g, '');
+    try { json = JSON.parse(text); } catch { throw new GeminiError(t('gem.badJson')); }
+  }
   const unplaced = tabsFromScan(json);
   let song;
   try { song = normalizeSong(json); } catch {
