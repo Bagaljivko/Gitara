@@ -472,3 +472,22 @@ export function safeFileName(s) {
   const map = { č: 'c', ć: 'c', š: 's', ž: 'z', đ: 'dj', Č: 'C', Ć: 'C', Š: 'S', Ž: 'Z', Đ: 'Dj' };
   return (String(s || 'pesma').replace(/[čćšžđČĆŠŽĐ]/g, (c) => map[c]).replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-').slice(0, 60)) || 'pesma';
 }
+
+/** v2.5.70 (skeniranje): akord koji je pao na razmak između reči (Gemini broji znake malo pogrešno — „akord posle kraja
+ *  reči“) pripada sledećoj reči: pomera se na njen početak (najviše 3 znaka). Akord usred reči (slog) i akord posle
+ *  kraja reda ostaju gde jesu. Vraća broj pomerenih akorda. */
+export function snapScannedChords(song) {
+  let n = 0;
+  for (const sec of (song && song.sections) || []) for (const ln of sec.lines || []) {
+    const tx = String(ln.text || '');
+    if (!tx.trim() || !Array.isArray(ln.chords)) continue;
+    const used = new Set(ln.chords.map((c) => c.position));
+    for (const c of ln.chords) {
+      const p = c.position;
+      if (p >= tx.length || tx[p] !== ' ') continue;
+      let q = p; while (q < tx.length && tx[q] === ' ' && q - p <= 3) q++;
+      if (q < tx.length && tx[q] !== ' ' && !used.has(q)) { used.delete(p); used.add(q); c.position = q; n++; }
+    }
+  }
+  return n;
+}

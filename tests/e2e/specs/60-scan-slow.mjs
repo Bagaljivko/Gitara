@@ -19,12 +19,13 @@ export async function run(ctx) {
     const m = /models\/([^:]+):(\w+)/.exec(u); asked.push(m[1] + ':' + m[2]);
     const how = plan[m[1]] || 'ok';
     const json = JSON.stringify(SONG);
+    if (how === 'slow') { await new Promise((r) => setTimeout(r, 6000)); return route.fulfill({ status: 200, contentType: 'text/event-stream', body: sse([json]) }).catch(() => {}); }
     if (how === 'silent') { await new Promise((r) => setTimeout(r, 20000)); return route.abort().catch(() => {}); }
     if (how === 'cut') return route.fulfill({ status: 200, contentType: 'text/event-stream', body: sse([json.slice(0, 40)]).replace(/,"finishReason":"STOP"/, '') }).catch(() => {});
     return route.fulfill({ status: 200, contentType: 'text/event-stream', body: sse([json.slice(0, 30), json.slice(30, 80), json.slice(80)]) }).catch(() => {});
   });
-  const scan = (sel) => p.evaluate(async (sel) => {
-    globalThis.__gitaraFirstMs = 2500; globalThis.__gitaraIdleMs = 2500;
+  const scan = (sel, firstMs = 2500) => p.evaluate(async ([sel, firstMs]) => {
+    globalThis.__gitaraFirstMs = firstMs; globalThis.__gitaraIdleMs = 2500;
     const { settings } = await import('./src/db.js');
     await settings.set('geminiKey', 'AIzaTEST0000000000000000000000000000000'); await settings.set('geminiModel', sel); await settings.set('geminiLastModel', 'gemini-3.6-flash');
     const G = await import('./src/gemini.js'); G._coolForTests.clear(); // svaki slučaj od početka (bez „hlađenja“ iz prethodnog)
@@ -33,7 +34,7 @@ export async function run(ctx) {
       const s = await G.scanSong([{ mime: 'image/jpeg', base64: 'AAAA' }], undefined, (k, m) => st.push(k + (m ? ':' + m : '')), diag);
       return { ok: true, title: s.title, model: s.scanModel, st, ms: performance.now() - t0, att: diag.attempts.map((a) => a.model + ' ' + a.status) };
     } catch (e) { return { ok: false, err: String(e.message || e), code: e.code, st, ms: performance.now() - t0, att: diag.attempts.map((a) => a.model + ' ' + a.status) }; }
-  }, sel);
+  }, [sel, firstMs]);
 
   // 1) prvi model ćuti → posle ~2.5 s drugi model, pesma stiže
   plan = { 'gemini-3.6-flash': 'silent' }; asked.length = 0;
@@ -43,6 +44,14 @@ export async function run(ctx) {
   expect(asked.every((a) => a.endsWith(':streamGenerateContent')), 'pesma se ne čita u delovima', asked);
   expect(r.st.includes('writing') && r.st.some((s) => s.startsWith('switch')), 'nema „piše…“ ili prelaska na drugi model', r.st);
   expect(r.st.lastIndexOf('writing') > r.st.lastIndexOf('reading'), '„čita…“ prepisalo „piše…“', r.st);
+
+  // 1b) v2.5.70: prvi model spor (ćuti) → drugi kreće paralelno posle HEDGE_MS, a prvi se ne prekida; pobeđuje brži
+  plan = { 'gemini-3.6-flash': 'slow' }; asked.length = 0;
+  await p.evaluate(() => { globalThis.__gitaraHedgeMs = 1000; });
+  r = await scan('auto', 60000);
+  await p.evaluate(() => { globalThis.__gitaraHedgeMs = 0; });
+  expect(r.ok && r.model !== 'gemini-3.6-flash' && r.ms < 5000, 'spor model: drugi nije krenuo paralelno', r);
+  eq(asked.length, 2, 'paralelno: broj zahteva');
 
   // 2) odgovor presečen na pola → drugi model (ne „neispravan odgovor“)
   plan = { 'gemini-3.6-flash': 'cut' }; asked.length = 0;

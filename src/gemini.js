@@ -5,7 +5,7 @@ import { settings } from './db.js';
 import { readSSE, looksStuck } from './streamRead.js';
 import { fixCaps } from './textCase.js';
 import { TAB_TEXT_PROMPT, TAB_TEXT_PAGE, TAB_TEXT_RANGE, TAB_TEXT_BARS, parseTabText } from './tabScanText.js';
-import { normalizeSong } from './songformat.js';
+import { normalizeSong, snapScannedChords } from './songformat.js';
 import { parseAsciiTab } from './tabs.js';
 
 // Podrazumevani model; korisnik ga može promeniti u „Podešavanjima“ bez izmene koda.
@@ -72,11 +72,11 @@ PRAVILA:
 5. Podeli pesmu na delove ("sections") po strukturi: npr. "Uvod", "Strofa 1", "Refren", "Most", "Kraj". Ako je deo označen na slici (npr. "Ref.", "R:", "1."), koristi tu oznaku. Ako nema oznaka, koristi "Strofa 1", "Strofa 2"... i "Refren" za ponovljeni deo.
 6. "title" i "artist" (izvođač ili autor pesme) uzmi sa slike; ako ih nema, ostavi prazan string. Piši ih normalnim velikim i malim slovima (npr. "In My Life", "John Lennon"), NIKAD sve velikim slovima, čak i kad su tako odštampani. "artist" nikad nije izdavač, sajt, autorska prava ni onaj ko je prepisao akorde. "key" je tonalitet ako je naznačen, inače ga proceni iz akorda (npr. "Am", "G"); piši ga istim imenovanjem kao akorde na papiru (npr. "Hm" ako papir koristi H).
 7. Ako neki deo ne može da se pročita, napiši najverovatniju reč; ne izostavljaj linije.
+8. Ako na papiru postoji ritam udaranja (strelice ↓ ↑, ili zapis poput „D DU UDU“ / „dole gore“), vrati ga kao "strum": { "steps": "...", "sig": "4/4" }. "steps" ima jedan znak po osmini: D = udarac na dole, U = na gore, x = prigušen udarac, - = pauza (npr. „↓ ↓↑ ↑↓↑“ u 4/4 je "D-DU-UDU"). "sig" je "2/4", "3/4", "4/4" ili "6/8". Ako ritam važi samo za jedan deo pesme, stavi "strum" u taj deo (sekciju). Ako ritma nema, izostavi polje "strum".
 9. NESIGURNA MESTA: ako neki akord ili reč nisi mogao pouzdano da pročitaš, napiši u tekstu/akordima svoju najbolju procenu i dodaj stavku u "uncertain": { "section": indeks dela (od 0), "line": indeks linije u tom delu (od 0), "kind": "chord" ili "word", "text": tačno ono što si upisao, "position": pozicija akorda ili početak reči u liniji, "suggestion": drugo najverovatnije čitanje }. Navedi samo zaista nesigurna mesta (najviše 15); ako ih nema, "uncertain" je prazan niz.
 10. TABLATURA: ako slika sadrži gitarsku tablaturu (šest linija sa brojevima pragova), prepiši je u polje "tab" tog dela kao ASCII tekst od TAČNO 6 redova razdvojenih sa \n, odozgo: e, B, G, D, A, E (visoka e gore). Svaki red počinje nazivom žice i znakom "|", taktovi se odvajaju sa "|", crtice "-" popunjavaju prazna mesta, a kolone moraju biti poravnate (ista nota u svim redovima je u istoj koloni). Primer jednog reda: "e|-----0-----|---------3-|". Tehnike piši posle broja: h, p, /, \\, b, ~. "tabSig" je takt ako je naznačen (npr. "3/4"), inače "4/4". Prag koji nisi pouzdano pročitao dodaj u "tabUnsure": { "string": 1–6 (1 = e gore), "column": indeks prvog znaka tog broja u redu, računajući od 0 od prvog znaka POSLE prve "|", "fret": upisan broj, "suggestion": drugi najverovatniji broj }.
 11. Ako je više slika i jedna sadrži samo tablaturu, stavi je u odgovarajući deo pesme koji nema tekst (npr. "Uvod"/"Intro", "Rif"/"Riff", deo sa prebiranjem). Ako nisi siguran gde pripada, napravi zaseban deo sa tom tablaturom i postavi "tabPlacementUnclear": true.
 12. VRSTA LISTA: "sheetKind" je "akordi" za pesmu sa tekstom i akordima (i kad ima malo tablature), a "tab" ako je list notni zapis / tablatura cele kompozicije za gitaru (prebiranje, klasična gitara: šest linija sa brojevima pragova kroz ceo list, taktovi, obično bez teksta pesme). Ako nisi siguran, "akordi".
-8. Ako na papiru postoji ritam udaranja (strelice ↓ ↑, ili zapis poput „D DU UDU“ / „dole gore“), vrati ga kao "strum": { "steps": "...", "sig": "4/4" }. "steps" ima jedan znak po osmini: D = udarac na dole, U = na gore, x = prigušen udarac, - = pauza (npr. „↓ ↓↑ ↑↓↑“ u 4/4 je "D-DU-UDU"). "sig" je "2/4", "3/4", "4/4" ili "6/8". Ako ritam važi samo za jedan deo pesme, stavi "strum" u taj deo (sekciju). Ako ritma nema, izostavi polje "strum".
 
 Vrati ISKLJUČIVO JSON ovog oblika (polja "strum" su opciona):
 { "title": "", "artist": "", "key": "", "strum": { "steps": "D-DU-UDU", "sig": "4/4" }, "uncertain": [ { "section": 0, "line": 0, "kind": "chord", "text": "Hm", "position": 4, "suggestion": "Em" } ], "sections": [ { "name": "", "strum": { "steps": "", "sig": "" }, "lines": [ { "chords": [ { "chord": "Am", "position": 0 } ], "text": "" } ] } ] }`;
@@ -257,7 +257,10 @@ async function candidates(apiKey, selection) {
   if (selection !== AUTO) return [selection];
   const last = cleanModelName(await settings.get('geminiLastModel', ''));
   let list = null;
-  try { list = await listModels(apiKey); } catch (e) { if (e instanceof GeminiError && e.code === 'BAD_KEY') throw e; } // bez spiska → rezervni spisak
+  // v2.5.70: zastareo spisak (stariji od 12 h) ne zadržava skeniranje — koristi se odmah, a osvežava u pozadini
+  const cached = await settings.get('geminiModels', null);
+  if (cached && cached.tag === apiKey.slice(-6) && cached.list && cached.list.length) { list = cached.list; if (Date.now() - cached.at >= MODELS_TTL) listModels(apiKey, { force: true }).catch(() => {}); }
+  else try { list = await listModels(apiKey); } catch (e) { if (e instanceof GeminiError && e.code === 'BAD_KEY') throw e; } // bez spiska → rezervni spisak
   const names = list && list.length ? list : rankModels(FALLBACK_MODELS);
   const order = [];
   if (last && (!list || list.includes(last))) order.push(last); // model koji je poslednji radio — prvi
@@ -446,6 +449,39 @@ async function callWithRetry(apiKey, body, signal, model, onStatus, delays, diag
  * Flash-Lite, ostali) dok jedan ne uspe. Ukupno najviše ~60 s; „Otkaži“ (signal) prekida odmah.
  * Vraća { data, model }.
  */
+const HEDGE_MS = () => globalThis.__gitaraHedgeMs || 10000;
+/** v2.5.70: dva modela, drugi kreće tek ako prvi ćuti HEDGE_MS (samo tada jedan zahtev više). Prvi potpun odgovor
+ *  pobeđuje, drugi se prekida. Ako jedan ne uspe, čeka se drugi; ako oba ne uspeju — greška prvog. */
+function hedged(apiKey, body, signal, a, b, onStatus, diag, { until, stream, tried }) {
+  return new Promise((resolve, reject) => {
+    const runs = [];
+    let done = false, fails = 0, firstErr = null, heard = false;
+    const finish = () => { clearTimeout(hT); signal.removeEventListener('abort', onAbort); };
+    const onAbort = () => { if (!done) { done = true; finish(); for (const r of runs) r.c.abort(); reject(new DOMException('Aborted', 'AbortError')); } };
+    signal.addEventListener('abort', onAbort, { once: true });
+    const start = (model) => {
+      const c = new AbortController(); runs.push({ c, model }); tried.add(model);
+      const st = stream ? { ...stream, onText: (x) => { if (x) heard = true; return stream.onText ? stream.onText(x) : false; } } : stream;
+      callWithRetry(apiKey, body, c.signal, model, onStatus, FALLBACK_RETRY, diag, { auto: true, until, stream: st })
+        .then((data) => {
+          if (done) return;
+          done = true; finish();
+          for (const r of runs) if (r.model !== model) r.c.abort();
+          resolve({ data, model });
+        }, (e) => {
+          if (done) return;
+          if (!(e && e.name === 'AbortError')) { fails++; firstErr = firstErr || e; }
+          const next = e instanceof GeminiError && ['BUSY', 'MODEL_UNAVAILABLE', 'HTTP_500', 'HTTP_502', 'HTTP_504'].includes(e.code);
+          if (runs.length === 1 && next) { clearTimeout(hT); startB(); return; } // prvi pao pre roka (zauzet / ne radi) → odmah drugi
+          if (fails >= runs.length) { done = true; finish(); reject(firstErr || e); }
+        });
+    };
+    const startB = () => { if (done || runs.length > 1 || coolLeft(b)) { if (!done && runs.length === 1 && fails >= 1) { done = true; finish(); reject(firstErr); } return; } if (onStatus) onStatus('switch', b); start(b); };
+    const hT = setTimeout(() => { if (!heard) startB(); }, HEDGE_MS());
+    start(a);
+  });
+}
+
 async function generate(apiKey, body, { signal, onStatus, selection, models, diag, deadline = 0, stream = null } = {}) {
   if (!apiKey) throw new GeminiError(t('gem.noKey'));
   if (navigator.onLine === false) throw new GeminiError(t('gem.offline'));
@@ -464,13 +500,19 @@ async function generate(apiKey, body, { signal, onStatus, selection, models, dia
     for (let round = 0; round < 6; round++) {
       // modeli koji nisu „na hlađenju“ (onaj koji je poslednji radio je prvi u spisku)
       const ready = auto ? list.filter((m) => !coolLeft(m)) : list;
+      const tried = new Set();
       for (const model of ready) {
+        if (tried.has(model)) continue;
         if (prev && model !== prev && onStatus) onStatus('switch', model);
         prev = model;
         try {
-          const data = await callWithRetry(apiKey, body, ctrl.signal, model, onStatus, auto ? FALLBACK_RETRY : RETRY_DELAYS, diag, { auto, until, stream: stream && stream.firstMs && !auto ? { ...stream, firstMs: 0 } : stream });
-          if (auto) await settings.set('geminiLastModel', model);
-          return { data, model };
+          const st = stream && stream.firstMs && !auto ? { ...stream, firstMs: 0 } : stream;
+          // v2.5.70: model ćuti HEDGE_MS → drugi model kreće PARALELNO (prvi ne prekida); uzima se odgovor koji prvi stigne
+          const alt = auto && stream && stream.firstMs ? ready.find((m) => m !== model && !tried.has(m) && !coolLeft(m)) : null;
+          tried.add(model);
+          const r = alt ? await hedged(apiKey, body, ctrl.signal, model, alt, onStatus, diag, { until, stream: st, tried }) : { data: await callWithRetry(apiKey, body, ctrl.signal, model, onStatus, auto ? FALLBACK_RETRY : RETRY_DELAYS, diag, { auto, until, stream: st }), model };
+          if (auto) await settings.set('geminiLastModel', r.model);
+          return r;
         } catch (e) {
           if (e && e.name === 'AbortError') throw e;
           const tryNext = e instanceof GeminiError && ['BUSY', 'MODEL_UNAVAILABLE', 'HTTP_500', 'HTTP_502', 'HTTP_504'].includes(e.code);
@@ -712,6 +754,7 @@ export async function scanSong(images, signal, onStatus, diag) {
   }
   // delovi sa tablaturom za koje Gemini nije siguran gde pripadaju (indeksi posle normalizacije su isti)
   song.unplacedTabs = unplaced.filter((i) => song.sections[i] && song.sections[i].tabs);
+  snapScannedChords(song); // v2.5.70: akord na razmaku → početak sledeće reči
   song.title = fixCaps(song.title); song.artist = fixCaps(song.artist); // nikad SVE VELIKIM jer je tako odštampano
   song.scanModel = res.model; // prikazuje se na „Proveri i ispravi“, ne čuva se u pesmi
   if (json.sheetKind === 'tab') song.sheetKind = 'tab'; // Gemini misli da je ovo TAB list (pitaj/pročitaj kao TAB)
