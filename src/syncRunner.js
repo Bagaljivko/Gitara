@@ -42,6 +42,7 @@ export function createRunner(post) {
     if (m.t === 'seed') { await seed(node); post({ t: 'seeded', id: m.id }); return; }
     if (m.t === 'reset') { await ser(async () => { await resetForAccount(); make(); }); post({ t: 'wasReset', id: m.id }); return; }
     // v2.5.66: prelazak na novu Google vezu — ista verzija stavki, nova (prazna) fascikla; provera posle slanja
+    if (m.t === 'refull') { await ser(async () => { const L = createLocal(); await L.setState('pageToken', ''); await L.setState('snapsSeen', {}); }); post({ t: 'refulled', id: m.id }); return; } // v2.5.70
     if (m.t === 'rebase') { await ser(async () => { await rebaseForNewSpace(); await seed(node); token = ''; tokenExp = 0; make(); }); post({ t: 'rebased', id: m.id }); return; }
     if (m.t === 'importAll') { try { const n = await ser(() => engine.importAll()); post({ t: 'imported', id: m.id, value: { ok: true, n } }); } catch (e) { post({ t: 'imported', id: m.id, value: { ok: false, code: (e && e.code) || 'ERR' } }); } return; }
     if (m.t === 'syncOnce') { try { const r = await ser(() => engine.sync({ move: !!m.move, pullOnly: !!m.pullOnly })); post({ t: 'once', id: m.id, value: { ok: true, sent: r.sent, pulled: r.pulled.length } }); } catch (e) { post({ t: 'once', id: m.id, value: { ok: false, code: (e && e.code) || 'ERR', msg: String((e && e.message) || e).slice(0, 200) } }); } return; }

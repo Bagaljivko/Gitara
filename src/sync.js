@@ -504,6 +504,8 @@ export async function migImportOld() {
   finally { await call({ t: 'source', src: 'new' }, 'sourceSet'); }
 }
 /** Sve stavke ovog uređaja → nova (prazna) fascikla, ista verzija. Jednom po uređaju (posle toga samo nastavak). */
+/** v2.5.70: pun pregled nove veze (kao posle isteklog tokena): primenjuju se samo novije verzije, ništa se ne briše. */
+export async function fullPull() { if (!st.on) return; await call({ t: 'refull' }, 'refulled'); syncNow(); }
 export async function migRebase() { await call({ t: 'rebase' }, 'rebased'); }
 /** Krugovi sa NOVOM vezom dok ništa ne čeka (najviše n). Vraća poslednji rezultat. */
 export async function migUpload(tk, n = 6) {

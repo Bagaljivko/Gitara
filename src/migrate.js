@@ -108,7 +108,7 @@ function pollHandoff(cfg, stop) {
 const acctTag = async (id) => { try { const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('marli:' + id)); return 'nalog ' + [...new Uint8Array(b)].slice(0, 4).map((x) => x.toString(16).padStart(2, '0')).join(''); } catch { return ''; } };
 
 async function run() {
-  if (await migrationDone()) { const m = await get(); if (m.done && !m.fresh && !(m.linksDone && m.copyUp && m.oldFiles && m.cleaned)) background().catch(() => {}); if (m.done && !m.fresh && !m.handoff) leaveHandoff().catch(() => {}); return true; }
+  if (await migrationDone()) { const m = await get(); if (m.done && !m.fresh && !m.healed) setTimeout(() => healAfterMove().catch(() => {}), globalThis.__marliTest?.healDelay ?? 20000); if (m.done && !m.fresh && !(m.linksDone && m.copyUp && m.oldFiles && m.cleaned)) background().catch(() => {}); if (m.done && !m.fresh && !m.handoff) leaveHandoff().catch(() => {}); return true; }
   const S = await import('./sync.js'); const D = await import('./drive.js'); const O = await import('./oldAuth.js');
   const cfg = (await settings.get('syncCfg', null)) || {}; const drv = (await settings.get('drive', null)) || {};
   const email = cfg.email || drv.email || '';
@@ -323,6 +323,55 @@ async function takeHandoff(cfg) {
 let bgRun = null;
 /** v2.5.67: posao posle prelaska (veze sa drugima, kopija na Drive, PDF-ovi) — jedan po jedan, tek kad se aplikacija
  *  smiri (prva sinhronizacija i dnevna kopija prvo), i nastavlja se pri svakom sledećem otvaranju dok se ne završi. */
+/** v2.5.70: jednom posle prelaska, na svakom uređaju. Sigurne pretpostavke — samo DODAJE (nikad ne briše, nikad ne menja
+ *  postojeći link ili sliku), i samo iz izvora koji dokazuju da je nešto pregaženo, a ne namerno uklonjeno:
+ *  1) YouTube link pesme: iz „Prethodne verzije“ koju je sinhronizacija sačuvala posle prelaska (nastaje kad starija
+ *     kopija sa drugog uređaja zameni ovu — namerno uklanjanje linka ne pravi takvu verziju);
+ *  2) uređaj koji je vodio prelazak (prijava, imao najnovije podatke): iz njegove kopije pre prelaska — linkovi i slike
+ *     učenika kojih sada nema (uređaji koji su prešli sami mogu imati staru kopiju — njihova se ne koristi);
+ *  3) pun pregled nove veze (primenjuju se samo novije verzije) — za slučaj da nešto nije stiglo. */
+export async function healAfterMove() {
+  const m = await get();
+  if (!m.done || m.fresh || m.healed) return null;
+  let yt = 0, ph = 0;
+  const has = (o) => o && typeof o === 'object' && Object.values(o).some((v) => typeof v === 'string' && v);
+  const giveYt = async (id, old) => {
+    const cur = await db.get(id);
+    if (!cur || cur.demo || has(cur.yt) || !has(old.yt)) return; // obrisana pesma ostaje obrisana; postojeći link se ne dira
+    await db.save({ ...cur, yt: { ...old.yt }, ...(old.ytSync && !cur.ytSync ? { ytSync: old.ytSync } : {}) });
+    yt++;
+  };
+  try {
+    const since = (m.started || m.doneAt || Date.now()) - 864e5;
+    const { versions } = await import('./db.js');
+    const vs = (await versions.list()).filter((v) => v && v.reason === 'conflict' && v.at >= since && String(v.key).startsWith('song:'));
+    for (const v of vs) await giveYt(String(v.key).slice(5), v.data || {});
+  } catch {}
+  try {
+    const lead = m.via === 'prijava';
+    const cp = lead ? await settings.get('migCopy', null) : null;
+    const data = cp && cp.gz ? await (await import('./syncEngine.js')).gunzip(cp.gz) : null;
+    if (data) {
+      for (const old of data.songs || []) if (old && old.id) await giveYt(old.id, old);
+      const st = data.settings || {};
+      const oldPh = new Map();
+      for (const x of Array.isArray(st.studentPhotos) ? st.studentPhotos : []) if (x && x.id && typeof x.u === 'string' && x.u) oldPh.set(x.id, x.u);
+      for (const x of Array.isArray(st.students) ? st.students : []) if (x && x.id && typeof x.photo === 'string' && x.photo && !oldPh.has(x.id)) oldPh.set(x.id, x.photo);
+      if (oldPh.size) {
+        const studs = new Set(((await settings.get('students', [])) || []).filter((x) => x && x.id).map((x) => x.id));
+        const curPh = ((await settings.get('studentPhotos', [])) || []).filter((x) => x && x.id && typeof x.u === 'string');
+        const have = new Set(curPh.filter((x) => x.u).map((x) => x.id));
+        const add = [...oldPh].filter(([id]) => studs.has(id) && !have.has(id)).map(([id, u]) => ({ id, u, at: Date.now() }));
+        if (add.length) { await settings.set('studentPhotos', [...curPh.filter((x) => !add.some((a) => a.id === x.id)), ...add]); ph = add.length; }
+      }
+    }
+  } catch {}
+  await put({ healed: Date.now() });
+  try { const S = await import('./sync.js'); await S.fullPull(); } catch {}
+  if (yt || ph) ev('popravka', true, { n: String(yt + ph), note: `yt ${yt} · slike ${ph}` });
+  return { yt, ph };
+}
+
 function background(delay = globalThis.__marliTest?.bgDelay ?? 90000) {
   if (bgRun) return bgRun;
   bgRun = new Promise((r) => setTimeout(r, delay)).then(bgWork).finally(() => { bgRun = null; });
