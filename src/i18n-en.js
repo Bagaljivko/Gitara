@@ -957,6 +957,8 @@ export default {
   'common.undo': 'Undo',
   'room.title': 'Room',
   'scan.stepWriting': 'Gemini is writing…',
+  'scan.cancelLog': 'Cancelled after {s} s (the “Cancel” button).',
+  'scan.cutLog': 'Interrupted — the app was closed or put away during the scan.',
   'mig.kidT': 'Ask a parent to approve the sign-in',
   'mig.kidP': 'Your Google account is supervised, so a parent needs to approve MARLI. They get a notice in the Family Link app. Once they approve, everything continues by itself.',
   'mig.kidRowT': 'Nothing is lost',

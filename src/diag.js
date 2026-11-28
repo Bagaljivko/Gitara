@@ -8,6 +8,14 @@ import { getLang } from './i18n.js';
 const read = (k) => { try { return JSON.parse(localStorage.getItem(k) || '[]'); } catch { return []; } };
 export const diagLog = () => read('gitara-diag');
 export const bootLog = () => read('gitara-boots');
+/** v2.5.70: poslednje skeniranje — i ono prekinuto zatvaranjem aplikacije (zapis „u toku“ stariji od 3 min). */
+export function lastScan() {
+  let done = null, run = null;
+  try { done = JSON.parse(localStorage.getItem('gitara-lastscan') || 'null'); } catch {}
+  try { run = JSON.parse(localStorage.getItem('gitara-scanrun') || 'null'); } catch {}
+  if (run && run.text && Date.now() - run.at > 180000 && (!done || run.at > done.at)) return run;
+  return done && done.text ? done : null;
+}
 export function clearDiag() { try { localStorage.removeItem('gitara-diag'); localStorage.removeItem('gitara-boots'); } catch {} }
 
 const iso = (t) => { try { return new Date(t).toISOString().replace('T', ' ').slice(0, 19); } catch { return String(t); } };
@@ -62,7 +70,7 @@ async function geminiLines(share = false) {
   L.push(`  model: ${(await settings.get('geminiModelSel', '')) || 'auto'} · poslednji koji je radio: ${(await settings.get('geminiLastModel', '')) || '—'}`);
   try { const { quotaResetAt } = await import('./gemini.js'); const r = quotaResetAt(); if (r) L.push(`  nov dnevni besplatni limit: ${iso(r)} (UTC)`); } catch {}
   try { const c = JSON.parse(localStorage.getItem('marli-keycheck') || 'null'); if (c) { L.push(`  poslednja provera ključa: ${iso(c.t)} → ${c.kind}${c.model ? ' (' + c.model + ')' : ''}`); for (const a of c.att || []) L.push('    ' + a); } } catch {}
-  try { const sc = JSON.parse(localStorage.getItem('gitara-lastscan') || 'null'); if (sc && sc.text) L.push(`  poslednje skeniranje ${iso(sc.at)}${share ? ' (tekst nije poslat)' : ':'}`, ...(share ? [] : String(sc.text).split('\n').slice(0, 40).map((x) => '    ' + x))); } catch {}
+  try { const sc = lastScan(); if (sc && sc.text) L.push(`  poslednje skeniranje ${iso(sc.at)}${share ? ' (tekst nije poslat)' : ':'}`, ...(share ? [] : String(sc.text).split('\n').slice(0, 40).map((x) => '    ' + x))); } catch {}
   try { const q = JSON.parse(localStorage.getItem('marli-pdf-queue') || '[]'); if (q.length) L.push(`  PDF red: ${q.map((x) => x.st).join(', ')}`); } catch {}
   try {
     const y = (await import('./sync.js')).syncState();

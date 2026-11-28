@@ -60,5 +60,33 @@ export async function run(ctx) {
   r = await scan('gemini-3.5-flash');
   expect(r.ok && r.model === 'gemini-3.5-flash', 'izabran model ne radi', r);
 
+
+  // 5) v2.5.70: „Otkaži“ ostavlja izveštaj (otkazano posle X s); aplikacija zatvorena usred skeniranja → „prekinuto“
+  plan = { 'gemini-3.6-flash': 'silent', 'gemini-3.5-flash': 'silent', 'gemini-2.5-flash': 'silent' };
+  await p.evaluate(async () => {
+    globalThis.__gitaraFirstMs = 60000;
+    const c = document.createElement('canvas'); c.width = 400; c.height = 500; const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, 400, 500); g.fillStyle = '#000'; g.font = '30px serif'; g.fillText('G   D', 40, 100); g.fillText('tekst pesme', 40, 140);
+    const blob = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.9));
+    localStorage.removeItem('gitara-lastscan');
+    (await import('./src/songEditor.js')).scanFiles([new File([blob], 'p.jpg', { type: 'image/jpeg' })]);
+  });
+  await p.waitForSelector('[data-a="scan"]', { timeout: 5000 }); await p.click('[data-a="scan"]');
+  await p.waitForSelector('#scanCancel', { timeout: 5000 }); await p.waitForTimeout(2500);
+  const running = await p.evaluate(() => !!localStorage.getItem('gitara-scanrun'));
+  await p.click('#scanCancel'); await p.waitForTimeout(300);
+  const rep = await p.evaluate(() => ({ last: JSON.parse(localStorage.getItem('gitara-lastscan') || 'null'), run: localStorage.getItem('gitara-scanrun') }));
+  expect(running, 'nema zapisa „u toku“ dok skeniranje traje');
+  expect(rep.last && /otkazano/.test(rep.last.text) && /Otkazano posle \d+ s/.test(rep.last.text), 'otkazano skeniranje bez izveštaja', rep);
+  expect(!rep.run, 'zapis „u toku“ ostao posle otkazivanja');
+  const cut = await p.evaluate(async () => {
+    localStorage.removeItem('gitara-lastscan');
+    localStorage.setItem('gitara-scanrun', JSON.stringify({ at: Date.now() - 200000, text: 'Vreme: x · kod: prekinuto' }));
+    const D = await import('./src/diag.js'); const a = D.lastScan();
+    localStorage.setItem('gitara-scanrun', JSON.stringify({ at: Date.now() - 5000, text: 'u toku' })); const b = D.lastScan();
+    localStorage.removeItem('gitara-scanrun');
+    return { a: a && a.text, b: b && b.text };
+  });
+  expect(/prekinuto/.test(cut.a || ''), 'prekinuto skeniranje se ne vidi u dijagnostici', cut);
+  expect(!/u toku/.test(cut.b || ''), 'skeniranje koje još traje prikazano kao prekinuto', cut);
   await p.close();
 }

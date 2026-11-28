@@ -210,10 +210,20 @@ async function runScan(files, prepared = null, opts = {}) {
   let cancelled = false;
   const t0 = performance.now();
   const secsTimer = setInterval(() => { const el = overlay.querySelector('#scanSecs'); if (el) el.textContent = `${Math.round((performance.now() - t0) / 1000)} s`; }, 1000);
-  const close = () => { clearInterval(secsTimer); overlay.remove(); };
-  overlay.querySelector('#scanCancel').addEventListener('click', () => { cancelled = true; ctrl.abort(); close(); });
-  const setText = (txt) => { const el = overlay.querySelector('#scanText'); if (el) el.textContent = txt; };
   const diag = { at: new Date().toISOString(), images: [], attempts: [], selection: '', totalMs: 0 };
+  // v2.5.70: i otkazano / prekinuto skeniranje ostavlja izveštaj. Dok traje, „u toku“ zapis (osvežava se pri svakom
+  // koraku); ako se aplikacija zatvori usred skeniranja, Dijagnostika ga pokazuje kao „prekinuto“.
+  const live = () => { try { diag.totalMs = performance.now() - t0; localStorage.setItem(RUN_KEY, JSON.stringify({ at: Date.now(), text: formatScanDiag(diag, { code: 'prekinuto', message: t('scan.cutLog') }) })); } catch {} };
+  const close = () => { clearInterval(secsTimer); overlay.remove(); try { localStorage.removeItem(RUN_KEY); } catch {} };
+  overlay.querySelector('#scanCancel').addEventListener('click', () => {
+    cancelled = true; ctrl.abort();
+    diag.totalMs = performance.now() - t0;
+    for (const a of diag.attempts) if (a.status === '…') a.status = 'otkazano';
+    saveScanReport(formatScanDiag(diag, { code: 'otkazano', message: t('scan.cancelLog', { s: Math.round(diag.totalMs / 1000) }) }));
+    close();
+  });
+  const setText = (txt) => { const el = overlay.querySelector('#scanText'); if (el) el.textContent = txt; live(); };
+  live();
   let imgs = prepared;
   try {
     // 1) Smanji svaku sliku u pregledaču (najviše 1600 px, JPEG 0.8, ispod ~500 KB) — jednu po jednu, zbog memorije telefona.
@@ -316,6 +326,7 @@ function noteSlowScan(d) {
     const L = JSON.parse(localStorage.getItem('gitara-diag') || '[]'); L.push({ t: Date.now(), k: 'scan', m: m.slice(0, 300) }); localStorage.setItem('gitara-diag', JSON.stringify(L.slice(-80)));
   } catch {}
 }
+const RUN_KEY = 'gitara-scanrun';
 function saveScanReport(text) { try { localStorage.setItem('gitara-lastscan', JSON.stringify({ at: Date.now(), text })); } catch {} }
 
 const kb = (b) => (b >= 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)} MB` : `${Math.round(b / 1024)} KB`);

@@ -394,7 +394,7 @@ export async function renderSettings(root) {
   });
   // Poslednje skeniranje (i uspešno): model, trajanje i ishod svakog zahteva — za slanje kad skeniranje traje predugo
   $('diagScan').addEventListener('click', async () => {
-    let r = null; try { r = JSON.parse(localStorage.getItem('gitara-lastscan') || 'null'); } catch {}
+    let r = null; try { r = (await import('./diag.js')).lastScan(); } catch {}
     const txt = r && r.text ? r.text : t('diag.noScan');
     $('diagOut').textContent = txt;
     $('diagOut').hidden = false;

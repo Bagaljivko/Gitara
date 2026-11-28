@@ -970,6 +970,8 @@ const sr = {
   'common.undo': 'Poništi',
   'room.title': 'Soba',
   'scan.stepWriting': 'Gemini piše…',
+  'scan.cancelLog': 'Otkazano posle {s} s (dugme „Otkaži“).',
+  'scan.cutLog': 'Prekinuto — aplikacija je zatvorena ili isključena tokom skeniranja.',
   'mig.kidT': 'Zamoli roditelja da odobri prijavu',
   'mig.kidP': 'Tvoj Google nalog je pod roditeljskim nadzorom, pa roditelj treba da odobri MARLI. Obaveštenje mu stiže u aplikaciji Family Link. Kad odobri, sve se nastavlja samo.',
   'mig.kidRowT': 'Ništa se ne gubi',
