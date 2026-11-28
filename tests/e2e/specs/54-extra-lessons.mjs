@@ -26,8 +26,10 @@ export async function run(ctx) {
   await t.click('.modal-backdrop:last-child .btn.primary'); await t.waitForTimeout(1200);
   const st1 = await t.evaluate(async (sid) => (await import('./src/teach.js')).getStudent(sid), sid);
   expect(st1.slot && st1.slot.dow === 0 && st1.slot.hm === '20:00' && (st1.extra || []).length === 1, 'stalni termin ostaje + dodatni čas', st1);
-  // u rasporedu: dan dodatnog časa ima Anu sa oznakom „dodatni čas“
-  await t.go('#/raspored', 1500);
+  // u rasporedu: dan dodatnog časa ima Anu sa oznakom „dodatni čas“ (subota/nedelja: +2 dana je sledeća nedelja)
+  const mon = (d) => { const m = new Date(d.getFullYear(), d.getMonth(), d.getDate()); m.setDate(m.getDate() - ((m.getDay() + 6) % 7)); return m.getTime(); };
+  const wk = Math.round((mon(x) - mon(new Date())) / (7 * 864e5));
+  await t.go('#/raspored' + (wk ? '?w=' + wk : ''), 1500);
   await t.evaluate((day) => { const b = [...document.querySelectorAll('.sch-days7 button')].find((x) => Number(x.dataset.day) === day); b && b.click(); }, new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime());
   await t.waitForTimeout(500);
   const cards = await t.evaluate(() => [...document.querySelectorAll('.sch-c')].map((c) => c.innerText.replace(/\s+/g, ' ')));
@@ -40,7 +42,7 @@ export async function run(ctx) {
   const st2 = await t.evaluate(async (sid) => (await import('./src/teach.js')).getStudent(sid), sid);
   expect(st2.slot.dow === 0 && (st2.slots2 || []).length === 1 && st2.slots2[0].dow === 3 && st2.slots2[0].hm === '18:00', 'drugi stalni termin, prvi ostaje', st2);
   // 3) otkaži dodatni čas — stalni i drugi ostaju
-  await t.go('#/raspored', 1200);
+  await t.go('#/raspored' + (wk ? '?w=' + wk : ''), 1200);
   await t.evaluate((day) => { const b = [...document.querySelectorAll('.sch-days7 button')].find((x) => Number(x.dataset.day) === day); b && b.click(); }, new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime());
   await t.waitForTimeout(500);
   await t.evaluate(() => { const c = [...document.querySelectorAll('.sch-c')].find((b) => /dodatni čas/.test(b.innerText)); c && c.click(); });
